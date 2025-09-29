@@ -1,0 +1,154 @@
+@import "tailwindcss";
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  /* For Internet Explorer 10+ */
+  scrollbar-width: none;
+  /* For Firefox */
+}
+
+/* Scrollbar for Chrome, Safari, and other WebKit-based browsers */
+.custom-scrollbar {
+  height: 200px;
+  overflow-y: scroll;
+}
+
+/* Chrome and Safari */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: gray;
+  border-radius: 100px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background-color: #f1f1f1;
+  border-radius: 100px;
+}
+
+/* Sidebar icon centering improvements */
+.MuiListItemIcon-root {
+  flex-shrink: 0;
+}
+
+/* Ensure icons maintain perfect centering at all zoom levels */
+@media screen and (min-resolution: 0.5dppx) {
+  .MuiListItemIcon-root {
+    transform-origin: center;
+  }
+}
+
+/* Additional support for high DPI displays */
+@media (-webkit-min-device-pixel-ratio: 1.5), (min-resolution: 144dpi) {
+  .MuiListItemIcon-root {
+    image-rendering: -webkit-optimize-contrast;
+    image-rendering: crisp-edges;
+  }
+}
+
+/* Chrome, Safari, Edge */
+input[type="search"]::-webkit-search-decoration,
+input[type="search"]::-webkit-search-cancel-button,
+input[type="search"]::-webkit-search-results-button,
+input[type="search"]::-webkit-search-results-decoration {
+  display: none;
+}
+
+/* Firefox */
+input[type="search"]::-moz-search-clear {
+  display: none;
+}
+
+/* ============Extend Tailwind CSS========== */
+
+@theme {
+  /* ──────────────── Primary & Error ──────────────── */
+  --color-primary: #1f69ff; /* main theme blue */
+  --color-error: #f53939; /* error red */
+
+  /* ──────────────── Grey shades (MUI theme) ──────────────── */
+  --color-grey10: #ffffff; /* sidebar text / icons / table header / main bg?? */
+  --color-grey20: #8f95b2; /* sidebar text / icons / table header / main bg?? */
+  --color-grey30: #d0d5dd; /* Search border color */
+  --color-grey40: #00000099; /* Graph side label + input label */
+  --color-grey50: #f8f8f8; /* Search bar background */
+  --color-grey60: #fafafa; /* Main background color */
+  --color-grey70: #64748b; /* Card <p> text color */
+  --color-grey100: #f3f3f3; /* Login card background */
+  --color-grey200: #f4f7ff; /* Input background */
+  --color-grey300: #00000066; /* Switch bg (off) */
+  --color-grey400: #667085; /* Icon color */
+
+  /* ──────────────── Blue shades (MUI theme) ──────────────── */
+  --color-blue10: #f1f5f9; /* Card header background */
+  --color-blue50: #248ecf; /* Theme blue (light) */
+  --color-blue100: #000099; /* Theme blue (dark) */
+  --color-blue200: #0391c4; /* Button color */
+  --color-blue300: #248ecf; /* Logo background */
+  --color-blue400: #00009933; /* Sidebar inner list bg */
+
+  /* ──────────────── Black shades ──────────────── */
+  --color-black50: #1e293b; /* Sub text color */
+  --color-black900: #000000; /* Heading color */
+
+  /* ──────────────── Red shades ──────────────── */
+  --color-red50: #ffe2e2; /* Light error background */
+  --color-red100: #d34053; /* Light error background */
+
+  /* ──────────────── Purple shades ──────────────── */
+  --color-purple50: #e8e5ff;
+
+  /* ──────────────── Green shades ──────────────── */
+  --color-green50: #dff5fa;
+  --color-green100: #01c7b8; /* Switch bg (on) */
+  --color-green200: #39be7b33; /* Success bg (light) */
+  --color-green300: #379465; /* Success text */
+  --color-green301: #37946533; /* Success bg */
+
+  /* ──────────────── Orange shades ──────────────── */
+  --color-orange50: #ec8559; /* Status pill text */
+  --color-orange51: #ec855914; /* Status pill bg */
+  --color-orange60: #ff6d6d; /* Delete icon */
+
+  /* ──────────────── Pink shades ──────────────── */
+  --color-pink50: #ff4bb7; /* Status pill text */
+  --color-pink51: #ff4bb714; /* Status pill bg */
+
+  /* ──────────────── Yellow shades ──────────────── */
+  --color-yellow50: #fde24f; /* View detail icon */
+  --color-yellow51: #ff4bb714; /* Status pill bg */
+
+  /* ──────────────── shadow ──────────────── */
+  --shadow-particle: 0px 4px 20px 0px #00000040;
+  --shadow-cardShadow: 0px 12px 16px -4px #0000000a;
+  --backdrop-blur-card: blur(27.2px);
+
+  /* ──────────────── Fonts ──────────────── */
+
+  --font-Inter: "Inter", "sans-serif";
+  --font-SF: "SF Pro", sans-serif;
+  --font-Switzer: "Switzer", sans-serif;
+
+  /* ──────────────── Bg image ──────────────── */
+  --background-image-texture: url("/images/texture.webp");
+  --background-image-homeGradient: linear-gradient(
+    90deg,
+    #000099 0%,
+    #4fc3f7 75.52%
+  );
+
+  --background-image-textureGradient: var(--background-image-texture),
+    var(--background-image-homeGradient);
+}
