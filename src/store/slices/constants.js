@@ -5,7 +5,7 @@ export const INITIAL_STATE_API = {
   preferences: [],
   categories: [],
   subCategories: [],
-  servicesLinkedPreferences: [],
+  customers: [],
 };
 
 export const INITIAL_UI_STATE = {
@@ -24,6 +24,7 @@ export const UI_ACTION_TYPES = {
   SET_MOBILE_MENU: "ui/setMobileMenu",
   TOGGLE_SIDEBAR: "ui/toggleSidebar",
   SET_SIDEBAR: "ui/setSidebar",
+  RESET_UI_STATE: "ui/resetUiState",
 };
 
 export const SEARCH_ACTION_TYPES = {
@@ -31,4 +32,9 @@ export const SEARCH_ACTION_TYPES = {
   CLEAR_SEARCH: "search/clearSearch",
   ADD_TO_HISTORY: "search/addToHistory",
   CLEAR_HISTORY: "search/clearHistory",
+  RESET_SEARCH_STATE: "search/resetSearchState",
+};
+
+export const API_ACTION_TYPES = {
+  RESET_API_STATE: "apiData/resetApiState",
 };

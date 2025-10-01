@@ -1,4 +1,11 @@
-import { MdOutlineDashboard, MdOutlineStore } from "react-icons/md";
+import {
+  MdOutlineDashboard,
+  MdOutlineStore,
+  MdDelete,
+  MdOutlineLocationOn,
+  MdOutlinePhone,
+  MdMailOutline,
+} from "react-icons/md";
 import { BsCardList, BsHandbagFill } from "react-icons/bs";
 import {
   TbLayoutBoard,
@@ -25,8 +32,11 @@ import {
   TbEdit,
   TbEye,
   TbFilter,
+  TbArrowsSort,
+  TbReportSearch,
 } from "react-icons/tb";
-import { CiViewList } from "react-icons/ci";
+import { IoEye } from "react-icons/io5";
+import { CiViewList, CiEdit } from "react-icons/ci";
 import { FaRegRectangleList } from "react-icons/fa6";
 import { LuUsersRound } from "react-icons/lu";
 import { PiHeadsetBold } from "react-icons/pi";
@@ -36,12 +46,15 @@ import { AiOutlineUser } from "react-icons/ai";
 import IconFingerHold from "./IconFingerHold";
 import IconMessenger from "./IconMessenger";
 import IconBox from "./IconBox";
+import IconShop from "./IconShop";
+import IconDriver from "./IconDriver";
 import {
   RiUserSettingsLine,
   RiFilter3Line,
   RiDeleteBin6Line,
 } from "react-icons/ri";
 import { FaUsers } from "react-icons/fa";
+import { IoIosArrowRoundUp, IoIosArrowRoundDown } from "react-icons/io";
 
 export {
   MdOutlineDashboard,
@@ -86,58 +99,71 @@ export {
   TbEdit,
   TbEye,
   TbFilter,
+  IoEye,
+  MdDelete,
+  CiEdit,
+  MdOutlineLocationOn,
+  MdOutlinePhone,
+  MdMailOutline,
+  TbArrowsSort,
+  IoIosArrowRoundUp,
+  IoIosArrowRoundDown,
+  IconShop,
+  IconDriver,
+  TbReportSearch,
 };
 
+{
+  /* Header Section */
+}
+// <Box className="!px-8 !py-5">
+//   <Box className="flex items-center justify-between gap-4 flex-wrap">
+//     {/* Search */}
+//     <Box className="flex-1 max-w-md min-w-0">
+//       <Search
+//         bgColor="grey.60"
+//         border="none"
+//         placeholder={searchPlaceholder}
+//         boxShadow="none"
+//         value={searchTerm}
+//         onChange={handleSearchChange}
+//         startAdornment={<TbSearch size="20px" color="#9CA3AF" />}
+//       />
+//     </Box>
 
-    {/* Header Section */}
-      // <Box className="!px-8 !py-5">
-      //   <Box className="flex items-center justify-between gap-4 flex-wrap">
-      //     {/* Search */}
-      //     <Box className="flex-1 max-w-md min-w-0">
-      //       <Search
-      //         bgColor="grey.60"
-      //         border="none"
-      //         placeholder={searchPlaceholder}
-      //         boxShadow="none"
-      //         value={searchTerm}
-      //         onChange={handleSearchChange}
-      //         startAdornment={<TbSearch size="20px" color="#9CA3AF" />}
-      //       />
-      //     </Box>
+//     {/* Action Buttons */}
+//     <Box className="flex items-center gap-3 flex-wrap">
+//       {showFilters && (
+//         <FiltersButton
+//           bgColor="grey.60"
+//           border="none"
+//           boxShadow="none"
+//           text="Filters"
+//           Icon={<TbFilter size="20px" color="#6B7280" />}
+//         />
+//       )}
 
-      //     {/* Action Buttons */}
-      //     <Box className="flex items-center gap-3 flex-wrap">
-      //       {showFilters && (
-      //         <FiltersButton
-      //           bgColor="grey.60"
-      //           border="none"
-      //           boxShadow="none"
-      //           text="Filters"
-      //           Icon={<TbFilter size="20px" color="#6B7280" />}
-      //         />
-      //       )}
+//       {showDateRange && (
+//         <DateRangeSelector
+//           bgColor="grey.60"
+//           border="none"
+//           boxShadow="none"
+//           value={dateRange}
+//           onChange={handleDateChange}
+//           placeholder="April 11 - April 24"
+//           className="w-fit"
+//         />
+//       )}
 
-      //       {showDateRange && (
-      //         <DateRangeSelector
-      //           bgColor="grey.60"
-      //           border="none"
-      //           boxShadow="none"
-      //           value={dateRange}
-      //           onChange={handleDateChange}
-      //           placeholder="April 11 - April 24"
-      //           className="w-fit"
-      //         />
-      //       )}
-
-      //       {showDownload && (
-      //         <FiltersButton
-      //           text="Download"
-      //           bgColor="grey.60"
-      //           border="none"
-      //           boxShadow="none"
-      //           Icon={<TbFileDownload size="20px" color="#6B7280" />}
-      //         />
-      //       )}
-      //     </Box>
-      //   </Box>
-      // </Box>
+//       {showDownload && (
+//         <FiltersButton
+//           text="Download"
+//           bgColor="grey.60"
+//           border="none"
+//           boxShadow="none"
+//           Icon={<TbFileDownload size="20px" color="#6B7280" />}
+//         />
+//       )}
+//     </Box>
+//   </Box>
+// </Box>

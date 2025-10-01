@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import { useState, useRef, memo } from "react";
 import {
   Box,
   Button,
@@ -7,7 +7,6 @@ import {
   Typography,
   Popover,
   TextField,
-  Grid,
   IconButton,
 } from "@mui/material";
 import { DateCalendar } from "@mui/x-date-pickers/DateCalendar";
@@ -22,22 +21,12 @@ import {
   TbChevronLeft,
   TbChevronRight,
 } from "../../shared/icons/index";
+import { calculateDateRange, DATE_RANGE_OPTIONS } from "./constants";
 
-// Extend dayjs with required plugins
 dayjs.extend(isSameOrAfter);
 dayjs.extend(isSameOrBefore);
 
-const DATE_RANGE_OPTIONS = [
-  { label: "Today", value: "today" },
-  { label: "Current Week", value: "currentWeek" },
-  { label: "Current Month", value: "currentMonth" },
-  { label: "Current Year", value: "currentYear" },
-  { label: "Last 7 Days", value: "last7Days" },
-  { label: "Last 30 Days", value: "last30Days" },
-  { label: "Custom", value: "custom" },
-];
-
-export default function DateRangeSelector({
+const DateRangeSelector = ({
   value,
   onChange,
   placeholder = "Select Date Range",
@@ -46,7 +35,7 @@ export default function DateRangeSelector({
   bgColor = "white",
   border = "1px solid #D0D5DD",
   boxShadow = "0px 1px 2px rgba(16, 24, 40, 0.08)",
-}) {
+}) => {
   const [anchorEl, setAnchorEl] = useState(null);
   const [dateRangeAnchorEl, setDateRangeAnchorEl] = useState(null);
   const [customStartDate, setCustomStartDate] = useState(null);
@@ -57,57 +46,6 @@ export default function DateRangeSelector({
 
   const open = Boolean(anchorEl);
   const dateRangeOpen = Boolean(dateRangeAnchorEl);
-
-  const calculateDateRange = (option) => {
-    const today = dayjs();
-
-    switch (option) {
-      case "today":
-        return {
-          startDate: today.startOf("day"),
-          endDate: today.endOf("day"),
-          label: today.format("MMM DD"),
-        };
-      case "currentWeek":
-        return {
-          startDate: today.startOf("week"),
-          endDate: today.endOf("week"),
-          label: `${today.startOf("week").format("MMM DD")} - ${today
-            .endOf("week")
-            .format("MMM DD")}`,
-        };
-      case "currentMonth":
-        return {
-          startDate: today.startOf("month"),
-          endDate: today.endOf("month"),
-          label: today.format("MMMM YYYY"),
-        };
-      case "currentYear":
-        return {
-          startDate: today.startOf("year"),
-          endDate: today.endOf("year"),
-          label: today.format("YYYY"),
-        };
-      case "last7Days":
-        return {
-          startDate: today.subtract(6, "day").startOf("day"),
-          endDate: today.endOf("day"),
-          label: `${today.subtract(6, "day").format("MMM DD")} - ${today.format(
-            "MMM DD"
-          )}`,
-        };
-      case "last30Days":
-        return {
-          startDate: today.subtract(29, "day").startOf("day"),
-          endDate: today.endOf("day"),
-          label: `${today
-            .subtract(29, "day")
-            .format("MMM DD")} - ${today.format("MMM DD")}`,
-        };
-      default:
-        return null;
-    }
-  };
 
   const handleClick = (event) => {
     if (!disabled) {
@@ -248,7 +186,7 @@ export default function DateRangeSelector({
         >
           <Box className="flex items-center gap-2">
             <Typography color="grey.400">
-              <TbCalendar size="24px" />
+              <TbCalendar size="22px" />
             </Typography>
             <Typography
               variant="body2"
@@ -256,7 +194,7 @@ export default function DateRangeSelector({
                 fontFamily: "Inter, sans-serif",
                 fontSize: "14px",
                 fontWeight: 500,
-                color: value?.label ? "#374151" : "#9CA3AF",
+                color: "#374151",
               }}
             >
               {displayText}
@@ -485,4 +423,6 @@ export default function DateRangeSelector({
       </Box>
     </LocalizationProvider>
   );
-}
+};
+
+export default memo(DateRangeSelector);

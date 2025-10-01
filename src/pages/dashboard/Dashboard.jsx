@@ -18,8 +18,8 @@ export default function Dashboard() {
   return (
     <Layout
       content={
-        <Box className="w-full px-[60px] relative before:absolute before:bg-textureGradient before:w-full before:h-52 before:bg-contain !pb-20">
-          <div className="!px-[60px] !pt-[22px] relative z-10">
+        <Box className="w-full relative before:absolute before:bg-textureGradient before:w-full before:h-52 before:bg-contain !pb-20">
+          <div className="!px-8 2xl:!px-[60px] !pt-[22px] relative z-10">
             <Box className="flex items-center justify-between">
               <div>
                 <h4 className="font-Inter font-semibold text-[32px] text-white">

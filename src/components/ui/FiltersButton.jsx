@@ -21,6 +21,7 @@ export default function FiltersButton({
         fontFamily: "Inter",
         textTransform: "none",
         fontWeight: 500,
+        flexShrink: "0",
         padding: "10px 14px",
         "&:hover": {
           bgcolor: "grey.50",

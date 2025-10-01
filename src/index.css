@@ -135,6 +135,7 @@ input[type="search"]::-moz-search-clear {
   --shadow-cardShadow: 0px 12px 16px -4px #0000000a;
   --backdrop-blur-card: blur(27.2px);
 
+  --shadow-chip: 0px 0px 4px 0px #0000001f;
   /* ──────────────── Fonts ──────────────── */
 
   --font-Inter: "Inter", "sans-serif";

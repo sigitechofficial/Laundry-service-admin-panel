@@ -16,6 +16,7 @@ export const themeOptions = {
       50: "#F8F8F8", //Search bar bgcolor
       60: "#FAFAFA", //Main bg color
       70: "#64748B", //Main cards p tag color
+      80: "#000000B2", // modal text p color
       100: "#F3F3F3", //login screen card color
       200: "#F4F7FF", // inputs bg color
       300: "#00000066", // switch bg color off

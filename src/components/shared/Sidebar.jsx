@@ -1,5 +1,5 @@
-import { useRef, useState } from "react";
-import { useSelector, useDispatch } from "react-redux";
+import { memo, useRef, useState } from "react";
+import { useSelector, useDispatch, shallowEqual } from "react-redux";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
   Box,
@@ -23,12 +23,14 @@ import {
 } from "../../shared/icons/index";
 import { breakPoints, sidebarHide } from "../../shared/constants";
 import { toggleSidebar } from "../../store/slices/uiSlice";
+import useToaster from "../ui/Toaster";
 
 function Sidebar() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const location = useLocation();
-  const open = useSelector((state) => state.ui.sidebarOpen);
+  const { success } = useToaster();
+  const open = useSelector((state) => state.ui.sidebarOpen, shallowEqual);
   const [submenuOpen, setSubmenuOpen] = useState({});
   const [hoverItem, setHoverItem] = useState({
     position: null,
@@ -203,6 +205,7 @@ function Sidebar() {
                   onMouseLeave={(e) => handleHoverOut(e)}
                   selected={location.pathname === item.path}
                   sx={{
+                    transition: "none !important",
                     color: "#8F95B2",
                     borderRadius: "12px",
                     mb: 1,
@@ -279,6 +282,7 @@ function Sidebar() {
                           onClick={() => handleNavigation(sub.path)}
                           selected={location.pathname === sub.path}
                           sx={{
+                            transition: "none !important",
                             pl: 2,
                             pr: 2,
                             borderRadius: "12px",
@@ -381,11 +385,21 @@ function Sidebar() {
               return (
                 <ListItemButton
                   key={item.label}
-                  onClick={() => handleNavigation(item.path)}
+                  onClick={() => {
+                    if (item.label === "Logout") {
+                      document.cookie =
+                        "accessToken=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+                      success("Logged out successfully");
+                      navigate(item.path);
+                    } else {
+                      handleNavigation(item.path);
+                    }
+                  }}
                   onMouseEnter={(e) => handleHoverIn(e, item)}
                   onMouseLeave={(e) => handleHoverOut(e)}
                   selected={location.pathname === item.path}
                   sx={{
+                    transition: "none !important",
                     color: "#8F95B2",
                     borderRadius: "12px",
                     height: "48px",
@@ -537,4 +551,4 @@ function Sidebar() {
   );
 }
 
-export default Sidebar;
+export default memo(Sidebar);

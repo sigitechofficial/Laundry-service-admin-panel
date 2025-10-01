@@ -27,7 +27,7 @@ export default function Main({ content }) {
 
   return (
     <div
-      className={`w-full bg-grey60 transition-[margin-left] duration-300 ease-in-out px-
+      className={`w-full bg-grey60 transition-[margin-left] duration-300 ease-in-out overflow-hidden px-
         ${marginTop} ${minHeight} ${spacing} ${marginLeft}`}
     >
       {content}

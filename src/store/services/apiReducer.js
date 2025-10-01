@@ -210,6 +210,13 @@ const apiDataSlice = createSlice({
         );
       }
     );
+
+    builder.addMatcher(
+      api.endpoints.getAllCustomers.matchFulfilled,
+      (state, { payload }) => {
+        state.customers = payload.data.customers;
+      }
+    );
   },
 });
 

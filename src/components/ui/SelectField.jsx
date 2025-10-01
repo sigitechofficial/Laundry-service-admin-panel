@@ -30,13 +30,15 @@ export default function SelectField({
   width,
   height = "52px",
   radius = "8px",
+  border = "none",
+  labelColor = "#374151",
 }) {
   return (
     <FormControl fullWidth={fullWidth} size="small">
       {label && <InputLabel shrink>{label}</InputLabel>}
 
       {title && (
-        <Typography variant="body2" sx={{ mb: "8px", color: "#374151" }}>
+        <Typography variant="body2" sx={{ mb: "8px", color: labelColor }}>
           {title}
         </Typography>
       )}
@@ -51,7 +53,7 @@ export default function SelectField({
           height: height,
           fontFamily: "Switzer",
           borderRadius: radius,
-          border: "none",
+          border: border,
           outline: "none",
           bgcolor: bgcolor,
           "& fieldset": {

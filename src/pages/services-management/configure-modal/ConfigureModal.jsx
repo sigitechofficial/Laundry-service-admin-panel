@@ -84,8 +84,12 @@ export default function ConfigureModal({ open, onClose, selectedServiceId }) {
   };
 
   const handleCategoriesSubmit = async () => {
-    if (!watchedServiceId) {
-      error("Please select a service first");
+    if (!watchedServiceId || watchedCategories?.length === 0) {
+      error(
+        watchedCategories?.length === 0
+          ? "Select atleast one category"
+          : "Please select a service first"
+      );
       return;
     }
 
@@ -99,17 +103,22 @@ export default function ConfigureModal({ open, onClose, selectedServiceId }) {
 
       if (res?.status === "1") {
         success("Categories saved successfully!");
+        // serviceRefetch();
       } else {
-        error(res?.message || "Something went wrong");
+        error(res?.message);
       }
     } catch (err) {
-      error(err?.data?.message || "Failed to save categories");
+      error(err?.message);
     }
   };
 
   const handlePreferencesSubmit = async () => {
-    if (!watchedServiceId) {
-      error("Please select a service first");
+    if (!watchedServiceId || watchedPreferences?.length === 0) {
+      error(
+        watchedPreferences?.length === 0
+          ? "Select atleast one preference"
+          : "Please select a service first"
+      );
       return;
     }
 
@@ -122,6 +131,7 @@ export default function ConfigureModal({ open, onClose, selectedServiceId }) {
       const res = await addServiceWithPreferences(apiBody).unwrap();
       if (res?.status === "1") {
         success("Preferences saved successfully!");
+        // preferenceRefetch();
       } else {
         error(res?.message || "Something went wrong");
       }
@@ -136,9 +146,9 @@ export default function ConfigureModal({ open, onClose, selectedServiceId }) {
         existingServiceData.data;
 
       const linkedCategoryIds =
-        serviceCategoriesData?.map((cat) => cat.categoryId) || [];
+        serviceCategoriesData?.map((cat) => cat?.categoryId) || [];
       const linkedPreferenceIds =
-        preferencesData?.map((pref) => pref.preferenceType.id) || [];
+        preferencesData?.map((pref) => pref?.preferenceTypeId) || [];
 
       // Update form with merged selections
       setValue("selectedCategories", linkedCategoryIds);
@@ -349,7 +359,7 @@ export default function ConfigureModal({ open, onClose, selectedServiceId }) {
             >
               {preferences.map((preference) => {
                 const isLinked =
-                  watchedPreferences?.includes(preference.id) || false;
+                  watchedPreferences?.includes(preference?.id) || false;
                 return (
                   <Box
                     key={preference.id}

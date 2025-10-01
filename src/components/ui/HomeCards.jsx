@@ -14,7 +14,7 @@ export default function HomeCards(props) {
     <div
       {...rest}
       title={description}
-      className={`${bgColor} p-3 2xl:!p-6 rounded-xl border bg-white/60 border-white backdrop-blur-md shadow-lg`}
+      className={`${bgColor} !p-3 2xl:!p-6 rounded-xl border bg-white/60 border-white backdrop-blur-md shadow-lg`}
     >
       <div className="flex flex-col">
         <div

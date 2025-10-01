@@ -10,6 +10,7 @@ import {
   RiUserSettingsLine,
   TbDeviceIpadHorizontalCog,
   TbSettings,
+  TbReportSearch,
 } from "../../shared/icons/index";
 
 export const sidebarList = [
@@ -98,58 +99,64 @@ export const sidebarList = [
   {
     label: "Shop Management",
     Icon: MdOutlineStore,
-    path: "/settings",
+    path: "/shop-management",
     size: "24px",
   },
   {
     label: "Zone Record",
     Icon: LuUsersRound,
-    path: "/settings",
+    path: "/zone-management",
     size: "24px",
   },
   {
     label: "Driver Management",
     Icon: MdOutlineStore,
-    path: "/settings",
+    path: "/driver-management",
     size: "24px",
   },
   {
     label: "Employee Management",
     Icon: RiUserSettingsLine,
-    path: "/settings",
+    path: "/employee-management",
     size: "24px",
   },
   {
     label: "Configuration",
     Icon: TbDeviceIpadHorizontalCog,
-    path: "/settings",
+    path: "/configurations",
     size: "24px",
-    children: [
-      {
-        label: "Schedule policy",
-        path: "/orders/admins",
-        size: "24px",
-        Icon: TbCirclePlus,
-      },
-      {
-        label: "Reschedule policy",
-        path: "/orders/customers",
-        size: "22px",
-        Icon: FaRegRectangleList,
-      },
-      {
-        label: "Cancellation policy",
-        path: "/orders/customers",
-        size: "24px",
-        Icon: TbCirclePlus,
-      },
-      {
-        label: "No show policy",
-        path: "/orders/customers",
-        size: "24px",
-        Icon: TbCircleX,
-      },
-    ],
+    // children: [
+    //   {
+    //     label: "Schedule policy",
+    //     path: "/orders/admins",
+    //     size: "24px",
+    //     Icon: TbCirclePlus,
+    //   },
+    //   {
+    //     label: "Reschedule policy",
+    //     path: "/orders/customers",
+    //     size: "22px",
+    //     Icon: FaRegRectangleList,
+    //   },
+    //   {
+    //     label: "Cancellation policy",
+    //     path: "/orders/customers",
+    //     size: "24px",
+    //     Icon: TbCirclePlus,
+    //   },
+    //   {
+    //     label: "No show policy",
+    //     path: "/orders/customers",
+    //     size: "24px",
+    //     Icon: TbCircleX,
+    //   },
+    // ],
+  },
+  {
+    label: "Reports",
+    Icon: TbReportSearch,
+    path: "/reports",
+    size: "24px",
   },
 ];
 
@@ -163,7 +170,7 @@ export const bottomMenuItem = [
   {
     label: "Logout",
     Icon: TbSettings,
-    path: "/logout",
-    size: "24px",
+    path: "/auth/login",
+    size: "28px",
   },
 ];

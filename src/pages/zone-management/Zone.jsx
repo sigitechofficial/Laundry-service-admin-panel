@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { Box, Typography } from "@mui/material";
+import { Box, Button, IconButton, Typography } from "@mui/material";
 import Layout from "../../components/shared/Layout";
-import { BsCardList, TbFileDownload } from "../../shared/icons/index";
+import { BsCardList, TbPlus } from "../../shared/icons/index";
 import Search from "../../components/ui/Search";
 import FiltersButton from "../../components/ui/FiltersButton";
 import DateRangeSelector from "../../components/ui/DateRangeSelector";
@@ -16,8 +16,9 @@ import {
 } from "../../store/services/api";
 import { useSelector } from "react-redux";
 import { Delay } from "../../components/shared/Loaders";
+import ButtonBlueLight from "../../components/ui/ButtonBlueLight";
 
-export default function CustomerManagement() {
+export default function ZoneManagement() {
   const navigate = useNavigate();
   const [dateRange, setDateRange] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
@@ -34,7 +35,7 @@ export default function CustomerManagement() {
       customerId: cus.id,
       name: cus?.firstName + " " + cus?.lastName,
       email: cus?.email,
-      phoneNumber: cus?.phoneNum,
+      phone: cus?.phoneNum,
       amountSpent: cus?.totalAmountSpent,
       lastOrderDate: cus?.lastBookingDate,
       totalOrders: cus?.bookingCount,
@@ -58,7 +59,7 @@ export default function CustomerManagement() {
       field: "customerId",
       headerName: "Customer Id",
       flex: 0.12,
-      minWidth: 170,
+      minWidth: 100,
     },
     {
       field: "name",
@@ -76,66 +77,66 @@ export default function CustomerManagement() {
       field: "phoneNumber",
       headerName: "Phone Number",
       flex: 0.15,
-      minWidth: 180,
+      minWidth: 150,
     },
     {
       field: "totalOrders",
       headerName: "Total Orders",
       flex: 0.1,
-      minWidth: 170,
+      minWidth: 130,
       type: "number",
     },
     {
       field: "lastOrderDate",
       headerName: "Last Order Date",
       flex: 0.12,
-      minWidth: 190,
+      minWidth: 170,
     },
     {
       field: "amountSpent",
       headerName: "Total Amount Spent",
       flex: 0.12,
-      minWidth: 220,
+      minWidth: 120,
     },
     {
       field: "status",
       headerName: "Status",
       flex: 0.08,
       minWidth: 100,
-      // type: "chip",
-      renderCell: (row) => (
-        <StatusPill status={row.status ? "active" : "block"} />
+      type: "chip",
+      renderCell: (params) => (
+        <StatusPill status={params.value ? "active" : "block"} />
       ),
-      sortable: false,
     },
     {
       field: "changeStatus",
       headerName: "Change Status",
       flex: 0.1,
-      minWidth: 160,
+      minWidth: 130,
       type: "switch",
-      renderCell: (row) => (
+      renderCell: (params) => (
         <ChangeStatus
           width={"45px"}
-          checked={row.changeStatus}
+          checked={params.value}
           // onChange={(e) => setChecked(e.target.checked)}
         />
       ),
-      sortable: false,
     },
     {
       field: "actions",
       headerName: "Actions",
       flex: 0.15,
       minWidth: 200,
-      renderCell: (row) => (
+      sortable: false,
+      renderCell: (params) => (
         <ActionButtons
-          onView={() => navigate(`/customer-management/details/${row?.id}`)}
+          // onView={() =>
+          //   navigate(`/customer-management/details/${params?.row?.id}`)
+          // }
           onEdit={() => alert("Edit clicked")}
           onDelete={() => alert("Delete clicked")}
         />
       ),
-      sortable: false,
     },
   ];
 
@@ -204,68 +205,47 @@ export default function CustomerManagement() {
                 </Typography>
 
                 <Typography variant="h4" fontFamily={"Switzer"} color="grey.20">
-                  Customer Management
+                  All Zones
                 </Typography>
               </Box>
 
-              <Box className="flex items-center gap-x-5">
-                <Search
-                  placeholder="Search customer"
-                  onChange={handleSearchChange}
-                  value={searchTerm}
-                />
-                <FiltersButton
-                  text="Download"
-                  Icon={
-                    <Typography color="grey.400">
-                      <TbFileDownload size="24px" />
-                    </Typography>
-                  }
-                />
-                <DateRangeSelector
-                  value={dateRange}
-                  onChange={handleDateChange}
-                  placeholder="Select Date Range"
-                  className="w-fit"
-                />
-                <FiltersButton text="Zone" />
-              </Box>
+              <ButtonBlueLight
+                variant="outlined"
+                bgColor="blue.200"
+                color="white"
+                radius="8px"
+                startIcon={<TbPlus size={"24px"} />}
+                // onClick={() => alert("Add Zone clicked")}
+              >
+                Add Zone
+              </ButtonBlueLight>
             </Box>
 
             <div className="grid grid-cols-4 gap-7 font-Inter">
-              <div className="rounded-lg !px-3.5 !py-5 bg-purple50">
-                <h6 className="font-Inter font-semibold text-lg uppercase">
-                  Total customers
-                </h6>
-                <p className="font-Inter font-medium text-[22px] !pt-10">
-                  {data?.data?.TotalCustomer}
-                </p>
-              </div>
-
-              <div className="rounded-lg !px-3.5 !py-5 bg-red50">
-                <h6 className="font-Inter font-semibold text-lg uppercase">
-                  new customers
-                </h6>
-                <p className="font-Inter font-medium text-[22px] !pt-10">
-                  {data?.data?.NewCustomers}
-                </p>
-              </div>
-
               <div className="rounded-lg !px-3.5 !py-5 bg-green50">
                 <h6 className="font-Inter font-semibold text-lg uppercase">
-                  Frequent customers
+                  Total Cities
                 </h6>
                 <p className="font-Inter font-medium text-[22px] !pt-10">
                   {data?.data?.RepeatedCustomers}
                 </p>
               </div>
 
-              <div className="rounded-lg !px-3.5 !py-5 bg-green200">
+              <div className="rounded-lg !px-3.5 !py-5 bg-red50">
                 <h6 className="font-Inter font-semibold text-lg uppercase">
-                  Top performing customers
+                  Total Zone
                 </h6>
                 <p className="font-Inter font-medium text-[22px] !pt-10">
-                  {data?.data?.topPerformingCustomers || 0}
+                  {data?.data?.NewCustomers}
+                </p>
+              </div>
+
+              <div className="rounded-lg !px-3.5 !py-5 bg-purple50">
+                <h6 className="font-Inter font-semibold text-lg uppercase">
+                  Total SHOPS
+                </h6>
+                <p className="font-Inter font-medium text-[22px] !pt-10">
+                  {data?.data?.TotalCustomer}
                 </p>
               </div>
             </div>

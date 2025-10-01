@@ -1,12 +1,9 @@
-import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
-import { BASE_URL } from "../../utilities/URL";
+import { createApi } from "@reduxjs/toolkit/query/react";
+import baseQueryWithReauth from "./baseQueryWithReauth";
 
 export const api = createApi({
   reducerPath: "api",
-  baseQuery: fetchBaseQuery({
-    baseUrl: BASE_URL,
-    credentials: "include",
-  }),
+  baseQuery: baseQueryWithReauth,
 
   endpoints: (builder) => ({
     adminLogin: builder.mutation({
@@ -174,6 +171,29 @@ export const api = createApi({
         method: "GET",
       }),
     }),
+
+    //Customers
+
+    getAllCustomers: builder.query({
+      query: () => ({
+        url: `admin/getAllCustomers`,
+        method: "GET",
+      }),
+    }),
+
+    getAllCustomersCount: builder.query({
+      query: () => ({
+        url: `admin/customerCount`,
+        method: "GET",
+      }),
+    }),
+
+    getCustomerById: builder.query({
+      query: (id) => ({
+        url: `admin/specificCustomerDetails/${id}`,
+        method: "GET",
+      }),
+    }),
   }),
 });
 
@@ -200,4 +220,7 @@ export const {
   useGetServiceWitPreferencesQuery,
   useAddServiceWithPreferencesMutation,
   useAddServiceWithCategoriesMutation,
+  useGetAllCustomersQuery,
+  useGetAllCustomersCountQuery,
+  useGetCustomerByIdQuery,
 } = api;
