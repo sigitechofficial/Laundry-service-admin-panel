@@ -6,6 +6,7 @@ export const INITIAL_STATE_API = {
   categories: [],
   subCategories: [],
   customers: [],
+  dashboard: [],
 };
 
 export const INITIAL_UI_STATE = {

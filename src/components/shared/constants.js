@@ -28,31 +28,31 @@ export const sidebarList = [
     children: [
       {
         label: "All Order",
-        path: "/orders/admins",
+        path: "/orders/all-orders",
         size: "24px",
         Icon: TbCirclePlus,
       },
       {
         label: "Complete",
-        path: "/orders/customers",
+        path: "/orders/complete-orders",
         size: "22px",
         Icon: FaRegRectangleList,
       },
       {
         label: "Pending",
-        path: "/orders/customers",
+        path: "/orders/pending-orders",
         size: "24px",
         Icon: TbCirclePlus,
       },
       {
         label: "Cancelled",
-        path: "/orders/customers",
+        path: "/orders/cancel-orders",
         size: "24px",
         Icon: TbCircleX,
       },
       {
         label: "On hold",
-        path: "/orders/customers",
+        path: "/orders/on-hold-orders",
         size: "24px",
         Icon: IconFingerHold,
       },
@@ -171,6 +171,6 @@ export const bottomMenuItem = [
     label: "Logout",
     Icon: TbSettings,
     path: "/auth/login",
-    size: "28px",
+    size: "26px",
   },
 ];

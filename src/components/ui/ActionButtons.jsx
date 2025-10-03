@@ -36,11 +36,9 @@ export default function ActionButtons({
               },
             }}
             size="small"
+            onClick={onView}
           >
-            <div
-              onClick={onView}
-              className="size-10 text-yellow50 rounded-sm border border-yellow50 flex justify-center items-center"
-            >
+            <div className="size-10 text-yellow50 rounded-sm border border-yellow50 flex justify-center items-center">
               <IoEye size={"28px"} />
             </div>
           </IconButton>
@@ -58,10 +56,7 @@ export default function ActionButtons({
             size="small"
             onClick={onEdit}
           >
-            <div
-              onClick={onView}
-              className="size-10 text-grey20 rounded-sm !border-[0.5px] border-grey30 flex justify-center items-center"
-            >
+            <div className="size-10 text-grey20 rounded-sm !border-[0.5px] border-grey30 flex justify-center items-center">
               <CiEdit size="28px" />
             </div>
           </IconButton>
@@ -80,10 +75,7 @@ export default function ActionButtons({
             size="small"
             onClick={onDelete}
           >
-            <div
-              onClick={onView}
-              className="size-10 text-orange60 rounded-sm border border-orange60 flex justify-center items-center"
-            >
+            <div className="size-10 text-orange60 rounded-sm border border-orange60 flex justify-center items-center">
               <MdDelete size="24px" />
             </div>
           </IconButton>

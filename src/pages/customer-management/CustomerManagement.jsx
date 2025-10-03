@@ -16,6 +16,7 @@ import {
 } from "../../store/services/api";
 import { useSelector } from "react-redux";
 import { Delay } from "../../components/shared/Loaders";
+import DeleteModal from "./customer-modals/DeleteModal";
 
 export default function CustomerManagement() {
   const navigate = useNavigate();
@@ -23,8 +24,14 @@ export default function CustomerManagement() {
   const [searchTerm, setSearchTerm] = useState("");
 
   const { isLoading } = useGetAllCustomersQuery();
+
   const { data } = useGetAllCustomersCountQuery();
+
   const customers = useSelector((state) => state.apiData.customers);
+  const [modalData, setModalData] = useState({
+    open: false,
+    data: "",
+  });
 
   // Sample customer data
   const customersData = customers?.map((cus, index) => {
@@ -131,8 +138,8 @@ export default function CustomerManagement() {
       renderCell: (row) => (
         <ActionButtons
           onView={() => navigate(`/customer-management/details/${row?.id}`)}
-          onEdit={() => alert("Edit clicked")}
-          onDelete={() => alert("Delete clicked")}
+          onEdit={() => navigate(`/customer-management/edit/${row?.id}`)}
+          onDelete={() => setModalData({ open: true, data: row })}
         />
       ),
       sortable: false,
@@ -140,7 +147,6 @@ export default function CustomerManagement() {
   ];
 
   const handleDateChange = (selectedRange) => {
-    console.log("Selected Date Range:", selectedRange);
     setDateRange(selectedRange);
 
     // You can use the date range for filtering customers
@@ -168,28 +174,29 @@ export default function CustomerManagement() {
     // Implement download functionality (CSV, Excel, etc.)
   };
 
-  const handleRowAction = (actionType, rowData) => {
-    console.log("🚀 ~ handleRowAction ~ rowData:", rowData);
-    switch (actionType) {
-      case "view":
-        navigate(`customer-management/details/${rowData.id}`);
-        break;
-      case "edit":
-        // Navigate to edit customer page or open edit modal
-        console.log("Editing customer:", rowData.name);
-        break;
-      case "delete":
-        // Show confirmation dialog and delete customer
-        console.log("Deleting customer:", rowData.name);
-        break;
-      case "toggle-status":
-        // Toggle customer status
-        console.log("Toggling status for customer:", rowData.name);
-        break;
-      default:
-        break;
-    }
-  };
+  // const handleRowAction = (actionType, rowData) => {
+  //   console.log("🚀 ~ handleRowAction ~ rowData:", rowData);
+  //   switch (actionType) {
+  //     case "view":
+  //       navigate(`customer-management/details/${rowData.id}`);
+  //       break;
+  //     case "edit":
+  //       // Navigate to edit customer page or open edit modal
+  //       console.log("Editing customer:", rowData.name);
+  //       break;
+  //     case "delete":
+  //       // Show confirmation dialog and delete customer
+  //       console.log("Deleting customer:", rowData.name);
+  //       break;
+  //     case "toggle-status":
+  //       // Toggle customer status
+  //       console.log("Toggling status for customer:", rowData.name);
+  //       break;
+  //     default:
+  //       break;
+  //   }
+  // };
+
   return (
     <Layout
       content={
@@ -279,10 +286,16 @@ export default function CustomerManagement() {
                 onFilter={handleFilter}
                 onDateRangeChange={handleDateChange}
                 onDownload={handleDownload}
-                onRowAction={handleRowAction}
+                // onRowAction={handleRowAction}
                 height={600}
               />
             </div>
+
+            <DeleteModal
+              open={modalData.open}
+              data={modalData}
+              setModalData={setModalData}
+            />
           </div>
         )
       }

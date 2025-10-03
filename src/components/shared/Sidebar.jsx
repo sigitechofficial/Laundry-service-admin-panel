@@ -10,7 +10,6 @@ import {
   ListItemText,
   Collapse,
   useMediaQuery,
-  Grid,
   IconButton,
 } from "@mui/material";
 import { bottomMenuItem, sidebarList } from "./constants";
@@ -39,10 +38,16 @@ function Sidebar() {
     menuHeight: 0,
     prevent: null,
   });
+
   const isSidebarhide = useMediaQuery(sidebarHide);
   const isDesktop = useMediaQuery(breakPoints.desktop);
 
   const handleToggleSidebar = () => dispatch(toggleSidebar());
+
+  const isParentActive = (item) => {
+    if (!item.children) return false;
+    return item.children.some((child) => location.pathname === child.path);
+  };
 
   const handleNavigation = (path) => {
     if (path) {
@@ -78,7 +83,6 @@ function Sidebar() {
     if (hoverItem.prevent || open) return null;
 
     if (hoverItem?.list?.children) {
-      console.log("hoverItem.list.children part running");
       timeoutRef.current = setTimeout(() => {
         setHoverItem({
           position: null,
@@ -88,7 +92,6 @@ function Sidebar() {
         });
       }, 200);
     } else {
-      console.log("hoverItem else part running");
       setHoverItem({
         position: null,
         list: null,
@@ -154,8 +157,6 @@ function Sidebar() {
         }}
       >
         <Box mt="5px" px={isDesktop ? (open ? "20px" : "10px") : "12px"}>
-          {/* drawer header here */}
-
           {isSidebarhide && (
             <Box
               width="100%"
@@ -191,7 +192,6 @@ function Sidebar() {
             </Box>
           )}
 
-          {/* //list part below */}
           <List>
             {sidebarList.map((item) => (
               <div key={item.label}>
@@ -203,7 +203,9 @@ function Sidebar() {
                   }
                   onMouseEnter={(e) => handleHoverIn(e, item)}
                   onMouseLeave={(e) => handleHoverOut(e)}
-                  selected={location.pathname === item.path}
+                  selected={
+                    location.pathname === item.path || isParentActive(item)
+                  }
                   sx={{
                     transition: "none !important",
                     color: "#8F95B2",
@@ -236,7 +238,7 @@ function Sidebar() {
                 >
                   <ListItemIcon
                     sx={{
-                      minWidth: "unset", // remove default 56px
+                      minWidth: "unset",
                       mr: open ? "8px" : 0,
                       color: "inherit",
                       display: "flex",
@@ -268,14 +270,13 @@ function Sidebar() {
                   )}
                 </ListItemButton>
 
-                {/* Submenu */}
                 {item.children && (
                   <Collapse
                     in={submenuOpen[item.label] && open}
                     timeout="auto"
                     unmountOnExit
                   >
-                    <List component="div" disablePadding>
+                    <List component="div" disablePadding sx={{ mb: 1 }}>
                       {item.children.map((sub) => (
                         <ListItemButton
                           key={sub.label}
@@ -285,6 +286,7 @@ function Sidebar() {
                             transition: "none !important",
                             pl: 2,
                             pr: 2,
+                            mb: 1,
                             borderRadius: "12px",
                             height: "40px",
                             display: "flex",
@@ -292,12 +294,32 @@ function Sidebar() {
                             alignItems: "center",
                             "&.Mui-selected": {
                               bgcolor: "#00009933",
-                              color: "#00008B",
+                              color: "#000099",
+                              "& .MuiListItemIcon-root, & .MuiListItemText-primary":
+                                {
+                                  color: "#000099",
+                                },
+                              "& .badge": {
+                                bgcolor: "#00008B",
+                                color: "white",
+                              },
+                            },
+                            "&.Mui-selected:hover": {
+                              bgcolor: "#00009933",
+                              color: "#000099",
+                              "& .MuiListItemIcon-root, & .MuiListItemText-primary":
+                                {
+                                  color: "#000099",
+                                },
+                              "& .badge": {
+                                bgcolor: "#00008B",
+                                color: "white",
+                              },
                             },
                             "&:hover": {
                               bgcolor: "#00009933",
-                              color: "#fff",
-                              "& .MuiListItemIcon-root, & .MuiListItemText-primary, & .badge":
+                              color: "#000099",
+                              "& .MuiListItemIcon-root, & .MuiListItemText-primary":
                                 {
                                   color: "#000099",
                                 },
@@ -416,7 +438,7 @@ function Sidebar() {
                 >
                   <ListItemIcon
                     sx={{
-                      minWidth: "unset", // remove default 56px
+                      minWidth: "unset",
                       mr: open ? "8px" : 0,
                       color: "inherit",
                       display: "flex",
@@ -438,7 +460,6 @@ function Sidebar() {
         </Box>
       </Drawer>
 
-      {/* Toggle button OUTSIDE drawer */}
       {!isSidebarhide && (
         <Box
           position="fixed"
@@ -469,9 +490,10 @@ function Sidebar() {
         </Box>
       )}
 
-      {/* Hover Menu for Collapsed Sidebar */}
       {!open && hoverItem.position && (
         <Box
+          fontFamily={"Inter"}
+          fontWeight={500}
           position="fixed"
           left={hoverItem.position.right + 8}
           top={
@@ -506,7 +528,7 @@ function Sidebar() {
                   },
                 }}
                 onClick={() => {
-                  console.log(`Clicked: ${child.label}`);
+                  navigate(child.path);
                   handleMenuMouseLeaveList();
                 }}
               >

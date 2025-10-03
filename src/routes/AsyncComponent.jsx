@@ -14,6 +14,10 @@ export const CustomerDetails = lazy(() =>
   import("../pages/customer-management/customer-details/CustomerDetails")
 );
 
+export const EditCustomer = lazy(() =>
+  import("../pages/customer-management/edit-customer/EditCustomer")
+);
+
 export const DriverManagement = lazy(() =>
   import("../pages/driver-management/DriverManagement")
 );
@@ -36,6 +40,10 @@ export const ShopManagement = lazy(() =>
 
 export const Configurations = lazy(() =>
   import("../pages/configurations/Configurations")
+);
+
+export const AllOrders = lazy(() =>
+  import("../pages/order-management/all-orders/AllOrders")
 );
 
 export const Reports = lazy(() => import("../pages/reports/Reports"));

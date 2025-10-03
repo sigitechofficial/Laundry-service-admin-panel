@@ -8,7 +8,7 @@ export default function StatCard({
   return (
     <div
       onClick={onClick}
-      className={`cursor-pointer rounded-lg !px-3.5 !py-3 2xl:!py-5 font-Inter !h-[122px] flex flex-col justify-between ${bgColor}`}
+      className={`cursor-pointer rounded-lg !px-3.5 !py-3 2xl:!py-5 font-Inter h-[122px] 2xl:!h-[140px] flex flex-col justify-between ${bgColor}`}
     >
       <h6
         className={`font-semibold 2xl:text-lg uppercase text-[${titleColor}] `}

@@ -1,6 +1,5 @@
-import { TextField, Typography } from "@mui/material";
-import React from "react";
-
+import { Typography } from "@mui/material";
+import { useState } from "react";
 export default function InputFieldModal({
   placeholder,
   value,
@@ -10,6 +9,9 @@ export default function InputFieldModal({
   name,
   disabled,
 }) {
+  const [showPassword, setShowPassword] = useState(false);
+
+  const isPassword = type === "password";
   return (
     <div className="w-full">
       {title && (
@@ -17,15 +19,32 @@ export default function InputFieldModal({
           {title}
         </Typography>
       )}
-      <input
-        disabled={disabled}
-        placeholder={placeholder}
-        type={type}
-        name={name}
-        value={value}
-        onChange={onChange}
-        className="w-full h-[52px] outline-none bg-[#F4F7FF] rounded-lg !px-4 font-[Switzer] !font-normal !text-base"
-      />
+
+      <div className="relative w-full">
+        <input
+          disabled={disabled}
+          placeholder={placeholder}
+          type={type}
+          name={name}
+          value={value}
+          onChange={onChange}
+          className="w-full h-[52px] outline-none bg-[#F4F7FF] rounded-lg !px-4 font-[Switzer] !font-normal !text-base"
+        />
+
+        {isPassword && (
+          <IconButton
+            type="button"
+            onClick={() => setShowPassword(!showPassword)}
+            className="!absolute right-2 top-1/2 -translate-y-1/2 text-gray-500"
+          >
+            {showPassword ? (
+              <AiOutlineEyeInvisible size={20} />
+            ) : (
+              <AiOutlineEye size={20} />
+            )}
+          </IconButton>
+        )}
+      </div>
     </div>
   );
 }

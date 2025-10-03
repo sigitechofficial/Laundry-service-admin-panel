@@ -15,6 +15,7 @@ export default function DashboardFilter() {
       [e.target.name]: e.target.value,
     }));
   };
+
   return (
     <div className="flex items-center gap-4">
       <SelectField
@@ -31,6 +32,7 @@ export default function DashboardFilter() {
         bgcolor={"white"}
         name="zone"
       />
+
       <SelectField
         onChange={(e) => handleFilterChange(e)}
         options={[
@@ -45,6 +47,7 @@ export default function DashboardFilter() {
         bgcolor={"white"}
         name="zone"
       />
+
       <SelectField
         onChange={(e) => handleFilterChange(e)}
         options={[
@@ -59,6 +62,7 @@ export default function DashboardFilter() {
         bgcolor={"white"}
         name="zone"
       />
+
       <SelectField
         onChange={(e) => handleFilterChange(e)}
         options={[

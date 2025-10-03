@@ -21,6 +21,13 @@ export const api = createApi({
       }),
     }),
 
+    dashboardData: builder.query({
+      query: () => ({
+        url: `admin/adminDashboard`,
+        method: "GET",
+      }),
+    }),
+
     addService: builder.mutation({
       query: (body) => ({
         url: "admin/AddServices",
@@ -188,10 +195,25 @@ export const api = createApi({
       }),
     }),
 
+    deleteCustomer: builder.mutation({
+      query: (id) => ({
+        url: `admin/deleteCustomer/${id}`,
+        method: "DELETE",
+      }),
+    }),
+
     getCustomerById: builder.query({
       query: (id) => ({
         url: `admin/specificCustomerDetails/${id}`,
         method: "GET",
+      }),
+    }),
+
+    editCustomer: builder.mutation({
+      query: ({ id, body }) => ({
+        url: `admin/updateCustomer/${id}`,
+        method: "PATCH",
+        body,
       }),
     }),
   }),
@@ -223,4 +245,7 @@ export const {
   useGetAllCustomersQuery,
   useGetAllCustomersCountQuery,
   useGetCustomerByIdQuery,
+  useDashboardDataQuery,
+  useDeleteCustomerMutation,
+  useEditCustomerMutation,
 } = api;

@@ -42,7 +42,12 @@ import { LuUsersRound } from "react-icons/lu";
 import { PiHeadsetBold } from "react-icons/pi";
 import { FiSearch } from "react-icons/fi";
 import { VscBellDot } from "react-icons/vsc";
-import { AiOutlineUser } from "react-icons/ai";
+import {
+  AiOutlineUser,
+  AiFillFileText,
+  AiOutlineEye,
+  AiOutlineEyeInvisible,
+} from "react-icons/ai";
 import IconFingerHold from "./IconFingerHold";
 import IconMessenger from "./IconMessenger";
 import IconBox from "./IconBox";
@@ -111,6 +116,9 @@ export {
   IconShop,
   IconDriver,
   TbReportSearch,
+  AiFillFileText,
+  AiOutlineEye,
+  AiOutlineEyeInvisible,
 };
 
 {

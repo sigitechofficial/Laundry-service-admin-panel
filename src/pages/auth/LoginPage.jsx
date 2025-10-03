@@ -1,5 +1,4 @@
 import { Box, Checkbox, Typography } from "@mui/material";
-import { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import ButtonBlue from "../../components/ui/ButtonBlue";
 import ButtonWhite from "../../components/ui/ButtonWhite";
@@ -8,9 +7,12 @@ import { useForm } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import { loginSchema } from "./constant";
 import useToaster from "../../components/ui/Toaster";
+import { useState } from "react";
+import { AiOutlineEye, AiOutlineEyeInvisible } from "../../shared/icons/index";
 
 export default function LoginPage() {
   const { success, error } = useToaster();
+  const [seePassword, setSeePassword] = useState(false);
 
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -51,7 +53,6 @@ export default function LoginPage() {
         dvToken: "",
       }).unwrap();
 
-      // ✅ success case
       if (res.status === "1") {
         success("Login successful 🎉");
         navigate("/");
@@ -71,23 +72,29 @@ export default function LoginPage() {
         } min-h-[500px] bg-white rounded-xl flex flex-col items-center !py-9 gap-y-12 transition-all duration-300 relative z-10`}
       >
         <Box pt={"8px"}>
-          <img className="h-24 mx-auto" src="/images/logo1.png" alt="logo" />
+          <img
+            className="h-16 2xl:h-24 mx-auto"
+            src="/images/logo1.png"
+            alt="logo"
+          />
         </Box>
 
         {!role ? (
           <div className="flex w-full justify-center gap-x-16">
             <Box
               onClick={() => handleLogin("admin")}
-              className="bg-grey100 rounded-xl w-full max-w-[320px] flex flex-col items-center gap-y-5 !py-10 cursor-pointer"
+              className="bg-grey100 rounded-xl w-full max-w-[280px] 2xl:max-w-[320px] flex flex-col items-center gap-y-5 !py-10 cursor-pointer"
             >
               <img src="/images/admin.png" alt="" />
+
               <Typography variant="h5">Login as Admin</Typography>
             </Box>
             <Box
               onClick={() => handleLogin("manager")}
-              className="bg-grey100 rounded-xl  w-full max-w-[320px] flex flex-col items-center gap-y-5 !py-10 cursor-pointer"
+              className="bg-grey100 rounded-xl  w-full max-w-[280px] 2xl:max-w-[320px] flex flex-col items-center gap-y-5 !py-10 cursor-pointer"
             >
               <img src="/images/zoneAdmin.png" alt="" />
+
               <Typography variant="h5">Login as Zone manager</Typography>
             </Box>
           </div>
@@ -101,12 +108,14 @@ export default function LoginPage() {
               <label htmlFor="email" className="text-grey40">
                 Email
               </label>
+
               <input
                 {...register("email")}
                 type="email"
                 placeholder="Email"
                 className="outline-none border border-grey30 rounded-lg !px-5 h-[52px] font-medium"
               />
+
               {errors.email && (
                 <p className="text-red-500 text-sm">{errors.email.message}</p>
               )}
@@ -117,12 +126,28 @@ export default function LoginPage() {
               <label htmlFor="password" className="text-grey40">
                 Password
               </label>
-              <input
-                {...register("password")}
-                type="password"
-                placeholder="Password"
-                className="outline-none border border-grey30 rounded-lg !px-5 h-[52px] font-medium"
-              />
+
+              <Box className="relative w-full">
+                <input
+                  {...register("password")}
+                  type={seePassword ? "text" : "password"}
+                  placeholder="Password"
+                  className="w-full outline-none border border-grey30 rounded-lg !px-5 h-[52px] font-medium"
+                />
+
+                <button
+                  type="button"
+                  onClick={() => setSeePassword(!seePassword)}
+                  className="absolute right-5 bottom-4 cursor-pointer"
+                >
+                  {seePassword ? (
+                    <AiOutlineEyeInvisible size={"20px"} />
+                  ) : (
+                    <AiOutlineEye size={"20px"} />
+                  )}
+                </button>
+              </Box>
+
               {errors.password && (
                 <p className="text-red-500 text-sm">
                   {errors.password.message}
@@ -141,6 +166,7 @@ export default function LoginPage() {
                 }}
                 checked={formValues.rememberMe}
               />
+
               <Typography variant="body1">Remember Me</Typography>
             </div>
 
@@ -151,6 +177,7 @@ export default function LoginPage() {
                 width={"150px"}
                 onClick={() => navigate("/auth/login")}
               />
+
               <ButtonBlue
                 type="submit"
                 text="Login"
@@ -161,8 +188,11 @@ export default function LoginPage() {
           </form>
         )}
       </Box>
+
       <div className="absolute top-1/6 w-[500px] h-[800px] rotate-45 bg-blue50/20 shadow-particle -right-[230px] z-0"></div>
+
       <div className="absolute top-0 -left-[500px] w-[800px] h-[500px] rotate-45 bg-blue50/20 shadow-particle z-0"></div>
+
       <div className="absolute -bottom-[400px] left-[250px] w-[500px] h-[500px] rotate-[50deg] bg-blue50/20 shadow-particle z-0"></div>
     </Box>
   );

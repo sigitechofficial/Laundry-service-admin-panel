@@ -11,6 +11,8 @@ import {
   ShopManagement,
   Configurations,
   Reports,
+  EditCustomer,
+  AllOrders,
 } from "../routes/AsyncComponent";
 
 export const privateRoutes = [
@@ -29,6 +31,11 @@ export const privateRoutes = [
     path: "/customer-management/details/:id",
     element: CustomerDetails,
     resourceKey: "customer_details_Page",
+  },
+  {
+    path: "/customer-management/edit/:id",
+    element: EditCustomer,
+    resourceKey: "customer_edit_Page",
   },
   {
     path: "/driver-management",
@@ -65,6 +72,31 @@ export const privateRoutes = [
     element: Reports,
     resourceKey: "reports_Page",
   },
+  {
+    path: "/orders/all-orders",
+    element: AllOrders,
+    resourceKey: "order_all-orders_Page",
+  },
+  {
+    path: "/orders/complete-orders",
+    element: AllOrders,
+    resourceKey: "order_complete-orders_Page",
+  },
+  {
+    path: "/orders/pending-orders",
+    element: AllOrders,
+    resourceKey: "order_pending-orders_Page",
+  },
+  {
+    path: "/orders/cancel-orders",
+    element: AllOrders,
+    resourceKey: "order_cancel-orders_Page",
+  },
+  {
+    path: "/orders/on-hold-orders",
+    element: AllOrders,
+    resourceKey: "order_on-hold-orders_Page",
+  },
 ];
 
 export const publicRoutes = [
@@ -73,17 +105,4 @@ export const publicRoutes = [
     element: LoginPage,
     resourceKey: "login_page",
   },
-  // {
-  //   path: "/login",
-  //   element: LoginPage,
-  //   resourceKey: "Login_Page",
-  // },
-  // {
-  //   path: "/signup",
-  //   element: SignupPage,
-  //   resourceKey: "Signup_Page",
-  // },
-  // {
-  //   path: "/forgot-password",
-  // },
 ];

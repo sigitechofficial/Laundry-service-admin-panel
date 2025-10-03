@@ -1,37 +1,31 @@
 import { useState } from "react";
-import { Box, IconButton, Typography } from "@mui/material";
+import { Box, Typography } from "@mui/material";
 import Layout from "../../../components/shared/Layout";
 import {
   BsCardList,
-  TbFileDownload,
-  TbEye,
-  TbEdit,
-  TbTrash,
   MdOutlineLocationOn,
   MdOutlinePhone,
   MdMailOutline,
 } from "../../../shared/icons/index";
 import Search from "../../../components/ui/Search";
 import FiltersButton from "../../../components/ui/FiltersButton";
-import DateRangeSelector from "../../../components/ui/DateRangeSelector";
 import DataTable from "../../../components/ui/DataTable";
-import StatusPill from "../../../components/ui/StatusPill";
-import ChangeStatus from "../../../components/ui/Switch";
 import ActionButtons from "../../../components/ui/ActionButtons";
 import { useNavigate, useParams } from "react-router-dom";
 import { useGetCustomerByIdQuery } from "../../../store/services/api";
 import { Delay } from "../../../components/shared/Loaders";
 import dayjs from "dayjs";
+import OrderInvoiceModal from "../customer-modals/OrderInvoiceModal";
 
 export default function CustomerDetails() {
   const navigate = useNavigate();
   const { id } = useParams();
   const [dateRange, setDateRange] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [modalData, setModalData] = useState({ open: false, data: "" });
 
   const { data, isLoading } = useGetCustomerByIdQuery(id, { skip: !id });
 
-  // Sample customer data
   const customersData = data?.data?.bookingDetails?.map((booking, index) => {
     return {
       id: booking?.id,
@@ -46,123 +40,95 @@ export default function CustomerDetails() {
       deliveryDateTime: dayjs(booking?.deliveryDate).format(
         "DD/MM/YYYY hh:mm A"
       ),
+      OrderStatus: booking?.bookingStatus?.title,
       OnHold: booking?.OnHoldConfirmations?.length,
       pickupDriver: `
         ${booking?.driver?.firstName || ""} ${booking?.driver?.lastName || ""}`,
       deliveryDriver: `${booking?.driver?.firstName || ""} ${
         booking?.driver?.lastName || ""
       }`,
-      shopName: booking?.laundryShop?.id,
+      shopName: booking?.laundryShop?.name,
       cost: booking?.orderAmount,
-      status: booking?.bookingStatus?.title,
     };
   });
 
-  // Column configuration for customer table
   const customerColumns = [
     {
       field: "sl",
       headerName: "SL",
-      flex: 0.15,
       minWidth: 100,
     },
     {
       field: "orderId",
       headerName: "Order Id",
-      flex: 0.12,
-      minWidth: 100,
+      minWidth: 140,
     },
     {
       field: "orderDateTime",
       headerName: "Order date & time",
-      flex: 0.18,
       minWidth: 150,
     },
     {
       field: "serviceType",
       headerName: "Service type",
-      flex: 0.18,
-      minWidth: 150,
+      minWidth: 170,
     },
     {
       field: "totalItems",
       headerName: "Total items",
-      flex: 0.15,
-      minWidth: 150,
+      minWidth: 170,
     },
     {
       field: "pickupDateTime",
       headerName: "Pickup date/time",
-      flex: 0.1,
       minWidth: 130,
       type: "number",
     },
     {
       field: "deliveryDateTime",
       headerName: "Delivery Date/Time",
-      flex: 0.12,
-      minWidth: 170,
+      minWidth: 240,
     },
     {
       field: "OnHold ",
       headerName: "On-hold ",
-      flex: 0.12,
-      minWidth: 120,
+      minWidth: 140,
     },
     {
       field: "pickupDriver ",
       headerName: "Pickup Driver ",
-      flex: 0.12,
-      minWidth: 120,
+      minWidth: 170,
     },
     {
       field: "deliveryDriver",
       headerName: "Delivery driver",
-      flex: 0.12,
-      minWidth: 120,
+      minWidth: 180,
     },
     {
       field: "shopName",
       headerName: "Shop Name",
-      flex: 0.12,
-      minWidth: 120,
+      minWidth: 160,
     },
     {
       field: "cost",
       headerName: "Total cost",
-      flex: 0.12,
-      minWidth: 120,
+      minWidth: 150,
     },
     {
-      field: "status",
+      field: "OrderStatus",
       headerName: "Status",
-      flex: 0.08,
       minWidth: 100,
     },
-    {
-      field: "changeStatus",
-      headerName: "Change Status",
-      flex: 0.1,
-      minWidth: 130,
-      type: "switch",
-      renderCell: (params) => (
-        <ChangeStatus
-          width={"45px"}
-          checked={params.value}
-          // onChange={(e) => setChecked(e.target.checked)}
-        />
-      ),
-    },
+
     {
       field: "actions",
       headerName: "Actions",
-      flex: 0.15,
       minWidth: 200,
       sortable: false,
-      renderCell: () => (
+      renderCell: (row) => (
         <ActionButtons
-          onView={() => alert("View clicked")}
-          onEdit={() => alert("Edit clicked")}
+          onView={() => setModalData({ open: true, data: row })}
+          showEdit={false}
           onDelete={() => alert("Delete clicked")}
         />
       ),
@@ -190,37 +156,31 @@ export default function CustomerDetails() {
 
   const handleFilter = () => {
     console.log("Filter button clicked");
-    // Open filter modal or apply filters
   };
 
   const handleDownload = (data) => {
     console.log("Download customers data:", data);
-    // Implement download functionality (CSV, Excel, etc.)
   };
 
   const handleRowAction = (actionType, rowData) => {
-    console.log("🚀 ~ handleRowAction ~ rowData:", rowData);
     switch (actionType) {
       case "view":
-        // Navigate to customer details page or open modal
         navigate(`/customer-management/${rowData.id}`);
         break;
       case "edit":
-        // Navigate to edit customer page or open edit modal
         console.log("Editing customer:", rowData.name);
         break;
       case "delete":
-        // Show confirmation dialog and delete customer
         console.log("Deleting customer:", rowData.name);
         break;
       case "toggle-status":
-        // Toggle customer status
         console.log("Toggling status for customer:", rowData.name);
         break;
       default:
         break;
     }
   };
+  
   return (
     <Layout
       content={
@@ -298,6 +258,12 @@ export default function CustomerDetails() {
                 height={600}
               />
             </div>
+
+            <OrderInvoiceModal
+              open={modalData.open}
+              data={modalData}
+              setModalData={setModalData}
+            />
           </div>
         )
       }

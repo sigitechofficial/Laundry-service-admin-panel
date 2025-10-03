@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import { useEffect } from "react";
 import { Box, Typography, Checkbox, Divider, Alert } from "@mui/material";
 import { useForm, Controller } from "react-hook-form";
 import ModalComponent from "../../../components/shared/Modal";

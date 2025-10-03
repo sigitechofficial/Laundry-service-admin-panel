@@ -5,6 +5,34 @@ import { INITIAL_STATE_API } from "../slices/constants";
 const apiDataSlice = createSlice({
   name: "apiData",
   initialState: INITIAL_STATE_API,
+
+  reducers: {
+    setServices: (state, action) => {
+      state.services = action.payload;
+    },
+    setPreferences: (state, action) => {
+      state.preferences = action.payload;
+    },
+    setCategories: (state, action) => {
+      state.categories = action.payload;
+    },
+    setSubCategories: (state, action) => {
+      state.subCategories = action.payload;
+    },
+    clearServices: (state) => {
+      state.services = [];
+    },
+    clearPreferences: (state) => {
+      state.preferences = [];
+    },
+    clearCategories: (state) => {
+      state.categories = [];
+    },
+    clearSubCategories: (state) => {
+      state.subCategories = [];
+    },
+  },
+
   extraReducers: (builder) => {
     builder.addMatcher(
       api.endpoints.getAllServices.matchFulfilled,
@@ -215,6 +243,42 @@ const apiDataSlice = createSlice({
       api.endpoints.getAllCustomers.matchFulfilled,
       (state, { payload }) => {
         state.customers = payload.data.customers;
+      }
+    );
+
+    builder.addMatcher(
+      api.endpoints.dashboardData.matchFulfilled,
+      (state, { payload }) => {
+        state.dashboard = payload.data;
+      }
+    );
+
+    builder.addMatcher(
+      api.endpoints.deleteCustomer.matchFulfilled,
+      (state, { meta }) => {
+        state.customers = state.customers.filter(
+          (customer) => customer.id !== meta.arg.originalArgs
+        );
+      }
+    );
+
+    builder.addMatcher(
+      api.endpoints.editCustomer.matchFulfilled,
+      (state, { meta }) => {
+        const { id, body } = meta.arg.originalArgs;
+
+        const index = state.customers.findIndex((c) => c.id === id);
+
+        if (index !== -1) {
+          state.customers[index] = {
+            ...state.customers[index],
+            firstName: body.firstName,
+            lastName: body.lastName,
+            email: body.email,
+            phoneNum: body.phoneNum,
+            status: body.status,
+          };
+        }
       }
     );
   },
