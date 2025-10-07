@@ -16,6 +16,7 @@ import { useGetCustomerByIdQuery } from "../../../store/services/api";
 import { Delay } from "../../../components/shared/Loaders";
 import dayjs from "dayjs";
 import OrderInvoiceModal from "../customer-modals/OrderInvoiceModal";
+import { dateTimeFormat } from "../../../shared/constants";
 
 export default function CustomerDetails() {
   const navigate = useNavigate();
@@ -31,15 +32,11 @@ export default function CustomerDetails() {
       id: booking?.id,
       sl: index + 1,
       orderId: booking?.id,
-      orderDateTime: dayjs(booking?.createdAt).format("DD/MM/YYYY hh:mm A"),
+      orderDateTime: dayjs(booking?.createdAt).format(dateTimeFormat),
       serviceType: booking?.serviceType,
       totalItems: booking?.totalItems,
-      pickupDateTime: dayjs(booking?.collectionDate).format(
-        "DD/MM/YYYY hh:mm A"
-      ),
-      deliveryDateTime: dayjs(booking?.deliveryDate).format(
-        "DD/MM/YYYY hh:mm A"
-      ),
+      pickupDateTime: dayjs(booking?.collectionDate).format(dateTimeFormat),
+      deliveryDateTime: dayjs(booking?.deliveryDate).format(dateTimeFormat),
       OrderStatus: booking?.bookingStatus?.title,
       OnHold: booking?.OnHoldConfirmations?.length,
       pickupDriver: `
@@ -180,7 +177,7 @@ export default function CustomerDetails() {
         break;
     }
   };
-  
+
   return (
     <Layout
       content={

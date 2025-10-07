@@ -46,6 +46,21 @@ export const AllOrders = lazy(() =>
   import("../pages/order-management/all-orders/AllOrders")
 );
 
+export const CompleteOrders = lazy(() =>
+  import("../pages/order-management/complete-orders/CompleteOrders")
+);
+export const PendingOrders = lazy(() =>
+  import("../pages/order-management/pending-orders/PendingOrders")
+);
+
+export const CancelledOrders = lazy(() =>
+  import("../pages/order-management/cancelled-orders/CancelledOrder")
+);
+
+export const OnHoldOrders = lazy(() =>
+  import("../pages/order-management/on-hold-orders/OnHoldOrders")
+);
+
 export const Reports = lazy(() => import("../pages/reports/Reports"));
 
 export const LoginPage = lazy(() => import("../pages/auth/LoginPage"));

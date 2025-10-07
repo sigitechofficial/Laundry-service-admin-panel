@@ -174,3 +174,22 @@ export const bottomMenuItem = [
     size: "26px",
   },
 ];
+
+export const getInitialSubmenuOpen = () => {
+  try {
+    const stored =
+      typeof window !== "undefined" && localStorage.getItem("submenuOpen");
+    if (stored) return JSON.parse(stored);
+  } catch (e) {}
+
+  const init = {};
+  sidebarList.forEach((item) => {
+    if (
+      item.children &&
+      item.children.some((c) => location.pathname === c.path)
+    ) {
+      init[item.label] = true;
+    }
+  });
+  return init;
+};

@@ -216,6 +216,27 @@ export const api = createApi({
         body,
       }),
     }),
+
+    getOrdersCount: builder.query({
+      query: () => ({
+        url: "admin/ordersCount",
+        method: "GET",
+      }),
+    }),
+
+    getAllOrder: builder.query({
+      query: () => ({
+        url: "admin/allOrderDetails",
+        method: "GET",
+      }),
+    }),
+
+    getAllCompleteOrders: builder.query({
+      query: () => ({
+        url: "admin/completeOrders",
+        method: "GET",
+      }),
+    }),
   }),
 });
 
@@ -248,4 +269,7 @@ export const {
   useDashboardDataQuery,
   useDeleteCustomerMutation,
   useEditCustomerMutation,
+  useGetOrdersCountQuery,
+  useGetAllOrderQuery,
+  useGetAllCompleteOrdersQuery,
 } = api;

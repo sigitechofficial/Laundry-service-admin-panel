@@ -12,3 +12,5 @@ export const breakPoints = {
 };
 
 export const sidebarHide = "(max-width:1020px)";
+
+export const dateTimeFormat = "DD MMM YYYY hh:mm A";

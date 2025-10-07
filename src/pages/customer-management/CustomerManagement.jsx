@@ -17,6 +17,8 @@ import {
 import { useSelector } from "react-redux";
 import { Delay } from "../../components/shared/Loaders";
 import DeleteModal from "./customer-modals/DeleteModal";
+import { dateTimeFormat } from "../../shared/constants";
+import StatCard from "../../components/ui/StatCard";
 
 export default function CustomerManagement() {
   const navigate = useNavigate();
@@ -151,8 +153,11 @@ export default function CustomerManagement() {
 
     // You can use the date range for filtering customers
     if (selectedRange) {
-      console.log("Start Date:", selectedRange.startDate.format("YYYY-MM-DD"));
-      console.log("End Date:", selectedRange.endDate.format("YYYY-MM-DD"));
+      console.log(
+        "Start Date:",
+        selectedRange.startDate.format(dateTimeFormat)
+      );
+      console.log("End Date:", selectedRange.endDate.format(dateTimeFormat));
       console.log("Label:", selectedRange.label);
       console.log("Type:", selectedRange.type);
     }
@@ -240,41 +245,29 @@ export default function CustomerManagement() {
             </Box>
 
             <div className="grid grid-cols-4 gap-7 font-Inter">
-              <div className="rounded-lg !px-3.5 !py-5 bg-purple50">
-                <h6 className="font-Inter font-semibold text-lg uppercase">
-                  Total customers
-                </h6>
-                <p className="font-Inter font-medium text-[22px] !pt-10">
-                  {data?.data?.TotalCustomer}
-                </p>
-              </div>
+              <StatCard
+                title=" Total customers"
+                value={data?.data?.TotalCustomer}
+                bgColor="bg-purple50"
+              />
 
-              <div className="rounded-lg !px-3.5 !py-5 bg-red50">
-                <h6 className="font-Inter font-semibold text-lg uppercase">
-                  new customers
-                </h6>
-                <p className="font-Inter font-medium text-[22px] !pt-10">
-                  {data?.data?.NewCustomers}
-                </p>
-              </div>
+              <StatCard
+                title=" new customers"
+                value={data?.data?.NewCustomers}
+                bgColor="bg-red50"
+              />
 
-              <div className="rounded-lg !px-3.5 !py-5 bg-green50">
-                <h6 className="font-Inter font-semibold text-lg uppercase">
-                  Frequent customers
-                </h6>
-                <p className="font-Inter font-medium text-[22px] !pt-10">
-                  {data?.data?.RepeatedCustomers}
-                </p>
-              </div>
+              <StatCard
+                title="Frequent customers"
+                value={data?.data?.RepeatedCustomers}
+                bgColor="bg-green50"
+              />
 
-              <div className="rounded-lg !px-3.5 !py-5 bg-green200">
-                <h6 className="font-Inter font-semibold text-lg uppercase">
-                  Top performing customers
-                </h6>
-                <p className="font-Inter font-medium text-[22px] !pt-10">
-                  {data?.data?.topPerformingCustomers || 0}
-                </p>
-              </div>
+              <StatCard
+                title="Top performing customers"
+                value={data?.data?.topPerformingCustomers || 0}
+                bgColor="bg-green200"
+              />
             </div>
 
             <div className="w-full overflow-auto">

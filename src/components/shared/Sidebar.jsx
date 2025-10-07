@@ -1,4 +1,4 @@
-import { memo, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import { useSelector, useDispatch, shallowEqual } from "react-redux";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
@@ -12,7 +12,11 @@ import {
   useMediaQuery,
   IconButton,
 } from "@mui/material";
-import { bottomMenuItem, sidebarList } from "./constants";
+import {
+  bottomMenuItem,
+  getInitialSubmenuOpen,
+  sidebarList,
+} from "./constants";
 import {
   TbChevronUp,
   TbChevronDown,
@@ -30,7 +34,7 @@ function Sidebar() {
   const location = useLocation();
   const { success } = useToaster();
   const open = useSelector((state) => state.ui.sidebarOpen, shallowEqual);
-  const [submenuOpen, setSubmenuOpen] = useState({});
+  const [submenuOpen, setSubmenuOpen] = useState(getInitialSubmenuOpen);
   const [hoverItem, setHoverItem] = useState({
     position: null,
     list: null,
@@ -57,6 +61,8 @@ function Sidebar() {
 
   const toggleSubmenu = (label) => {
     setSubmenuOpen((prev) => ({ ...prev, [label]: !prev[label] }));
+
+    console.log("clicked   ", label);
   };
 
   const handleHoverIn = (e, item) => {
@@ -124,6 +130,19 @@ function Sidebar() {
       prevent: null,
     });
   };
+
+  useEffect(() => {
+    sidebarList.forEach((item) => {
+      if (
+        item.children &&
+        item.children.some((child) => location.pathname === child.path)
+      ) {
+        setSubmenuOpen((prev) => ({ ...prev, [item.label]: true }));
+      }
+    });
+
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.pathname]);
 
   return (
     <Box position={"relative"}>

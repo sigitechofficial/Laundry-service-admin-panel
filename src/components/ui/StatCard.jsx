@@ -11,7 +11,7 @@ export default function StatCard({
       className={`cursor-pointer rounded-lg !px-3.5 !py-3 2xl:!py-5 font-Inter h-[122px] 2xl:!h-[140px] flex flex-col justify-between ${bgColor}`}
     >
       <h6
-        className={`font-semibold 2xl:text-lg uppercase text-[${titleColor}] `}
+        className={`font-semibold 2xl:text-lg uppercase text-[${titleColor}] line-clamp-2`}
       >
         {title}
       </h6>

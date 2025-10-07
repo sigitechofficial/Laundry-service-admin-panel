@@ -16,6 +16,7 @@ import {
 } from "../../store/services/api";
 import { useSelector } from "react-redux";
 import { Delay } from "../../components/shared/Loaders";
+import { dateTimeFormat } from "../../shared/constants";
 
 export default function CustomerManagement() {
   const navigate = useNavigate();
@@ -145,8 +146,11 @@ export default function CustomerManagement() {
 
     // You can use the date range for filtering customers
     if (selectedRange) {
-      console.log("Start Date:", selectedRange.startDate.format("YYYY-MM-DD"));
-      console.log("End Date:", selectedRange.endDate.format("YYYY-MM-DD"));
+      console.log(
+        "Start Date:",
+        selectedRange.startDate.format(dateTimeFormat)
+      );
+      console.log("End Date:", selectedRange.endDate.format(dateTimeFormat));
       console.log("Label:", selectedRange.label);
       console.log("Type:", selectedRange.type);
     }

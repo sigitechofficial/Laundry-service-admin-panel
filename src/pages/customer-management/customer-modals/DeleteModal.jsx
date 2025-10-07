@@ -5,7 +5,7 @@ import useToaster from "../../../components/ui/Toaster";
 
 export default function DeleteModal({ open, data, setModalData }) {
   const [deleteCustomer, { isLoading }] = useDeleteCustomerMutation();
-  const { success } = useToaster();
+  const { success, error } = useToaster();
 
   const handleClose = () => {
     setModalData({
@@ -21,7 +21,7 @@ export default function DeleteModal({ open, data, setModalData }) {
       handleClose();
       success(res?.data?.message);
     } else {
-      success("Something went wrong!");
+      error(res?.error?.data?.message);
     }
   };
 

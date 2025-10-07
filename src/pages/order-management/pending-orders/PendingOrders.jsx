@@ -9,14 +9,14 @@ import dayjs from "dayjs";
 import { useNavigate } from "react-router-dom";
 import ActionButtons from "../../../components/ui/ActionButtons";
 import {
-  useGetAllOrderQuery,
+  useGetAllCompleteOrdersQuery,
   useGetOrdersCountQuery,
 } from "../../../store/services/api";
 import { dateTimeFormat } from "../../../shared/constants";
 
-export default function ShopManagement() {
+export default function PendingOrders() {
   const navigate = useNavigate();
-  const { data, isLoading } = useGetAllOrderQuery();
+  const { data, isLoading } = useGetAllCompleteOrdersQuery();
   const { data: OrderCounts } = useGetOrdersCountQuery();
   const [dateRange, setDateRange] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
@@ -71,31 +71,33 @@ export default function ShopManagement() {
     }
   };
 
-  const customersData = data?.data?.orderDetails?.map((booking, index) => {
-    return {
-      id: booking?.id,
-      sl: index + 1,
-      orderId: booking?.id,
-      orderDateTime: dayjs(booking?.created_at).format(dateTimeFormat),
-      serviceType: booking?.customerSelectedServices
-        ?.map((ser) => ser?.service?.name)
-        .join(","),
-      totalItems: booking?.totalItems,
-      pickupDateTime: dayjs(booking?.collectionDate).format(dateTimeFormat),
-      deliveryDateTime: dayjs(booking?.deliveryDate).format(dateTimeFormat),
-      OrderStatus: booking?.bookingStatus?.title,
-      OnHold: booking?.OnHoldConfirmations?.length,
-      pickupDriver: `${booking?.driver?.firstName || ""} ${
-        booking?.driver?.lastName || ""
-      }`,
-      deliveryDriver: `${booking?.driver?.firstName || ""} ${
-        booking?.driver?.lastName || ""
-      }`,
-      shopName: booking?.laundryShop?.name,
-      cost: booking?.orderAmount,
-      actions: "actions",
-    };
-  });
+  const customersData = data?.data?.allCompletedOrders?.map(
+    (booking, index) => {
+      return {
+        id: booking?.id,
+        sl: index + 1,
+        orderId: booking?.id,
+        orderDateTime: dayjs(booking?.created_at).format(dateTimeFormat),
+        serviceType: booking?.customerSelectedServices
+          ?.map((ser) => ser?.service?.name)
+          .join(","),
+        totalItems: booking?.totalItems,
+        pickupDateTime: dayjs(booking?.collectionDate).format(dateTimeFormat),
+        deliveryDateTime: dayjs(booking?.deliveryDate).format(dateTimeFormat),
+        OrderStatus: booking?.bookingStatus?.title,
+        OnHold: booking?.OnHoldConfirmations?.length,
+        pickupDriver: `${booking?.driver?.firstName || ""} ${
+          booking?.driver?.lastName || ""
+        }`,
+        deliveryDriver: `${booking?.driver?.firstName || ""} ${
+          booking?.driver?.lastName || ""
+        }`,
+        shopName: booking?.laundryShop?.name,
+        cost: booking?.orderAmount,
+        actions: "actions",
+      };
+    }
+  );
 
   const customerColumns = [
     {
@@ -204,20 +206,11 @@ export default function ShopManagement() {
                 value={OrderCounts?.data?.allOrderCount}
                 bgColor="bg-purple50"
               />
+
               <StatCard
-                title="new ORDERS"
-                value={OrderCounts?.data?.NewOrders}
-                bgColor="bg-red50"
-              />
-              <StatCard
-                title="active orders"
-                value={OrderCounts?.data?.activeOrders}
+                title="Pending ORDERS"
+                value={OrderCounts?.data?.completedOrders}
                 bgColor="bg-green50"
-              />
-              <StatCard
-                title="repeat orders"
-                value={OrderCounts?.data?.repeatOrders}
-                bgColor="bg-green200"
               />
             </div>
 

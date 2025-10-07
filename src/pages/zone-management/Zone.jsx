@@ -17,6 +17,7 @@ import {
 import { useSelector } from "react-redux";
 import { Delay } from "../../components/shared/Loaders";
 import ButtonBlueLight from "../../components/ui/ButtonBlueLight";
+import { dateTimeFormat } from "../../shared/constants";
 
 export default function ZoneManagement() {
   const navigate = useNavigate();
@@ -146,8 +147,11 @@ export default function ZoneManagement() {
 
     // You can use the date range for filtering customers
     if (selectedRange) {
-      console.log("Start Date:", selectedRange.startDate.format("YYYY-MM-DD"));
-      console.log("End Date:", selectedRange.endDate.format("YYYY-MM-DD"));
+      console.log(
+        "Start Date:",
+        selectedRange.startDate.format(dateTimeFormat)
+      );
+      console.log("End Date:", selectedRange.endDate.format(dateTimeFormat));
       console.log("Label:", selectedRange.label);
       console.log("Type:", selectedRange.type);
     }

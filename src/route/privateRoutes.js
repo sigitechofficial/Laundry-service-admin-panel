@@ -13,6 +13,10 @@ import {
   Reports,
   EditCustomer,
   AllOrders,
+  CompleteOrders,
+  PendingOrders,
+  CancelledOrders,
+  OnHoldOrders,
 } from "../routes/AsyncComponent";
 
 export const privateRoutes = [
@@ -79,22 +83,22 @@ export const privateRoutes = [
   },
   {
     path: "/orders/complete-orders",
-    element: AllOrders,
+    element: CompleteOrders,
     resourceKey: "order_complete-orders_Page",
   },
   {
     path: "/orders/pending-orders",
-    element: AllOrders,
+    element: PendingOrders,
     resourceKey: "order_pending-orders_Page",
   },
   {
     path: "/orders/cancel-orders",
-    element: AllOrders,
+    element: CancelledOrders,
     resourceKey: "order_cancel-orders_Page",
   },
   {
     path: "/orders/on-hold-orders",
-    element: AllOrders,
+    element: OnHoldOrders,
     resourceKey: "order_on-hold-orders_Page",
   },
 ];

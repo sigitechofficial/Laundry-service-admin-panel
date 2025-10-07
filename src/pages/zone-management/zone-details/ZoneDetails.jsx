@@ -22,6 +22,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useGetCustomerByIdQuery } from "../../../store/services/api";
 import { Delay } from "../../../components/shared/Loaders";
 import dayjs from "dayjs";
+import { dateTimeFormat } from "../../../shared/constants";
 
 export default function ZoneDetails() {
   const navigate = useNavigate();
@@ -37,15 +38,11 @@ export default function ZoneDetails() {
       id: booking?.id,
       sl: index + 1,
       orderId: booking?.id,
-      orderDateTime: dayjs(booking?.createdAt).format("DD/MM/YYYY hh:mm A"),
+      orderDateTime: dayjs(booking?.createdAt).format(dateTimeFormat),
       serviceType: booking?.serviceType,
       totalItems: booking?.totalItems,
-      pickupDateTime: dayjs(booking?.collectionDate).format(
-        "DD/MM/YYYY hh:mm A"
-      ),
-      deliveryDateTime: dayjs(booking?.deliveryDate).format(
-        "DD/MM/YYYY hh:mm A"
-      ),
+      pickupDateTime: dayjs(booking?.collectionDate).format(dateTimeFormat),
+      deliveryDateTime: dayjs(booking?.deliveryDate).format(dateTimeFormat),
       OnHold: booking?.OnHoldConfirmations?.length,
       pickupDriver: `
         ${booking?.driver?.firstName || ""} ${booking?.driver?.lastName || ""}`,
@@ -175,8 +172,11 @@ export default function ZoneDetails() {
 
     // You can use the date range for filtering customers
     if (selectedRange) {
-      console.log("Start Date:", selectedRange.startDate.format("YYYY-MM-DD"));
-      console.log("End Date:", selectedRange.endDate.format("YYYY-MM-DD"));
+      console.log(
+        "Start Date:",
+        selectedRange.startDate.format(dateTimeFormat)
+      );
+      console.log("End Date:", selectedRange.endDate.format(dateTimeFormat));
       console.log("Label:", selectedRange.label);
       console.log("Type:", selectedRange.type);
     }
