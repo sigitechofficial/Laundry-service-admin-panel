@@ -9,6 +9,7 @@ import { loginSchema } from "./constant";
 import useToaster from "../../components/ui/Toaster";
 import { useState } from "react";
 import { AiOutlineEye, AiOutlineEyeInvisible } from "../../shared/icons/index";
+import { setLoginStatus } from "../../hooks/useAuth";
 
 export default function LoginPage() {
   const { success, error } = useToaster();
@@ -54,6 +55,7 @@ export default function LoginPage() {
       }).unwrap();
 
       if (res.status === "1") {
+        setLoginStatus(true);
         success("Login successful 🎉");
         navigate("/");
       } else {

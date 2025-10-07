@@ -237,6 +237,20 @@ export const api = createApi({
         method: "GET",
       }),
     }),
+
+    getOnHoldBookings: builder.query({
+      query: () => ({
+        url: "admin/getOnHoldBookings",
+        method: "GET",
+      }),
+    }),
+
+    getShopsData: builder.query({
+      query: () => ({
+        url: "admin/getShopsData",
+        method: "GET",
+      }),
+    }),
   }),
 });
 
@@ -272,4 +286,6 @@ export const {
   useGetOrdersCountQuery,
   useGetAllOrderQuery,
   useGetAllCompleteOrdersQuery,
+  useGetOnHoldBookingsQuery,
+  useGetShopsDataQuery,
 } = api;

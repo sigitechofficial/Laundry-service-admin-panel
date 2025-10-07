@@ -9,14 +9,14 @@ import dayjs from "dayjs";
 import { useNavigate } from "react-router-dom";
 import ActionButtons from "../../../components/ui/ActionButtons";
 import {
-  useGetAllCompleteOrdersQuery,
+  useGetOnHoldBookingsQuery,
   useGetOrdersCountQuery,
 } from "../../../store/services/api";
 import { dateTimeFormat } from "../../../shared/constants";
 
 export default function OnHoldOrders() {
   const navigate = useNavigate();
-  const { data, isLoading } = useGetAllCompleteOrdersQuery();
+  const { data, isLoading } = useGetOnHoldBookingsQuery();
   const { data: OrderCounts } = useGetOrdersCountQuery();
   const [dateRange, setDateRange] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
