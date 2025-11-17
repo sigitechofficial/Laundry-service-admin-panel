@@ -6,8 +6,8 @@ import { Delay } from "../../components/shared/Loaders";
 import CustomTabs from "../../components/ui/TabPanel";
 import ShopDashboard from "./ShopDashboard";
 import { lazy } from "react";
-const ShopOrder = lazy(() => import("./ShopOrder"));
-const ShopProfile = lazy(() => import("./ShopProfile"));
+const Shops = lazy(() => import("./Shops"));
+const AddShop = lazy(() => import("./AddShop"));
 const ShopEmployee = lazy(() => import("./ShopEmployee"));
 
 export default function ShopManagement() {
@@ -40,15 +40,15 @@ export default function ShopManagement() {
                     label: "Shop Dashboard",
                     content: <ShopDashboard />,
                   },
-                  { label: "Shop Orders", content: <ShopOrder /> },
+                  { label: "Shops", content: <Shops /> },
                   {
-                    label: "Shop Profile",
-                    content: <ShopProfile />,
+                    label: "Add Shop Profile",
+                    content: <AddShop />,
                   },
-                  {
-                    label: "Shop Employees",
-                    content: <ShopEmployee />,
-                  },
+                  // {
+                  //   label: "Shop Employees",
+                  //   content: <ShopEmployee />,
+                  // },
                 ]}
                 defaultValue={0}
                 variant="fullWidth"

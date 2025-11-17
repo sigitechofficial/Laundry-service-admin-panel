@@ -6,8 +6,15 @@ import StatusPill from "../../components/ui/StatusPill";
 import ChangeStatus from "../../components/ui/Switch";
 import { Delay } from "../../components/shared/Loaders";
 import shopsFallback from "../../data/shops.json";
+import { useState } from "react";
+import InputFieldModal from "../../components/ui/InputFieldModal";
+import InputFieldBordered from "../../components/ui/InputFieldBordered";
+import { Box, Typography } from "@mui/material";
+import ModalComponent from "../../components/shared/Modal";
 
 export default function Shops() {
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editData, setEditData] = useState(null);
   const navigate = useNavigate();
   const customers = useSelector((state) => state.apiData.customers);
   const sourceData =
@@ -114,7 +121,17 @@ export default function Shops() {
       renderCell: (row) => (
         <ActionButtons
           onView={() => navigate(`/shop-management/details/${row?.id}`)}
-          onEdit={() => alert("Edit clicked")}
+          onEdit={() => {
+            // open edit modal with prefilled data from row
+            setEditData({
+              id: row.id,
+              name: row.name,
+              email: row.email,
+              phone: row.phoneNumber,
+              address: row.address,
+            });
+            setEditModalOpen(true);
+          }}
           onDelete={() => alert("Delete clicked")}
         />
       ),
@@ -134,6 +151,55 @@ export default function Shops() {
         searchPlaceholder="Search by ID, name, email..."
         height={600}
       />
+      <ModalComponent
+        open={editModalOpen}
+        title={editData ? "Edit Shop" : "Edit"}
+        onClose={() => setEditModalOpen(false)}
+        secondaryAction={{
+          label: "Cancel",
+          onClick: () => setEditModalOpen(false),
+        }}
+        primaryAction={{
+          label: "Save",
+          onClick: () => {
+            console.log("Save edit:", editData);
+            setEditModalOpen(false);
+          },
+        }}
+      >
+        {editData && (
+          <div className="grid grid-cols-2 gap-4">
+            <InputFieldBordered
+              title="Shop Name"
+              value={editData.name}
+              onChange={(e) =>
+                setEditData((d) => ({ ...d, name: e.target.value }))
+              }
+            />
+            <InputFieldBordered
+              title="Email"
+              value={editData.email}
+              onChange={(e) =>
+                setEditData((d) => ({ ...d, email: e.target.value }))
+              }
+            />
+            <InputFieldBordered
+              title="Phone"
+              value={editData.phone}
+              onChange={(e) =>
+                setEditData((d) => ({ ...d, phone: e.target.value }))
+              }
+            />
+            <InputFieldBordered
+              title="Address"
+              value={editData.address}
+              onChange={(e) =>
+                setEditData((d) => ({ ...d, address: e.target.value }))
+              }
+            />
+          </div>
+        )}
+      </ModalComponent>
     </div>
   );
 }

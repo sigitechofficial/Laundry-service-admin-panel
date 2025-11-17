@@ -37,6 +37,13 @@ export const EmployeeManagement = lazy(() =>
 export const ShopManagement = lazy(() =>
   import("../pages/shop-management/ShopManagement")
 );
+export const ShopDetails = lazy(() =>
+  import("../pages/shop-management/ShopDetail")
+);
+
+export const ShopEmployee = lazy(() =>
+  import("../pages/shop-management/ShopEmployee")
+);
 
 export const Configurations = lazy(() =>
   import("../pages/configurations/Configurations")

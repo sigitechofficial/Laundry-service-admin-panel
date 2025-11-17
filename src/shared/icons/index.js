@@ -35,7 +35,7 @@ import {
   TbArrowsSort,
   TbReportSearch,
 } from "react-icons/tb";
-import { IoEye } from "react-icons/io5";
+import { IoEye, IoChevronBackOutline } from "react-icons/io5";
 import { CiViewList, CiEdit } from "react-icons/ci";
 import { FaRegRectangleList } from "react-icons/fa6";
 import { LuUsersRound } from "react-icons/lu";
@@ -119,6 +119,7 @@ export {
   AiFillFileText,
   AiOutlineEye,
   AiOutlineEyeInvisible,
+  IoChevronBackOutline
 };
 
 {

@@ -108,7 +108,7 @@ export default function LoginPage() {
             {/* Email */}
             <div className="flex flex-col gap-y-3">
               <label htmlFor="email" className="text-grey40">
-                Email
+              Email
               </label>
 
               <input

@@ -52,6 +52,7 @@ export default function SelectField({
           width: width,
           height: height,
           fontFamily: "Switzer",
+          fontWeight: 400,
           borderRadius: radius,
           border: border,
           outline: "none",
@@ -61,6 +62,7 @@ export default function SelectField({
           },
           "& .MuiSelect-select": {
             px: "16px",
+            fontWeight: 400,
           },
           // "& .MuiSelect-icon": {
           //   right: "0px", // 👈 move icon a bit inward

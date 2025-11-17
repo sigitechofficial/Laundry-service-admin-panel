@@ -251,6 +251,28 @@ export const api = createApi({
         method: "GET",
       }),
     }),
+    getAllZones: builder.query({
+      query: () => ({
+        url: "admin/getZones",
+        method: "GET",
+        credentials: "include",
+      }),
+    }),
+    getAllCountries: builder.query({
+      query: () => ({
+        url: "admin/getCountries",
+        method: "GET",
+        credentials: "include",
+      }),
+    }),
+
+    addZone: builder.mutation({
+      query: (body) => ({
+        url: "admin/addZone",
+        method: "POST",
+        body,
+      }),
+    }),
   }),
 });
 
@@ -288,4 +310,7 @@ export const {
   useGetAllCompleteOrdersQuery,
   useGetOnHoldBookingsQuery,
   useGetShopsDataQuery,
+  useGetAllZonesQuery,
+  useGetAllCountriesQuery,
+  useAddZoneMutation
 } = api;

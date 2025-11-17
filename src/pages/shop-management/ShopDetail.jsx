@@ -1,24 +1,26 @@
 import { useState } from "react";
 import { Box, Typography } from "@mui/material";
-import Layout from "../../../components/shared/Layout";
+import Layout from "../../components/shared/Layout";
 import {
   BsCardList,
   MdOutlineLocationOn,
   MdOutlinePhone,
   MdMailOutline,
-} from "../../../shared/icons/index";
-import Search from "../../../components/ui/Search";
-import FiltersButton from "../../../components/ui/FiltersButton";
-import DataTable from "../../../components/ui/DataTable";
-import ActionButtons from "../../../components/ui/ActionButtons";
+  IoChevronBackOutline,
+} from "../../shared/icons/index";
+import Search from "../../components/ui/Search";
+import FiltersButton from "../../components/ui/FiltersButton";
+import DataTable from "../../components/ui/DataTable";
+import ActionButtons from "../../components/ui/ActionButtons";
 import { useNavigate, useParams } from "react-router-dom";
-import { useGetCustomerByIdQuery } from "../../../store/services/api";
-import { Delay } from "../../../components/shared/Loaders";
+import { useGetCustomerByIdQuery } from "../../store/services/api";
+import { Delay } from "../../components/shared/Loaders";
+import shopsFallback from "../../data/shops.json";
 import dayjs from "dayjs";
-import OrderInvoiceModal from "../customer-modals/OrderInvoiceModal";
-import { dateTimeFormat } from "../../../shared/constants";
+import OrderInvoiceModal from "../customer-management/customer-modals/OrderInvoiceModal";
+import { dateTimeFormat } from "../../shared/constants";
 
-export default function CustomerDetails() {
+export default function ShopDetails() {
   const navigate = useNavigate();
   const { id } = useParams();
   const [dateRange, setDateRange] = useState(null);
@@ -27,27 +29,34 @@ export default function CustomerDetails() {
 
   const { data, isLoading } = useGetCustomerByIdQuery(id, { skip: !id });
 
-  const customersData = data?.data?.bookingDetails?.map((booking, index) => {
-    return {
-      id: booking?.id,
-      sl: index + 1,
-      orderId: booking?.id,
-      orderDateTime: dayjs(booking?.createdAt).format(dateTimeFormat),
-      serviceType: booking?.serviceType,
-      totalItems: booking?.totalItems,
-      pickupDateTime: dayjs(booking?.collectionDate).format(dateTimeFormat),
-      deliveryDateTime: dayjs(booking?.deliveryDate).format(dateTimeFormat),
-      OrderStatus: booking?.bookingStatus?.title,
-      OnHold: booking?.OnHoldConfirmations?.length,
-      pickupDriver: `
+  // If API returns data use it, otherwise try to find shop details in local JSON
+  const shopDetailsSource = data?.data
+    ? data.data
+    : shopsFallback.find((s) => s.id === id)?.details;
+
+  const customersData = shopDetailsSource?.bookingDetails?.map(
+    (booking, index) => {
+      return {
+        id: booking?.id,
+        sl: index + 1,
+        orderId: booking?.id,
+        orderDateTime: dayjs(booking?.createdAt).format(dateTimeFormat),
+        serviceType: booking?.serviceType,
+        totalItems: booking?.totalItems,
+        pickupDateTime: dayjs(booking?.collectionDate).format(dateTimeFormat),
+        deliveryDateTime: dayjs(booking?.deliveryDate).format(dateTimeFormat),
+        OrderStatus: booking?.bookingStatus?.title,
+        OnHold: booking?.OnHoldConfirmations?.length,
+        pickupDriver: `
         ${booking?.driver?.firstName || ""} ${booking?.driver?.lastName || ""}`,
-      deliveryDriver: `${booking?.driver?.firstName || ""} ${
-        booking?.driver?.lastName || ""
-      }`,
-      shopName: booking?.laundryShop?.name,
-      cost: booking?.orderAmount,
-    };
-  });
+        deliveryDriver: `${booking?.driver?.firstName || ""} ${
+          booking?.driver?.lastName || ""
+        }`,
+        shopName: booking?.laundryShop?.name,
+        cost: booking?.orderAmount,
+      };
+    }
+  );
 
   const customerColumns = [
     {
@@ -177,7 +186,9 @@ export default function CustomerDetails() {
         break;
     }
   };
-
+  const handleViewShopEmployee = () => {
+    navigate(`/shop-management/details/${id}/shop-employee`);
+  };
   return (
     <Layout
       content={
@@ -187,12 +198,20 @@ export default function CustomerDetails() {
           <div className="!space-y-11">
             <Box className="flex items-center gap-x-5 justify-between">
               <Box className="flex items-center gap-x-5">
+                <button
+                  type="button"
+                  onClick={() => navigate("/shop-management")}
+                  aria-label="Go back to shop management"
+                  className="flex items-center gap-2 cursor-pointer "
+                >
+                  <IoChevronBackOutline size={20} />
+                </button>
                 <Typography color="blue.50">
                   <BsCardList size="24px" color="blue.50" />
                 </Typography>
 
                 <Typography variant="h4" fontFamily={"Switzer"} color="grey.20">
-                  Customer Details
+                  Shop Detail
                 </Typography>
               </Box>
 
@@ -211,33 +230,45 @@ export default function CustomerDetails() {
               <div className="w-[720px] bg-grey50 rounded-[20px] !p-7 flex justify-between font-Inter">
                 <div className="!space-y-2">
                   <p className="text-grey20 font-medium text-2xl">
-                    ID #{data?.data?.userDetails?.userId}
+                    ID #{shopDetailsSource?.userDetails?.userId}
                   </p>
                   <p className="font-medium text-2xl !pt-4 capitalize">
-                    {`${data?.data?.userDetails?.user?.firstName} ${data?.data?.userDetails?.user?.lastName}`}
+                    {`${
+                      shopDetailsSource?.userDetails?.user?.firstName || ""
+                    } ${shopDetailsSource?.userDetails?.user?.lastName || ""}`}
                   </p>
                   <p className="font-medium text-base text-grey20 flex items-center gap-2">
                     <MdMailOutline size={"22px"} />
-                    {data?.data?.userDetails?.user?.email}
+                    {shopDetailsSource?.userDetails?.user?.email}
                   </p>
                   <p className="font-medium text-base text-grey20 flex items-center gap-2">
                     <MdOutlinePhone size={"22px"} />
-                    {data?.data?.userDetails?.user?.phoneNum}
+                    {shopDetailsSource?.userDetails?.user?.phoneNum}
                   </p>
                   <p className="font-medium text-base text-grey20 flex items-center gap-2">
                     <MdOutlineLocationOn size={"24px"} />
-                    {data?.data?.userDetails.streetAddress +
+                    {shopDetailsSource?.userDetails?.streetAddress +
                       " " +
-                      data?.data?.userDetails?.province}
+                      shopDetailsSource?.userDetails?.province}
                   </p>
                 </div>
 
-                <div className="size-20 rounded-2xl">
-                  <img
-                    className="w-full h-full object-center"
-                    src="/images/admin.png"
-                    alt="customer image"
-                  />
+                <div className="   h-full w-auto flex flex-col justify-between items-center">
+                  <div className="rounded-2xl ">
+                    <img
+                      className="size-20  object-center"
+                      src="/images/admin.png"
+                      alt="customer image"
+                    />
+                  </div>
+                  <div>
+                    <button
+                      onClick={handleViewShopEmployee}
+                      className="bg-blue100 text-white !px-4 !py-2 rounded-md text-sm  cursor-pointer"
+                    >
+                      View Shop Employee
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>

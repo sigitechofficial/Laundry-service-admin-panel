@@ -59,11 +59,11 @@ const apiDataSlice = createSlice({
           state.services = state.services.map((service) =>
             service.id === id
               ? {
-                  ...service,
-                  name: body.get?.("name") ?? service.name,
-                  description: body.get?.("description") ?? service.description,
-                  image: body.get?.("serviceImg") ?? service.image,
-                }
+                ...service,
+                name: body.get?.("name") ?? service.name,
+                description: body.get?.("description") ?? service.description,
+                image: body.get?.("serviceImg") ?? service.image,
+              }
               : service
           );
         }
@@ -114,9 +114,9 @@ const apiDataSlice = createSlice({
         state.preferences = state.preferences.map((pref) => {
           return pref.id === id
             ? {
-                ...pref,
-                name,
-              }
+              ...pref,
+              name,
+            }
             : pref;
         });
       }
@@ -281,6 +281,19 @@ const apiDataSlice = createSlice({
         }
       }
     );
+    builder.addMatcher(
+      api.endpoints.getAllZones.matchFulfilled,
+      (state, { payload }) => {
+        state.zones = payload.data;
+      }
+    );
+    builder.addMatcher(
+      api.endpoints.getAllCountries.matchFulfilled,
+      (state, { payload }) => {
+        state.countries = payload.data;
+      }
+    );
+
   },
 });
 

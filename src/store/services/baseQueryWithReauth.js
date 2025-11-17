@@ -4,6 +4,21 @@ import { BASE_URL } from "../../utilities/URL";
 const baseQuery = fetchBaseQuery({
   baseUrl: BASE_URL,
   credentials: "include",
+  prepareHeaders: (headers) => {
+    // Get token from localStorage
+    const token = localStorage.getItem('accessToken');
+
+    // Set default headers
+    headers.set('Content-Type', 'application/json');
+    headers.set('ngrok-skip-browser-warning', 'true');
+
+    // Add Bearer token if available
+    if (token) {
+      headers.set('Authorization', `Bearer ${token}`);
+    }
+
+    return headers;
+  }
 });
 
 const baseQueryWithReauth = async (args, api, extraOptions) => {

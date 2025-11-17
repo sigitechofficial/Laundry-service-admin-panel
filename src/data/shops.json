@@ -1,0 +1,125 @@
+[
+  {
+    "id": "shop_001",
+    "name": "Sparkle Cleaners",
+    "email": "contact@sparklecleaners.com",
+    "phone": "(+1) 555-1234",
+    "address": "123 Maple St, Springfield",
+    "totalOrders": 124,
+    "lastOrderDate": "2025-10-20",
+    "totalRevenue": 5420.5,
+    "status": true,
+    "createdAt": "2022-06-01T08:30:00Z",
+    "updatedAt": "2025-10-20T09:00:00Z",
+    "details": {
+      "userDetails": {
+        "userId": "shop_001",
+        "user": {
+          "firstName": "Sparkle",
+          "lastName": "Cleaners",
+          "email": "contact@sparklecleaners.com",
+          "phoneNum": "(+1) 555-1234"
+        },
+        "streetAddress": "123 Maple St",
+        "province": "Springfield"
+      },
+      "bookingDetails": [
+        {
+          "id": "ord_1001",
+          "createdAt": "2025-10-20T08:00:00Z",
+          "serviceType": "Wash & Fold",
+          "totalItems": 12,
+          "collectionDate": "2025-10-21T09:00:00Z",
+          "deliveryDate": "2025-10-22T18:00:00Z",
+          "bookingStatus": { "title": "Completed" },
+          "OnHoldConfirmations": [],
+          "driver": { "firstName": "John", "lastName": "Doe" },
+          "laundryShop": { "name": "Sparkle Cleaners" },
+          "orderAmount": 45.5
+        }
+      ]
+    }
+  },
+  {
+    "id": "shop_002",
+    "name": "FreshFold Laundry",
+    "email": "hello@freshfold.com",
+    "phone": "(+1) 555-5678",
+    "address": "456 Oak Ave, Riverdale",
+    "totalOrders": 89,
+    "lastOrderDate": "2025-10-18",
+    "totalRevenue": 3810.0,
+    "status": false,
+    "createdAt": "2023-01-15T10:00:00Z",
+    "updatedAt": "2025-10-18T11:45:00Z",
+    "details": {
+      "userDetails": {
+        "userId": "shop_002",
+        "user": {
+          "firstName": "FreshFold",
+          "lastName": "Laundry",
+          "email": "hello@freshfold.com",
+          "phoneNum": "(+1) 555-5678"
+        },
+        "streetAddress": "456 Oak Ave",
+        "province": "Riverdale"
+      },
+      "bookingDetails": [
+        {
+          "id": "ord_2001",
+          "createdAt": "2025-10-18T10:30:00Z",
+          "serviceType": "Dry Clean",
+          "totalItems": 5,
+          "collectionDate": "2025-10-19T10:00:00Z",
+          "deliveryDate": "2025-10-20T16:00:00Z",
+          "bookingStatus": { "title": "Pending" },
+          "OnHoldConfirmations": [],
+          "driver": { "firstName": "Alice", "lastName": "Smith" },
+          "laundryShop": { "name": "FreshFold Laundry" },
+          "orderAmount": 29.99
+        }
+      ]
+    }
+  },
+  {
+    "id": "shop_003",
+    "name": "LaundryLux",
+    "email": "support@laundrylux.co",
+    "phone": "(+1) 555-9012",
+    "address": "789 Pine Rd, Lakeside",
+    "totalOrders": 210,
+    "lastOrderDate": "2025-10-21",
+    "totalRevenue": 10320.75,
+    "status": true,
+    "createdAt": "2021-11-20T14:20:00Z",
+    "updatedAt": "2025-10-21T15:10:00Z",
+    "details": {
+      "userDetails": {
+        "userId": "shop_003",
+        "user": {
+          "firstName": "LaundryLux",
+          "lastName": "Co",
+          "email": "support@laundrylux.co",
+          "phoneNum": "(+1) 555-9012"
+        },
+        "streetAddress": "789 Pine Rd",
+        "province": "Lakeside"
+      },
+      "bookingDetails": [
+        {
+          "id": "ord_3001",
+          "createdAt": "2025-10-21T07:45:00Z",
+          "serviceType": "Express Wash",
+          "totalItems": 20,
+          "collectionDate": "2025-10-21T09:00:00Z",
+          "deliveryDate": "2025-10-21T18:00:00Z",
+          "bookingStatus": { "title": "In Transit" },
+          "OnHoldConfirmations": [],
+          "driver": { "firstName": "Mike", "lastName": "Johnson" },
+          "laundryShop": { "name": "LaundryLux" },
+          "orderAmount": 72.0
+        }
+      ]
+    }
+  }
+]

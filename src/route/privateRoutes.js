@@ -4,6 +4,7 @@ import {
   ServiceManagement,
   CustomerManagement,
   CustomerDetails,
+  ShopDetails,
   DriverManagement,
   DriverDetails,
   ZoneManagement,
@@ -17,6 +18,7 @@ import {
   PendingOrders,
   CancelledOrders,
   OnHoldOrders,
+  ShopEmployee
 } from "../routes/AsyncComponent";
 
 export const privateRoutes = [
@@ -35,6 +37,16 @@ export const privateRoutes = [
     path: "/customer-management/details/:id",
     element: CustomerDetails,
     resourceKey: "customer_details_Page",
+  },
+  {
+    path: "/shop-management/details/:id",
+    element: ShopDetails,
+    resourceKey: "customer_details_Page",
+  },
+  {
+    path: "/shop-management/details/:id/shop-employee",
+    element: ShopEmployee,
+    resourceKey: "shop_employee_Page",
   },
   {
     path: "/customer-management/edit/:id",
