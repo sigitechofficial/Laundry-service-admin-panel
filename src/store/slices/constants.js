@@ -9,6 +9,8 @@ export const INITIAL_STATE_API = {
   dashboard: [],
   zones: [],
   countries: [],
+  cities: [],
+  units: {},
 };
 
 export const INITIAL_UI_STATE = {

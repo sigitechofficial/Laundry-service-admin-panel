@@ -32,6 +32,7 @@ export default function SelectField({
   radius = "8px",
   border = "none",
   labelColor = "#374151",
+  disabled = false,
 }) {
   return (
     <FormControl fullWidth={fullWidth} size="small">
@@ -46,6 +47,7 @@ export default function SelectField({
         value={value}
         onChange={onChange}
         displayEmpty
+        disabled={disabled}
         IconComponent={CustomDropdownIcon}
         inputProps={{ "aria-label": placeholder || "Select field" }}
         sx={{

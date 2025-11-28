@@ -2,6 +2,9 @@ import React, { useState } from "react";
 import InputFieldModal from "../../components/ui/InputFieldModal";
 import InputFieldBordered from "../../components/ui/InputFieldBordered";
 import SelectField from "../../components/ui/SelectField";
+import { Select, MenuItem, FormControl, Typography, Checkbox, ListItemText } from "@mui/material";
+import { useGetAllServicesQuery } from "../../store/services/api";
+import { useSelector } from "react-redux";
 
 export default function ShopProfile() {
   const [tab, setTab] = useState(0);
@@ -16,11 +19,21 @@ export default function ShopProfile() {
     turnaroundTime: "",
     businessHours: "",
     countOfMachinery: "",
-    services: "",
+    services: [],
     whatMatchYourProfile: "",
     noOfEmployees: "",
     zone: "",
   });
+
+  // Fetch services
+  const { isLoading: servicesLoading } = useGetAllServicesQuery();
+  const services = useSelector((state) => state.apiData.services);
+
+  // Transform services to options format
+  const serviceOptions = services?.map((service) => ({
+    value: service.id,
+    label: service.name,
+  })) || [];
 
   const countryOptions = [
     { value: "pakistan", label: "Pakistan" },
@@ -57,6 +70,14 @@ export default function ShopProfile() {
       }
       return { ...s, [field]: value };
     });
+  };
+
+  const handleServicesChange = (e) => {
+    const value = e.target.value;
+    setFormData((s) => ({
+      ...s,
+      services: typeof value === "string" ? value.split(",") : value,
+    }));
   };
 
   const isUserInfoComplete = () => {
@@ -182,11 +203,10 @@ export default function ShopProfile() {
               type="button"
               disabled={!isUserInfoComplete()}
               onClick={() => setTab(1)}
-              className={`rounded-lg font-medium text-white !px-12 !py-3 ${
-                isUserInfoComplete()
-                  ? "bg-blue200 hover:opacity-90 cursor-pointer"
-                  : "bg-gray-300 cursor-not-allowed"
-              }`}
+              className={`rounded-lg font-medium text-white !px-12 !py-3 ${isUserInfoComplete()
+                ? "bg-blue200 hover:opacity-90 cursor-pointer"
+                : "bg-gray-300 cursor-not-allowed"
+                }`}
             >
               Next
             </button>
@@ -216,7 +236,52 @@ export default function ShopProfile() {
             value={formData.countOfMachinery}
             onChange={handleChange("countOfMachinery")}
           />
-          <InputFieldBordered title="Services" label="" placeholder="" />
+          <FormControl fullWidth>
+            <Typography variant="body2" sx={{ mb: "8px", color: "black" }}>
+              Services
+            </Typography>
+            <Select
+              multiple
+              value={formData.services}
+              onChange={handleServicesChange}
+              displayEmpty
+              disabled={servicesLoading}
+              sx={{
+                height: "52px",
+                fontFamily: "Switzer",
+                fontWeight: 400,
+                borderRadius: "8px",
+                border: "1px solid #00000033",
+                bgcolor: "none",
+                "& fieldset": {
+                  border: "1px solid #00000033",
+                },
+                "& .MuiSelect-select": {
+                  px: "16px",
+                  fontWeight: 400,
+                },
+              }}
+              renderValue={(selected) => {
+                if (selected.length === 0) {
+                  return <span style={{ color: "#999" }}>Select services</span>;
+                }
+                return selected
+                  .map(
+                    (id) =>
+                      serviceOptions.find((opt) => opt.value === id)?.label
+                  )
+                  .filter(Boolean)
+                  .join(", ");
+              }}
+            >
+              {serviceOptions.map((option) => (
+                <MenuItem key={option.value} value={option.value}>
+                  <Checkbox checked={formData.services.indexOf(option.value) > -1} />
+                  <ListItemText primary={option.label} />
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
           <InputFieldBordered
             title="What match your profile"
             label=""

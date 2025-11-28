@@ -294,6 +294,24 @@ const apiDataSlice = createSlice({
       }
     );
 
+    builder.addMatcher(
+      api.endpoints.getCitiesByCountryId.matchFulfilled,
+      (state, { payload }) => {
+        state.cities = payload.data;
+      }
+    );
+
+    builder.addMatcher(
+      api.endpoints.getUnitsDistanceAndCurrency.matchFulfilled,
+      (state, { payload, meta }) => {
+        const type = meta.arg.originalArgs;
+        if (!state.units) {
+          state.units = {};
+        }
+        state.units[type] = payload.data;
+      }
+    );
+
   },
 });
 

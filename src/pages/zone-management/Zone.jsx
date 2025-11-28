@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Box, Button, IconButton, Typography } from "@mui/material";
 import Layout from "../../components/shared/Layout";
 import { BsCardList, TbPlus } from "../../shared/icons/index";
@@ -14,6 +14,8 @@ import { useNavigate } from "react-router-dom";
 import {
   useGetAllZonesQuery,
   useGetAllCountriesQuery,
+  useGetCitiesByCountryIdQuery,
+  useGetUnitsDistanceAndCurrencyQuery,
   useAddZoneMutation,
 } from "../../store/services/api";
 import { useSelector } from "react-redux";
@@ -32,6 +34,7 @@ import { LiaHandPointerSolid } from "react-icons/lia";
 import { TbLassoPolygon } from "react-icons/tb";
 import { RxCross2 } from "react-icons/rx";
 import InputFieldModal from "../../components/ui/InputFieldModal";
+import useToaster from "../../components/ui/Toaster";
 
 export default function ZoneManagement() {
   const navigate = useNavigate();
@@ -47,9 +50,9 @@ export default function ZoneManagement() {
   // Map state
   const [center, setCenter] = useState({ lat: 31.5497, lng: 74.3436 }); // Lahore coordinates
   const [map, setMap] = useState(null);
-  const [autocomplete, setAutocomplete] = useState(null);
   const [drawingMode, setDrawingMode] = useState(null);
   const [_coordinates, setCoordinates] = useState([]);
+  const autocompleteRef = useRef(null);
 
   // Map container style
   const containerStyle = {
@@ -62,7 +65,6 @@ export default function ZoneManagement() {
     countryId: "",
     cityId: "",
     open: false,
-    type: "add", // "add" or "update"
     coordinates: "",
     zoneName: "",
     serviceCharge: "",
@@ -73,13 +75,37 @@ export default function ZoneManagement() {
     deliveryCharges: "",
     ExDeliveryCharges: " ",
   });
-
-  const { isLoading } = useGetAllZonesQuery();
+  console.log("🚀 ~ ZoneManagement ~ add:", add);
+  const { success, error: showError } = useToaster();
+  const { isLoading, refetch: refetchZones } = useGetAllZonesQuery();
   const { isLoading: _countriesLoading } = useGetAllCountriesQuery();
   const [addZone, { isLoading: isAddingZone }] = useAddZoneMutation();
   const zones = useSelector((state) => state?.apiData?.zones);
   const countries = useSelector((state) => state?.apiData?.countries);
+  const cities = useSelector((state) => state?.apiData?.cities);
+  const units = useSelector((state) => state?.apiData?.units);
+
+  // Fetch currencies and payment methods
+  const { data: currenciesData } = useGetUnitsDistanceAndCurrencyQuery("currency", {
+    skip: false,
+  });
+  const { data: paymentMethodsData } = useGetUnitsDistanceAndCurrencyQuery("paymentMethod", {
+    skip: false,
+  });
+
+  const currencies = currenciesData?.data || units?.currency || [];
+  const paymentMethods = paymentMethodsData?.data || units?.paymentMethod || [];
+
+  // Fetch cities when a country is selected
+  const { isLoading: _citiesLoading } = useGetCitiesByCountryIdQuery(
+    add.countryId,
+    {
+      skip: !add.countryId, // Skip the query if no country is selected
+    }
+  );
+
   console.log("🚀 ~ ZoneManagement ~ countries:", countries);
+  console.log("🚀 ~ ZoneManagement ~ cities:", cities);
 
   // Map zone data
   const zonesData = zones?.zones?.map((zone, index) => {
@@ -115,30 +141,35 @@ export default function ZoneManagement() {
       headerName: "SL",
       flex: 0.15,
       minWidth: 100,
+      align: "center",
     },
     {
       field: "zoneName",
       headerName: "Zone Name",
       flex: 0.19,
       minWidth: 200,
+      align: "center",
     },
     {
       field: "zoneDistance",
       headerName: "Zone Distance (km)",
       flex: 0.18,
       minWidth: 250,
+      align: "center",
     },
     {
       field: "radius",
       headerName: "Radius (km)",
       flex: 0.18,
       minWidth: 200,
+      align: "center",
     },
     {
       field: "coordinates",
       headerName: "Coordinates",
       flex: 0.15,
       minWidth: 200,
+      align: "center",
     },
     {
       field: "currency",
@@ -146,42 +177,49 @@ export default function ZoneManagement() {
       flex: 0.1,
       minWidth: 130,
       type: "number",
+      align: "center",
     },
     {
       field: "paymentMethod",
       headerName: "Payment Method",
       flex: 0.12,
       minWidth: 200,
+      align: "center",
     },
     {
       field: "deliveryCharges",
       headerName: "Deliver Charges",
       flex: 0.12,
       minWidth: 200,
+      align: "center",
     },
     {
       field: "noOfShops",
       headerName: "No of Shops",
       flex: 0.12,
       minWidth: 200,
+      align: "center",
     },
     {
       field: "expressDelivery",
       headerName: "Express Delivery",
       flex: 0.12,
       minWidth: 200,
+      align: "center",
     },
     {
       field: "zoneAssign",
       headerName: "Zone Assign",
       flex: 0.12,
       minWidth: 200,
+      align: "center",
     },
     {
       field: "commission",
       headerName: "Commission %",
       flex: 0.12,
       minWidth: 200,
+      align: "center",
     },
 
     {
@@ -190,6 +228,7 @@ export default function ZoneManagement() {
       flex: 0.15,
       minWidth: 200,
       sortable: false,
+      align: "center",
       renderCell: (params) => (
         <ActionButtons
           onView={() => navigate(`/zone-management/details/${params?.row?.id}`)}
@@ -206,7 +245,6 @@ export default function ZoneManagement() {
       // Reset form when closing
       setAdd({
         open: false,
-        type: "add",
         zoneName: "",
         description: "",
         coordinates: "",
@@ -220,9 +258,15 @@ export default function ZoneManagement() {
         deliveryCharges: "",
         ExDeliveryCharges: "",
       });
+      // Clear coordinates and reset map
+      setCoordinates([]);
+      setDrawingMode(null);
+      if (map) {
+        map.setOptions({ draggableCursor: "pointer" });
+      }
     } else {
       // Just open the modal for add
-      setAdd((prev) => ({ ...prev, open: true, type: "add" }));
+      setAdd((prev) => ({ ...prev, open: true }));
     }
   };
 
@@ -235,38 +279,48 @@ export default function ZoneManagement() {
 
   const handleAddZone = async () => {
     try {
+      // Format coordinates as: [[[lng, lat], [lng, lat], ...]]
+      const formattedCoordinates = _coordinates.length > 0
+        ? [_coordinates] // Wrap coordinates array in another array
+        : [];
+
+      // Find the selected currency to get its ID
+      const selectedCurrency = Array.isArray(currencies)
+        ? currencies.find((currency) => currency.name === add.zoneCurrency)
+        : null;
+      const currencyUnitId = selectedCurrency ? selectedCurrency.id : null;
+
       const zoneData = {
         name: add.zoneName,
-        coordinates: _coordinates.length > 0 ? [_coordinates] : [],
+        coordinates: formattedCoordinates,
         cityId: parseInt(add.cityId) || 1,
         zoneMinimumAmount: parseFloat(add.zoneMinimumAmount) || 0,
         serviceCharge: parseFloat(add.deliveryCharges) || 0,
-        currencyUnitId: getCurrencyUnitId(add.zoneCurrency),
+        currencyUnitId: currencyUnitId,
         distanceUnitId: 3,
         zoneCommission: parseFloat(add.zoneCommission) || 0,
-        paymentMethod: add.paymentMethod,
+        paymentMethod: add.paymentMethod || "",
         expressDeliveryCharges: parseFloat(add.ExDeliveryCharges) || 0,
       };
+
+      console.log("Zone data being sent:", zoneData);
       const result = await addZone(zoneData).unwrap();
       console.log("Zone added successfully:", result);
-      handleToggle();
-      alert("Zone added successfully!");
 
-    } catch (error) {
-      console.error("Error adding zone:", error);
-      alert("Failed to add zone. Please try again.");
+      // Reset coordinates state
+      setCoordinates([]);
+      handleToggle();
+      success("Zone added successfully!");
+
+      // Refetch zones to show the updated list
+      refetchZones();
+
+    } catch (err) {
+      console.error("Error adding zone:", err);
+      showError(err?.data?.message || "Failed to add zone. Please try again.");
     }
   };
 
-  const getCurrencyUnitId = (currency) => {
-    const currencyMap = {
-      'USD': 1,
-      'EUR': 2,
-      'GBP': 3,
-      'PKR': 4,
-    };
-    return currencyMap[currency] || 4; 
-  };
 
   const handleDateChange = (selectedRange) => {
     console.log("Selected Date Range:", selectedRange);
@@ -300,10 +354,40 @@ export default function ZoneManagement() {
     // Implement download functionality (CSV, Excel, etc.)
   };
   const handelCountryChange = (e) => {
-    console.log("Country selected:", e.target.value);
+    const selectedCountryId = e.target.value;
+    const selectedCountry = Array.isArray(countries)
+      ? countries.find((country) => country.id === selectedCountryId)
+      : null;
+
+    console.log("Country selected:", {
+      id: selectedCountryId,
+      name: selectedCountry?.name,
+      country: selectedCountry,
+    });
+
+    // Reset city when country changes and update country
     setAdd((prev) => ({
       ...prev,
-      countryId: e.target.value,
+      countryId: selectedCountryId,
+      cityId: "", // Reset city when country changes
+    }));
+  };
+
+  const handleCityChange = (e) => {
+    const selectedCityId = e.target.value;
+    const selectedCity = Array.isArray(cities)
+      ? cities.find((city) => city.id === selectedCityId)
+      : null;
+
+    console.log("City selected:", {
+      id: selectedCityId,
+      name: selectedCity?.name,
+      city: selectedCity,
+    });
+
+    setAdd((prev) => ({
+      ...prev,
+      cityId: selectedCityId,
     }));
   };
 
@@ -331,13 +415,18 @@ export default function ZoneManagement() {
   };
 
   const handlePlaceChanged = () => {
-    if (autocomplete) {
-      const place = autocomplete.getPlace();
-      if (place.geometry) {
+    if (autocompleteRef.current) {
+      const place = autocompleteRef.current.getPlace();
+
+      if (place && place.geometry) {
         const location = place.geometry.location;
-        setCenter({ lat: location.lat(), lng: location.lng() });
-        map.setCenter(location);
-        map.setZoom(10);
+        const newCenter = { lat: location.lat(), lng: location.lng() };
+        setCenter(newCenter);
+
+        if (map) {
+          map.setCenter(location);
+          map.setZoom(15);
+        }
       }
     }
   };
@@ -347,19 +436,41 @@ export default function ZoneManagement() {
     const coordinatesArray = [];
     for (let i = 0; i < path.getLength(); i++) {
       const point = path.getAt(i);
-      coordinatesArray.push({ lat: point.lat(), lng: point.lng() });
+      coordinatesArray.push([point.lng(), point.lat()]); // GeoJSON format: [lng, lat]
     }
+    // Close the polygon by adding the first point at the end
+    if (coordinatesArray.length > 0) {
+      coordinatesArray.push(coordinatesArray[0]);
+    }
+
     setCoordinates(coordinatesArray);
+
+    // Update form state with coordinates
+    setAdd((prev) => ({
+      ...prev,
+      coordinates: coordinatesArray.length > 0 ? JSON.stringify(coordinatesArray) : "",
+    }));
+
     setDrawingMode(null);
+    console.log("Polygon coordinates saved:", coordinatesArray);
   };
 
   const clearPolygons = () => {
     setCoordinates([]);
-    map.setOptions({ draggableCursor: "pointer" });
+    // Clear coordinates from form state
+    setAdd((prev) => ({
+      ...prev,
+      coordinates: "",
+    }));
+    // Remove all polygons from the map
+    if (map) {
+      map.setOptions({ draggableCursor: "pointer" });
+    }
+    console.log("Polygon cleared");
   };
 
-  const onMapLoad = (map) => {
-    setMap(map);
+  const onMapLoad = (mapInstance) => {
+    setMap(mapInstance);
   };
 
   return (
@@ -371,11 +482,11 @@ export default function ZoneManagement() {
           <div className="!space-y-11">
             <ModalComponent
               open={add.open}
-              title={add.type === "update" ? "Update Zone" : "ADD ZONE"}
+              title="ADD ZONE"
               onClose={handleToggle}
               secondaryAction={{ label: "Cancel", onClick: handleToggle }}
               primaryAction={{
-                label: add.type === "update" ? "Update Zone" : "Add Zone",
+                label: "Add Zone",
                 onClick: handleAddZone,
                 isLoading: isAddingZone,
               }}
@@ -391,10 +502,12 @@ export default function ZoneManagement() {
                     value={add.countryId || ""}
                     onChange={(e) => handelCountryChange(e)}
                     options={
-                      countries?.map((country) => ({
-                        value: country.id,
-                        label: country.name,
-                      })) || []
+                      Array.isArray(countries)
+                        ? countries.map((country) => ({
+                          value: country.id,
+                          label: country.name,
+                        }))
+                        : []
                     }
                     placeholder="Select country"
                     fullWidth
@@ -402,40 +515,64 @@ export default function ZoneManagement() {
                   />
                 </Box>
                 <Box className="flex flex-col gap-y-3">
-                  <label htmlFor="zoneName" className="text-grey40">
+                  <label htmlFor="cityId" className="text-grey40">
                     City
                   </label>
 
                   <SelectField
                     title=""
-                    value={add.countryId || ""}
-                    onChange={(e) => handelCountryChange(e)}
+                    value={add.cityId || ""}
+                    onChange={(e) => handleCityChange(e)}
                     options={
-                      countries?.map((country) => ({
-                        value: country.id,
-                        label: country.name,
-                      })) || []
+                      Array.isArray(cities)
+                        ? cities.map((city) => ({
+                          value: city.id,
+                          label: city.name,
+                        }))
+                        : []
                     }
-                    placeholder="Select city"
+                    placeholder={add.countryId ? "Select city" : "Select country first"}
                     fullWidth
                     bgcolor={"grey.200"}
+                    disabled={!add.countryId}
                   />
                 </Box>
                 <Box className="flex flex-col gap-y-3">
                   <div className="mt-4 relative">
                     {/* Search bar at the top */}
-                    <Autocomplete
-                      onLoad={setAutocomplete}
-                      onPlaceChanged={handlePlaceChanged}
-                    >
-                      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-30 w-full px-4 max-w-[500px] mx-auto">
-                        <input
-                          type="text"
-                          placeholder="Search location"
-                          className="bg-white rounded-md w-full h-12 pl-4 pr-4 shadow-lg focus:outline-none focus:ring-2 focus:ring-blue-500 !px-4"
-                        />
-                      </div>
-                    </Autocomplete>
+                    <div className="absolute top-4 left-1/2 -translate-x-1/2 w-full px-4 max-w-[500px] mx-auto z-[100]">
+                      <style>
+                        {`
+                          .pac-container {
+                            z-index: 9999 !important;
+                            border-radius: 8px;
+                            margin-top: 4px;
+                            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+                          }
+                          .pac-item {
+                            padding: 12px;
+                            cursor: pointer;
+                          }
+                          .pac-item:hover {
+                            background-color: #f3f4f6;
+                          }
+                        `}
+                      </style>
+                      <Autocomplete
+                        onLoad={(autocomplete) => {
+                          autocompleteRef.current = autocomplete;
+                        }}
+                        onPlaceChanged={handlePlaceChanged}
+                      >
+                        <div className="w-full relative">
+                          <input
+                            type="text"
+                            placeholder="Search location"
+                            className="bg-white rounded-md w-full h-12 !pl-4 px-4 shadow-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          />
+                        </div>
+                      </Autocomplete>
+                    </div>
 
                     {/* Action buttons at bottom left */}
                     <div className="absolute bottom-4 left-4 z-30 flex flex-col !space-y-4">
@@ -520,7 +657,7 @@ export default function ZoneManagement() {
                     Zone commission%
                   </label>
                   <InputFieldModal
-                    name="commission"
+                    name="zoneCommission"
                     value={add.zoneCommission}
                     onChange={handleChange}
                     placeholder="Zone commission%"
@@ -540,12 +677,14 @@ export default function ZoneManagement() {
                         zoneCurrency: e.target.value,
                       }));
                     }}
-                    options={[
-                      { value: "USD", label: "USD" },
-                      { value: "EUR", label: "EUR" },
-                      { value: "GBP", label: "GBP" },
-                      { value: "PKR", label: "PKR" },
-                    ]}
+                    options={
+                      Array.isArray(currencies)
+                        ? currencies.map((currency) => ({
+                          value: currency.name,
+                          label: `${currency.name} (${currency.symbol})`,
+                        }))
+                        : []
+                    }
                     placeholder="Select currency"
                     fullWidth
                     bgcolor={"grey.200"}
@@ -565,11 +704,14 @@ export default function ZoneManagement() {
                         paymentMethod: e.target.value,
                       }));
                     }}
-                    options={[
-                      { value: "stripe", label: "Stripe" },
-                      { value: "paypal", label: "PayPal" },
-                      { value: "razorpay", label: "Razorpay" },
-                    ]}
+                    options={
+                      Array.isArray(paymentMethods)
+                        ? paymentMethods.map((method) => ({
+                          value: method.name,
+                          label: method.name,
+                        }))
+                        : []
+                    }
                     placeholder="Select payment method"
                     fullWidth
                     bgcolor={"grey.200"}

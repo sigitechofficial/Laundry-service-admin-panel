@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Box, Typography, Checkbox, Divider, Alert } from "@mui/material";
 import { useForm, Controller } from "react-hook-form";
 import ModalComponent from "../../../components/shared/Modal";
@@ -9,6 +9,7 @@ import {
   useAddServiceWithPreferencesMutation,
   useAddServiceWithCategoriesMutation,
   useGetServiceWitPreferencesQuery,
+  useUnAssignServiceFromPreferencesMutation,
 } from "../../../store/services/api";
 import ButtonBlue from "../../../components/ui/ButtonBlue";
 
@@ -22,6 +23,12 @@ export default function ConfigureModal({ open, onClose, selectedServiceId }) {
     useAddServiceWithPreferencesMutation();
   const [addServiceWithCategories, { isLoading: categoriesLoading }] =
     useAddServiceWithCategoriesMutation();
+  const [unAssignServiceFromPreferences, { isLoading: unassignLoading }] =
+    useUnAssignServiceFromPreferencesMutation();
+
+  // Track originally linked items to detect changes
+  const [originalLinkedCategories, setOriginalLinkedCategories] = useState([]);
+  const [originalLinkedPreferences, setOriginalLinkedPreferences] = useState([]);
 
   const {
     control,
@@ -64,6 +71,8 @@ export default function ConfigureModal({ open, onClose, selectedServiceId }) {
       selectedCategories: [],
       selectedPreferences: [],
     });
+    setOriginalLinkedCategories([]);
+    setOriginalLinkedPreferences([]);
     onClose();
   };
 
@@ -84,59 +93,110 @@ export default function ConfigureModal({ open, onClose, selectedServiceId }) {
   };
 
   const handleCategoriesSubmit = async () => {
-    if (!watchedServiceId || watchedCategories?.length === 0) {
-      error(
-        watchedCategories?.length === 0
-          ? "Select atleast one category"
-          : "Please select a service first"
-      );
+    if (!watchedServiceId) {
+      error("Please select a service first");
       return;
     }
 
     try {
-      const apiBody = {
-        serviceId: watchedServiceId,
-        categoryId: watchedCategories || [],
-      };
+      const currentCategories = watchedCategories || [];
 
-      const res = await addServiceWithCategories(apiBody).unwrap();
+      // Check if there are any changes
+      const hasChanges =
+        currentCategories.length !== originalLinkedCategories.length ||
+        currentCategories.some(id => !originalLinkedCategories.includes(id)) ||
+        originalLinkedCategories.some(id => !currentCategories.includes(id));
 
-      if (res?.status === "1") {
-        success("Categories saved successfully!");
-        // serviceRefetch();
-      } else {
-        error(res?.message);
+      if (!hasChanges) {
+        success("No changes to save");
+        return;
+      }
+
+      // If all categories are removed, show error
+      if (currentCategories.length === 0 && originalLinkedCategories.length > 0) {
+        error("At least one category must be selected");
+        return;
+      }
+
+      // Update categories (API should handle both add and remove)
+      if (currentCategories.length > 0) {
+        const apiBody = {
+          serviceId: watchedServiceId,
+          categoryId: currentCategories,
+        };
+
+        const res = await addServiceWithCategories(apiBody).unwrap();
+
+        if (res?.status === "1") {
+          // Update original linked categories after successful save
+          setOriginalLinkedCategories([...currentCategories]);
+          success("Categories updated successfully!");
+        } else {
+          error(res?.message);
+        }
       }
     } catch (err) {
-      error(err?.message);
+      error(err?.data?.message || err?.message || "Failed to update categories");
     }
   };
 
   const handlePreferencesSubmit = async () => {
-    if (!watchedServiceId || watchedPreferences?.length === 0) {
-      error(
-        watchedPreferences?.length === 0
-          ? "Select atleast one preference"
-          : "Please select a service first"
-      );
+    if (!watchedServiceId) {
+      error("Please select a service first");
       return;
     }
 
     try {
-      const apiBody = {
-        serviceId: watchedServiceId,
-        preferenceTypeId: watchedPreferences || [],
-      };
+      const currentPreferences = watchedPreferences || [];
 
-      const res = await addServiceWithPreferences(apiBody).unwrap();
-      if (res?.status === "1") {
-        success("Preferences saved successfully!");
-        // preferenceRefetch();
+      // Check if there are any changes
+      const hasChanges =
+        currentPreferences.length !== originalLinkedPreferences.length ||
+        currentPreferences.some(id => !originalLinkedPreferences.includes(id)) ||
+        originalLinkedPreferences.some(id => !currentPreferences.includes(id));
+
+      if (!hasChanges) {
+        success("No changes to save");
+        return;
+      }
+
+      // If preferences were removed or changed, unassign all first, then reassign current selection
+      // This ensures clean state
+      const hasRemovedPreferences = originalLinkedPreferences.some(
+        (id) => !currentPreferences.includes(id)
+      );
+
+      if (hasRemovedPreferences || originalLinkedPreferences.length > 0) {
+        try {
+          await unAssignServiceFromPreferences(watchedServiceId).unwrap();
+        } catch (unassignErr) {
+          console.error("Error unassigning preferences:", unassignErr);
+          // Continue with adding preferences even if unassign fails
+        }
+      }
+
+      // Add current preferences if any
+      if (currentPreferences.length > 0) {
+        const apiBody = {
+          serviceId: watchedServiceId,
+          preferenceTypeId: currentPreferences,
+        };
+
+        const res = await addServiceWithPreferences(apiBody).unwrap();
+        if (res?.status === "1") {
+          // Update original linked preferences after successful save
+          setOriginalLinkedPreferences([...currentPreferences]);
+          success("Preferences updated successfully!");
+        } else {
+          error(res?.message || "Something went wrong");
+        }
       } else {
-        error(res?.message || "Something went wrong");
+        // All preferences were removed
+        setOriginalLinkedPreferences([]);
+        success("Preferences unassigned successfully!");
       }
     } catch (err) {
-      error(err?.data?.message || "Failed to save preferences");
+      error(err?.data?.message || err?.message || "Failed to update preferences");
     }
   };
 
@@ -150,9 +210,17 @@ export default function ConfigureModal({ open, onClose, selectedServiceId }) {
       const linkedPreferenceIds =
         preferencesData?.map((pref) => pref?.preferenceTypeId) || [];
 
+      // Store original linked items
+      setOriginalLinkedCategories(linkedCategoryIds);
+      setOriginalLinkedPreferences(linkedPreferenceIds);
+
       // Update form with merged selections
       setValue("selectedCategories", linkedCategoryIds);
       setValue("selectedPreferences", linkedPreferenceIds);
+    } else {
+      // Reset when service changes
+      setOriginalLinkedCategories([]);
+      setOriginalLinkedPreferences([]);
     }
   }, [watchedServiceId, existingServiceData, setValue]);
 
@@ -316,7 +384,7 @@ export default function ConfigureModal({ open, onClose, selectedServiceId }) {
             <Box className="flex justify-end !mt-4">
               <ButtonBlue
                 size="medium"
-                text="Save"
+                text="Save Categories"
                 onClick={handleCategoriesSubmit}
                 disabled={categoriesLoading}
               />
@@ -472,14 +540,16 @@ export default function ConfigureModal({ open, onClose, selectedServiceId }) {
           </Box>
         )}
 
-        <Box className="flex justify-end">
-          <ButtonBlue
-            size="medium"
-            text="Save"
-            onClick={handlePreferencesSubmit}
-            disabled={configServiceLoading}
-          />
-        </Box>
+        {preferences?.length > 0 && (
+          <Box className="flex justify-end !mt-4">
+            <ButtonBlue
+              size="medium"
+              text="Save Preferences"
+              onClick={handlePreferencesSubmit}
+              disabled={configServiceLoading || unassignLoading}
+            />
+          </Box>
+        )}
       </Box>
     </ModalComponent>
   );

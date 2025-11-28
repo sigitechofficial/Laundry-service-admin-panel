@@ -180,6 +180,7 @@ const DataTable = ({
                     <TableCell
                       key={col.field}
                       onClick={() => handleSort(col.field)}
+                      align={col.align || "left"}
                       sx={{
                         ":hover": {
                           backgroundColor: "#F3F4F6",
@@ -197,7 +198,12 @@ const DataTable = ({
                         textOverflow: "ellipsis",
                       }}
                     >
-                      <Box display={"flex"} alignItems={"center"} gap={"6px"}>
+                      <Box 
+                        display={"flex"} 
+                        alignItems={"center"} 
+                        gap={"6px"}
+                        justifyContent={col.align === "center" ? "center" : col.align === "right" ? "flex-end" : "flex-start"}
+                      >
                         {col.headerName}{" "}
                         {isSortable &&
                           (isSorted ? (
@@ -227,6 +233,7 @@ const DataTable = ({
                   {columns.map((col) => (
                     <TableCell
                       key={col.field}
+                      align={col.align || "left"}
                       sx={{
                         fontFamily: "Inter, sans-serif",
                         fontSize: "14px",

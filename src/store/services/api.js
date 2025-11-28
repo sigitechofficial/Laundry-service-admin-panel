@@ -172,6 +172,13 @@ export const api = createApi({
       }),
     }),
 
+    unAssignServiceFromPreferences: builder.mutation({
+      query: (serviceId) => ({
+        url: `admin/unAssignServiceFromPreferences/${serviceId}`,
+        method: "DELETE",
+      }),
+    }),
+
     getServiceWitPreferences: builder.query({
       query: (id) => ({
         url: `admin/servicesAndPreferencesData/${id}`,
@@ -266,6 +273,22 @@ export const api = createApi({
       }),
     }),
 
+    getCitiesByCountryId: builder.query({
+      query: (countryId) => ({
+        url: `admin/getCitiesByCountryId/${countryId}`,
+        method: "GET",
+        credentials: "include",
+      }),
+    }),
+
+    getUnitsDistanceAndCurrency: builder.query({
+      query: (type) => ({
+        url: `admin/getUnitsDistanceAndCurrency?type=${type}`,
+        method: "GET",
+        credentials: "include",
+      }),
+    }),
+
     addZone: builder.mutation({
       query: (body) => ({
         url: "admin/addZone",
@@ -299,6 +322,7 @@ export const {
   useGetServiceWitPreferencesQuery,
   useAddServiceWithPreferencesMutation,
   useAddServiceWithCategoriesMutation,
+  useUnAssignServiceFromPreferencesMutation,
   useGetAllCustomersQuery,
   useGetAllCustomersCountQuery,
   useGetCustomerByIdQuery,
@@ -312,5 +336,7 @@ export const {
   useGetShopsDataQuery,
   useGetAllZonesQuery,
   useGetAllCountriesQuery,
+  useGetCitiesByCountryIdQuery,
+  useGetUnitsDistanceAndCurrencyQuery,
   useAddZoneMutation
 } = api;

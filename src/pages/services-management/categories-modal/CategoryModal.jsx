@@ -19,7 +19,7 @@ export default function CategoryModal({ open, onClose }) {
     control,
     handleSubmit,
     reset,
-    formState: { errors, isValid },
+    formState: { errors },
   } = useForm({
     resolver: yupResolver(categoryValidationSchema),
     defaultValues: defaultCategoryValues,
@@ -33,10 +33,32 @@ export default function CategoryModal({ open, onClose }) {
 
   const onSubmit = async (data) => {
     try {
+      // Debug: Check if form data has values
+      console.log("Form data from react-hook-form:", data);
+      console.log("Name:", data.name);
+      console.log("Description:", data.description);
+      console.log("Image:", data.image);
+      console.log("Image type:", typeof data.image);
+      console.log("Is image File?", data.image instanceof File);
+
       const formdata = new FormData();
-      formdata.append("name", data.name);
-      formdata.append("description", data.description);
+      formdata.append("name", data.name || "");
+      formdata.append("description", data.description || "");
       formdata.append("CategoryImg", data.image);
+
+      // Properly inspect FormData contents
+      console.log("FormData contents:");
+      for (let [key, value] of formdata.entries()) {
+        if (value instanceof File) {
+          console.log(`${key}:`, {
+            name: value.name,
+            size: value.size,
+            type: value.type,
+          });
+        } else {
+          console.log(`${key}:`, value);
+        }
+      }
 
       const res = await addCategory(formdata).unwrap();
       if (res?.status === "1") {
@@ -46,7 +68,19 @@ export default function CategoryModal({ open, onClose }) {
         error(res?.message || "Something went wrong");
       }
     } catch (err) {
-      error(err?.data?.message || "Failed to add category");
+      // Log full error for debugging
+      console.error("Category add error:", err);
+      console.error("Error data:", err?.data);
+      console.error("Error status:", err?.status);
+      console.error("Error message:", err?.data?.message);
+
+      // Show detailed error message
+      const errorMessage =
+        err?.data?.message ||
+        err?.data?.error ||
+        err?.message ||
+        "Failed to add category";
+      error(errorMessage);
     }
   };
 
