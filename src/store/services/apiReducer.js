@@ -312,6 +312,14 @@ const apiDataSlice = createSlice({
       }
     );
 
+    builder.addMatcher(
+      api.endpoints.getShopsData.matchFulfilled,
+      (state, { payload }) => {
+        // Store shops from AllShopsData array
+        state.shops = payload?.data?.AllShopsData || [];
+      }
+    );
+
   },
 });
 

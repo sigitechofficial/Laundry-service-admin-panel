@@ -9,6 +9,7 @@ export default function ButtonBlue({
   type,
   size = "large",
   isLoading,
+  startIcon,
 }) {
   const sizeStyles = {
     small: {
@@ -34,6 +35,7 @@ export default function ButtonBlue({
       size={size}
       type={type}
       variant="contained"
+      startIcon={startIcon}
       sx={{
         height: "52px",
         borderRadius: "8px",

@@ -296,6 +296,36 @@ export const api = createApi({
         body,
       }),
     }),
+
+    updateDriver: builder.mutation({
+      query: ({ id, body }) => ({
+        url: `admin/updateDriver/${id}`,
+        method: "PATCH",
+        body,
+      }),
+    }),
+
+    addDriverByLaundryShop: builder.mutation({
+      query: (body) => ({
+        url: "admin/addDriverByLaundryShop",
+        method: "POST",
+        body,
+      }),
+    }),
+
+    getAllDriverMiniDetails: builder.query({
+      query: () => ({
+        url: "admin/allDriverMiniDetails",
+        method: "GET",
+      }),
+    }),
+
+    getSpecificDriverDetail: builder.query({
+      query: (driverId) => ({
+        url: `admin/specificdriverDetail/${driverId}`,
+        method: "GET",
+      }),
+    }),
   }),
 });
 
@@ -338,5 +368,9 @@ export const {
   useGetAllCountriesQuery,
   useGetCitiesByCountryIdQuery,
   useGetUnitsDistanceAndCurrencyQuery,
-  useAddZoneMutation
+  useAddZoneMutation,
+  useUpdateDriverMutation,
+  useAddDriverByLaundryShopMutation,
+  useGetAllDriverMiniDetailsQuery,
+  useGetSpecificDriverDetailQuery
 } = api;

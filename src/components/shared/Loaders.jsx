@@ -23,6 +23,7 @@ export const DelayFull = () => (
     <Delay />
   </Box>
 );
+
 export const MiniLoader = ({ size = "50px" }) => (
   <Box display="flex" justifyContent="center" alignItems="center">
     <Delay size={size} />

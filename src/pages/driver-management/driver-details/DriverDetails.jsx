@@ -19,7 +19,7 @@ import StatusPill from "../../../components/ui/StatusPill";
 import ChangeStatus from "../../../components/ui/Switch";
 import ActionButtons from "../../../components/ui/ActionButtons";
 import { useNavigate, useParams } from "react-router-dom";
-import { useGetCustomerByIdQuery } from "../../../store/services/api";
+import { useGetSpecificDriverDetailQuery } from "../../../store/services/api";
 import { Delay } from "../../../components/shared/Loaders";
 import dayjs from "dayjs";
 import { dateTimeFormat } from "../../../shared/constants";
@@ -30,10 +30,17 @@ export default function DriverDetails() {
   const [dateRange, setDateRange] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
 
-  const { data, isLoading } = useGetCustomerByIdQuery(id, { skip: !id });
+  const { data, isLoading } = useGetSpecificDriverDetailQuery(id, { skip: !id });
 
-  // Sample customer data
-  const customersData = data?.data?.bookingDetails?.map((booking, index) => {
+  // Extract driver information from API response
+  const driverInfo = data?.data?.userInformation;
+  const driverDetails = driverInfo?.driverInZone;
+  const shopInfo = driverInfo?.laundaryDriver;
+  const addressInfo = shopInfo?.addressDb;
+  const bookings = data?.data?.driverBookings || [];
+
+  // Map bookings data for table
+  const customersData = bookings?.map((booking, index) => {
     return {
       id: booking?.id,
       sl: index + 1,
@@ -254,25 +261,34 @@ export default function DriverDetails() {
               <div className="w-[720px] bg-grey50 rounded-[20px] !p-7 flex justify-between font-Inter">
                 <div className="!space-y-2">
                   <p className="text-grey20 font-medium text-2xl">
-                    ID #{data?.data?.userDetails?.userId}
+                    ID #{driverDetails?.id || id}
                   </p>
                   <p className="font-medium text-2xl !pt-4 capitalize">
-                    {`${data?.data?.userDetails?.user?.firstName} ${data?.data?.userDetails?.user?.lastName}`}
+                    {`${driverDetails?.firstName || ""} ${driverDetails?.lastName || ""}`.trim()}
                   </p>
                   <p className="font-medium text-base text-grey20 flex items-center gap-2">
                     <MdMailOutline size={"22px"} />
-                    {data?.data?.userDetails?.user?.email}
+                    {driverDetails?.email || "N/A"}
                   </p>
-                  <p className="font-medium text-base text-grey20 flex items-center gap-2">
-                    <MdOutlinePhone size={"22px"} />
-                    {data?.data?.userDetails?.user?.phoneNum}
-                  </p>
-                  <p className="font-medium text-base text-grey20 flex items-center gap-2">
-                    <MdOutlineLocationOn size={"24px"} />
-                    {data?.data?.userDetails.streetAddress +
-                      " " +
-                      data?.data?.userDetails?.province}
-                  </p>
+                  {shopInfo && (
+                    <>
+                      <p className="font-medium text-base text-grey20 flex items-center gap-2">
+                        <MdOutlineLocationOn size={"24px"} />
+                        Shop: {shopInfo?.shopName || "N/A"}
+                      </p>
+                      {addressInfo && (
+                        <p className="font-medium text-base text-grey20 flex items-center gap-2">
+                          <MdOutlineLocationOn size={"24px"} />
+                          {`${addressInfo?.streetAddress || ""} ${addressInfo?.district || ""}, ${addressInfo?.province || ""}`.trim()}
+                        </p>
+                      )}
+                    </>
+                  )}
+                  {driverDetails?.role && (
+                    <p className="font-medium text-base text-grey20">
+                      Role: {driverDetails.role.name}
+                    </p>
+                  )}
                 </div>
 
                 <div className="size-20 rounded-2xl">

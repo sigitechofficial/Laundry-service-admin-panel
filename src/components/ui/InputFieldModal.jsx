@@ -1,5 +1,6 @@
-import { Typography } from "@mui/material";
+import { Typography, IconButton } from "@mui/material";
 import { useState } from "react";
+import { AiOutlineEye, AiOutlineEyeInvisible } from "../../shared/icons/index";
 export default function InputFieldModal({
   placeholder,
   value,
@@ -24,7 +25,7 @@ export default function InputFieldModal({
         <input
           disabled={disabled}
           placeholder={placeholder}
-          type={type}
+          type={isPassword ? (showPassword ? "text" : "password") : type}
           name={name}
           value={value}
           onChange={onChange}
