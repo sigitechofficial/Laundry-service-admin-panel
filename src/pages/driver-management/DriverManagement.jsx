@@ -11,6 +11,7 @@ import ChangeStatus from "../../components/ui/Switch";
 import ActionButtons from "../../components/ui/ActionButtons";
 import NewDriverModal from "./NewDriverModal";
 import EditDriverModal from "./EditDriverModal";
+import DeleteDriverModal from "./DeleteDriverModal";
 import { useNavigate } from "react-router-dom";
 import {
   useGetAllCustomersCountQuery,
@@ -28,6 +29,8 @@ export default function DriverManagement() {
   const [isNewDriverModalOpen, setIsNewDriverModalOpen] = useState(false);
   const [isEditDriverModalOpen, setIsEditDriverModalOpen] = useState(false);
   const [selectedDriver, setSelectedDriver] = useState(null);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [driverToDelete, setDriverToDelete] = useState(null);
   
   // Debug: Log selectedDriver when it changes
   React.useEffect(() => {
@@ -195,7 +198,10 @@ export default function DriverManagement() {
             setSelectedDriver(row);
             setIsEditDriverModalOpen(true);
           }}
-          onDelete={() => alert("Delete clicked")}
+          onDelete={() => {
+            setDriverToDelete(row);
+            setIsDeleteModalOpen(true);
+          }}
         />
       ),
     },
@@ -379,6 +385,21 @@ export default function DriverManagement() {
           // Refetch drivers and count after updating a driver
           refetchDrivers();
           refetchCount();
+        }}
+      />
+      <DeleteDriverModal
+        open={isDeleteModalOpen}
+        driverData={driverToDelete}
+        onClose={() => {
+          setIsDeleteModalOpen(false);
+          setDriverToDelete(null);
+        }}
+        onDriverDeleted={() => {
+          // Refetch drivers and count after deleting a driver
+          refetchDrivers();
+          refetchCount();
+          setIsDeleteModalOpen(false);
+          setDriverToDelete(null);
         }}
       />
     </>

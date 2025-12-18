@@ -12,6 +12,7 @@ export default function ModalComponent({
   width = 584,
   height = "auto",
   maxHeight = "90vh",
+  hideHeader = false,
 }) {
   const modalStyle = {
     position: "absolute",
@@ -44,6 +45,23 @@ export default function ModalComponent({
     padding: "24px",
     overflowY: "auto",
     bgcolor: "white",
+    // Custom scrollbar styling
+    "&::-webkit-scrollbar": {
+      width: "6px",
+    },
+    "&::-webkit-scrollbar-track": {
+      background: "transparent",
+    },
+    "&::-webkit-scrollbar-thumb": {
+      background: "#9CA3AF",
+      borderRadius: "10px",
+    },
+    "&::-webkit-scrollbar-thumb:hover": {
+      background: "#6B7280",
+    },
+    // Firefox scrollbar
+    scrollbarWidth: "thin",
+    scrollbarColor: "#9CA3AF transparent",
   };
 
   const footerStyle = {
@@ -71,36 +89,38 @@ export default function ModalComponent({
     >
       <Box sx={modalStyle}>
         {/* Header */}
-        <Box sx={headerStyle}>
-          <Typography
-            id="modal-title"
-            component="h2"
-            sx={{
-              fontWeight: 500,
-              fontSize: "20px",
-              color: "#101828",
-              fontFamily: "Switzer",
-              textTransform: "uppercase",
-            }}
-          >
-            {title}
-          </Typography>
-          <IconButton
-            onClick={onClose}
-            sx={{
-              padding: "4px",
-              color: "#000",
-              "&:hover": {
-                bgcolor: "#F2F4F7",
-              },
-              position: "absolute",
-              top: "10px",
-              right: "10px",
-            }}
-          >
-            <TbX size="24px" />
-          </IconButton>
-        </Box>
+        {!hideHeader && (
+          <Box sx={headerStyle}>
+            <Typography
+              id="modal-title"
+              component="h2"
+              sx={{
+                fontWeight: 500,
+                fontSize: "20px",
+                color: "#101828",
+                fontFamily: "Switzer",
+                textTransform: "uppercase",
+              }}
+            >
+              {title}
+            </Typography>
+            <IconButton
+              onClick={onClose}
+              sx={{
+                padding: "4px",
+                color: "#000",
+                "&:hover": {
+                  bgcolor: "#F2F4F7",
+                },
+                position: "absolute",
+                top: "10px",
+                right: "10px",
+              }}
+            >
+              <TbX size="24px" />
+            </IconButton>
+          </Box>
+        )}
 
         {/* Content */}
         <Box sx={contentStyle} id="modal-content">

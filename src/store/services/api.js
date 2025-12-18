@@ -326,6 +326,27 @@ export const api = createApi({
         method: "GET",
       }),
     }),
+
+    deleteDriver: builder.mutation({
+      query: (id) => ({
+        url: `admin/deleteDriver/${id}`,
+        method: "DELETE",
+      }),
+    }),
+
+    getOrderForEdit: builder.query({
+      query: (orderId) => ({
+        url: `admin/getOrderForEdit/${orderId}`,
+        method: "GET",
+      }),
+    }),
+
+    getOrderItemsSheet: builder.query({
+      query: (bookingId) => ({
+        url: `admin/orderItemsSheet?bookingId=${bookingId}`,
+        method: "GET",
+      }),
+    }),
   }),
 });
 
@@ -372,5 +393,8 @@ export const {
   useUpdateDriverMutation,
   useAddDriverByLaundryShopMutation,
   useGetAllDriverMiniDetailsQuery,
-  useGetSpecificDriverDetailQuery
+  useGetSpecificDriverDetailQuery,
+  useDeleteDriverMutation,
+  useGetOrderForEditQuery,
+  useGetOrderItemsSheetQuery
 } = api;

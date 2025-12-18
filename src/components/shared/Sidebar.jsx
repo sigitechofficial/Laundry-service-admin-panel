@@ -27,6 +27,7 @@ import {
 import { breakPoints, sidebarHide } from "../../shared/constants";
 import { toggleSidebar } from "../../store/slices/uiSlice";
 import useToaster from "../ui/Toaster";
+import { useGetOrdersCountQuery } from "../../store/services/api";
 
 function Sidebar() {
   const dispatch = useDispatch();
@@ -45,6 +46,31 @@ function Sidebar() {
 
   const isSidebarhide = useMediaQuery(sidebarHide);
   const isDesktop = useMediaQuery(breakPoints.desktop);
+
+  // Fetch order counts
+  const { data: orderCountsData } = useGetOrdersCountQuery();
+
+  // Get order count for a specific menu item label
+  const getOrderCount = (label) => {
+    if (!orderCountsData?.data) return 0;
+
+    const counts = orderCountsData.data;
+    
+    switch (label) {
+      case "All Order":
+        return counts.allOrderCount || 0;
+      case "Complete":
+        return counts.completedOrders || 0;
+      case "Pending":
+        return counts.pendingOrders || 0;
+      case "Cancelled":
+        return counts.cancelledOrders || 0;
+      case "On hold":
+        return counts.onHoldOrders || 0;
+      default:
+        return 0;
+    }
+  };
 
   const handleToggleSidebar = () => dispatch(toggleSidebar());
 
@@ -375,21 +401,23 @@ function Sidebar() {
                             />
                           </Box>
 
-                          <Box
-                            component="span"
-                            width="24px"
-                            height="24px"
-                            borderRadius="100%"
-                            bgcolor="grey.700"
-                            color="white"
-                            display="flex"
-                            alignItems="center"
-                            justifyContent="center"
-                            fontSize="12px"
-                            className="badge"
-                          >
-                            10
-                          </Box>
+                          {item.label === "Order Management" && (
+                            <Box
+                              component="span"
+                              width="24px"
+                              height="24px"
+                              borderRadius="100%"
+                              bgcolor="grey.700"
+                              color="white"
+                              display="flex"
+                              alignItems="center"
+                              justifyContent="center"
+                              fontSize="12px"
+                              className="badge"
+                            >
+                              {getOrderCount(sub.label)}
+                            </Box>
+                          )}
                         </ListItemButton>
                       ))}
                     </List>

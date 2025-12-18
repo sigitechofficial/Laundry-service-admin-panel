@@ -13,6 +13,7 @@ import {
   useGetOrdersCountQuery,
 } from "../../../store/services/api";
 import { dateTimeFormat } from "../../../shared/constants";
+import OrderDetailsModal from "../order-modals/OrderDetailsModal";
 
 export default function ShopManagement() {
   const navigate = useNavigate();
@@ -20,7 +21,7 @@ export default function ShopManagement() {
   const { data: OrderCounts } = useGetOrdersCountQuery();
   const [dateRange, setDateRange] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
-  const [modalData, setModalData] = useState({ open: false, data: "" });
+  const [modalData, setModalData] = useState({ open: false, orderId: null });
 
   const handleSearchChange = (searchTerm) => {
     setSearchTerm(searchTerm);
@@ -172,7 +173,7 @@ export default function ShopManagement() {
       sortable: false,
       renderCell: (row) => (
         <ActionButtons
-          onView={() => setModalData({ open: true, data: row })}
+          onView={() => setModalData({ open: true, orderId: row.id })}
           showEdit={false}
           onDelete={() => alert("Delete clicked")}
         />
@@ -180,63 +181,70 @@ export default function ShopManagement() {
     },
   ];
   return (
-    <Layout
-      content={
-        isLoading ? (
-          <Delay />
-        ) : (
-          <div className="!space-y-11">
-            <Box className="flex items-center gap-x-5 justify-between">
-              <Box className="flex items-center gap-x-5">
-                <Typography color="blue.50">
-                  <BsCardList size="24px" color="blue.50" />
-                </Typography>
+    <>
+      <Layout
+        content={
+          isLoading ? (
+            <Delay />
+          ) : (
+            <div className="!space-y-11">
+              <Box className="flex items-center gap-x-5 justify-between">
+                <Box className="flex items-center gap-x-5">
+                  <Typography color="blue.50">
+                    <BsCardList size="24px" color="blue.50" />
+                  </Typography>
 
-                <Typography variant="h4" fontFamily={"Switzer"} color="grey.20">
-                  Order Management
-                </Typography>
+                  <Typography variant="h4" fontFamily={"Switzer"} color="grey.20">
+                    Order Management
+                  </Typography>
+                </Box>
               </Box>
-            </Box>
 
-            <div className="grid sm:grid-cols-2 md:grid-cols-4 gap-7 font-Inter">
-              <StatCard
-                title="TOTAL ORDERS"
-                value={OrderCounts?.data?.allOrderCount}
-                bgColor="bg-purple50"
-              />
-              <StatCard
-                title="new ORDERS"
-                value={OrderCounts?.data?.NewOrders}
-                bgColor="bg-red50"
-              />
-              <StatCard
-                title="active orders"
-                value={OrderCounts?.data?.activeOrders}
-                bgColor="bg-green50"
-              />
-              <StatCard
-                title="repeat orders"
-                value={OrderCounts?.data?.repeatOrders}
-                bgColor="bg-green200"
-              />
-            </div>
+              <div className="grid sm:grid-cols-2 md:grid-cols-4 gap-7 font-Inter">
+                <StatCard
+                  title="TOTAL ORDERS"
+                  value={OrderCounts?.data?.allOrderCount}
+                  bgColor="bg-purple50"
+                />
+                <StatCard
+                  title="new ORDERS"
+                  value={OrderCounts?.data?.NewOrders}
+                  bgColor="bg-red50"
+                />
+                <StatCard
+                  title="active orders"
+                  value={OrderCounts?.data?.activeOrders}
+                  bgColor="bg-green50"
+                />
+                <StatCard
+                  title="repeat orders"
+                  value={OrderCounts?.data?.repeatOrders}
+                  bgColor="bg-green200"
+                />
+              </div>
 
-            <div className="w-full overflow-auto">
-              <DataTable
-                data={customersData}
-                columns={customerColumns}
-                searchPlaceholder="Search by order ID, product name..."
-                onSearch={handleSearchChange}
-                onFilter={handleFilter}
-                onDateRangeChange={handleDateChange}
-                onDownload={handleDownload}
-                onRowAction={handleRowAction}
-                height={600}
-              />
+              <div className="w-full overflow-auto">
+                <DataTable
+                  data={customersData}
+                  columns={customerColumns}
+                  searchPlaceholder="Search by order ID, product name..."
+                  onSearch={handleSearchChange}
+                  onFilter={handleFilter}
+                  onDateRangeChange={handleDateChange}
+                  onDownload={handleDownload}
+                  onRowAction={handleRowAction}
+                  height={600}
+                />
+              </div>
             </div>
-          </div>
-        )
-      }
-    />
+          )
+        }
+      />
+      <OrderDetailsModal
+        open={modalData.open}
+        orderId={modalData.orderId}
+        onClose={() => setModalData({ open: false, orderId: null })}
+      />
+    </>
   );
 }
