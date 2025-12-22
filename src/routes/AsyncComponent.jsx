@@ -68,6 +68,10 @@ export const OnHoldOrders = lazy(() =>
   import("../pages/order-management/on-hold-orders/OnHoldOrders")
 );
 
+export const EditOrder = lazy(() =>
+  import("../pages/order-management/edit-order/EditOrder")
+);
+
 export const Reports = lazy(() => import("../pages/reports/Reports"));
 
 export const LoginPage = lazy(() => import("../pages/auth/LoginPage"));

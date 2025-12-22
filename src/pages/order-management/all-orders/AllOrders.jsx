@@ -174,7 +174,7 @@ export default function ShopManagement() {
       renderCell: (row) => (
         <ActionButtons
           onView={() => setModalData({ open: true, orderId: row.id })}
-          showEdit={false}
+          onEdit={() => navigate(`/orders/edit/${row.id}`)}
           onDelete={() => alert("Delete clicked")}
         />
       ),

@@ -347,6 +347,14 @@ export const api = createApi({
         method: "GET",
       }),
     }),
+
+    editOrder: builder.mutation({
+      query: ({ orderId, body }) => ({
+        url: `admin/editOrder/${orderId}`,
+        method: "PATCH",
+        body,
+      }),
+    }),
   }),
 });
 
@@ -396,5 +404,6 @@ export const {
   useGetSpecificDriverDetailQuery,
   useDeleteDriverMutation,
   useGetOrderForEditQuery,
-  useGetOrderItemsSheetQuery
+  useGetOrderItemsSheetQuery,
+  useEditOrderMutation
 } = api;

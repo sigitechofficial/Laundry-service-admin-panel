@@ -1,7 +1,7 @@
 import { Button } from "@mui/material";
 import React from "react";
 
-export default function ButtonWhite({ onClick, disabled, text, width }) {
+export default function ButtonWhite({ onClick, disabled, text, width, children }) {
   return (
     <Button
       onClick={onClick}
@@ -10,7 +10,7 @@ export default function ButtonWhite({ onClick, disabled, text, width }) {
         height: "52px",
         borderRadius: "8px",
         border: "1px solid #2B2D42",
-        color: "#344054",
+        color: "#55ACEE !important",
         bgcolor: "white",
         fontFamily: "Switzer",
         fontWeight: 500,
@@ -22,11 +22,12 @@ export default function ButtonWhite({ onClick, disabled, text, width }) {
         "&:hover": {
           bgcolor: "#F9FAFB",
           border: "1px solid #2B2D42",
+          color: "#55ACEE !important",
         },
       }}
       disabled={disabled}
     >
-      {text}
+      {text || children}
     </Button>
   );
 }

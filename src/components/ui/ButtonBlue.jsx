@@ -10,6 +10,7 @@ export default function ButtonBlue({
   size = "large",
   isLoading,
   startIcon,
+  children,
 }) {
   const sizeStyles = {
     small: {
@@ -40,7 +41,7 @@ export default function ButtonBlue({
         height: "52px",
         borderRadius: "8px",
         bgcolor: "#000099",
-        color: "white",
+        color: "#FFFFFF !important",
         fontFamily: "Switzer",
         fontWeight: 500,
         fontSize: "20px",
@@ -49,6 +50,9 @@ export default function ButtonBlue({
         minWidth: "100px",
         width: width,
         boxShadow: "0px 1px 2px rgba(16, 24, 40, 0.05)",
+        "& .MuiButton-root": {
+          color: "#FFFFFF !important",
+        },
         ...sizeStyles[size],
       }}
       disabled={disabled || isLoading}
@@ -58,7 +62,7 @@ export default function ButtonBlue({
           size={size === "small" ? "20px" : size === "medium" ? "24px" : "30px"}
         />
       ) : (
-        text
+        text || children
       )}
     </Button>
   );

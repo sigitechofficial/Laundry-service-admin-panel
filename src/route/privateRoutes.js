@@ -18,6 +18,7 @@ import {
   PendingOrders,
   CancelledOrders,
   OnHoldOrders,
+  EditOrder,
   ShopEmployee
 } from "../routes/AsyncComponent";
 
@@ -112,6 +113,11 @@ export const privateRoutes = [
     path: "/orders/on-hold-orders",
     element: OnHoldOrders,
     resourceKey: "order_on-hold-orders_Page",
+  },
+  {
+    path: "/orders/edit/:id",
+    element: EditOrder,
+    resourceKey: "order_edit_Page",
   },
 ];
 
