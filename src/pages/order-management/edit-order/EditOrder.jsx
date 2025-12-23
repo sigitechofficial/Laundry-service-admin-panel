@@ -102,6 +102,9 @@ export default function EditOrder() {
 
   const handleSave = async () => {
     try {
+      // Debug: Log current serviceItems state
+      console.log('Current serviceItems before building payload:', JSON.parse(JSON.stringify(serviceItems)));
+      
       // Format dates and times
       const collectionDate = formData.pickupDate
         ? formData.pickupDate.format("YYYY-MM-DD")
@@ -128,68 +131,74 @@ export default function EditOrder() {
       const deliveryTimeTo = orderData?.deliveryTimeTo || null;
 
       // Build preferencesArray from serviceItems with preferenceTypeId and preferenceValueId
-      // First, fetch service preferences for each service to validate
+      // NOTE: We don't need to validate against service preferences here because
+      // AddItemModal already ensures only configured preferences can be selected
       const preferencesArray = [];
-      const serviceIds = Object.keys(serviceItems).map(id => parseInt(id));
       
-      // Fetch service preferences for all services using baseQuery
-      const servicePreferencesPromises = serviceIds.map(async (serviceId) => {
-        try {
-          const result = await baseQueryWithReauth(
-            {
-              url: `admin/getServiceWithPreferences/${serviceId}`,
-              method: 'GET',
-            },
-            { dispatch: () => {}, getState: () => ({}) },
-            {}
-          );
-          
-          if (result.error) {
-            console.error(`Error fetching preferences for service ${serviceId}:`, result.error);
-            return { serviceId, preferenceTypeIds: [] };
-          }
-          
-          const data = result.data;
-          return {
-            serviceId,
-            preferenceTypeIds: data?.data?.preferencesData?.map(pref => pref.preferenceTypeId) || []
-          };
-        } catch (error) {
-          console.error(`Error fetching preferences for service ${serviceId}:`, error);
-          return { serviceId, preferenceTypeIds: [] };
-        }
-      });
+      console.log('🔨 EditOrder: Building preferencesArray from serviceItems...');
+      console.log('🔨 EditOrder: serviceItems structure:', JSON.parse(JSON.stringify(serviceItems)));
       
-      const servicePreferencesResults = await Promise.all(servicePreferencesPromises);
-      const servicePreferencesMap = {};
-      servicePreferencesResults.forEach(result => {
-        servicePreferencesMap[result.serviceId] = result.preferenceTypeIds;
-      });
-      
-      // Now build preferencesArray, only including preferences available for each service
       Object.entries(serviceItems).forEach(([serviceId, serviceData]) => {
         const parsedServiceId = parseInt(serviceId);
-        const availablePreferenceTypeIds = servicePreferencesMap[parsedServiceId] || [];
+        
+        console.log(`🔨 EditOrder: Processing service ${parsedServiceId} with ${serviceData.items.length} items`);
         
         // Get preferences from items
-        serviceData.items.forEach((item) => {
-          if (item.preferences && item.preferences.preferenceIds) {
-            // Add each preference with its IDs, but only if it's available for this service
-            item.preferences.preferenceIds.forEach((prefId) => {
-              // Check if this preference type is available for this service
-              if (availablePreferenceTypeIds.includes(prefId.preferenceTypeId)) {
-                preferencesArray.push({
+        serviceData.items.forEach((item, itemIndex) => {
+          console.log(`🔨 EditOrder: Processing item ${itemIndex} (id: ${item.id}):`, item);
+          console.log(`🔨 EditOrder: Item preferences:`, item.preferences);
+          console.log(`🔨 EditOrder: Item has preferences?`, !!item.preferences);
+          console.log(`🔨 EditOrder: Item has preferenceIds?`, !!item.preferences?.preferenceIds);
+          console.log(`🔨 EditOrder: preferenceIds is array?`, Array.isArray(item.preferences?.preferenceIds));
+          console.log(`🔨 EditOrder: preferenceIds length:`, item.preferences?.preferenceIds?.length || 0);
+          
+          // Check if item has preferences with preferenceIds array
+          if (item.preferences && item.preferences.preferenceIds && Array.isArray(item.preferences.preferenceIds) && item.preferences.preferenceIds.length > 0) {
+            console.log(`✅ EditOrder: Item ${item.id} has ${item.preferences.preferenceIds.length} preference IDs`);
+            
+            // Add each preference with its IDs
+            // All preferences here are already validated in AddItemModal to be configured for the service
+            item.preferences.preferenceIds.forEach((prefId, prefIndex) => {
+              console.log(`🔨 EditOrder: Processing preference ${prefIndex}:`, prefId);
+              
+              // Only validate if preferenceTypeId and preferenceValueId exist
+              if (prefId.preferenceTypeId && prefId.preferenceValueId) {
+                const preferenceEntry = {
                   preferenceTypeId: prefId.preferenceTypeId,
                   preferenceValueId: prefId.preferenceValueId,
                   serviceId: parsedServiceId,
-                });
+                };
+                
+                // Include categoryId and subCategoryId if available
+                if (item.categoryId) {
+                  preferenceEntry.categoryId = item.categoryId;
+                }
+                if (item.subCategoryId) {
+                  preferenceEntry.subCategoryId = item.subCategoryId;
+                }
+                
+                console.log(`✅ EditOrder: Adding preference entry to array:`, preferenceEntry);
+                preferencesArray.push(preferenceEntry);
               } else {
-                console.warn(`Preference type ${prefId.preferenceTypeId} is not available for service ${parsedServiceId}, skipping.`);
+                console.warn(`⚠️ EditOrder: Invalid preference ID structure for item ${item.id}:`, prefId);
               }
             });
+          } else {
+            // Debug: log if item doesn't have preferences
+            console.warn(`⚠️ EditOrder: Item ${item.id} does NOT have valid preferences structure`);
+            if (item.preferences) {
+              console.warn(`⚠️ EditOrder: Item ${item.id} preferences object:`, item.preferences);
+            } else {
+              console.warn(`⚠️ EditOrder: Item ${item.id} has no preferences property`);
+            }
           }
         });
       });
+      
+      // Debug: log the preferencesArray
+      console.log('📦 EditOrder: Final preferencesArray:', preferencesArray);
+      console.log('📦 EditOrder: preferencesArray length:', preferencesArray.length);
+      console.log('📦 EditOrder: Full serviceItems state:', JSON.parse(JSON.stringify(serviceItems)));
 
       // Build services array
       const services = Object.keys(serviceItems).map((serviceId) => ({
@@ -264,7 +273,13 @@ export default function EditOrder() {
         totalItems: totalItems,
       };
 
+      console.log('📤 EditOrder: Sending API request with body:', JSON.stringify(body, null, 2));
+      console.log('📤 EditOrder: preferencesArray in request:', body.preferencesArray);
+      console.log('📤 EditOrder: preferencesArray length:', body.preferencesArray.length);
+      
       const response = await editOrder({ orderId: id, body }).unwrap();
+      
+      console.log('📥 EditOrder: API Response received:', response);
 
       if (response?.status === "1") {
         success(response?.message || "Order updated successfully!");
@@ -294,6 +309,10 @@ export default function EditOrder() {
   };
 
   const handleAddItems = (item) => {
+    console.log('📥 EditOrder: handleAddItems called with item:', item);
+    console.log('📥 EditOrder: Item preferences:', item.preferences);
+    console.log('📥 EditOrder: Item preferenceIds:', item.preferences?.preferenceIds);
+    
     // item should contain: serviceId, categoryId, subCategoryId, name, price, preferences
     const { serviceId, categoryId, categoryName, subCategoryId, name, price, preferences } = item;
     
@@ -355,10 +374,18 @@ export default function EditOrder() {
         unitPrice: parseFloat(price || 0),
         categoryId: categoryId,
         subCategoryId: subCategoryId,
-        preferences: preferences || {},
+        preferences: preferences || { preferenceIds: [] },
       };
       
+      // Debug: Log the item being added
+      console.log('✅ EditOrder: Adding new item to serviceItems:', newItem);
+      console.log('✅ EditOrder: New item preferences structure:', newItem.preferences);
+      console.log('✅ EditOrder: New item preferenceIds:', newItem.preferences?.preferenceIds);
+      console.log('✅ EditOrder: New item preferenceIds length:', newItem.preferences?.preferenceIds?.length || 0);
+      
       newState[serviceId].items.push(newItem);
+      
+      console.log('📊 EditOrder: Updated serviceItems state:', JSON.parse(JSON.stringify(newState)));
       
       return newState;
     });
@@ -368,6 +395,37 @@ export default function EditOrder() {
   useEffect(() => {
     if (orderData?.customerSelectedServices && !isInitialized.current) {
       const items = {};
+      
+      // Create a map of preferences by serviceId and categoryId/subCategoryId for quick lookup
+      // Also create a reverse map by serviceId only as fallback
+      const preferencesMap = {};
+      const preferencesByServiceMap = {};
+      
+      if (orderData.preferencesArray && Array.isArray(orderData.preferencesArray)) {
+        orderData.preferencesArray.forEach((pref) => {
+          // Map by serviceId + categoryId + subCategoryId (if available)
+          if (pref.categoryId || pref.subCategoryId) {
+            const key = `${pref.serviceId}-${pref.categoryId || ''}-${pref.subCategoryId || ''}`;
+            if (!preferencesMap[key]) {
+              preferencesMap[key] = [];
+            }
+            preferencesMap[key].push({
+              preferenceTypeId: pref.preferenceTypeId,
+              preferenceValueId: pref.preferenceValueId,
+            });
+          }
+          
+          // Also map by serviceId only as fallback
+          if (!preferencesByServiceMap[pref.serviceId]) {
+            preferencesByServiceMap[pref.serviceId] = [];
+          }
+          preferencesByServiceMap[pref.serviceId].push({
+            preferenceTypeId: pref.preferenceTypeId,
+            preferenceValueId: pref.preferenceValueId,
+          });
+        });
+      }
+      
       orderData.customerSelectedServices.forEach((service) => {
         const serviceName = service.service?.name || "Other";
         const serviceId = service.serviceId;
@@ -377,6 +435,20 @@ export default function EditOrder() {
             items: [],
           };
         }
+        
+        // Find preferences for this service item
+        // First try to match by serviceId + categoryId + subCategoryId
+        let itemPreferences = [];
+        if (service.categoryId || service.subCategoryId) {
+          const prefKey = `${serviceId}-${service.categoryId || ''}-${service.subCategoryId || ''}`;
+          itemPreferences = preferencesMap[prefKey] || [];
+        }
+        
+        // If no preferences found, try to get by serviceId only (fallback)
+        if (itemPreferences.length === 0 && preferencesByServiceMap[serviceId]) {
+          itemPreferences = preferencesByServiceMap[serviceId];
+        }
+        
         items[serviceId].items.push({
           id: service.id,
           itemName: service.category?.name || service.service?.name || "Item",
@@ -384,6 +456,9 @@ export default function EditOrder() {
           unitPrice: parseFloat(service.categoryPrice || service.servicePrice || 0),
           categoryId: service.categoryId,
           subCategoryId: service.subCategoryId,
+          preferences: {
+            preferenceIds: itemPreferences || [],
+          },
         });
       });
       setServiceItems(items);
@@ -414,6 +489,55 @@ export default function EditOrder() {
     ].filter(Boolean);
     return parts.join(", ") || "N/A";
   };
+
+  // Debug helper function - can be called from browser console
+  useEffect(() => {
+    // Expose debug function to window for browser console access
+    window.debugEditOrder = {
+      getServiceItems: () => {
+        console.log('🔍 Debug: Current serviceItems:', JSON.parse(JSON.stringify(serviceItems)));
+        return serviceItems;
+      },
+      getPreferencesArray: async () => {
+        console.log('🔍 Debug: Building preferencesArray...');
+        const preferencesArray = [];
+        const serviceIds = Object.keys(serviceItems).map(id => parseInt(id));
+        
+        Object.entries(serviceItems).forEach(([serviceId, serviceData]) => {
+          const parsedServiceId = parseInt(serviceId);
+          serviceData.items.forEach((item) => {
+            if (item.preferences && item.preferences.preferenceIds && Array.isArray(item.preferences.preferenceIds)) {
+              item.preferences.preferenceIds.forEach((prefId) => {
+                if (prefId.preferenceTypeId && prefId.preferenceValueId) {
+                  preferencesArray.push({
+                    preferenceTypeId: prefId.preferenceTypeId,
+                    preferenceValueId: prefId.preferenceValueId,
+                    serviceId: parsedServiceId,
+                    categoryId: item.categoryId,
+                    subCategoryId: item.subCategoryId,
+                  });
+                }
+              });
+            }
+          });
+        });
+        console.log('🔍 Debug: Built preferencesArray:', preferencesArray);
+        return preferencesArray;
+      },
+      inspectItem: (itemId) => {
+        Object.entries(serviceItems).forEach(([serviceId, serviceData]) => {
+          const item = serviceData.items.find(i => i.id === itemId);
+          if (item) {
+            console.log('🔍 Debug: Found item:', item);
+            console.log('🔍 Debug: Item preferences:', item.preferences);
+            return item;
+          }
+        });
+      },
+    };
+    
+    console.log('🛠️ Debug: EditOrder debug functions available. Use window.debugEditOrder in console.');
+  }, [serviceItems]);
 
   return (
     <Layout
@@ -871,6 +995,39 @@ export default function EditOrder() {
                 </Box>
               );
             })}
+
+              {/* Debug Panel - Show current state */}
+              {process.env.NODE_ENV === 'development' && (
+                <Box
+                  sx={{
+                    mb: 3,
+                    p: 2,
+                    bgcolor: "#F9FAFB",
+                    borderRadius: "8px",
+                    border: "1px solid #E5E7EB",
+                  }}
+                >
+                  <Typography variant="body2" fontFamily="Switzer" sx={{ mb: 1, fontWeight: 600 }}>
+                    🐛 Debug Info:
+                  </Typography>
+                  <Typography variant="caption" fontFamily="Switzer" sx={{ display: "block", mb: 0.5 }}>
+                    Services: {Object.keys(serviceItems).length}
+                  </Typography>
+                  <Typography variant="caption" fontFamily="Switzer" sx={{ display: "block", mb: 0.5 }}>
+                    Total Items: {Object.values(serviceItems).reduce((sum, s) => sum + s.items.length, 0)}
+                  </Typography>
+                  <Typography variant="caption" fontFamily="Switzer" sx={{ display: "block", mb: 0.5 }}>
+                    Items with Preferences: {Object.values(serviceItems).reduce((sum, s) => 
+                      sum + s.items.filter(i => i.preferences?.preferenceIds?.length > 0).length, 0
+                    )}
+                  </Typography>
+                  <Typography variant="caption" fontFamily="Switzer" sx={{ display: "block", color: "#EF4444" }}>
+                    {Object.values(serviceItems).reduce((sum, s) => 
+                      sum + s.items.filter(i => !i.preferences?.preferenceIds?.length).length, 0
+                    ) > 0 && "⚠️ Some items have no preferences!"}
+                  </Typography>
+                </Box>
+              )}
 
               {/* Add Item Button */}
               <Box

@@ -44,6 +44,18 @@ export default function AddItemModal({ open, onClose, onAddItems, orderData }) {
   const serviceCategories = serviceData?.data?.serviceCategoriesData || [];
   const servicePreferences = serviceData?.data?.preferencesData || [];
   const allPreferences = preferencesResponse?.data || [];
+  
+  // Log API responses for debugging
+  useEffect(() => {
+    console.log('📡 AddItemModal: API Data loaded:');
+    console.log('📡 AddItemModal: allServices:', allServices);
+    console.log('📡 AddItemModal: allCategories:', allCategories);
+    console.log('📡 AddItemModal: allSubCategories:', allSubCategories);
+    console.log('📡 AddItemModal: serviceCategories:', serviceCategories);
+    console.log('📡 AddItemModal: servicePreferences:', servicePreferences);
+    console.log('📡 AddItemModal: allPreferences:', allPreferences);
+    console.log('📡 AddItemModal: allPreferences count:', allPreferences.length);
+  }, [allServices, allCategories, allSubCategories, serviceCategories, servicePreferences, allPreferences]);
 
   const [formData, setFormData] = useState({
     serviceType: "",
@@ -98,11 +110,39 @@ export default function AddItemModal({ open, onClose, onAddItems, orderData }) {
     }));
 
   // Get preference values from API by name (case-insensitive)
+  // IMPORTANT: Only return preferences that are configured for the selected service
   const getPreferenceValues = (preferenceName) => {
-    const preference = allPreferences.find(
-      (p) => p.name?.toLowerCase() === preferenceName.toLowerCase()
+    console.log(`🔍 AddItemModal: getPreferenceValues called for:`, preferenceName);
+    console.log(`🔍 AddItemModal: servicePreferences (configured for service):`, servicePreferences);
+    console.log(`🔍 AddItemModal: allPreferences:`, allPreferences);
+    
+    // First, check if this preference type is configured for the selected service
+    const servicePreferenceType = servicePreferences.find(
+      (sp) => {
+        // Find the preference type in allPreferences to match by name
+        const pref = allPreferences.find(p => p.id === sp.preferenceTypeId);
+        return pref?.name?.toLowerCase() === preferenceName.toLowerCase();
+      }
     );
-    return preference?.preferenceValues?.filter((pv) => pv.status) || [];
+    
+    if (!servicePreferenceType) {
+      console.warn(`⚠️ AddItemModal: Preference "${preferenceName}" is NOT configured for service ${selectedServiceId}`);
+      return [];
+    }
+    
+    // Now get the preference from allPreferences using the preferenceTypeId
+    const preference = allPreferences.find(
+      (p) => p.id === servicePreferenceType.preferenceTypeId
+    );
+    
+    if (!preference) {
+      console.warn(`⚠️ AddItemModal: Preference type ${servicePreferenceType.preferenceTypeId} not found in allPreferences`);
+      return [];
+    }
+    
+    const values = preference?.preferenceValues?.filter((pv) => pv.status) || [];
+    console.log(`✅ AddItemModal: Found ${values.length} active values for "${preferenceName}" (configured for service):`, values);
+    return values;
   };
 
   // Get options for each preference type
@@ -165,20 +205,87 @@ export default function AddItemModal({ open, onClose, onAddItems, orderData }) {
   const handleSaveRef = useRef(false);
 
   // Helper function to find preference type and value IDs
+  // IMPORTANT: Only find preferences that are configured for the selected service
   const findPreferenceIds = (preferenceName, preferenceValue) => {
+    console.log(`🔎 AddItemModal: findPreferenceIds called with:`, { preferenceName, preferenceValue });
+    console.log(`🔎 AddItemModal: servicePreferences (configured for service):`, servicePreferences);
+    console.log(`🔎 AddItemModal: Available preferences count:`, allPreferences.length);
+    
+    if (!allPreferences || allPreferences.length === 0) {
+      console.error(`❌ AddItemModal: allPreferences is empty! Check API response.`);
+      return { preferenceTypeId: null, preferenceValueId: null };
+    }
+    
+    if (!servicePreferences || servicePreferences.length === 0) {
+      console.warn(`⚠️ AddItemModal: No preferences configured for service ${selectedServiceId}`);
+      console.warn(`⚠️ AddItemModal: Service must have preferences configured in Configure Service modal`);
+      return { preferenceTypeId: null, preferenceValueId: null };
+    }
+    
+    // First, check if this preference type is configured for the selected service
+    const servicePreferenceType = servicePreferences.find(
+      (sp) => {
+        // Find the preference type in allPreferences to match by name
+        const pref = allPreferences.find(p => p.id === sp.preferenceTypeId);
+        return pref?.name?.toLowerCase() === preferenceName.toLowerCase();
+      }
+    );
+    
+    if (!servicePreferenceType) {
+      console.warn(`⚠️ AddItemModal: Preference type "${preferenceName}" is NOT configured for service ${selectedServiceId}`);
+      console.warn(`⚠️ AddItemModal: Configured preference types for this service:`, 
+        servicePreferences.map(sp => {
+          const pref = allPreferences.find(p => p.id === sp.preferenceTypeId);
+          return pref?.name || `ID: ${sp.preferenceTypeId}`;
+        })
+      );
+      return { preferenceTypeId: null, preferenceValueId: null };
+    }
+    
+    // Now get the preference from allPreferences using the preferenceTypeId
     const preference = allPreferences.find(
-      (p) => p.name?.toLowerCase() === preferenceName.toLowerCase()
+      (p) => p.id === servicePreferenceType.preferenceTypeId
     );
-    if (!preference) return { preferenceTypeId: null, preferenceValueId: null };
+    
+    if (!preference) {
+      console.warn(`⚠️ AddItemModal: Preference type ${servicePreferenceType.preferenceTypeId} not found in allPreferences`);
+      return { preferenceTypeId: null, preferenceValueId: null };
+    }
+    
+    console.log(`✅ AddItemModal: Found preference type (configured for service):`, preference);
+    console.log(`🔎 AddItemModal: Looking for value "${preferenceValue}" in preference values:`, preference.preferenceValues);
 
-    const preferenceValueObj = preference.preferenceValues?.find(
-      (pv) => pv.value?.toLowerCase() === preferenceValue?.toLowerCase()
+    if (!preference.preferenceValues || preference.preferenceValues.length === 0) {
+      console.warn(`⚠️ AddItemModal: Preference "${preferenceName}" has no preferenceValues`);
+      return { preferenceTypeId: preference.id, preferenceValueId: null };
+    }
+
+    const preferenceValueObj = preference.preferenceValues.find(
+      (pv) => {
+        const pvValue = pv.value?.toLowerCase().trim();
+        const searchValue = preferenceValue?.toLowerCase().trim();
+        const match = pvValue === searchValue;
+        if (!match) {
+          console.log(`🔍 AddItemModal: Comparing "${pvValue}" with "${searchValue}" - no match`);
+        }
+        return match;
+      }
     );
 
-    return {
+    if (!preferenceValueObj) {
+      console.warn(`⚠️ AddItemModal: Preference value "${preferenceValue}" not found in preference "${preferenceName}"`);
+      console.warn(`⚠️ AddItemModal: Available values:`, preference.preferenceValues.map(pv => pv.value));
+    } else {
+      console.log(`✅ AddItemModal: Found preference value:`, preferenceValueObj);
+    }
+
+    const result = {
       preferenceTypeId: preference.id,
       preferenceValueId: preferenceValueObj?.id || null,
     };
+    
+    console.log(`📋 AddItemModal: Returning preference IDs:`, result);
+    return result;
   };
 
   const handleSave = (e) => {
@@ -194,10 +301,16 @@ export default function AddItemModal({ open, onClose, onAddItems, orderData }) {
     );
 
     if (!selectedSubCategory || !formData.serviceType) {
+      console.log('❌ AddItemModal: Cannot save - missing subCategory or serviceType', {
+        selectedSubCategory,
+        serviceType: formData.serviceType
+      });
       return;
     }
 
     handleSaveRef.current = true;
+
+    console.log('📝 AddItemModal: Starting to build preferences from formData:', formData);
 
     // Build preferences with IDs
     const preferences = {
@@ -210,64 +323,134 @@ export default function AddItemModal({ open, onClose, onAddItems, orderData }) {
       // Store IDs for API
       preferenceIds: [],
     };
+    
+    console.log('📝 AddItemModal: Initial preferences object:', preferences);
 
     // Find and store preference IDs for all preferences
     if (formData.detergent) {
+      console.log('🔍 AddItemModal: Looking for detergent preference:', formData.detergent);
       const ids = findPreferenceIds("detergent", formData.detergent);
+      console.log('🔍 AddItemModal: Detergent preference IDs found:', ids);
       if (ids.preferenceTypeId && ids.preferenceValueId) {
         preferences.preferenceIds.push({
           preferenceTypeId: ids.preferenceTypeId,
           preferenceValueId: ids.preferenceValueId,
         });
+        console.log('✅ AddItemModal: Added detergent preference ID');
+      } else {
+        console.warn('⚠️ AddItemModal: Detergent preference IDs not found');
       }
     }
 
     if (formData.temperature) {
       // Remove °C for matching - API stores just the number
       const tempValue = formData.temperature.replace("°C", "").replace("°", "").trim();
-      // Try both spellings (API has typo "tempreture")
-      let ids = findPreferenceIds("tempreture", tempValue);
+      console.log('🔍 AddItemModal: Looking for temperature preference:', tempValue);
+      console.log('🔍 AddItemModal: Original temperature value:', formData.temperature);
+      
+      // Try multiple approaches to find temperature preference
+      let ids = null;
+      
+      // First try with cleaned value (just number)
+      ids = findPreferenceIds("tempreture", tempValue);
       if (!ids.preferenceTypeId || !ids.preferenceValueId) {
         ids = findPreferenceIds("temperature", tempValue);
       }
+      
+      // If not found, try with original value (with °C)
+      if (!ids.preferenceTypeId || !ids.preferenceValueId) {
+        console.log('🔍 AddItemModal: Trying with original temperature value:', formData.temperature);
+        ids = findPreferenceIds("tempreture", formData.temperature);
+        if (!ids.preferenceTypeId || !ids.preferenceValueId) {
+          ids = findPreferenceIds("temperature", formData.temperature);
+        }
+      }
+      
+      // If still not found, try with just the number as string
+      if (!ids.preferenceTypeId || !ids.preferenceValueId && !isNaN(tempValue)) {
+        console.log('🔍 AddItemModal: Trying with numeric value:', tempValue);
+        ids = findPreferenceIds("tempreture", String(parseInt(tempValue)));
+        if (!ids.preferenceTypeId || !ids.preferenceValueId) {
+          ids = findPreferenceIds("temperature", String(parseInt(tempValue)));
+        }
+      }
+      
+      console.log('🔍 AddItemModal: Temperature preference IDs found:', ids);
       if (ids.preferenceTypeId && ids.preferenceValueId) {
         preferences.preferenceIds.push({
           preferenceTypeId: ids.preferenceTypeId,
           preferenceValueId: ids.preferenceValueId,
         });
+        console.log('✅ AddItemModal: Added temperature preference ID');
+      } else {
+        console.warn('⚠️ AddItemModal: Temperature preference IDs not found after all attempts');
+        console.warn('⚠️ AddItemModal: Tried values:', [tempValue, formData.temperature, String(parseInt(tempValue))]);
       }
     }
 
     if (formData.washService) {
+      console.log('🔍 AddItemModal: Looking for washService preference:', formData.washService);
       // Try "Sorting" preference for wash service
       const ids = findPreferenceIds("Sorting", formData.washService);
+      console.log('🔍 AddItemModal: WashService preference IDs found:', ids);
       if (ids.preferenceTypeId && ids.preferenceValueId) {
         preferences.preferenceIds.push({
           preferenceTypeId: ids.preferenceTypeId,
           preferenceValueId: ids.preferenceValueId,
         });
+        console.log('✅ AddItemModal: Added washService preference ID');
+      } else {
+        console.warn('⚠️ AddItemModal: WashService preference IDs not found');
       }
     }
 
     // Add other preferences if they exist in the API
     if (formData.fabricSoftener) {
+      console.log('🔍 AddItemModal: Looking for fabricSoftener preference:', formData.fabricSoftener);
       const ids = findPreferenceIds("Fabric Softener", formData.fabricSoftener);
+      console.log('🔍 AddItemModal: FabricSoftener preference IDs found:', ids);
       if (ids.preferenceTypeId && ids.preferenceValueId) {
         preferences.preferenceIds.push({
           preferenceTypeId: ids.preferenceTypeId,
           preferenceValueId: ids.preferenceValueId,
         });
+        console.log('✅ AddItemModal: Added fabricSoftener preference ID');
+      } else {
+        console.warn('⚠️ AddItemModal: FabricSoftener preference IDs not found');
       }
     }
 
     if (formData.oxiClean) {
+      console.log('🔍 AddItemModal: Looking for oxiClean preference:', formData.oxiClean);
       const ids = findPreferenceIds("Oxi Clean", formData.oxiClean);
+      console.log('🔍 AddItemModal: OxiClean preference IDs found:', ids);
       if (ids.preferenceTypeId && ids.preferenceValueId) {
         preferences.preferenceIds.push({
           preferenceTypeId: ids.preferenceTypeId,
           preferenceValueId: ids.preferenceValueId,
         });
+        console.log('✅ AddItemModal: Added oxiClean preference ID');
+      } else {
+        console.warn('⚠️ AddItemModal: OxiClean preference IDs not found');
       }
+    }
+    
+    console.log('📦 AddItemModal: Final preferences object with preferenceIds:', preferences);
+    console.log('📦 AddItemModal: Number of preferenceIds:', preferences.preferenceIds.length);
+    
+    // CRITICAL: Validate that we have at least some preferenceIds before sending
+    if (preferences.preferenceIds.length === 0) {
+      console.error('❌ AddItemModal: WARNING - No preferenceIds found! Preferences will be empty!');
+      console.error('❌ AddItemModal: FormData preferences:', {
+        detergent: formData.detergent,
+        fabricSoftener: formData.fabricSoftener,
+        oxiClean: formData.oxiClean,
+        washService: formData.washService,
+        temperature: formData.temperature,
+      });
+      console.error('❌ AddItemModal: allPreferences available:', allPreferences.map(p => ({ name: p.name, id: p.id })));
+    } else {
+      console.log('✅ AddItemModal: Successfully found', preferences.preferenceIds.length, 'preference IDs');
     }
 
     const item = {
@@ -279,6 +462,11 @@ export default function AddItemModal({ open, onClose, onAddItems, orderData }) {
       subCategoryId: selectedSubCategory.value,
       preferences: preferences,
     };
+
+    console.log('📤 AddItemModal: Sending item to parent component:', item);
+    console.log('📤 AddItemModal: Item preferences structure:', item.preferences);
+    console.log('📤 AddItemModal: Item preferenceIds count:', item.preferences.preferenceIds.length);
+    console.log('📤 AddItemModal: Item preferenceIds details:', item.preferences.preferenceIds);
 
     onAddItems(item);
     
@@ -371,14 +559,7 @@ export default function AddItemModal({ open, onClose, onAddItems, orderData }) {
           </Box>
 
           {/* Category Name */}
-          <Box sx={{ mb: 3, border: "1px solid #55ACEE", borderRadius: "8px", p: 2 }}>
-            <Typography
-              variant="body2"
-              fontFamily="Switzer"
-              sx={{ mb: 0.5, fontSize: "12px", color: "#55ACEE", fontWeight: 500 }}
-            >
-              Input Fields
-            </Typography>
+          <Box sx={{ mb: 3 }}>
             <Typography
               variant="body2"
               fontFamily="Switzer"
