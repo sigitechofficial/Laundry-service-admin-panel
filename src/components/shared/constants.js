@@ -4,6 +4,7 @@ import {
   LuUsersRound,
   PiHeadsetBold,
   MdOutlineStore,
+  MdOutlineLocationOn,
   TbCirclePlus,
   TbCircleX,
   IconFingerHold,
@@ -106,6 +107,12 @@ export const sidebarList = [
     label: "Zone Record",
     Icon: LuUsersRound,
     path: "/zone-management",
+    size: "24px",
+  },
+  {
+    label: "Countries and Cities",
+    Icon: MdOutlineLocationOn,
+    path: "/countries-cities",
     size: "24px",
   },
   {

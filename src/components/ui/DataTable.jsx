@@ -102,7 +102,7 @@ const DataTable = ({
       <Paper
         sx={{
           width: "100%",
-          borderRadius: "12px",
+          borderRadius: "0 0 12px 12px",
           overflow: "hidden",
           boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
         }}

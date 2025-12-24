@@ -302,6 +302,89 @@ const apiDataSlice = createSlice({
     );
 
     builder.addMatcher(
+      api.endpoints.getAllCities.matchFulfilled,
+      (state, { payload }) => {
+        state.cities = payload.data || payload?.data?.cities || [];
+      }
+    );
+
+    builder.addMatcher(
+      api.endpoints.addCountry.matchFulfilled,
+      (state, { payload }) => {
+        if (payload?.data) {
+          if (!state.countries) {
+            state.countries = [];
+          }
+          state.countries.push(payload.data);
+        }
+      }
+    );
+
+    builder.addMatcher(
+      api.endpoints.editCountry.matchFulfilled,
+      (state, { meta }) => {
+        const { id, body } = meta.arg.originalArgs;
+        if (state.countries && Array.isArray(state.countries)) {
+          const index = state.countries.findIndex((c) => c.id === id);
+          if (index !== -1) {
+            state.countries[index] = {
+              ...state.countries[index],
+              ...(body instanceof FormData ? {} : body),
+            };
+          }
+        }
+      }
+    );
+
+    builder.addMatcher(
+      api.endpoints.deleteCountry.matchFulfilled,
+      (state, { meta }) => {
+        const deletedId = meta.arg.originalArgs;
+        if (state.countries && Array.isArray(state.countries)) {
+          state.countries = state.countries.filter((c) => c.id !== deletedId);
+        }
+      }
+    );
+
+    builder.addMatcher(
+      api.endpoints.addCity.matchFulfilled,
+      (state, { payload }) => {
+        if (payload?.data) {
+          if (!state.cities) {
+            state.cities = [];
+          }
+          state.cities.push(payload.data);
+        }
+      }
+    );
+
+    builder.addMatcher(
+      api.endpoints.editCity.matchFulfilled,
+      (state, { meta }) => {
+        const { id, body } = meta.arg.originalArgs;
+        if (state.cities && Array.isArray(state.cities)) {
+          const index = state.cities.findIndex((c) => c.id === id);
+          if (index !== -1) {
+            state.cities[index] = {
+              ...state.cities[index],
+              ...body,
+            };
+          }
+        }
+      }
+    );
+
+    builder.addMatcher(
+      api.endpoints.deleteCity.matchFulfilled,
+      (state, { meta }) => {
+        const deletedId = meta.arg.originalArgs;
+        if (state.cities && Array.isArray(state.cities)) {
+          state.cities = state.cities.filter((c) => c.id !== deletedId);
+        }
+      }
+    );
+
+    builder.addMatcher(
       api.endpoints.getUnitsDistanceAndCurrency.matchFulfilled,
       (state, { payload, meta }) => {
         const type = meta.arg.originalArgs;

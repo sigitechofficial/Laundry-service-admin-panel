@@ -281,6 +281,66 @@ export const api = createApi({
       }),
     }),
 
+    getAllCities: builder.query({
+      query: () => ({
+        url: "admin/getCities",
+        method: "GET",
+        credentials: "include",
+      }),
+    }),
+
+    addCountry: builder.mutation({
+      query: (body) => ({
+        url: "admin/addCountries",
+        method: "POST",
+        body,
+        credentials: "include",
+      }),
+    }),
+
+    editCountry: builder.mutation({
+      query: ({ id, body }) => ({
+        url: `admin/updateCountry/${id}`,
+        method: "PUT",
+        body,
+        credentials: "include",
+      }),
+    }),
+
+    deleteCountry: builder.mutation({
+      query: (id) => ({
+        url: `admin/deleteCountry/${id}`,
+        method: "DELETE",
+        credentials: "include",
+      }),
+    }),
+
+    addCity: builder.mutation({
+      query: (body) => ({
+        url: "admin/addCities",
+        method: "POST",
+        body,
+        credentials: "include",
+      }),
+    }),
+
+    editCity: builder.mutation({
+      query: ({ id, body }) => ({
+        url: `admin/updateCity/${id}`,
+        method: "PUT",
+        body,
+        credentials: "include",
+      }),
+    }),
+
+    deleteCity: builder.mutation({
+      query: (id) => ({
+        url: `admin/deleteCity/${id}`,
+        method: "DELETE",
+        credentials: "include",
+      }),
+    }),
+
     getUnitsDistanceAndCurrency: builder.query({
       query: (type) => ({
         url: `admin/getUnitsDistanceAndCurrency?type=${type}`,
@@ -396,6 +456,13 @@ export const {
   useGetAllZonesQuery,
   useGetAllCountriesQuery,
   useGetCitiesByCountryIdQuery,
+  useGetAllCitiesQuery,
+  useAddCountryMutation,
+  useEditCountryMutation,
+  useDeleteCountryMutation,
+  useAddCityMutation,
+  useEditCityMutation,
+  useDeleteCityMutation,
   useGetUnitsDistanceAndCurrencyQuery,
   useAddZoneMutation,
   useUpdateDriverMutation,

@@ -74,4 +74,8 @@ export const EditOrder = lazy(() =>
 
 export const Reports = lazy(() => import("../pages/reports/Reports"));
 
+export const CountriesAndCities = lazy(() =>
+  import("../pages/countries-cities/CountriesAndCities")
+);
+
 export const LoginPage = lazy(() => import("../pages/auth/LoginPage"));

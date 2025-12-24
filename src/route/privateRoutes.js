@@ -19,7 +19,8 @@ import {
   CancelledOrders,
   OnHoldOrders,
   EditOrder,
-  ShopEmployee
+  ShopEmployee,
+  CountriesAndCities
 } from "../routes/AsyncComponent";
 
 export const privateRoutes = [
@@ -118,6 +119,11 @@ export const privateRoutes = [
     path: "/orders/edit/:id",
     element: EditOrder,
     resourceKey: "order_edit_Page",
+  },
+  {
+    path: "/countries-cities",
+    element: CountriesAndCities,
+    resourceKey: "countries_cities_Page",
   },
 ];
 
