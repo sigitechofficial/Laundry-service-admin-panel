@@ -29,6 +29,8 @@ import {
   useLoadScript,
   Autocomplete,
   DrawingManager,
+  Marker,
+  Polygon,
 } from "@react-google-maps/api";
 import { LiaHandPointerSolid } from "react-icons/lia";
 import { TbLassoPolygon } from "react-icons/tb";
@@ -53,6 +55,15 @@ export default function ZoneManagement() {
   const [drawingMode, setDrawingMode] = useState(null);
   const [_coordinates, setCoordinates] = useState([]);
   const autocompleteRef = useRef(null);
+
+  // Postal code highlight state
+  const [postalCodeHighlight, setPostalCodeHighlight] = useState(null);
+  const [postalCodeMarkers, setPostalCodeMarkers] = useState([]);
+  const [multiplePostcodeHighlights, setMultiplePostcodeHighlights] = useState([]); // Store multiple postal code polygons
+  const [addedPostcodes, setAddedPostcodes] = useState([]); // Store list of added postal codes with their data
+  const [newPostcodeInput, setNewPostcodeInput] = useState("");
+  const [isAddingPostcode, setIsAddingPostcode] = useState(false);
+  const [showPostcodeInput, setShowPostcodeInput] = useState(false);
 
   // Map container style
   const containerStyle = {
@@ -261,6 +272,12 @@ export default function ZoneManagement() {
       // Clear coordinates and reset map
       setCoordinates([]);
       setDrawingMode(null);
+      setPostalCodeHighlight(null);
+      setPostalCodeMarkers([]);
+      setMultiplePostcodeHighlights([]);
+      setAddedPostcodes([]);
+      setNewPostcodeInput("");
+      setShowPostcodeInput(false);
       if (map) {
         map.setOptions({ draggableCursor: "pointer" });
       }
@@ -280,8 +297,14 @@ export default function ZoneManagement() {
   const handleAddZone = async () => {
     try {
       // Format coordinates as: [[[lng, lat], [lng, lat], ...]]
+      // Round each coordinate to 4 decimal places
       const formattedCoordinates = _coordinates.length > 0
-        ? [_coordinates] // Wrap coordinates array in another array
+        ? [
+          _coordinates.map((coord) => [
+            parseFloat(coord[0].toFixed(4)),
+            parseFloat(coord[1].toFixed(4)),
+          ])
+        ]
         : [];
 
       // Find the selected currency to get its ID
@@ -414,7 +437,73 @@ export default function ZoneManagement() {
     }
   };
 
-  const handlePlaceChanged = () => {
+  // Create polygon from nearby postcodes or create a hexagon
+  const createPolygonFromNearbyPostcodes = (centerLat, centerLng, nearbyPostcodes) => {
+    if (!nearbyPostcodes || nearbyPostcodes.length === 0) {
+      // If no nearby postcodes, create a hexagon around the center point
+      return createHexagon(centerLat, centerLng, 0.005); // ~500m radius
+    }
+
+    // Collect all coordinates from nearby postcodes
+    const coordinates = nearbyPostcodes
+      .filter((pc) => pc.latitude && pc.longitude)
+      .map((pc) => ({ lat: pc.latitude, lng: pc.longitude }));
+
+    if (coordinates.length === 0) {
+      return createHexagon(centerLat, centerLng, 0.005);
+    }
+
+    // Add center point
+    coordinates.push({ lat: centerLat, lng: centerLng });
+
+    // Create bounding polygon
+    return createBoundingPolygon(coordinates);
+  };
+
+  // Create a hexagon shape
+  const createHexagon = (centerLat, centerLng, radius) => {
+    const points = [];
+    for (let i = 0; i < 6; i++) {
+      const angle = (Math.PI / 3) * i;
+      points.push({
+        lat: centerLat + radius * Math.cos(angle),
+        lng: centerLng + radius * Math.sin(angle),
+      });
+    }
+    // Close the polygon
+    points.push(points[0]);
+    return points;
+  };
+
+  // Create a bounding polygon from coordinates
+  const createBoundingPolygon = (coordinates) => {
+    if (coordinates.length === 1) {
+      return createHexagon(coordinates[0].lat, coordinates[0].lng, 0.005);
+    }
+
+    // Calculate bounding box
+    const lats = coordinates.map((c) => c.lat);
+    const lngs = coordinates.map((c) => c.lng);
+    const minLat = Math.min(...lats);
+    const maxLat = Math.max(...lats);
+    const minLng = Math.min(...lngs);
+    const maxLng = Math.max(...lngs);
+
+    // Add padding
+    const latPadding = (maxLat - minLat) * 0.2 || 0.005;
+    const lngPadding = (maxLng - minLng) * 0.2 || 0.005;
+
+    // Create rounded rectangle polygon
+    return [
+      { lat: minLat - latPadding, lng: minLng - lngPadding },
+      { lat: maxLat + latPadding, lng: minLng - lngPadding },
+      { lat: maxLat + latPadding, lng: maxLng + lngPadding },
+      { lat: minLat - latPadding, lng: maxLng + lngPadding },
+      { lat: minLat - latPadding, lng: minLng - lngPadding }, // Close polygon
+    ];
+  };
+
+  const handlePlaceChanged = async () => {
     if (autocompleteRef.current) {
       const place = autocompleteRef.current.getPlace();
 
@@ -427,6 +516,127 @@ export default function ZoneManagement() {
           map.setCenter(location);
           map.setZoom(15);
         }
+
+        // Check if the place contains a postal code (UK postcode)
+        const postalCodeComponent = place.address_components?.find(
+          (component) => component.types.includes("postal_code")
+        );
+
+        if (postalCodeComponent) {
+          const postalCode = postalCodeComponent.long_name || postalCodeComponent.short_name;
+          await highlightPostalCodeArea(postalCode, location);
+        } else {
+          // Clear postal code highlights if no postal code found
+          setPostalCodeHighlight(null);
+          setPostalCodeMarkers([]);
+        }
+      }
+    }
+  };
+
+  // Highlight postal code area using postcode.io API
+  const highlightPostalCodeArea = async (postalCode, fallbackLocation) => {
+    try {
+      // Clean the postal code (remove spaces for API call)
+      const cleanPostcode = postalCode.replace(/\s+/g, "");
+
+      // Fetch postal code data from postcode.io
+      const response = await fetch(
+        `https://api.postcodes.io/postcodes/${encodeURIComponent(cleanPostcode)}`
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.result) {
+          const { latitude, longitude } = data.result;
+          const centerPoint = { lat: latitude, lng: longitude };
+
+          // Fetch nearby postcodes to create a polygon boundary
+          let polygonPath = null;
+          try {
+            const nearbyResponse = await fetch(
+              `https://api.postcodes.io/postcodes?lon=${longitude}&lat=${latitude}&radius=500&limit=20`
+            );
+
+            if (nearbyResponse.ok) {
+              const nearbyData = await nearbyResponse.json();
+              if (nearbyData.result && nearbyData.result.length > 0) {
+                polygonPath = createPolygonFromNearbyPostcodes(
+                  latitude,
+                  longitude,
+                  nearbyData.result
+                );
+              }
+            }
+          } catch (nearbyError) {
+            console.log("Could not fetch nearby postcodes, using default polygon", nearbyError);
+          }
+
+          // If no polygon created, use hexagon
+          if (!polygonPath) {
+            polygonPath = createHexagon(latitude, longitude, 0.005);
+          }
+
+          // Set the highlight polygon
+          setPostalCodeHighlight({
+            paths: polygonPath,
+            postcode: data.result.postcode,
+            center: centerPoint,
+          });
+
+          // Add marker at the center
+          setPostalCodeMarkers([
+            {
+              position: centerPoint,
+              postcode: data.result.postcode,
+              label: data.result.postcode,
+            },
+          ]);
+
+          // Center and zoom the map
+          if (map) {
+            map.setCenter(centerPoint);
+            map.setZoom(14);
+          }
+          setCenter(centerPoint);
+        }
+      } else {
+        // If postcode.io fails, use the location from Google Places
+        if (fallbackLocation) {
+          const centerPoint = { lat: fallbackLocation.lat(), lng: fallbackLocation.lng() };
+          const polygonPath = createHexagon(centerPoint.lat, centerPoint.lng, 0.005);
+          setPostalCodeHighlight({
+            paths: polygonPath,
+            center: centerPoint,
+            postcode: postalCode,
+          });
+          setPostalCodeMarkers([
+            {
+              position: centerPoint,
+              postcode: postalCode,
+              label: postalCode,
+            },
+          ]);
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching postal code data:", error);
+      // Fallback to Google Places location
+      if (fallbackLocation) {
+        const centerPoint = { lat: fallbackLocation.lat(), lng: fallbackLocation.lng() };
+        const polygonPath = createHexagon(centerPoint.lat, centerPoint.lng, 0.005);
+        setPostalCodeHighlight({
+          paths: polygonPath,
+          center: centerPoint,
+          postcode: postalCode,
+        });
+        setPostalCodeMarkers([
+          {
+            position: centerPoint,
+            postcode: postalCode,
+            label: postalCode,
+          },
+        ]);
       }
     }
   };
@@ -462,11 +672,157 @@ export default function ZoneManagement() {
       ...prev,
       coordinates: "",
     }));
+    // Clear postal code highlights
+    setPostalCodeHighlight(null);
+    setPostalCodeMarkers([]);
+    setMultiplePostcodeHighlights([]);
+    setAddedPostcodes([]);
+    setShowPostcodeInput(false);
+    setNewPostcodeInput("");
     // Remove all polygons from the map
     if (map) {
       map.setOptions({ draggableCursor: "pointer" });
     }
     console.log("Polygon cleared");
+  };
+
+
+  // Handle adding postal codes (supports multiple)
+  const handleAddPostcode = async () => {
+    if (!newPostcodeInput.trim()) {
+      showError("Please enter at least one postal code");
+      return;
+    }
+
+    setIsAddingPostcode(true);
+
+    // Parse postal codes (split by comma only, trim spaces)
+    const postcodes = newPostcodeInput
+      .split(",")
+      .map((pc) => pc.trim())
+      .filter((pc) => pc.length > 0);
+
+    if (postcodes.length === 0) {
+      showError("No valid postal codes found");
+      setIsAddingPostcode(false);
+      return;
+    }
+
+    try {
+      const newHighlights = [];
+      const newMarkers = [];
+      const newPostcodeDataList = [];
+      let lastCenterPoint = null;
+
+      // Validate and fetch each postal code
+      for (const postcode of postcodes) {
+        // Check if postal code already exists
+        if (addedPostcodes.some((pc) => pc.postcode === postcode)) {
+          continue; // Skip already added postal codes
+        }
+
+        try {
+          const cleanPostcode = postcode.replace(/\s+/g, "");
+          const response = await fetch(
+            `https://api.postcodes.io/postcodes/${encodeURIComponent(cleanPostcode)}`
+          );
+
+          if (response.ok) {
+            const data = await response.json();
+            if (data.result) {
+              const { latitude, longitude } = data.result;
+              const centerPoint = { lat: latitude, lng: longitude };
+              lastCenterPoint = centerPoint; // Keep track of the last valid postcode
+
+              // Create polygon for this postal code
+              const polygonPath = createHexagon(latitude, longitude, 0.005);
+
+              const newPostcodeData = {
+                postcode: data.result.postcode,
+                center: centerPoint,
+                paths: polygonPath,
+              };
+
+              newPostcodeDataList.push(newPostcodeData);
+              newHighlights.push({
+                paths: polygonPath,
+                postcode: data.result.postcode,
+                center: centerPoint,
+              });
+
+              newMarkers.push({
+                position: centerPoint,
+                postcode: data.result.postcode,
+                label: data.result.postcode,
+              });
+            }
+          }
+        } catch (error) {
+          console.error(`Error fetching postal code ${postcode}:`, error);
+        }
+      }
+
+      if (newHighlights.length > 0) {
+        // Add to added postcodes list
+        setAddedPostcodes((prev) => [...prev, ...newPostcodeDataList]);
+
+        // Add to highlights and markers
+        setMultiplePostcodeHighlights((prev) => [...prev, ...newHighlights]);
+        setPostalCodeMarkers((prev) => [...prev, ...newMarkers]);
+
+        // Navigate map to the last highlighted area
+        if (map && lastCenterPoint) {
+          map.setCenter(lastCenterPoint);
+          map.setZoom(14);
+        }
+        if (lastCenterPoint) {
+          setCenter(lastCenterPoint);
+        }
+
+        // Close input and clear
+        setShowPostcodeInput(false);
+        setNewPostcodeInput("");
+        success(`Successfully added ${newHighlights.length} postal code(s)`);
+      } else {
+        showError("No valid postal codes could be found or all are already added");
+      }
+    } catch (error) {
+      console.error("Error adding postal codes:", error);
+      showError("Failed to add postal codes. Please try again.");
+    } finally {
+      setIsAddingPostcode(false);
+    }
+  };
+
+  // Handle clicking on a postal code button to navigate/highlight
+  const handlePostcodeClick = (postcodeData) => {
+    // Navigate map to the postal code area
+    if (map && postcodeData.center) {
+      map.setCenter(postcodeData.center);
+      map.setZoom(14);
+    }
+    if (postcodeData.center) {
+      setCenter(postcodeData.center);
+    }
+  };
+
+  // Handle removing a postal code
+  const handleRemovePostcode = (postcodeToRemove, e) => {
+    e.stopPropagation(); // Prevent triggering the click event on the parent
+    // Remove from added postcodes list
+    setAddedPostcodes((prev) => prev.filter((pc) => pc.postcode !== postcodeToRemove));
+
+    // Remove from highlights
+    setMultiplePostcodeHighlights((prev) =>
+      prev.filter((highlight) => highlight.postcode !== postcodeToRemove)
+    );
+
+    // Remove from markers
+    setPostalCodeMarkers((prev) =>
+      prev.filter((marker) => marker.postcode !== postcodeToRemove)
+    );
+
+    success(`Postal code ${postcodeToRemove} removed`);
   };
 
   const onMapLoad = (mapInstance) => {
@@ -540,7 +896,7 @@ export default function ZoneManagement() {
                 <Box className="flex flex-col gap-y-3">
                   <div className="mt-4 relative">
                     {/* Search bar at the top */}
-                    <div className="absolute top-4 left-1/2 -translate-x-1/2 w-full px-4 max-w-[500px] mx-auto z-[100]">
+                    <div className="absolute top-4 left-1/2 -translate-x-1/2 w-full px-4 max-w-[500px] mx-auto z-[100] flex flex-col gap-2">
                       <style>
                         {`
                           .pac-container {
@@ -572,6 +928,70 @@ export default function ZoneManagement() {
                           />
                         </div>
                       </Autocomplete>
+
+                      {/* Added Postal Codes Display */}
+                      {!showPostcodeInput && (
+                        <div className="flex flex-wrap gap-2 items-center z-[101]">
+                          {/* Display added postal codes as removable buttons */}
+                          {addedPostcodes.map((postcodeData, index) => (
+                            <div
+                              key={index}
+                              onClick={() => handlePostcodeClick(postcodeData)}
+                              className="flex items-center justify-center gap-1 bg-white rounded-lg px-4 py-2 shadow-md min-w-[120px] h-[40px] cursor-pointer hover:bg-gray-50 transition-colors"
+                            >
+                              <span className="text-sm font-medium text-gray-800">
+                                {postcodeData.postcode}
+                              </span>
+                              <button
+                                onClick={(e) => handleRemovePostcode(postcodeData.postcode, e)}
+                                className="text-gray-500 hover:text-red-600 transition-colors ml-1"
+                                title="Remove postal code"
+                              >
+                                <RxCross2 size={16} />
+                              </button>
+                            </div>
+                          ))}
+
+                          {/* Add Postal Code button */}
+                          <button
+                            onClick={() => setShowPostcodeInput(true)}
+                            className="flex items-center justify-center bg-blue-500 hover:bg-blue-600 text-white rounded-lg px-4 py-2 shadow-md min-w-[120px] h-[40px] text-sm font-medium transition-colors"
+                          >
+                            + Post Code
+                          </button>
+                        </div>
+                      )}
+
+                      {/* Postcode Input Textarea (shown when button is clicked) */}
+                      {showPostcodeInput && (
+                        <div className="w-full z-[101]">
+                          <textarea
+                            value={newPostcodeInput}
+                            onChange={(e) => setNewPostcodeInput(e.target.value)}
+                            placeholder="Enter postal codes separated by comma: SW1A 1AA, SW1A 1AB, SW1A 1AC"
+                            className="w-full h-32 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none text-sm bg-white"
+                            rows={4}
+                          />
+                          <div className="flex gap-3 mt-3">
+                            <button
+                              onClick={handleAddPostcode}
+                              disabled={isAddingPostcode || !newPostcodeInput.trim()}
+                              className="flex-1 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-400 disabled:cursor-not-allowed text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-colors shadow-md min-w-[120px] h-[40px] flex items-center justify-center"
+                            >
+                              {isAddingPostcode ? "Adding..." : "Add Postal Codes"}
+                            </button>
+                            <button
+                              onClick={() => {
+                                setShowPostcodeInput(false);
+                                setNewPostcodeInput("");
+                              }}
+                              className="bg-white hover:bg-gray-100 text-gray-700 border border-gray-300 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors shadow-md min-w-[120px] h-[40px] flex items-center justify-center"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     {/* Action buttons at bottom left */}
@@ -637,6 +1057,48 @@ export default function ZoneManagement() {
                           onPolygonComplete={onPolygonComplete}
                         />
                       )}
+                      {/* Single postal code highlight polygon */}
+                      {postalCodeHighlight && postalCodeHighlight.paths && (
+                        <Polygon
+                          paths={postalCodeHighlight.paths}
+                          options={{
+                            fillColor: "#87CEEB",
+                            fillOpacity: 0.3,
+                            strokeColor: "#808080",
+                            strokeOpacity: 0.6,
+                            strokeWeight: 1,
+                            clickable: false,
+                          }}
+                        />
+                      )}
+                      {/* Multiple postal code highlight polygons */}
+                      {multiplePostcodeHighlights.map((highlight, index) => (
+                        <Polygon
+                          key={`highlight-${index}`}
+                          paths={highlight.paths}
+                          options={{
+                            fillColor: "#87CEEB",
+                            fillOpacity: 0.3,
+                            strokeColor: "#808080",
+                            strokeOpacity: 0.6,
+                            strokeWeight: 1,
+                            clickable: false,
+                          }}
+                        />
+                      ))}
+                      {/* Postal code markers */}
+                      {postalCodeMarkers.map((marker, index) => (
+                        <Marker
+                          key={`marker-${index}`}
+                          position={marker.position}
+                          label={{
+                            text: marker.postcode,
+                            color: "#ffffff",
+                            fontSize: "11px",
+                            fontWeight: "bold",
+                          }}
+                        />
+                      ))}
                     </GoogleMap>
                   </div>
                 </Box>
