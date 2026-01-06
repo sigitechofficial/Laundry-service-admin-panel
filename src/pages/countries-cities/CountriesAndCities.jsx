@@ -20,6 +20,8 @@ import {
   useEditCountryMutation,
   useAddCityMutation,
   useEditCityMutation,
+  useDeleteCountryMutation,
+  useDeleteCityMutation,
 } from "../../store/services/api";
 import { Delay } from "../../components/shared/Loaders";
 import { useLoadScript, Autocomplete } from "@react-google-maps/api";
@@ -53,6 +55,8 @@ export default function CountriesAndCities() {
   const [editCountry, { isLoading: isEditingCountry }] = useEditCountryMutation();
   const [addCity, { isLoading: isAddingCity }] = useAddCityMutation();
   const [editCity, { isLoading: isEditingCity }] = useEditCityMutation();
+  const [deleteCountry, { isLoading: isDeletingCountry }] = useDeleteCountryMutation();
+  const [deleteCity, { isLoading: isDeletingCity }] = useDeleteCityMutation();
 
   const countries = countriesResponse?.data || [];
   const cities = citiesResponse?.data || [];
