@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Box,
   Typography,
@@ -32,7 +32,7 @@ import ModalComponent from "../../components/shared/Modal";
 import InputFieldModal from "../../components/ui/InputFieldModal";
 import useToaster from "../../components/ui/Toaster";
 
-export default function PreferencesCard() {
+export default function PreferencesCard({ triggerAdd }) {
   const { success, error } = useToaster();
 
   const preferences = useSelector((state) => state?.apiData?.preferences);
@@ -63,15 +63,25 @@ export default function PreferencesCard() {
     type: "",
   });
 
+  // Handle external trigger to open add modal
+  useEffect(() => {
+    if (triggerAdd && triggerAdd > 0 && !preferenceData.open) {
+      setPreferenceData((prev) => ({ ...prev, open: true }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [triggerAdd]);
+
   const handleToggle = (val) => {
     if (val) {
-      setPreferenceData({
-        valueModal: !preferenceData.valueModal,
-      });
+      setPreferenceData((prev) => ({
+        ...prev,
+        valueModal: !prev.valueModal,
+      }));
     } else {
-      setPreferenceData({
-        open: !preferenceData.open,
-      });
+      setPreferenceData((prev) => ({
+        ...prev,
+        open: !prev.open,
+      }));
     }
   };
 
@@ -254,18 +264,6 @@ export default function PreferencesCard() {
         >
           Preferences
         </Typography>
-        <IconButton
-          onClick={() => handleToggle(false)}
-          sx={{
-            bgcolor: "blue.100",
-            padding: "2px",
-            "&:hover": {
-              bgcolor: "blue.100",
-            },
-          }}
-        >
-          <TbPlus size="22px" color="white" />
-        </IconButton>
       </Box>
 
       {/* Content */}
@@ -275,6 +273,7 @@ export default function PreferencesCard() {
             {preferences?.map((preference) => (
               <Box key={preference?.id}>
                 <ListItem
+                  onClick={() => handlePrefToggle(preference?.id)}
                   sx={{
                     display: "flex",
                     alignItems: "center",
@@ -285,49 +284,56 @@ export default function PreferencesCard() {
                     my: "4px",
                     bgcolor: "blue.10",
                     borderRadius: "4px",
+                    "&:hover": {
+                      bgcolor: "blue.20",
+                    },
                   }}
                 >
                   <Box
-                    sx={{ display: "flex", alignItems: "center", gap: "4px" }}
+                    sx={{ display: "flex", alignItems: "center", gap: "8px" }}
                   >
                     <Typography width={"140px"} variant="body1">
                       {preference?.name}
                     </Typography>
-
-                    <IconButton
-                      // disabled={}
-                      onClick={() =>
-                        setPreferenceData({
-                          type: "preference",
-                          preferenceId: preference?.id,
-                          name: preference?.name,
-                          open: true,
-                        })
-                      }
-                      size="small"
-                    >
-                      <TbPencil size="20px" />
-                    </IconButton>
-
-                    <IconButton
-                      onClick={() =>
+                  </Box>
+                  <Box
+                    sx={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "flex-end",
+                      gap: "8px",
+                    }}
+                  >
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
                         setPreferenceData({
                           ...preferenceData,
                           name: preference?.name,
                           preferenceId: preference?.id,
                           valueModal: true,
-                        })
-                      }
-                      sx={{
-                        bgcolor: "blue.100",
-                        padding: "2px",
-                        "&:hover": {
-                          bgcolor: "blue.100",
-                        },
+                        });
                       }}
+                      className="bg-gray-500 hover:bg-gray-600 text-white px-5 py-1 rounded-lg font-medium text-xs transition-all duration-200 shadow-sm hover:shadow-md flex items-center justify-center h-9 min-w-[140px]"
                     >
-                      <TbPlus size="16px" color="white" />
+                      Add Sub Preference
+                    </button>
+
+                    <IconButton
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setPreferenceData({
+                          type: "preference",
+                          preferenceId: preference?.id,
+                          name: preference?.name,
+                          open: true,
+                        });
+                      }}
+                      size="small"
+                    >
+                      <TbPencil size="20px" />
                     </IconButton>
+
                     <IconButton
                       disabled={preferenceDeleteLoading}
                       onClick={(e) => {
@@ -339,12 +345,12 @@ export default function PreferencesCard() {
                     >
                       <RiDeleteBin6Line size="20px" />
                     </IconButton>
-                  </Box>
-                  <Box
-                    sx={{ display: "flex", alignItems: "center", gap: "4px" }}
-                  >
+
                     <IconButton
-                      onClick={() => handlePrefToggle(preference?.id)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handlePrefToggle(preference?.id);
+                      }}
                       size="small"
                       sx={{
                         color: "#667085",
@@ -352,6 +358,10 @@ export default function PreferencesCard() {
                           ? "rotate(180deg)"
                           : "rotate(0deg)",
                         transition: "transform 0.2s",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        pointerEvents: "auto",
                       }}
                     >
                       <TbChevronDown size="20px" color="black" />

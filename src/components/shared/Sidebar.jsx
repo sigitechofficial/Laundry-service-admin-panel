@@ -55,7 +55,7 @@ function Sidebar() {
     if (!orderCountsData?.data) return 0;
 
     const counts = orderCountsData.data;
-    
+
     switch (label) {
       case "All Order":
         return counts.allOrderCount || 0;
@@ -182,10 +182,10 @@ function Sidebar() {
             width: isSidebarhide
               ? "100%"
               : open
-              ? isDesktop
-                ? "320px"
-                : "280px"
-              : "80px",
+                ? isDesktop
+                  ? "320px"
+                  : "280px"
+                : "80px",
             height: isSidebarhide
               ? "100vh"
               : `calc(100vh - ${isDesktop ? "197px" : "176px"})`,
@@ -221,7 +221,7 @@ function Sidebar() {
               >
                 <Box
                   height={isDesktop ? "59px" : "45px"}
-                  // width={isDesktop ? "320px" : "200px"}
+                // width={isDesktop ? "320px" : "200px"}
                 >
                   <img
                     className="w-full h-full object-contain"
@@ -341,9 +341,9 @@ function Sidebar() {
                               bgcolor: "#00009933",
                               color: "#000099",
                               "& .MuiListItemIcon-root, & .MuiListItemText-primary":
-                                {
-                                  color: "#000099",
-                                },
+                              {
+                                color: "#000099",
+                              },
                               "& .badge": {
                                 bgcolor: "#00008B",
                                 color: "white",
@@ -353,9 +353,9 @@ function Sidebar() {
                               bgcolor: "#00009933",
                               color: "#000099",
                               "& .MuiListItemIcon-root, & .MuiListItemText-primary":
-                                {
-                                  color: "#000099",
-                                },
+                              {
+                                color: "#000099",
+                              },
                               "& .badge": {
                                 bgcolor: "#00008B",
                                 color: "white",
@@ -365,9 +365,9 @@ function Sidebar() {
                               bgcolor: "#00009933",
                               color: "#000099",
                               "& .MuiListItemIcon-root, & .MuiListItemText-primary":
-                                {
-                                  color: "#000099",
-                                },
+                              {
+                                color: "#000099",
+                              },
                               "& .badge": {
                                 bgcolor: "#00008B",
                                 color: "white",
@@ -439,10 +439,10 @@ function Sidebar() {
             isSidebarhide
               ? "100%"
               : open
-              ? isDesktop
-                ? "320px"
-                : "280px"
-              : "80px"
+                ? isDesktop
+                  ? "320px"
+                  : "280px"
+                : "80px"
           }
           borderRight={"1px solid rgba(0, 0, 0, 0.20)"}
           sx={{
@@ -535,33 +535,62 @@ function Sidebar() {
             )}
           </IconButton>
         </Box>
-      )}
+      )
+      }
 
-      {!open && hoverItem.position && (
-        <Box
-          fontFamily={"Inter"}
-          fontWeight={500}
-          position="fixed"
-          left={hoverItem.position.right + 8}
-          top={
-            hoverItem.isOverflowing
-              ? Math.max(10, window.innerHeight - hoverItem.menuHeight - 10)
-              : hoverItem.position.top
-          }
-          bgcolor="white"
-          borderRadius="12px"
-          boxShadow="0 4px 12px rgba(0, 0, 0, 0.15)"
-          border="1px solid rgba(0, 0, 0, 0.1)"
-          minWidth="200px"
-          py={1}
-          zIndex={1300}
-          onMouseEnter={handleMenuMouseEnterList}
-          onMouseLeave={handleMenuMouseLeaveList}
-        >
-          {hoverItem.list.children ? (
-            hoverItem.list.children.map((child) => (
+      {
+        !open && hoverItem.position && (
+          <Box
+            fontFamily={"Inter"}
+            fontWeight={500}
+            position="fixed"
+            left={hoverItem.position.right + 8}
+            top={
+              hoverItem.isOverflowing
+                ? Math.max(10, window.innerHeight - hoverItem.menuHeight - 10)
+                : hoverItem.position.top
+            }
+            bgcolor="white"
+            borderRadius="12px"
+            boxShadow="0 4px 12px rgba(0, 0, 0, 0.15)"
+            border="1px solid rgba(0, 0, 0, 0.1)"
+            minWidth="200px"
+            py={1}
+            zIndex={1300}
+            onMouseEnter={handleMenuMouseEnterList}
+            onMouseLeave={handleMenuMouseLeaveList}
+          >
+            {hoverItem.list.children ? (
+              hoverItem.list.children.map((child) => (
+                <Box
+                  key={child.label}
+                  px={2}
+                  py={1.5}
+                  display="flex"
+                  alignItems="center"
+                  color="#8F95B2"
+                  sx={{
+                    cursor: "pointer",
+                    "&:hover": {
+                      bgcolor: "#000099",
+                      color: "white",
+                    },
+                  }}
+                  onClick={() => {
+                    navigate(child.path);
+                    handleMenuMouseLeaveList();
+                  }}
+                >
+                  {child.Icon && (
+                    <Box mr={1} display="flex" alignItems="center">
+                      <child.Icon size={child.size || "20px"} />
+                    </Box>
+                  )}
+                  {child.label}
+                </Box>
+              ))
+            ) : (
               <Box
-                key={child.label}
                 px={2}
                 py={1.5}
                 display="flex"
@@ -575,48 +604,22 @@ function Sidebar() {
                   },
                 }}
                 onClick={() => {
-                  navigate(child.path);
-                  handleMenuMouseLeaveList();
+                  console.log(`Clicked: ${hoverItem.list.label}`);
+                  handleHoverOut();
                 }}
               >
-                {child.Icon && (
+                {hoverItem.list.Icon && (
                   <Box mr={1} display="flex" alignItems="center">
-                    <child.Icon size={child.size || "20px"} />
+                    <hoverItem.list.Icon size={hoverItem.list.size || "20px"} />
                   </Box>
                 )}
-                {child.label}
+                {hoverItem.list.label}
               </Box>
-            ))
-          ) : (
-            <Box
-              px={2}
-              py={1.5}
-              display="flex"
-              alignItems="center"
-              color="#8F95B2"
-              sx={{
-                cursor: "pointer",
-                "&:hover": {
-                  bgcolor: "#000099",
-                  color: "white",
-                },
-              }}
-              onClick={() => {
-                console.log(`Clicked: ${hoverItem.list.label}`);
-                handleHoverOut();
-              }}
-            >
-              {hoverItem.list.Icon && (
-                <Box mr={1} display="flex" alignItems="center">
-                  <hoverItem.list.Icon size={hoverItem.list.size || "20px"} />
-                </Box>
-              )}
-              {hoverItem.list.label}
-            </Box>
-          )}
-        </Box>
-      )}
-    </Box>
+            )}
+          </Box>
+        )
+      }
+    </Box >
   );
 }
 

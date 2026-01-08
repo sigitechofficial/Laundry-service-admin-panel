@@ -1,35 +1,15 @@
-import { useState, useRef } from "react";
-import { Box, Typography, Tabs, Tab } from "@mui/material";
-import Layout from "../../components/shared/Layout";
-import { TbPlus, BsCardList } from "../../shared/icons/index";
-import DataTable from "../../components/ui/DataTable";
-import StatusPill from "../../components/ui/StatusPill";
-import ChangeStatus from "../../components/ui/Switch";
-import ActionButtons from "../../components/ui/ActionButtons";
-import StatCard from "../../components/ui/StatCard";
-import ButtonBlueLight from "../../components/ui/ButtonBlueLight";
-import ModalComponent from "../../components/shared/Modal";
-import InputFieldModal from "../../components/ui/InputFieldModal";
-import { useForm, Controller } from "react-hook-form";
-import { BASE_URL, googleApiKey } from "../../utilities/URL";
-import SelectField from "../../components/ui/SelectField";
-import {
-  useGetAllCountriesQuery,
-  useGetAllCitiesQuery,
-  useAddCountryMutation,
-  useEditCountryMutation,
-  useAddCityMutation,
-  useEditCityMutation,
-  useDeleteCountryMutation,
-  useDeleteCityMutation,
-} from "../../store/services/api";
-import { Delay } from "../../components/shared/Loaders";
-import { useLoadScript, Autocomplete } from "@react-google-maps/api";
-import useToaster from "../../components/ui/Toaster";
+import { useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 
 export default function CountriesAndCities() {
-  const { success, error: showError } = useToaster();
-  const [activeTab, setActiveTab] = useState(0); // 0 = Countries, 1 = Cities
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    // Redirect to countries by default
+    navigate("/countries-cities/countries", { replace: true });
+  }, [navigate]);
+
+  return null;
   const [countryModal, setCountryModal] = useState({ open: false, data: null, isEdit: false });
   const [cityModal, setCityModal] = useState({ open: false, data: null, isEdit: false });
   const [deleteModal, setDeleteModal] = useState({ open: false, data: null, type: null });

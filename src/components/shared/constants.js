@@ -12,6 +12,8 @@ import {
   TbDeviceIpadHorizontalCog,
   TbSettings,
   TbReportSearch,
+  BsCardList,
+  TbX,
 } from "../../shared/icons/index";
 
 export const sidebarList = [
@@ -31,31 +33,26 @@ export const sidebarList = [
         label: "All Order",
         path: "/orders/all-orders",
         size: "24px",
-        Icon: TbCirclePlus,
       },
       {
         label: "Complete",
         path: "/orders/complete-orders",
         size: "22px",
-        Icon: FaRegRectangleList,
       },
       {
         label: "Pending",
         path: "/orders/pending-orders",
         size: "24px",
-        Icon: TbCirclePlus,
       },
       {
         label: "Cancelled",
         path: "/orders/cancel-orders",
         size: "24px",
-        Icon: TbCircleX,
       },
       {
         label: "On hold",
         path: "/orders/on-hold-orders",
         size: "24px",
-        Icon: IconFingerHold,
       },
     ],
   },
@@ -70,38 +67,56 @@ export const sidebarList = [
     Icon: PiHeadsetBold,
     path: "/services-management",
     size: "23px",
-    // children: [
-    //   {
-    //     label: "Preference Management",
-    //     path: "/orders/admins",
-    //     size: "24px",
-    //     Icon: TbCirclePlus,
-    //   },
-    //   {
-    //     label: "Service Type",
-    //     path: "/orders/customers",
-    //     size: "22px",
-    //     Icon: FaRegRectangleList,
-    //   },
-    //   {
-    //     label: "Category Managenemt",
-    //     path: "/orders/customers",
-    //     size: "24px",
-    //     Icon: TbCirclePlus,
-    //   },
-    //   {
-    //     label: "Employee Management",
-    //     path: "/orders/customers",
-    //     size: "24px",
-    //     Icon: RiUserSettingsLine,
-    //   },
-    // ],
+    children: [
+      {
+        label: "Services",
+        path: "/services-management/services",
+        size: "22px",
+      },
+      {
+        label: "Categories",
+        path: "/services-management/categories",
+        size: "24px",
+      },
+      {
+        label: "Preferences",
+        path: "/services-management/preferences",
+        size: "24px",
+      },
+      {
+        label: "Configure Services",
+        path: "/services-management/configure-services",
+        size: "24px",
+      },
+    ],
   },
   {
     label: "Shop Management",
     Icon: MdOutlineStore,
     path: "/shop-management",
     size: "24px",
+    children: [
+      {
+        label: "Shop Dashboard",
+        path: "/shop-management/dashboard",
+        size: "22px",
+      },
+      {
+        label: "Shops",
+        path: "/shop-management/shops",
+        size: "24px",
+      },
+      {
+        label: "Add Shop",
+        path: "/shop-management/add-shop",
+        size: "24px",
+      },
+      {
+        label: "Shop Employees",
+        path: "/shop-management/employees",
+        size: "24px",
+      },
+    ],
   },
   {
     label: "Zone Record",
@@ -114,6 +129,41 @@ export const sidebarList = [
     Icon: MdOutlineLocationOn,
     path: "/countries-cities",
     size: "24px",
+    children: [
+      {
+        label: "Countries",
+        path: "/countries-cities/countries",
+        size: "24px",
+      },
+      {
+        label: "Cities",
+        path: "/countries-cities/cities",
+        size: "24px",
+      },
+    ],
+  },
+  {
+    label: "Policies Management",
+    Icon: BsCardList,
+    path: "/policies-management",
+    size: "24px",
+    children: [
+      {
+        label: "Overall Policies",
+        path: "/policies-management/overall-policies",
+        size: "24px",
+      },
+      {
+        label: "Cancellation Policy",
+        path: "/policies-management/cancellation-policy",
+        size: "24px",
+      },
+      {
+        label: "No Show Policy",
+        path: "/policies-management/no-show-policy",
+        size: "24px",
+      },
+    ],
   },
   {
     label: "Driver Management",

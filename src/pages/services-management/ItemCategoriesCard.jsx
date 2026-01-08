@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Box,
   Typography,
@@ -29,7 +29,7 @@ import CategoryModal from "./categories-modal/CategoryModal";
 import SubCategoryModal from "./categories-modal/SubCategoryModal";
 import useToaster from "../../components/ui/Toaster";
 
-export default function ItemCategoriesCard() {
+export default function ItemCategoriesCard({ triggerAdd }) {
   const categoryData = useSelector((state) => state?.apiData);
   const { success, error } = useToaster();
   const { isLoading } = useGetCategoriesQuery();
@@ -49,8 +49,16 @@ export default function ItemCategoriesCard() {
     type: "",
   });
 
+  // Handle external trigger to open add modal
+  useEffect(() => {
+    if (triggerAdd && triggerAdd > 0 && !isModalOpen.isOpen) {
+      setIsModalOpen((prev) => ({ ...prev, isOpen: true }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [triggerAdd]);
+
   const handleToggle = () => {
-    setIsModalOpen({ isOpen: !isModalOpen.isOpen });
+    setIsModalOpen((prev) => ({ ...prev, isOpen: !prev.isOpen }));
   };
 
   const handleCloseModal = () => {
@@ -139,19 +147,6 @@ export default function ItemCategoriesCard() {
             />
           </Box>
         </Box>
-
-        <IconButton
-          onClick={handleToggle}
-          sx={{
-            bgcolor: "blue.100",
-            padding: "2px",
-            "&:hover": {
-              bgcolor: "blue.100",
-            },
-          }}
-        >
-          <TbPlus size="22px" color="white" />
-        </IconButton>
       </Box>
 
       <Collapse in={true}>
@@ -161,6 +156,9 @@ export default function ItemCategoriesCard() {
               ? filteredCategories?.map((category) => (
                   <Box key={category?.id}>
                     <ListItem
+                      onClick={() => {
+                        handleCategoryToggle(category?.id);
+                      }}
                       sx={{
                         display: "flex",
                         alignItems: "center",
@@ -170,6 +168,10 @@ export default function ItemCategoriesCard() {
                         my: "4px",
                         bgcolor: "blue.10",
                         borderRadius: "4px",
+                        cursor: "pointer",
+                        "&:hover": {
+                          bgcolor: "blue.20",
+                        },
                       }}
                     >
                       <Box
@@ -182,24 +184,28 @@ export default function ItemCategoriesCard() {
                         <Typography width={"100px"} variant="body1">
                           {category?.name}
                         </Typography>
-                        <IconButton
-                          onClick={() => {
+                      </Box>
+                      <Box
+                        sx={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "flex-end",
+                          gap: "8px",
+                        }}
+                      >
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
                             setIsModalOpen({
                               ...isModalOpen,
                               isSubModalOpen: true,
                               data: category,
                             });
                           }}
-                          sx={{
-                            bgcolor: "blue.100",
-                            padding: "2px",
-                            "&:hover": {
-                              bgcolor: "blue.100",
-                            },
-                          }}
+                          className="bg-gray-500 hover:bg-gray-600 text-white px-6 py-1 rounded-lg font-medium text-xs transition-all duration-200 shadow-sm hover:shadow-md flex items-center justify-center h-9 min-w-[140px]"
                         >
-                          <TbPlus size="16px" color="white" />
-                        </IconButton>
+                          Add Sub Category
+                        </button>
                         <IconButton
                           disabled={deleteLoading}
                           size="small"
@@ -211,22 +217,27 @@ export default function ItemCategoriesCard() {
                         >
                           <RiDeleteBin6Line size="20px" />
                         </IconButton>
+                        <IconButton
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleCategoryToggle(category?.id);
+                          }}
+                          size="small"
+                          sx={{
+                            color: "#667085",
+                            transform: expandedCategories[category?.id]
+                              ? "rotate(180deg)"
+                              : "rotate(0deg)",
+                            transition: "transform 0.2s",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            pointerEvents: "auto",
+                          }}
+                        >
+                          <TbChevronDown size="20px" color="black" />
+                        </IconButton>
                       </Box>
-                      <IconButton
-                        onClick={() => {
-                          handleCategoryToggle(category?.id);
-                        }}
-                        size="small"
-                        sx={{
-                          color: "#667085",
-                          transform: expandedCategories[category?.id]
-                            ? "rotate(180deg)"
-                            : "rotate(0deg)",
-                          transition: "transform 0.2s",
-                        }}
-                      >
-                        <TbChevronDown size="20px" color="black" />
-                      </IconButton>
                     </ListItem>
 
                     {/* Category Items */}

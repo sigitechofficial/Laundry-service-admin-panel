@@ -1,12 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import ConfigureServiceOptions from "./ConfigureServiceOptions";
 import SelectField from "../../components/ui/SelectField";
-import { Box, IconButton, Typography } from "@mui/material";
+import { Box, Typography } from "@mui/material";
 import { useSelector } from "react-redux";
-import { TbPencil } from "../../shared/icons/index";
 import ConfigureModal from "./configure-modal/ConfigureModal";
 
-export default function ConfigureService() {
+export default function ConfigureService({ triggerConfigure }) {
   const services = useSelector((state) => state.apiData.services);
 
   const SERVICE_OPTIONS = services?.map((service) => ({
@@ -20,6 +19,14 @@ export default function ConfigureService() {
     label: "",
     value: "",
   });
+
+  // Handle external trigger to open modal
+  useEffect(() => {
+    if (triggerConfigure && triggerConfigure > 0 && !modalOpen) {
+      setModalOpen(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [triggerConfigure]);
 
   const handleServiceChange = (event) => {
     const selected = SERVICE_OPTIONS.find(
@@ -39,12 +46,8 @@ export default function ConfigureService() {
     >
       <Box className="flex gap-2 items-center">
         <Typography variant="body2" fontFamily={"SF Pro"} color="grey.40">
-          Configure Service{" "}
+          Configure Service
         </Typography>
-
-        <IconButton onClick={() => setModalOpen(true)} size="small">
-          <TbPencil size="20px" />
-        </IconButton>
       </Box>
 
       <SelectField

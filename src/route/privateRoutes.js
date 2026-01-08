@@ -2,6 +2,10 @@ import {
   Dashboard,
   LoginPage,
   ServiceManagement,
+  ServicesPage,
+  CategoriesPage,
+  PreferencesPage,
+  ConfigureServicesPage,
   CustomerManagement,
   CustomerDetails,
   ShopDetails,
@@ -10,6 +14,10 @@ import {
   ZoneManagement,
   EmployeeManagement,
   ShopManagement,
+  ShopDashboardPage,
+  ShopsPage,
+  AddShopPage,
+  ShopEmployeesPage,
   Configurations,
   Reports,
   EditCustomer,
@@ -20,7 +28,13 @@ import {
   OnHoldOrders,
   EditOrder,
   ShopEmployee,
-  CountriesAndCities
+  CountriesAndCities,
+  CountriesPage,
+  CitiesPage,
+  PoliciesManagement,
+  CancellationPolicy,
+  OverallPolicies,
+  NoShowPolicy
 } from "../routes/AsyncComponent";
 
 export const privateRoutes = [
@@ -29,6 +43,26 @@ export const privateRoutes = [
     path: "/services-management",
     element: ServiceManagement,
     resourceKey: "services_management_Page",
+  },
+  {
+    path: "/services-management/services",
+    element: ServicesPage,
+    resourceKey: "services_page",
+  },
+  {
+    path: "/services-management/categories",
+    element: CategoriesPage,
+    resourceKey: "categories_page",
+  },
+  {
+    path: "/services-management/preferences",
+    element: PreferencesPage,
+    resourceKey: "preferences_page",
+  },
+  {
+    path: "/services-management/configure-services",
+    element: ConfigureServicesPage,
+    resourceKey: "configure_services_page",
   },
   {
     path: "/customer-management",
@@ -81,6 +115,26 @@ export const privateRoutes = [
     resourceKey: "shop_management_Page",
   },
   {
+    path: "/shop-management/dashboard",
+    element: ShopDashboardPage,
+    resourceKey: "shop_dashboard_Page",
+  },
+  {
+    path: "/shop-management/shops",
+    element: ShopsPage,
+    resourceKey: "shops_Page",
+  },
+  {
+    path: "/shop-management/add-shop",
+    element: AddShopPage,
+    resourceKey: "add_shop_Page",
+  },
+  {
+    path: "/shop-management/employees",
+    element: ShopEmployeesPage,
+    resourceKey: "shop_employees_Page",
+  },
+  {
     path: "/configurations",
     element: Configurations,
     resourceKey: "configurations_Page",
@@ -124,6 +178,36 @@ export const privateRoutes = [
     path: "/countries-cities",
     element: CountriesAndCities,
     resourceKey: "countries_cities_Page",
+  },
+  {
+    path: "/countries-cities/countries",
+    element: CountriesPage,
+    resourceKey: "countries_page",
+  },
+  {
+    path: "/countries-cities/cities",
+    element: CitiesPage,
+    resourceKey: "cities_page",
+  },
+  {
+    path: "/policies-management",
+    element: PoliciesManagement,
+    resourceKey: "policies_management_page",
+  },
+  {
+    path: "/policies-management/overall-policies",
+    element: OverallPolicies,
+    resourceKey: "overall_policies_page",
+  },
+  {
+    path: "/policies-management/cancellation-policy",
+    element: CancellationPolicy,
+    resourceKey: "cancellation_policy_page",
+  },
+  {
+    path: "/policies-management/no-show-policy",
+    element: NoShowPolicy,
+    resourceKey: "no_show_policy_page",
   },
 ];
 

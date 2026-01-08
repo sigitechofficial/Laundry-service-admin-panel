@@ -34,8 +34,21 @@ export default function SelectField({
   labelColor = "#374151",
   disabled = false,
 }) {
+  // If width is specified, disable fullWidth to prevent extra spacing
+  const isFullWidth = width ? false : fullWidth;
+  
   return (
-    <FormControl fullWidth={fullWidth} size="small">
+    <FormControl 
+      fullWidth={isFullWidth} 
+      size="small"
+      sx={{
+        width: width || "100%",
+        m: 0,
+        "& .MuiFormControl-root": {
+          m: 0,
+        },
+      }}
+    >
       {label && <InputLabel shrink>{label}</InputLabel>}
 
       {title && (
@@ -51,7 +64,7 @@ export default function SelectField({
         IconComponent={CustomDropdownIcon}
         inputProps={{ "aria-label": placeholder || "Select field" }}
         sx={{
-          width: width,
+          width: width || "100%",
           height: height,
           fontFamily: "Switzer",
           fontWeight: 400,

@@ -144,7 +144,7 @@ export default function Shops() {
   }
 
   return (
-    <div className="w-full !space-y-11 !mt-16">
+    <div className="w-full !space-y-11 !mt-0">
       <DataTable
         data={customersData}
         columns={customerColumns}

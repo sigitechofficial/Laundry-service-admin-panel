@@ -7,7 +7,7 @@ import {
   ListItem,
   Collapse,
 } from "@mui/material";
-import { TbPlus, RiDeleteBin6Line, TbPencil } from "../../shared/icons/index";
+import { RiDeleteBin6Line, TbPencil } from "../../shared/icons/index";
 import {
   useAddServiceMutation,
   useDeleteServiceMutation,
@@ -23,7 +23,7 @@ import { useSelector } from "react-redux";
 import useToaster from "../../components/ui/Toaster";
 import { BASE_URL } from "../../utilities/URL";
 
-export default function ServicesCard() {
+export default function ServicesCard({ triggerAdd }) {
   const { success, error } = useToaster();
   const services = useSelector((state) => state?.apiData?.services);
   const { isLoading } = useGetAllServicesQuery();
@@ -59,6 +59,14 @@ export default function ServicesCard() {
       }
     }
   }, [add.type, add.id, services]);
+
+  // Handle external trigger to open add modal
+  useEffect(() => {
+    if (triggerAdd && triggerAdd > 0 && !add.open) {
+      setAdd((prev) => ({ ...prev, open: true, type: "add" }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [triggerAdd]);
 
   const handleToggle = () => {
     if (add.open) {
@@ -177,18 +185,6 @@ export default function ServicesCard() {
         >
           Services
         </Typography>
-        <IconButton
-          onClick={handleToggle}
-          sx={{
-            bgcolor: "blue.100",
-            padding: "2px",
-            "&:hover": {
-              bgcolor: "blue.100",
-            },
-          }}
-        >
-          <TbPlus size="22px" color="white" />
-        </IconButton>
       </Box>
 
       {/* Content */}

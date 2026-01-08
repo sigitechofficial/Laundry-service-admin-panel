@@ -403,6 +403,14 @@ const apiDataSlice = createSlice({
       }
     );
 
+    builder.addMatcher(
+      api.endpoints.getAllEmployeesWithShopInfo.matchFulfilled,
+      (state, { payload }) => {
+        // Store employees from API response
+        state.employees = payload?.data?.employees || [];
+      }
+    );
+
   },
 });
 

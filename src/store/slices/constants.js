@@ -12,6 +12,7 @@ export const INITIAL_STATE_API = {
   cities: [],
   units: {},
   shops: [],
+  employees: [],
 };
 
 export const INITIAL_UI_STATE = {

@@ -415,6 +415,119 @@ export const api = createApi({
         body,
       }),
     }),
+
+    getAllEmployeesWithShopInfo: builder.query({
+      query: () => ({
+        url: "admin/getAllEmployeesWithShopInfo",
+        method: "GET",
+      }),
+    }),
+
+    addCancellationPolicy: builder.mutation({
+      query: (body) => ({
+        url: "admin/addCancellationPolicy",
+        method: "POST",
+        body,
+      }),
+    }),
+
+    getCancellationPolicies: builder.query({
+      query: (params = {}) => {
+        const { isActive, isDefault, page, limit } = params;
+        const queryParams = new URLSearchParams();
+        
+        if (isActive !== undefined && isActive !== null && isActive !== "") {
+          queryParams.append("isActive", isActive);
+        }
+        if (isDefault !== undefined && isDefault !== null && isDefault !== "") {
+          queryParams.append("isDefault", isDefault);
+        }
+        if (page !== undefined && page !== null && page !== "") {
+          queryParams.append("page", page);
+        }
+        if (limit !== undefined && limit !== null && limit !== "") {
+          queryParams.append("limit", limit);
+        }
+        
+        const queryString = queryParams.toString();
+        const url = queryString 
+          ? `admin/getCancellationPolicies?${queryString}`
+          : "admin/getCancellationPolicies";
+        
+        return {
+          url,
+          method: "GET",
+        };
+      },
+    }),
+
+    updateCancellationPolicy: builder.mutation({
+      query: ({ id, body }) => ({
+        url: `admin/updateCancellationPolicy/${id}`,
+        method: "PUT",
+        body,
+      }),
+    }),
+
+    deleteCancellationPolicy: builder.mutation({
+      query: (id) => ({
+        url: `admin/deleteCancellationPolicy/${id}`,
+        method: "DELETE",
+      }),
+    }),
+
+    addNoShowPolicy: builder.mutation({
+      query: (body) => ({
+        url: "admin/addNoShowPolicy",
+        method: "POST",
+        body,
+      }),
+    }),
+
+    getNoShowPolicies: builder.query({
+      query: (params = {}) => {
+        const { isActive, isDefault, page, limit } = params;
+        const queryParams = new URLSearchParams();
+        
+        if (isActive !== undefined && isActive !== null && isActive !== "") {
+          queryParams.append("isActive", isActive);
+        }
+        if (isDefault !== undefined && isDefault !== null && isDefault !== "") {
+          queryParams.append("isDefault", isDefault);
+        }
+        if (page !== undefined && page !== null && page !== "") {
+          queryParams.append("page", page);
+        }
+        if (limit !== undefined && limit !== null && limit !== "") {
+          queryParams.append("limit", limit);
+        }
+        
+        const queryString = queryParams.toString();
+        const url = queryString 
+          ? `admin/getNoShowPolicies?${queryString}`
+          : "admin/getNoShowPolicies";
+        
+        return {
+          url,
+          method: "GET",
+        };
+      },
+    }),
+
+    updateNoShowPolicy: builder.mutation({
+      query: ({ id, body }) => ({
+        url: `admin/updateNoShowPolicy/${id}`,
+        method: "PUT",
+        body,
+      }),
+    }),
+
+    deleteNoShowPolicy: builder.mutation({
+      query: (id) => ({
+        url: `admin/deleteNoShowPolicy/${id}`,
+        method: "DELETE",
+      }),
+    }),
   }),
 });
 
@@ -453,6 +566,7 @@ export const {
   useGetAllCompleteOrdersQuery,
   useGetOnHoldBookingsQuery,
   useGetShopsDataQuery,
+  useGetAllEmployeesWithShopInfoQuery,
   useGetAllZonesQuery,
   useGetAllCountriesQuery,
   useGetCitiesByCountryIdQuery,
@@ -472,5 +586,13 @@ export const {
   useDeleteDriverMutation,
   useGetOrderForEditQuery,
   useGetOrderItemsSheetQuery,
-  useEditOrderMutation
+  useEditOrderMutation,
+  useAddCancellationPolicyMutation,
+  useGetCancellationPoliciesQuery,
+  useUpdateCancellationPolicyMutation,
+  useDeleteCancellationPolicyMutation,
+  useAddNoShowPolicyMutation,
+  useGetNoShowPoliciesQuery,
+  useUpdateNoShowPolicyMutation,
+  useDeleteNoShowPolicyMutation
 } = api;

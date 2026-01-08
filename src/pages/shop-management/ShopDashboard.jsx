@@ -8,35 +8,35 @@ export default function ShopDashboard() {
     <div className="w-full !space-y-11 !mt-16">
       <div className="grid sm:grid-cols-2 md:grid-cols-4 gap-7 font-Inter">
         <StatCard
-          title="total REVENUE"
-          value={data?.data?.TotalCustomer}
+          title="TOTAL REVENUE"
+          value={data?.data?.TotalRevenue || 24}
           bgColor="bg-purple50"
         />
 
         <StatCard
-          title="GrosS PROFIT"
-          value={data?.data?.NewCustomers}
+          title="GROSS PROFIT"
+          value={data?.data?.GrossProfit || 17}
           bgColor="bg-red50"
         />
 
         <StatCard
           title="NET PROFIT"
-          value={data?.data?.RepeatedCustomers}
+          value={data?.data?.NetProfit || 1}
           bgColor="bg-green50"
         />
         <StatCard
           title="ADMIN EARNINGS"
-          value={data?.data?.topPerformingCustomers || 0}
+          value={data?.data?.AdminEarnings || 0}
           bgColor="bg-green200"
         />
         <StatCard
           title="REFUND"
-          value={data?.data?.TotalCustomer}
+          value={data?.data?.Refund || 24}
           bgColor="bg-purple50"
         />
         <StatCard
           title="PENALTIES"
-          value={data?.data?.NewCustomers}
+          value={data?.data?.Penalties || 17}
           bgColor="bg-red50"
         />
       </div>
@@ -44,28 +44,18 @@ export default function ShopDashboard() {
       <div className="grid sm:grid-cols-2 md:grid-cols-4 gap-7 font-Inter !py-3 2xl:!py-6">
         <StatCard
           title="TOTAL ORDERS"
-          value={data?.data?.TotalCustomer}
+          value={data?.data?.TotalOrders || 24}
           bgColor="bg-purple50"
         />
         <StatCard
           title="PROCESSING ORDERS"
-          value={data?.data?.NewCustomers}
+          value={data?.data?.ProcessingOrders || 17}
           bgColor="bg-red50"
         />
         <StatCard
           title="CANCELLED ORDERS"
-          value={data?.data?.RepeatedCustomers}
+          value={data?.data?.CancelledOrders || 1}
           bgColor="bg-green50"
-        />
-        <StatCard
-          title="NEW ORDERS"
-          value={data?.data?.topPerformingCustomers || 0}
-          bgColor="bg-green200"
-        />
-        <StatCard
-          title="COMPLETED ORDERS"
-          value={data?.data?.TotalCustomer}
-          bgColor="bg-purple50"
         />
       </div>
 
