@@ -34,15 +34,33 @@ const DataTable = ({
   showDateRange = true,
   showDownload = true,
   height = 600,
+  // Server-side pagination props
+  serverSidePagination = false,
+  totalRows = 0,
+  currentPage = 1,
+  pageSize: externalPageSize = 25,
+  onPageChange,
+  onPageSizeChange,
+  // Filter click handler
+  onFiltersClick,
 }) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [dateRange, setDateRange] = useState(null);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(25);
+  const [page, setPage] = useState(currentPage);
+  const [pageSize, setPageSize] = useState(externalPageSize);
   const [sortConfig, setSortConfig] = useState({
     field: null,
     direction: "asc",
   });
+
+  // Sync external page and pageSize
+  React.useEffect(() => {
+    setPage(currentPage);
+  }, [currentPage]);
+
+  React.useEffect(() => {
+    setPageSize(externalPageSize);
+  }, [externalPageSize]);
 
   // filtering
   const filteredData = useMemo(() => {
@@ -77,11 +95,13 @@ const DataTable = ({
   }, [filteredData, sortConfig]);
 
   // pagination
-  const totalRows = sortedData.length;
-  const totalPages = Math.ceil(totalRows / pageSize);
+  const displayTotalRows = serverSidePagination ? totalRows : sortedData.length;
+  const totalPages = Math.ceil(displayTotalRows / pageSize);
   const startIndex = (page - 1) * pageSize;
-  const endIndex = Math.min(startIndex + pageSize, totalRows);
-  const paginatedData = sortedData.slice(startIndex, endIndex);
+  const endIndex = serverSidePagination 
+    ? Math.min(startIndex + pageSize, displayTotalRows)
+    : Math.min(startIndex + pageSize, sortedData.length);
+  const paginatedData = serverSidePagination ? sortedData : sortedData.slice(startIndex, endIndex);
 
   // 🔹 Handle sorting toggle
   const handleSort = (field) => {
@@ -98,12 +118,12 @@ const DataTable = ({
   };
 
   return (
-    <Box sx={{ width: "100%", maxWidth: "100%", overflow: "hidden" }}>
+    <Box sx={{ width: "100%", maxWidth: "100%", overflow: "visible" }}>
       <Paper
         sx={{
           width: "100%",
           borderRadius: "0 0 12px 12px",
-          overflow: "hidden",
+          overflow: "visible",
           boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
         }}
       >
@@ -129,6 +149,7 @@ const DataTable = ({
                 boxShadow="none"
                 text="Filters"
                 Icon={<TbFilter size="20px" color="#9CA3AF" />}
+                onClick={onFiltersClick}
               />
             )}
             {showDateRange && (
@@ -154,19 +175,48 @@ const DataTable = ({
         </Box>
 
         {/* Table */}
-        <Box sx={{ height: height - 150, overflowY: "auto" }}>
+        <Box 
+          sx={{ 
+            height: height - 150, 
+            overflowY: "auto", 
+            overflowX: "auto", 
+            width: "100%",
+            "&::-webkit-scrollbar": {
+              height: "8px",
+              width: "8px",
+            },
+            "&::-webkit-scrollbar-track": {
+              background: "#f1f1f1",
+            },
+            "&::-webkit-scrollbar-thumb": {
+              background: "#888",
+              borderRadius: "4px",
+            },
+            "&::-webkit-scrollbar-thumb:hover": {
+              background: "#555",
+            },
+          }}
+        >
           <Table
             stickyHeader
             sx={{
+              minWidth: "max-content",
+              width: "100%",
               "& .MuiTableCell-root": {
                 py: "8px", // Applies to all cells
-                pl: "40px",
+                pl: "20px",
+                pr: "20px",
+                whiteSpace: "nowrap",
               },
               "& .MuiTableRow-root": {
                 height: 60, // Applies to all rows
               },
               "& .MuiTableCell-head": {
                 height: 56, // Specifically for header
+                position: "sticky",
+                top: 0,
+                zIndex: 10,
+                backgroundColor: "#FAFAFA",
               },
             }}
           >
@@ -273,7 +323,12 @@ const DataTable = ({
             <Pagination
               count={totalPages}
               page={page}
-              onChange={(e, val) => setPage(val)}
+              onChange={(e, val) => {
+                setPage(val);
+                if (serverSidePagination && onPageChange) {
+                  onPageChange(val);
+                }
+              }}
               size="small"
               showFirstButton
               showLastButton
@@ -288,8 +343,12 @@ const DataTable = ({
               <Select
                 value={pageSize}
                 onChange={(e) => {
-                  setPageSize(e.target.value);
+                  const newPageSize = e.target.value;
+                  setPageSize(newPageSize);
                   setPage(1);
+                  if (serverSidePagination && onPageSizeChange) {
+                    onPageSizeChange(newPageSize);
+                  }
                 }}
               >
                 {[10, 25, 50, 100].map((n) => (

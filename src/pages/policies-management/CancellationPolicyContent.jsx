@@ -1,12 +1,12 @@
 import { useState, useEffect } from "react";
-import { Box, Typography, Checkbox, Divider } from "@mui/material";
+import { Box, Typography, Divider } from "@mui/material";
 import { TbPlus } from "../../shared/icons/index";
+import StyledCheckbox from "../../components/ui/StyledCheckbox";
 import DataTable from "../../components/ui/DataTable";
 import ActionButtons from "../../components/ui/ActionButtons";
 import ModalComponent from "../../components/shared/Modal";
 import InputFieldModal from "../../components/ui/InputFieldModal";
 import SelectField from "../../components/ui/SelectField";
-import FiltersButton from "../../components/ui/FiltersButton";
 import { useForm, Controller } from "react-hook-form";
 import ButtonBlueLight from "../../components/ui/ButtonBlueLight";
 import useToaster from "../../components/ui/Toaster";
@@ -84,35 +84,36 @@ export default function CancellationPolicyContent() {
     {
       field: "sl",
       headerName: "SL",
-      flex: 0.1,
-      minWidth: 80,
+      flex: 0.05,
+      minWidth: 60,
       sortable: true,
     },
     {
       field: "name",
       headerName: "Policy Name",
-      flex: 0.2,
+      flex: 0.12,
       minWidth: 150,
       sortable: true,
     },
     {
       field: "description",
       headerName: "Description",
-      flex: 0.25,
-      minWidth: 200,
+      flex: 0.15,
+      minWidth: 180,
       sortable: true,
     },
     {
       field: "isActive",
       headerName: "Status",
-      flex: 0.1,
-      minWidth: 100,
+      flex: 0.08,
+      minWidth: 90,
       sortable: true,
       renderCell: (row) => (
         <Typography
           sx={{
             color: row.isActive ? "success.main" : "text.secondary",
             fontWeight: 500,
+            fontSize: "13px",
           }}
         >
           {row.isActive ? "Active" : "Inactive"}
@@ -122,14 +123,15 @@ export default function CancellationPolicyContent() {
     {
       field: "isDefault",
       headerName: "Default",
-      flex: 0.1,
-      minWidth: 100,
+      flex: 0.08,
+      minWidth: 80,
       sortable: true,
       renderCell: (row) => (
         <Typography
           sx={{
             color: row.isDefault ? "primary.main" : "text.secondary",
             fontWeight: 500,
+            fontSize: "13px",
           }}
         >
           {row.isDefault ? "Yes" : "No"}
@@ -137,9 +139,231 @@ export default function CancellationPolicyContent() {
       ),
     },
     {
+      field: "prePickupAbsoluteCurrency",
+      headerName: "Pre-Pickup Currency",
+      flex: 0.08,
+      minWidth: 130,
+      sortable: true,
+      renderCell: (row) => (
+        <Typography sx={{ fontWeight: 500, fontSize: "13px" }}>
+          {row.prePickupAbsoluteCurrency || "N/A"}
+        </Typography>
+      ),
+    },
+    {
+      field: "prePickupAbsoluteAmount",
+      headerName: "Pre-Pickup Amount",
+      flex: 0.1,
+      minWidth: 140,
+      sortable: true,
+      renderCell: (row) => (
+        <Typography sx={{ fontWeight: 500, fontSize: "13px" }}>
+          {row.prePickupAbsoluteCurrency} {row.prePickupAbsoluteAmount || "0.00"}
+        </Typography>
+      ),
+    },
+    {
+      field: "prePickupPercentage",
+      headerName: "Pre-Pickup %",
+      flex: 0.08,
+      minWidth: 110,
+      sortable: true,
+      renderCell: (row) => (
+        <Typography sx={{ fontWeight: 500, fontSize: "13px" }}>
+          {row.prePickupPercentage ? `${row.prePickupPercentage}%` : "N/A"}
+        </Typography>
+      ),
+    },
+    {
+      field: "prePickupFreeChargeWindowMinutes",
+      headerName: "Free Window (Mins)",
+      flex: 0.1,
+      minWidth: 140,
+      sortable: true,
+      renderCell: (row) => (
+        <Typography sx={{ fontWeight: 500, fontSize: "13px" }}>
+          {row.prePickupFreeChargeWindowMinutes || "0"} min
+        </Typography>
+      ),
+    },
+    {
+      field: "prePickupFirstCancellationLeniency",
+      headerName: "First Cancel Leniency",
+      flex: 0.12,
+      minWidth: 150,
+      sortable: true,
+      renderCell: (row) => (
+        <Typography
+          sx={{
+            color: row.prePickupFirstCancellationLeniency ? "success.main" : "text.secondary",
+            fontWeight: 500,
+            fontSize: "13px",
+          }}
+        >
+          {row.prePickupFirstCancellationLeniency ? "Yes" : "No"}
+        </Typography>
+      ),
+    },
+    {
+      field: "unprocessedAbsoluteCurrency",
+      headerName: "Unprocessed Currency",
+      flex: 0.1,
+      minWidth: 150,
+      sortable: true,
+      renderCell: (row) => (
+        <Typography sx={{ fontWeight: 500, fontSize: "13px" }}>
+          {row.unprocessedAbsoluteCurrency || "N/A"}
+        </Typography>
+      ),
+    },
+    {
+      field: "unprocessedAbsoluteAmount",
+      headerName: "Unprocessed Amount",
+      flex: 0.1,
+      minWidth: 150,
+      sortable: true,
+      renderCell: (row) => (
+        <Typography sx={{ fontWeight: 500, fontSize: "13px" }}>
+          {row.unprocessedAbsoluteCurrency} {row.unprocessedAbsoluteAmount || "0.00"}
+        </Typography>
+      ),
+    },
+    {
+      field: "unprocessedPercentage",
+      headerName: "Unprocessed %",
+      flex: 0.1,
+      minWidth: 130,
+      sortable: true,
+      renderCell: (row) => (
+        <Typography sx={{ fontWeight: 500, fontSize: "13px" }}>
+          {row.unprocessedPercentage ? `${row.unprocessedPercentage}%` : "N/A"}
+        </Typography>
+      ),
+    },
+    {
+      field: "unprocessedAfterPickupMinutes",
+      headerName: "After Pickup (Mins)",
+      flex: 0.1,
+      minWidth: 140,
+      sortable: true,
+      renderCell: (row) => (
+        <Typography sx={{ fontWeight: 500, fontSize: "13px" }}>
+          {row.unprocessedAfterPickupMinutes || "0"} min
+        </Typography>
+      ),
+    },
+    {
+      field: "unprocessedOrderValuePercentage",
+      headerName: "Order Value %",
+      flex: 0.1,
+      minWidth: 120,
+      sortable: true,
+      renderCell: (row) => (
+        <Typography sx={{ fontWeight: 500, fontSize: "13px" }}>
+          {row.unprocessedOrderValuePercentage ? `${row.unprocessedOrderValuePercentage}%` : "N/A"}
+        </Typography>
+      ),
+    },
+    {
+      field: "allowCancelUnprocessed",
+      headerName: "Allow Cancel",
+      flex: 0.1,
+      minWidth: 120,
+      sortable: true,
+      renderCell: (row) => (
+        <Typography
+          sx={{
+            color: row.allowCancelUnprocessed ? "success.main" : "text.secondary",
+            fontWeight: 500,
+            fontSize: "13px",
+          }}
+        >
+          {row.allowCancelUnprocessed ? "Yes" : "No"}
+        </Typography>
+      ),
+    },
+    {
+      field: "courtesyWindowDays",
+      headerName: "Courtesy Window",
+      flex: 0.1,
+      minWidth: 130,
+      sortable: true,
+      renderCell: (row) => (
+        <Typography sx={{ fontWeight: 500, fontSize: "13px" }}>
+          {row.courtesyWindowDays ? `${row.courtesyWindowDays} days` : "N/A"}
+        </Typography>
+      ),
+    },
+    {
+      field: "courtesyCapAmount",
+      headerName: "Courtesy Cap",
+      flex: 0.1,
+      minWidth: 120,
+      sortable: true,
+      renderCell: (row) => (
+        <Typography sx={{ fontWeight: 500, fontSize: "13px" }}>
+          {row.courtesyCapAmount ? `${row.prePickupAbsoluteCurrency} ${row.courtesyCapAmount}` : "N/A"}
+        </Typography>
+      ),
+    },
+    {
+      field: "courtesyCount",
+      headerName: "Courtesy Count",
+      flex: 0.1,
+      minWidth: 130,
+      sortable: true,
+      renderCell: (row) => (
+        <Typography sx={{ fontWeight: 500, fontSize: "13px" }}>
+          {row.courtesyCount || "0"}
+        </Typography>
+      ),
+    },
+    {
+      field: "customerLeniencyEnabled",
+      headerName: "Customer Leniency",
+      flex: 0.1,
+      minWidth: 150,
+      sortable: true,
+      renderCell: (row) => (
+        <Typography
+          sx={{
+            color: row.customerLeniencyEnabled ? "success.main" : "text.secondary",
+            fontWeight: 500,
+            fontSize: "13px",
+          }}
+        >
+          {row.customerLeniencyEnabled ? "Yes" : "No"}
+        </Typography>
+      ),
+    },
+    {
+      field: "createdAt",
+      headerName: "Created At",
+      flex: 0.1,
+      minWidth: 120,
+      sortable: true,
+      renderCell: (row) => (
+        <Typography sx={{ fontWeight: 400, fontSize: "13px" }}>
+          {row.createdAt || "N/A"}
+        </Typography>
+      ),
+    },
+    {
+      field: "updatedAt",
+      headerName: "Updated At",
+      flex: 0.1,
+      minWidth: 120,
+      sortable: true,
+      renderCell: (row) => (
+        <Typography sx={{ fontWeight: 400, fontSize: "13px" }}>
+          {row.updatedAt || "N/A"}
+        </Typography>
+      ),
+    },
+    {
       field: "actions",
       headerName: "Action",
-      flex: 0.15,
+      flex: 0.12,
       minWidth: 150,
       renderCell: (row) => (
         <ActionButtons
@@ -153,18 +377,45 @@ export default function CancellationPolicyContent() {
   ];
 
   // Prepare table data
-  const policiesData = policies?.map((policy, index) => ({
-    id: policy.id,
-    sl: index + 1,
-    name: policy.name,
-    description: policy.description,
-    isActive: policy.isActive,
-    isDefault: policy.isDefault,
-    type: policy.type,
-    createdAt: policy.createdAt ? new Date(policy.createdAt).toLocaleDateString() : "N/A",
-    updatedAt: policy.updatedAt ? new Date(policy.updatedAt).toLocaleDateString() : "N/A",
-    cancellationConfig: policy.cancellationConfig,
-  })) || [];
+  const policiesData = policies?.map((policy, index) => {
+    const config = policy.cancellationConfig || {};
+    return {
+      id: policy.id,
+      sl: (pagination.page - 1) * pagination.limit + index + 1,
+      name: policy.name,
+      description: policy.description,
+      isActive: policy.isActive,
+      isDefault: policy.isDefault,
+      type: policy.type,
+      createdAt: policy.createdAt
+        ? new Date(policy.createdAt).toLocaleDateString()
+        : "N/A",
+      updatedAt: policy.updatedAt
+        ? new Date(policy.updatedAt).toLocaleDateString()
+        : "N/A",
+      // Pre-Pickup Charges
+      prePickupAbsoluteCurrency: config.prePickupAbsoluteCurrency || "USD",
+      prePickupAbsoluteAmount: config.prePickupAbsoluteAmount || "0.00",
+      prePickupPercentage: config.prePickupPercentage || null,
+      prePickupFreeChargeWindowMinutes: config.prePickupFreeChargeWindowMinutes || 0,
+      prePickupFirstCancellationLeniency: config.prePickupFirstCancellationLeniency ?? false,
+      // Unprocessed Order Charges
+      unprocessedAbsoluteCurrency: config.unprocessedAbsoluteCurrency || "USD",
+      unprocessedAbsoluteAmount: config.unprocessedAbsoluteAmount || "0.00",
+      unprocessedPercentage: config.unprocessedPercentage || null,
+      unprocessedAfterPickupMinutes: config.unprocessedAfterPickupMinutes || 0,
+      unprocessedOrderValuePercentage: config.unprocessedOrderValuePercentage || null,
+      allowCancelUnprocessed: config.allowCancelUnprocessed ?? false,
+      // Courtesy Window
+      courtesyWindowDays: config.courtesyWindowDays || null,
+      courtesyCapAmount: config.courtesyCapAmount || null,
+      courtesyCount: config.courtesyCount || 0,
+      // Customer Leniency
+      customerLeniencyEnabled: config.customerLeniencyEnabled ?? false,
+      // Keep original config for edit functionality
+      cancellationConfig: policy.cancellationConfig,
+    };
+  }) || [];
 
   useEffect(() => {
     if (policies.length > 0) {
@@ -196,6 +447,143 @@ export default function CancellationPolicyContent() {
       customerLeniencyEnabled: true,
     });
     setModalOpen(true);
+  };
+
+  const handleAddTestPolicies = async () => {
+    const testPolicies = [
+      {
+        name: "Standard Cancellation Policy",
+        description: "Standard policy for handling cancellations with moderate fees",
+        isActive: true,
+        isDefault: false,
+        prePickupAbsoluteCurrency: "USD",
+        prePickupAbsoluteAmount: 10.00,
+        prePickupPercentage: 5.00,
+        prePickupFreeChargeWindowMinutes: 30,
+        prePickupFirstCancellationLeniency: true,
+        unprocessedAbsoluteCurrency: "USD",
+        unprocessedAbsoluteAmount: 5.00,
+        unprocessedPercentage: 3.00,
+        unprocessedAfterPickupMinutes: 5,
+        unprocessedOrderValuePercentage: 8.00,
+        allowCancelUnprocessed: true,
+        courtesyWindowDays: 3,
+        courtesyCapAmount: 15.00,
+        courtesyCount: 2,
+        customerLeniencyEnabled: true,
+      },
+      {
+        name: "Premium Cancellation Policy",
+        description: "Premium policy with higher fees and stricter rules",
+        isActive: true,
+        isDefault: false,
+        prePickupAbsoluteCurrency: "USD",
+        prePickupAbsoluteAmount: 25.00,
+        prePickupPercentage: 12.00,
+        prePickupFreeChargeWindowMinutes: 15,
+        prePickupFirstCancellationLeniency: false,
+        unprocessedAbsoluteCurrency: "USD",
+        unprocessedAbsoluteAmount: 15.00,
+        unprocessedPercentage: 8.00,
+        unprocessedAfterPickupMinutes: 3,
+        unprocessedOrderValuePercentage: 15.00,
+        allowCancelUnprocessed: false,
+        courtesyWindowDays: 1,
+        courtesyCapAmount: 10.00,
+        courtesyCount: 1,
+        customerLeniencyEnabled: false,
+      },
+      {
+        name: "Flexible Cancellation Policy",
+        description: "Flexible policy with lenient rules and lower fees",
+        isActive: true,
+        isDefault: true,
+        prePickupAbsoluteCurrency: "USD",
+        prePickupAbsoluteAmount: 5.00,
+        prePickupPercentage: 3.00,
+        prePickupFreeChargeWindowMinutes: 60,
+        prePickupFirstCancellationLeniency: true,
+        unprocessedAbsoluteCurrency: "USD",
+        unprocessedAbsoluteAmount: 2.00,
+        unprocessedPercentage: 2.00,
+        unprocessedAfterPickupMinutes: 10,
+        unprocessedOrderValuePercentage: 5.00,
+        allowCancelUnprocessed: true,
+        courtesyWindowDays: 7,
+        courtesyCapAmount: 25.00,
+        courtesyCount: 3,
+        customerLeniencyEnabled: true,
+      },
+      {
+        name: "Strict Cancellation Policy",
+        description: "Strict policy with high fees and no leniency",
+        isActive: true,
+        isDefault: false,
+        prePickupAbsoluteCurrency: "USD",
+        prePickupAbsoluteAmount: 50.00,
+        prePickupPercentage: 20.00,
+        prePickupFreeChargeWindowMinutes: 0,
+        prePickupFirstCancellationLeniency: false,
+        unprocessedAbsoluteCurrency: "USD",
+        unprocessedAbsoluteAmount: 30.00,
+        unprocessedPercentage: 15.00,
+        unprocessedAfterPickupMinutes: 1,
+        unprocessedOrderValuePercentage: 25.00,
+        allowCancelUnprocessed: false,
+        courtesyWindowDays: 0,
+        courtesyCapAmount: 0.00,
+        courtesyCount: 0,
+        customerLeniencyEnabled: false,
+      },
+      {
+        name: "Test Cancellation Policy EUR",
+        description: "Test policy with EUR currency and mixed settings",
+        isActive: true,
+        isDefault: false,
+        prePickupAbsoluteCurrency: "EUR",
+        prePickupAbsoluteAmount: 12.00,
+        prePickupPercentage: 6.00,
+        prePickupFreeChargeWindowMinutes: 20,
+        prePickupFirstCancellationLeniency: true,
+        unprocessedAbsoluteCurrency: "EUR",
+        unprocessedAbsoluteAmount: 4.00,
+        unprocessedPercentage: 4.00,
+        unprocessedAfterPickupMinutes: 3,
+        unprocessedOrderValuePercentage: 10.00,
+        allowCancelUnprocessed: true,
+        courtesyWindowDays: 3,
+        courtesyCapAmount: 2.00,
+        courtesyCount: 2,
+        customerLeniencyEnabled: true,
+      },
+    ];
+
+    try {
+      let successCount = 0;
+      let errorCount = 0;
+
+      for (const policy of testPolicies) {
+        try {
+          await addCancellationPolicy(policy).unwrap();
+          successCount++;
+        } catch (error) {
+          console.error(`Error adding policy "${policy.name}":`, error);
+          errorCount++;
+        }
+      }
+
+      if (successCount > 0) {
+        success(`Successfully added ${successCount} test cancellation policies!`);
+      }
+      if (errorCount > 0) {
+        showError(`Failed to add ${errorCount} policies. Check console for details.`);
+      }
+      
+      refetch();
+    } catch (error) {
+      console.error("Error adding test policies:", error);
+      showError("Failed to add test policies. Please try again.");
+    }
   };
 
   const handleEdit = (policy) => {
@@ -314,22 +702,30 @@ export default function CancellationPolicyContent() {
 
   return (
     <Box>
-      {/* Action Button and Filters Button */}
-      <Box className="flex items-center justify-between mb-4">
-        <FiltersButton
-          text="Filters"
-          onClick={() => setFilterModalOpen(true)}
-        />
-        <ButtonBlueLight
-          variant="outlined"
-          bgColor="blue.200"
-          color="white"
-          radius="8px"
-          startIcon={<TbPlus size={"24px"} />}
-          onClick={handleAdd}
-        >
-          Add Cancellation Policy
-        </ButtonBlueLight>
+      {/* Action Buttons */}
+      <Box className="flex items-center justify-end mb-4">
+        <Box className="flex items-center gap-3">
+          <ButtonBlueLight
+            variant="contained"
+            bgColor="#10b981"
+            color="white"
+            radius="8px"
+            onClick={handleAddTestPolicies}
+            disabled={isAdding}
+          >
+            Add 5 Test Policies
+          </ButtonBlueLight>
+          <ButtonBlueLight
+            variant="outlined"
+            bgColor="blue.200"
+            color="white"
+            radius="8px"
+            startIcon={<TbPlus size={"24px"} />}
+            onClick={handleAdd}
+          >
+            Add Cancellation Policy
+          </ButtonBlueLight>
+        </Box>
       </Box>
 
       {/* Action Button */}
@@ -347,11 +743,23 @@ export default function CancellationPolicyContent() {
       </Box>
 
       {/* Data Table */}
-      <Box sx={{ width: "100%", overflow: "auto" }}>
+      <Box sx={{ width: "100%", overflow: "visible" }}>
         <DataTable
           data={policiesData}
           columns={columns}
-          height={600}
+          height={700}
+          serverSidePagination={true}
+          totalRows={pagination.total || 0}
+          currentPage={page}
+          pageSize={limit}
+          onPageChange={(newPage) => {
+            setPage(newPage);
+          }}
+          onPageSizeChange={(newPageSize) => {
+            setLimit(newPageSize);
+            setPage(1);
+          }}
+          onFiltersClick={() => setFilterModalOpen(true)}
         />
       </Box>
 
@@ -426,7 +834,7 @@ export default function CancellationPolicyContent() {
                   control={control}
                   render={({ field: { onChange, value } }) => (
                     <Box className="flex items-center gap-2">
-                      <Checkbox
+                      <StyledCheckbox
                         checked={value}
                         onChange={(e) => onChange(e.target.checked)}
                       />
@@ -440,7 +848,7 @@ export default function CancellationPolicyContent() {
                   control={control}
                   render={({ field: { onChange, value } }) => (
                     <Box className="flex items-center gap-2">
-                      <Checkbox
+                      <StyledCheckbox
                         checked={value}
                         onChange={(e) => onChange(e.target.checked)}
                       />
@@ -524,7 +932,7 @@ export default function CancellationPolicyContent() {
                 control={control}
                 render={({ field: { onChange, value } }) => (
                   <Box className="flex items-center gap-2">
-                    <Checkbox
+                    <StyledCheckbox
                       checked={value}
                       onChange={(e) => onChange(e.target.checked)}
                     />
@@ -623,7 +1031,7 @@ export default function CancellationPolicyContent() {
                 control={control}
                 render={({ field: { onChange, value } }) => (
                   <Box className="flex items-center gap-2">
-                    <Checkbox
+                    <StyledCheckbox
                       checked={value}
                       onChange={(e) => onChange(e.target.checked)}
                     />
@@ -700,7 +1108,7 @@ export default function CancellationPolicyContent() {
               control={control}
               render={({ field: { onChange, value } }) => (
                 <Box className="flex items-center gap-2">
-                  <Checkbox
+                  <StyledCheckbox
                     checked={value}
                     onChange={(e) => onChange(e.target.checked)}
                   />

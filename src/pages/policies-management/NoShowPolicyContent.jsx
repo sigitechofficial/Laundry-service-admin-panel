@@ -1,19 +1,19 @@
 import { useState, useEffect } from "react";
-import { Box, Typography, Checkbox, Divider } from "@mui/material";
+import { Box, Typography, Divider } from "@mui/material";
 import { TbPlus } from "../../shared/icons/index";
+import StyledCheckbox from "../../components/ui/StyledCheckbox";
 import DataTable from "../../components/ui/DataTable";
 import ActionButtons from "../../components/ui/ActionButtons";
 import ModalComponent from "../../components/shared/Modal";
 import InputFieldModal from "../../components/ui/InputFieldModal";
 import SelectField from "../../components/ui/SelectField";
-import FiltersButton from "../../components/ui/FiltersButton";
 import { useForm, Controller } from "react-hook-form";
 import ButtonBlueLight from "../../components/ui/ButtonBlueLight";
 import useToaster from "../../components/ui/Toaster";
 import { useAddNoShowPolicyMutation, useGetNoShowPoliciesQuery, useUpdateNoShowPolicyMutation, useDeleteNoShowPolicyMutation } from "../../store/services/api";
 import { Delay } from "../../components/shared/Loaders";
 
-export default function NoShowPolicyContent() {
+export default function NoShowPolicyContent({ onAddButtonRef }) {
   const { success, error: showError } = useToaster();
   const [modalOpen, setModalOpen] = useState(false);
   const [editingPolicy, setEditingPolicy] = useState(null);
@@ -101,35 +101,36 @@ export default function NoShowPolicyContent() {
     {
       field: "sl",
       headerName: "SL",
-      flex: 0.1,
-      minWidth: 80,
+      flex: 0.05,
+      minWidth: 60,
       sortable: true,
     },
     {
       field: "name",
       headerName: "Policy Name",
-      flex: 0.2,
+      flex: 0.12,
       minWidth: 150,
       sortable: true,
     },
     {
       field: "description",
       headerName: "Description",
-      flex: 0.25,
-      minWidth: 200,
+      flex: 0.15,
+      minWidth: 180,
       sortable: true,
     },
     {
       field: "isActive",
       headerName: "Status",
-      flex: 0.1,
-      minWidth: 100,
+      flex: 0.08,
+      minWidth: 90,
       sortable: true,
       renderCell: (row) => (
         <Typography
           sx={{
             color: row.isActive ? "success.main" : "text.secondary",
             fontWeight: 500,
+            fontSize: "13px",
           }}
         >
           {row.isActive ? "Active" : "Inactive"}
@@ -139,14 +140,15 @@ export default function NoShowPolicyContent() {
     {
       field: "isDefault",
       headerName: "Default",
-      flex: 0.1,
-      minWidth: 100,
+      flex: 0.08,
+      minWidth: 80,
       sortable: true,
       renderCell: (row) => (
         <Typography
           sx={{
             color: row.isDefault ? "primary.main" : "text.secondary",
             fontWeight: 500,
+            fontSize: "13px",
           }}
         >
           {row.isDefault ? "Yes" : "No"}
@@ -154,9 +156,437 @@ export default function NoShowPolicyContent() {
       ),
     },
     {
+      field: "enableForPickup",
+      headerName: "Pickup",
+      flex: 0.07,
+      minWidth: 70,
+      sortable: true,
+      renderCell: (row) => (
+        <Typography
+          sx={{
+            color: row.enableForPickup ? "success.main" : "text.secondary",
+            fontWeight: 500,
+            fontSize: "13px",
+          }}
+        >
+          {row.enableForPickup ? "Yes" : "No"}
+        </Typography>
+      ),
+    },
+    {
+      field: "enableForDelivery",
+      headerName: "Delivery",
+      flex: 0.07,
+      minWidth: 80,
+      sortable: true,
+      renderCell: (row) => (
+        <Typography
+          sx={{
+            color: row.enableForDelivery ? "success.main" : "text.secondary",
+            fontWeight: 500,
+            fontSize: "13px",
+          }}
+        >
+          {row.enableForDelivery ? "Yes" : "No"}
+        </Typography>
+      ),
+    },
+    {
+      field: "feeType",
+      headerName: "Fee Type",
+      flex: 0.08,
+      minWidth: 90,
+      sortable: true,
+      renderCell: (row) => (
+        <Typography
+          sx={{
+            textTransform: "capitalize",
+            fontWeight: 500,
+            fontSize: "13px",
+          }}
+        >
+          {row.feeType || "N/A"}
+        </Typography>
+      ),
+    },
+    {
+      field: "currency",
+      headerName: "Currency",
+      flex: 0.07,
+      minWidth: 80,
+      sortable: true,
+      renderCell: (row) => (
+        <Typography sx={{ fontWeight: 500, fontSize: "13px" }}>
+          {row.currency || "N/A"}
+        </Typography>
+      ),
+    },
+    {
+      field: "pickupNoShowFee",
+      headerName: "Pickup Fee",
+      flex: 0.08,
+      minWidth: 100,
+      sortable: true,
+      renderCell: (row) => (
+        <Typography sx={{ fontWeight: 500, fontSize: "13px" }}>
+          {row.currency} {row.pickupNoShowFee || "0.00"}
+        </Typography>
+      ),
+    },
+    {
+      field: "deliveryNoShowFee",
+      headerName: "Delivery Fee",
+      flex: 0.08,
+      minWidth: 100,
+      sortable: true,
+      renderCell: (row) => (
+        <Typography sx={{ fontWeight: 500, fontSize: "13px" }}>
+          {row.currency} {row.deliveryNoShowFee || "0.00"}
+        </Typography>
+      ),
+    },
+    {
+      field: "storageFeePerDay",
+      headerName: "Storage Fee/Day",
+      flex: 0.1,
+      minWidth: 120,
+      sortable: true,
+      renderCell: (row) => (
+        <Typography sx={{ fontWeight: 500, fontSize: "13px" }}>
+          {row.currency} {row.storageFeePerDay || "0.00"}
+        </Typography>
+      ),
+    },
+    {
+      field: "percentageFee",
+      headerName: "Percentage Fee",
+      flex: 0.08,
+      minWidth: 110,
+      sortable: true,
+      renderCell: (row) => (
+        <Typography sx={{ fontWeight: 500, fontSize: "13px" }}>
+          {row.percentageFee ? `${row.percentageFee}%` : "N/A"}
+        </Typography>
+      ),
+    },
+    {
+      field: "graceMinutesOnSite",
+      headerName: "Grace Mins",
+      flex: 0.07,
+      minWidth: 90,
+      sortable: true,
+      renderCell: (row) => (
+        <Typography sx={{ fontWeight: 500, fontSize: "13px" }}>
+          {row.graceMinutesOnSite || "0"} min
+        </Typography>
+      ),
+    },
+    {
+      field: "driverLateSLA",
+      headerName: "Driver SLA",
+      flex: 0.08,
+      minWidth: 90,
+      sortable: true,
+      renderCell: (row) => (
+        <Typography sx={{ fontWeight: 500, fontSize: "13px" }}>
+          {row.driverLateSLA || "0"} min
+        </Typography>
+      ),
+    },
+    {
+      field: "callsMinutes",
+      headerName: "Calls Mins",
+      flex: 0.07,
+      minWidth: 90,
+      sortable: true,
+      renderCell: (row) => (
+        <Typography sx={{ fontWeight: 500, fontSize: "13px" }}>
+          {row.callsMinutes || "0"} min
+        </Typography>
+      ),
+    },
+    {
+      field: "smsMinutes",
+      headerName: "SMS Mins",
+      flex: 0.07,
+      minWidth: 90,
+      sortable: true,
+      renderCell: (row) => (
+        <Typography sx={{ fontWeight: 500, fontSize: "13px" }}>
+          {row.smsMinutes || "0"} min
+        </Typography>
+      ),
+    },
+    {
+      field: "pickupBagAtDoor",
+      headerName: "Bag At Door",
+      flex: 0.08,
+      minWidth: 100,
+      sortable: true,
+      renderCell: (row) => (
+        <Typography
+          sx={{
+            color: row.pickupBagAtDoor ? "success.main" : "text.secondary",
+            fontWeight: 500,
+            fontSize: "13px",
+          }}
+        >
+          {row.pickupBagAtDoor ? "Yes" : "No"}
+        </Typography>
+      ),
+    },
+    {
+      field: "deliveryLeaveAtDoor",
+      headerName: "Leave At Door",
+      flex: 0.09,
+      minWidth: 110,
+      sortable: true,
+      renderCell: (row) => (
+        <Typography
+          sx={{
+            color: row.deliveryLeaveAtDoor ? "success.main" : "text.secondary",
+            fontWeight: 500,
+            fontSize: "13px",
+          }}
+        >
+          {row.deliveryLeaveAtDoor ? "Yes" : "No"}
+        </Typography>
+      ),
+    },
+    {
+      field: "concierge",
+      headerName: "Concierge",
+      flex: 0.08,
+      minWidth: 90,
+      sortable: true,
+      renderCell: (row) => (
+        <Typography
+          sx={{
+            color: row.concierge ? "success.main" : "text.secondary",
+            fontWeight: 500,
+            fontSize: "13px",
+          }}
+        >
+          {row.concierge ? "Yes" : "No"}
+        </Typography>
+      ),
+    },
+    {
+      field: "locker",
+      headerName: "Locker",
+      flex: 0.07,
+      minWidth: 70,
+      sortable: true,
+      renderCell: (row) => (
+        <Typography
+          sx={{
+            color: row.locker ? "success.main" : "text.secondary",
+            fontWeight: 500,
+            fontSize: "13px",
+          }}
+        >
+          {row.locker ? "Yes" : "No"}
+        </Typography>
+      ),
+    },
+    {
+      field: "requirePhoto",
+      headerName: "Require Photo",
+      flex: 0.09,
+      minWidth: 110,
+      sortable: true,
+      renderCell: (row) => (
+        <Typography
+          sx={{
+            color: row.requirePhoto ? "success.main" : "text.secondary",
+            fontWeight: 500,
+            fontSize: "13px",
+          }}
+        >
+          {row.requirePhoto ? "Yes" : "No"}
+        </Typography>
+      ),
+    },
+    {
+      field: "waiverType",
+      headerName: "Waiver Type",
+      flex: 0.08,
+      minWidth: 100,
+      sortable: true,
+      renderCell: (row) => (
+        <Typography
+          sx={{
+            textTransform: "capitalize",
+            fontWeight: 500,
+            fontSize: "13px",
+          }}
+        >
+          {row.waiverType || "N/A"}
+        </Typography>
+      ),
+    },
+    {
+      field: "absoluteWaiverAmount",
+      headerName: "Abs Waiver",
+      flex: 0.08,
+      minWidth: 100,
+      sortable: true,
+      renderCell: (row) => (
+        <Typography sx={{ fontWeight: 500, fontSize: "13px" }}>
+          {row.absoluteWaiverAmount
+            ? `${row.currency} ${row.absoluteWaiverAmount}`
+            : "N/A"}
+        </Typography>
+      ),
+    },
+    {
+      field: "percentageWaiverAmount",
+      headerName: "% Waiver",
+      flex: 0.08,
+      minWidth: 90,
+      sortable: true,
+      renderCell: (row) => (
+        <Typography sx={{ fontWeight: 500, fontSize: "13px" }}>
+          {row.percentageWaiverAmount
+            ? `${row.percentageWaiverAmount}%`
+            : "N/A"}
+        </Typography>
+      ),
+    },
+    {
+      field: "autoForgiveFirstNoShow",
+      headerName: "Auto Forgive",
+      flex: 0.08,
+      minWidth: 100,
+      sortable: true,
+      renderCell: (row) => (
+        <Typography
+          sx={{
+            color: row.autoForgiveFirstNoShow
+              ? "success.main"
+              : "text.secondary",
+            fontWeight: 500,
+            fontSize: "13px",
+          }}
+        >
+          {row.autoForgiveFirstNoShow ? "Yes" : "No"}
+        </Typography>
+      ),
+    },
+    {
+      field: "autoForgiveCount",
+      headerName: "Forgive Count",
+      flex: 0.09,
+      minWidth: 110,
+      sortable: true,
+      renderCell: (row) => (
+        <Typography sx={{ fontWeight: 500, fontSize: "13px" }}>
+          {row.autoForgiveCount || "0"}
+        </Typography>
+      ),
+    },
+    {
+      field: "autoForgivePeriod",
+      headerName: "Forgive Period",
+      flex: 0.09,
+      minWidth: 110,
+      sortable: true,
+      renderCell: (row) => (
+        <Typography sx={{ fontWeight: 500, fontSize: "13px" }}>
+          {row.autoForgivePeriod ? `${row.autoForgivePeriod} days` : "N/A"}
+        </Typography>
+      ),
+    },
+    {
+      field: "requirePaymentAfterCap",
+      headerName: "Payment After Cap",
+      flex: 0.1,
+      minWidth: 130,
+      sortable: true,
+      renderCell: (row) => (
+        <Typography
+          sx={{
+            color: row.requirePaymentAfterCap
+              ? "success.main"
+              : "text.secondary",
+            fontWeight: 500,
+            fontSize: "13px",
+          }}
+        >
+          {row.requirePaymentAfterCap ? "Yes" : "No"}
+        </Typography>
+      ),
+    },
+    {
+      field: "perCustomerCap",
+      headerName: "Per Customer Cap",
+      flex: 0.1,
+      minWidth: 130,
+      sortable: true,
+      renderCell: (row) => (
+        <Typography sx={{ fontWeight: 500, fontSize: "13px" }}>
+          {row.perCustomerCap || "0"}
+        </Typography>
+      ),
+    },
+    {
+      field: "capWindowDays",
+      headerName: "Cap Window",
+      flex: 0.08,
+      minWidth: 100,
+      sortable: true,
+      renderCell: (row) => (
+        <Typography sx={{ fontWeight: 500, fontSize: "13px" }}>
+          {row.capWindowDays ? `${row.capWindowDays} days` : "N/A"}
+        </Typography>
+      ),
+    },
+    {
+      field: "useUnifiedFee",
+      headerName: "Unified Fee",
+      flex: 0.08,
+      minWidth: 100,
+      sortable: true,
+      renderCell: (row) => (
+        <Typography
+          sx={{
+            color: row.useUnifiedFee ? "success.main" : "text.secondary",
+            fontWeight: 500,
+            fontSize: "13px",
+          }}
+        >
+          {row.useUnifiedFee ? "Yes" : "No"}
+        </Typography>
+      ),
+    },
+    {
+      field: "createdAt",
+      headerName: "Created At",
+      flex: 0.1,
+      minWidth: 120,
+      sortable: true,
+      renderCell: (row) => (
+        <Typography sx={{ fontWeight: 400, fontSize: "13px" }}>
+          {row.createdAt || "N/A"}
+        </Typography>
+      ),
+    },
+    {
+      field: "updatedAt",
+      headerName: "Updated At",
+      flex: 0.1,
+      minWidth: 120,
+      sortable: true,
+      renderCell: (row) => (
+        <Typography sx={{ fontWeight: 400, fontSize: "13px" }}>
+          {row.updatedAt || "N/A"}
+        </Typography>
+      ),
+    },
+    {
       field: "actions",
       headerName: "Action",
-      flex: 0.15,
+      flex: 0.12,
       minWidth: 150,
       renderCell: (row) => (
         <ActionButtons
@@ -170,18 +600,60 @@ export default function NoShowPolicyContent() {
   ];
 
   // Prepare table data
-  const policiesData = policies?.map((policy, index) => ({
-    id: policy.id,
-    sl: index + 1,
-    name: policy.name,
-    description: policy.description,
-    isActive: policy.isActive,
-    isDefault: policy.isDefault,
-    type: policy.type,
-    createdAt: policy.createdAt ? new Date(policy.createdAt).toLocaleDateString() : "N/A",
-    updatedAt: policy.updatedAt ? new Date(policy.updatedAt).toLocaleDateString() : "N/A",
-    noShowPolicyConfig: policy.noShowPolicyConfig,
-  })) || [];
+  const policiesData = policies?.map((policy, index) => {
+    const config = policy.noShowPolicyConfig || {};
+    return {
+      id: policy.id,
+      sl: (pagination.page - 1) * pagination.limit + index + 1,
+      name: policy.name,
+      description: policy.description,
+      isActive: policy.isActive,
+      isDefault: policy.isDefault,
+      type: policy.type,
+      createdAt: policy.createdAt
+        ? new Date(policy.createdAt).toLocaleDateString()
+        : "N/A",
+      updatedAt: policy.updatedAt
+        ? new Date(policy.updatedAt).toLocaleDateString()
+        : "N/A",
+      // Enablement Settings
+      enableForPickup: config.enableForPickup ?? false,
+      enableForDelivery: config.enableForDelivery ?? false,
+      useUnifiedFee: config.useUnifiedFee ?? false,
+      // Fee Configuration
+      feeType: config.feeType || "N/A",
+      currency: config.currency || "USD",
+      pickupNoShowFee: config.pickupNoShowFee || "0.00",
+      deliveryNoShowFee: config.deliveryNoShowFee || "0.00",
+      storageFeePerDay: config.storageFeePerDay || "0.00",
+      percentageFee: config.percentageFee || null,
+      // Timing Settings
+      graceMinutesOnSite: config.graceMinutesOnSite || 0,
+      driverLateSLA: config.driverLateSLA || 0,
+      callsMinutes: config.callsMinutes || 0,
+      smsMinutes: config.smsMinutes || 0,
+      // Delivery Options
+      pickupBagAtDoor: config.pickupBagAtDoor ?? false,
+      deliveryLeaveAtDoor: config.deliveryLeaveAtDoor ?? false,
+      concierge: config.concierge ?? false,
+      locker: config.locker ?? false,
+      requirePhoto: config.requirePhoto ?? false,
+      // Waiver Settings
+      waiverType: config.waiverType || "N/A",
+      absoluteWaiverAmount: config.absoluteWaiverAmount || null,
+      percentageWaiverAmount: config.percentageWaiverAmount || null,
+      // Auto Forgive Settings
+      autoForgiveFirstNoShow: config.autoForgiveFirstNoShow ?? false,
+      autoForgiveCount: config.autoForgiveCount || 0,
+      autoForgivePeriod: config.autoForgivePeriod || null,
+      // Cap Settings
+      requirePaymentAfterCap: config.requirePaymentAfterCap ?? false,
+      perCustomerCap: config.perCustomerCap || 0,
+      capWindowDays: config.capWindowDays || null,
+      // Keep original config for edit functionality
+      noShowPolicyConfig: policy.noShowPolicyConfig,
+    };
+  }) || [];
 
   useEffect(() => {
     if (policies.length > 0) {
@@ -226,6 +698,14 @@ export default function NoShowPolicyContent() {
     });
     setModalOpen(true);
   };
+
+  // Expose handleAdd function to parent via ref
+  useEffect(() => {
+    if (onAddButtonRef) {
+      onAddButtonRef.current = handleAdd;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onAddButtonRef]);
 
   const handleEdit = (policy) => {
     setEditingPolicy(policy);
@@ -365,30 +845,24 @@ export default function NoShowPolicyContent() {
 
   return (
     <Box>
-      {/* Action Button and Filters Button */}
-      <Box className="flex items-center justify-between mb-4">
-        <FiltersButton
-          text="Filters"
-          onClick={() => setFilterModalOpen(true)}
-        />
-        <ButtonBlueLight
-          variant="outlined"
-          bgColor="blue.200"
-          color="white"
-          radius="8px"
-          startIcon={<TbPlus size={"24px"} />}
-          onClick={handleAdd}
-        >
-          Add No Show Policy
-        </ButtonBlueLight>
-      </Box>
-
       {/* Data Table */}
-      <Box sx={{ width: "100%", overflow: "auto" }}>
+      <Box sx={{ width: "100%", overflow: "visible" }}>
         <DataTable
           data={policiesData}
           columns={columns}
-          height={600}
+          height={700}
+          serverSidePagination={true}
+          totalRows={pagination.total || 0}
+          currentPage={page}
+          pageSize={limit}
+          onPageChange={(newPage) => {
+            setPage(newPage);
+          }}
+          onPageSizeChange={(newPageSize) => {
+            setLimit(newPageSize);
+            setPage(1);
+          }}
+          onFiltersClick={() => setFilterModalOpen(true)}
         />
       </Box>
 
@@ -449,7 +923,7 @@ export default function NoShowPolicyContent() {
                   control={control}
                   render={({ field: { onChange, value } }) => (
                     <Box className="flex items-center gap-2">
-                      <Checkbox
+                      <StyledCheckbox
                         checked={value}
                         onChange={(e) => onChange(e.target.checked)}
                       />
@@ -462,7 +936,7 @@ export default function NoShowPolicyContent() {
                   control={control}
                   render={({ field: { onChange, value } }) => (
                     <Box className="flex items-center gap-2">
-                      <Checkbox
+                      <StyledCheckbox
                         checked={value}
                         onChange={(e) => onChange(e.target.checked)}
                       />
@@ -487,7 +961,7 @@ export default function NoShowPolicyContent() {
                 control={control}
                 render={({ field: { onChange, value } }) => (
                   <Box className="flex items-center gap-2">
-                    <Checkbox
+                    <StyledCheckbox
                       checked={value}
                       onChange={(e) => onChange(e.target.checked)}
                     />
@@ -500,7 +974,7 @@ export default function NoShowPolicyContent() {
                 control={control}
                 render={({ field: { onChange, value } }) => (
                   <Box className="flex items-center gap-2">
-                    <Checkbox
+                    <StyledCheckbox
                       checked={value}
                       onChange={(e) => onChange(e.target.checked)}
                     />
@@ -513,7 +987,7 @@ export default function NoShowPolicyContent() {
                 control={control}
                 render={({ field: { onChange, value } }) => (
                   <Box className="flex items-center gap-2">
-                    <Checkbox
+                    <StyledCheckbox
                       checked={value}
                       onChange={(e) => onChange(e.target.checked)}
                     />
@@ -546,7 +1020,6 @@ export default function NoShowPolicyContent() {
                     ]}
                     placeholder="Select Fee Type"
                     fullWidth
-                    bgcolor="white"
                   />
                 )}
               />
@@ -561,7 +1034,6 @@ export default function NoShowPolicyContent() {
                     options={currencyOptions}
                     placeholder="Select Currency"
                     fullWidth
-                    bgcolor="white"
                   />
                 )}
               />
@@ -717,7 +1189,7 @@ export default function NoShowPolicyContent() {
                 control={control}
                 render={({ field: { onChange, value } }) => (
                   <Box className="flex items-center gap-2">
-                    <Checkbox
+                    <StyledCheckbox
                       checked={value}
                       onChange={(e) => onChange(e.target.checked)}
                     />
@@ -730,7 +1202,7 @@ export default function NoShowPolicyContent() {
                 control={control}
                 render={({ field: { onChange, value } }) => (
                   <Box className="flex items-center gap-2">
-                    <Checkbox
+                    <StyledCheckbox
                       checked={value}
                       onChange={(e) => onChange(e.target.checked)}
                     />
@@ -743,7 +1215,7 @@ export default function NoShowPolicyContent() {
                 control={control}
                 render={({ field: { onChange, value } }) => (
                   <Box className="flex items-center gap-2">
-                    <Checkbox
+                    <StyledCheckbox
                       checked={value}
                       onChange={(e) => onChange(e.target.checked)}
                     />
@@ -756,7 +1228,7 @@ export default function NoShowPolicyContent() {
                 control={control}
                 render={({ field: { onChange, value } }) => (
                   <Box className="flex items-center gap-2">
-                    <Checkbox
+                    <StyledCheckbox
                       checked={value}
                       onChange={(e) => onChange(e.target.checked)}
                     />
@@ -769,7 +1241,7 @@ export default function NoShowPolicyContent() {
                 control={control}
                 render={({ field: { onChange, value } }) => (
                   <Box className="flex items-center gap-2">
-                    <Checkbox
+                    <StyledCheckbox
                       checked={value}
                       onChange={(e) => onChange(e.target.checked)}
                     />
@@ -802,7 +1274,6 @@ export default function NoShowPolicyContent() {
                     ]}
                     placeholder="Select Waiver Type"
                     fullWidth
-                    bgcolor="white"
                   />
                 )}
               />
@@ -852,7 +1323,7 @@ export default function NoShowPolicyContent() {
                 control={control}
                 render={({ field: { onChange, value } }) => (
                   <Box className="flex items-center gap-2">
-                    <Checkbox
+                    <StyledCheckbox
                       checked={value}
                       onChange={(e) => onChange(e.target.checked)}
                     />
@@ -902,7 +1373,7 @@ export default function NoShowPolicyContent() {
                 control={control}
                 render={({ field: { onChange, value } }) => (
                   <Box className="flex items-center gap-2">
-                    <Checkbox
+                    <StyledCheckbox
                       checked={value}
                       onChange={(e) => onChange(e.target.checked)}
                     />

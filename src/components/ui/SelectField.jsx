@@ -78,10 +78,23 @@ export default function SelectField({
           "& .MuiSelect-select": {
             px: "16px",
             fontWeight: 400,
+            backgroundColor: bgcolor,
           },
-          // "& .MuiSelect-icon": {
-          //   right: "0px", // 👈 move icon a bit inward
-          // },
+          "& .MuiOutlinedInput-notchedOutline": {
+            border: "none",
+          },
+          "&:hover .MuiOutlinedInput-notchedOutline": {
+            border: "none",
+          },
+          "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
+            border: "none",
+          },
+          "&.Mui-focused": {
+            bgcolor: bgcolor,
+          },
+          "&:hover": {
+            bgcolor: bgcolor,
+          },
         }}
       >
         {placeholder && <MenuItem value="">{placeholder}</MenuItem>}
