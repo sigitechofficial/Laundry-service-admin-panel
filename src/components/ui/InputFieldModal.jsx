@@ -1,6 +1,8 @@
-import { Typography, IconButton } from "@mui/material";
+import { Typography, IconButton, Box } from "@mui/material";
 import { useState } from "react";
 import { AiOutlineEye, AiOutlineEyeInvisible } from "../../shared/icons/index";
+import InfoIcon from "./InfoIcon";
+
 export default function InputFieldModal({
   placeholder,
   value,
@@ -9,6 +11,7 @@ export default function InputFieldModal({
   title = "",
   name,
   disabled,
+  tooltipText,
 }) {
   const [showPassword, setShowPassword] = useState(false);
 
@@ -16,9 +19,12 @@ export default function InputFieldModal({
   return (
     <div className="w-full">
       {title && (
-        <Typography variant="body2" sx={{ mb: "8px", color: "#374151" }}>
-          {title}
-        </Typography>
+        <Box sx={{ display: "flex", alignItems: "center", gap: "4px", mb: "8px" }}>
+          <Typography variant="body2" sx={{ color: "#374151" }}>
+            {title}
+          </Typography>
+          {tooltipText && <InfoIcon tooltipText={tooltipText} />}
+        </Box>
       )}
 
       <div className="relative w-full">

@@ -534,13 +534,106 @@ export default function ZoneManagement() {
     }
   };
 
-  // Highlight postal code area using postcode.io API
-  const highlightPostalCodeArea = async (postalCode, fallbackLocation) => {
+  // Helper function to fetch actual postal code boundary
+  const fetchPostalCodeBoundary = async (postalCode) => {
     try {
-      // Clean the postal code (remove spaces for API call)
       const cleanPostcode = postalCode.replace(/\s+/g, "");
 
-      // Fetch postal code data from postcode.io
+      // Try Google Geocoding API first (matches Google Maps display)
+      try {
+        const geocodingUrl = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(postalCode)}&key=${googleApiKey}`;
+        const geocodingResponse = await fetch(geocodingUrl);
+        
+        if (geocodingResponse.ok) {
+          const geocodingData = await geocodingResponse.json();
+          
+          if (geocodingData.results && geocodingData.results.length > 0) {
+            const result = geocodingData.results[0];
+            const geometry = result.geometry;
+            
+            const centerPoint = {
+              lat: geometry.location.lat,
+              lng: geometry.location.lng,
+            };
+
+            // Get boundary from bounds or viewport
+            let polygonPath = null;
+
+            if (geometry.bounds) {
+              const bounds = geometry.bounds;
+              polygonPath = [
+                { lat: bounds.northeast.lat, lng: bounds.southwest.lng },
+                { lat: bounds.northeast.lat, lng: bounds.northeast.lng },
+                { lat: bounds.southwest.lat, lng: bounds.northeast.lng },
+                { lat: bounds.southwest.lat, lng: bounds.southwest.lng },
+                { lat: bounds.northeast.lat, lng: bounds.southwest.lng },
+              ];
+            } else if (geometry.viewport) {
+              const viewport = geometry.viewport;
+              polygonPath = [
+                { lat: viewport.northeast.lat, lng: viewport.southwest.lng },
+                { lat: viewport.northeast.lat, lng: viewport.northeast.lng },
+                { lat: viewport.southwest.lat, lng: viewport.northeast.lng },
+                { lat: viewport.southwest.lat, lng: viewport.southwest.lng },
+                { lat: viewport.northeast.lat, lng: viewport.southwest.lng },
+              ];
+            }
+
+            if (polygonPath) {
+              return { centerPoint, polygonPath, postcode: postalCode };
+            }
+          }
+        }
+      } catch (geocodingError) {
+        console.log("Google Geocoding API failed, trying postcode.io:", geocodingError);
+      }
+
+      // Fallback to postcode.io boundary endpoint
+      try {
+        const boundaryResponse = await fetch(
+          `https://api.postcodes.io/postcodes/${encodeURIComponent(cleanPostcode)}/boundary`
+        );
+
+        if (boundaryResponse.ok) {
+          const boundaryData = await boundaryResponse.json();
+          if (boundaryData.result && boundaryData.result.length > 0) {
+            // Get center point
+            const centerResponse = await fetch(
+              `https://api.postcodes.io/postcodes/${encodeURIComponent(cleanPostcode)}`
+            );
+            let centerPoint = null;
+            if (centerResponse.ok) {
+              const centerData = await centerResponse.json();
+              if (centerData.result) {
+                centerPoint = {
+                  lat: centerData.result.latitude,
+                  lng: centerData.result.longitude,
+                };
+              }
+            }
+
+            // Convert GeoJSON coordinates to Google Maps format
+            const polygonPath = boundaryData.result.map((coord) => ({
+              lat: coord[1],
+              lng: coord[0],
+            }));
+            // Close the polygon
+            if (polygonPath.length > 0) {
+              polygonPath.push(polygonPath[0]);
+            }
+
+            if (centerPoint) {
+              // Get postcode from center data or use the input
+              const postcode = centerData.result?.postcode || postalCode;
+              return { centerPoint, polygonPath, postcode };
+            }
+          }
+        }
+      } catch (boundaryError) {
+        console.log("postcode.io boundary endpoint failed:", boundaryError);
+      }
+
+      // Final fallback: get center and create hexagon
       const response = await fetch(
         `https://api.postcodes.io/postcodes/${encodeURIComponent(cleanPostcode)}`
       );
@@ -548,76 +641,66 @@ export default function ZoneManagement() {
       if (response.ok) {
         const data = await response.json();
         if (data.result) {
-          const { latitude, longitude } = data.result;
-          const centerPoint = { lat: latitude, lng: longitude };
-
-          // Fetch nearby postcodes to create a polygon boundary
-          let polygonPath = null;
-          try {
-            const nearbyResponse = await fetch(
-              `https://api.postcodes.io/postcodes?lon=${longitude}&lat=${latitude}&radius=500&limit=20`
-            );
-
-            if (nearbyResponse.ok) {
-              const nearbyData = await nearbyResponse.json();
-              if (nearbyData.result && nearbyData.result.length > 0) {
-                polygonPath = createPolygonFromNearbyPostcodes(
-                  latitude,
-                  longitude,
-                  nearbyData.result
-                );
-              }
-            }
-          } catch (nearbyError) {
-            console.log("Could not fetch nearby postcodes, using default polygon", nearbyError);
-          }
-
-          // If no polygon created, use hexagon
-          if (!polygonPath) {
-            polygonPath = createHexagon(latitude, longitude, 0.005);
-          }
-
-          // Set the highlight polygon
-          setPostalCodeHighlight({
-            paths: polygonPath,
-            postcode: data.result.postcode,
-            center: centerPoint,
-          });
-
-          // Add marker at the center
-          setPostalCodeMarkers([
-            {
-              position: centerPoint,
-              postcode: data.result.postcode,
-              label: data.result.postcode,
-            },
-          ]);
-
-          // Center and zoom the map
-          if (map) {
-            map.setCenter(centerPoint);
-            map.setZoom(14);
-          }
-          setCenter(centerPoint);
-        }
-      } else {
-        // If postcode.io fails, use the location from Google Places
-        if (fallbackLocation) {
-          const centerPoint = { lat: fallbackLocation.lat(), lng: fallbackLocation.lng() };
+          const centerPoint = {
+            lat: data.result.latitude,
+            lng: data.result.longitude,
+          };
           const polygonPath = createHexagon(centerPoint.lat, centerPoint.lng, 0.005);
-          setPostalCodeHighlight({
-            paths: polygonPath,
-            center: centerPoint,
-            postcode: postalCode,
-          });
-          setPostalCodeMarkers([
-            {
-              position: centerPoint,
-              postcode: postalCode,
-              label: postalCode,
-            },
-          ]);
+          return { centerPoint, polygonPath, postcode: data.result.postcode };
         }
+      }
+    } catch (error) {
+      console.error(`Error fetching postal code boundary for ${postalCode}:`, error);
+    }
+
+    return null;
+  };
+
+  // Highlight postal code area using Google Geocoding API for accurate boundaries
+  const highlightPostalCodeArea = async (postalCode, fallbackLocation) => {
+    try {
+      // Use helper function to get actual boundary
+      const boundaryData = await fetchPostalCodeBoundary(postalCode);
+
+      if (boundaryData) {
+        setPostalCodeHighlight({
+          paths: boundaryData.polygonPath,
+          postcode: boundaryData.postcode,
+          center: boundaryData.centerPoint,
+        });
+
+        setPostalCodeMarkers([
+          {
+            position: boundaryData.centerPoint,
+            postcode: boundaryData.postcode,
+            label: boundaryData.postcode,
+          },
+        ]);
+
+        if (map) {
+          map.setCenter(boundaryData.centerPoint);
+          map.setZoom(14);
+        }
+        setCenter(boundaryData.centerPoint);
+        return;
+      }
+
+      // Final fallback: use Google Places location with hexagon
+      if (fallbackLocation) {
+        const centerPoint = { lat: fallbackLocation.lat(), lng: fallbackLocation.lng() };
+        const polygonPath = createHexagon(centerPoint.lat, centerPoint.lng, 0.005);
+        setPostalCodeHighlight({
+          paths: polygonPath,
+          center: centerPoint,
+          postcode: postalCode,
+        });
+        setPostalCodeMarkers([
+          {
+            position: centerPoint,
+            postcode: postalCode,
+            label: postalCode,
+          },
+        ]);
       }
     } catch (error) {
       console.error("Error fetching postal code data:", error);
@@ -722,40 +805,30 @@ export default function ZoneManagement() {
         }
 
         try {
-          const cleanPostcode = postcode.replace(/\s+/g, "");
-          const response = await fetch(
-            `https://api.postcodes.io/postcodes/${encodeURIComponent(cleanPostcode)}`
-          );
+          // Use helper function to get actual boundary
+          const boundaryData = await fetchPostalCodeBoundary(postcode);
 
-          if (response.ok) {
-            const data = await response.json();
-            if (data.result) {
-              const { latitude, longitude } = data.result;
-              const centerPoint = { lat: latitude, lng: longitude };
-              lastCenterPoint = centerPoint; // Keep track of the last valid postcode
+          if (boundaryData) {
+            lastCenterPoint = boundaryData.centerPoint; // Keep track of the last valid postcode
 
-              // Create polygon for this postal code
-              const polygonPath = createHexagon(latitude, longitude, 0.005);
+            const newPostcodeData = {
+              postcode: boundaryData.postcode,
+              center: boundaryData.centerPoint,
+              paths: boundaryData.polygonPath,
+            };
 
-              const newPostcodeData = {
-                postcode: data.result.postcode,
-                center: centerPoint,
-                paths: polygonPath,
-              };
+            newPostcodeDataList.push(newPostcodeData);
+            newHighlights.push({
+              paths: boundaryData.polygonPath,
+              postcode: boundaryData.postcode,
+              center: boundaryData.centerPoint,
+            });
 
-              newPostcodeDataList.push(newPostcodeData);
-              newHighlights.push({
-                paths: polygonPath,
-                postcode: data.result.postcode,
-                center: centerPoint,
-              });
-
-              newMarkers.push({
-                position: centerPoint,
-                postcode: data.result.postcode,
-                label: data.result.postcode,
-              });
-            }
+            newMarkers.push({
+              position: boundaryData.centerPoint,
+              postcode: boundaryData.postcode,
+              label: boundaryData.postcode,
+            });
           }
         } catch (error) {
           console.error(`Error fetching postal code ${postcode}:`, error);
@@ -1276,3 +1349,4 @@ export default function ZoneManagement() {
     />
   );
 }
+

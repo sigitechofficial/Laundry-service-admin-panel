@@ -3,7 +3,6 @@ import { Box, Typography } from "@mui/material";
 import Layout from "../../components/shared/Layout";
 import { BsCardList } from "../../shared/icons/index";
 import DataTable from "../../components/ui/DataTable";
-import ActionButtons from "../../components/ui/ActionButtons";
 import StatCard from "../../components/ui/StatCard";
 import Search from "../../components/ui/Search";
 import FiltersButton from "../../components/ui/FiltersButton";
@@ -93,20 +92,6 @@ export default function OverallPolicies() {
       flex: 0.15,
       minWidth: 120,
       sortable: true,
-    },
-    {
-      field: "actions",
-      headerName: "Action",
-      flex: 0.15,
-      minWidth: 150,
-      renderCell: (row) => (
-        <ActionButtons
-          showView={false}
-          onEdit={() => handleEdit(row)}
-          onDelete={() => handleDelete(row)}
-        />
-      ),
-      sortable: false,
     },
   ];
 

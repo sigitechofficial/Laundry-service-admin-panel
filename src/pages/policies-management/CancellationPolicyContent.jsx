@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
 import { Box, Typography, Divider } from "@mui/material";
-import { TbPlus } from "../../shared/icons/index";
+import { TbPlus, TbCalendar } from "../../shared/icons/index";
 import StyledCheckbox from "../../components/ui/StyledCheckbox";
+import LabelWithTooltip from "../../components/ui/LabelWithTooltip";
 import DataTable from "../../components/ui/DataTable";
-import ActionButtons from "../../components/ui/ActionButtons";
 import ModalComponent from "../../components/shared/Modal";
 import InputFieldModal from "../../components/ui/InputFieldModal";
 import SelectField from "../../components/ui/SelectField";
@@ -12,6 +12,10 @@ import ButtonBlueLight from "../../components/ui/ButtonBlueLight";
 import useToaster from "../../components/ui/Toaster";
 import { useAddCancellationPolicyMutation, useGetCancellationPoliciesQuery, useUpdateCancellationPolicyMutation, useDeleteCancellationPolicyMutation } from "../../store/services/api";
 import { Delay } from "../../components/shared/Loaders";
+import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
+import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
+import { DatePicker } from "@mui/x-date-pickers/DatePicker";
+import dayjs from "dayjs";
 
 export default function CancellationPolicyContent() {
   const { success, error: showError } = useToaster();
@@ -59,8 +63,10 @@ export default function CancellationPolicyContent() {
     defaultValues: {
       name: "",
       description: "",
+      createdDate: dayjs(),
+      expiryDate: null,
       isActive: true,
-      isDefault: false,
+      isDefault: true,
       prePickupAbsoluteCurrency: "USD",
       prePickupAbsoluteAmount: "",
       prePickupPercentage: "",
@@ -89,11 +95,30 @@ export default function CancellationPolicyContent() {
       sortable: true,
     },
     {
+      field: "id",
+      headerName: "ID",
+      flex: 0.08,
+      minWidth: 80,
+      sortable: true,
+    },
+    {
       field: "name",
       headerName: "Policy Name",
       flex: 0.12,
       minWidth: 150,
       sortable: true,
+    },
+    {
+      field: "type",
+      headerName: "Type",
+      flex: 0.1,
+      minWidth: 120,
+      sortable: true,
+      renderCell: (row) => (
+        <Typography sx={{ fontWeight: 500, fontSize: "13px" }}>
+          {row.type || "N/A"}
+        </Typography>
+      ),
     },
     {
       field: "description",
@@ -361,18 +386,118 @@ export default function CancellationPolicyContent() {
       ),
     },
     {
-      field: "actions",
-      headerName: "Action",
-      flex: 0.12,
-      minWidth: 150,
+      field: "createdBy",
+      headerName: "Created By",
+      flex: 0.1,
+      minWidth: 120,
+      sortable: true,
       renderCell: (row) => (
-        <ActionButtons
-          showView={false}
-          onEdit={() => handleEdit(row)}
-          onDelete={() => handleDelete(row)}
-        />
+        <Typography sx={{ fontWeight: 400, fontSize: "13px" }}>
+          {row.createdBy || "N/A"}
+        </Typography>
       ),
-      sortable: false,
+    },
+    {
+      field: "updatedBy",
+      headerName: "Updated By",
+      flex: 0.1,
+      minWidth: 120,
+      sortable: true,
+      renderCell: (row) => (
+        <Typography sx={{ fontWeight: 400, fontSize: "13px" }}>
+          {row.updatedBy || "N/A"}
+        </Typography>
+      ),
+    },
+    {
+      field: "deletedAt",
+      headerName: "Deleted At",
+      flex: 0.1,
+      minWidth: 120,
+      sortable: true,
+      renderCell: (row) => (
+        <Typography sx={{ fontWeight: 400, fontSize: "13px" }}>
+          {row.deletedAt || "N/A"}
+        </Typography>
+      ),
+    },
+    {
+      field: "configId",
+      headerName: "Config ID",
+      flex: 0.1,
+      minWidth: 100,
+      sortable: true,
+      renderCell: (row) => (
+        <Typography sx={{ fontWeight: 400, fontSize: "13px" }}>
+          {row.configId || "N/A"}
+        </Typography>
+      ),
+    },
+    {
+      field: "configPolicyId",
+      headerName: "Config Policy ID",
+      flex: 0.12,
+      minWidth: 140,
+      sortable: true,
+      renderCell: (row) => (
+        <Typography sx={{ fontWeight: 400, fontSize: "13px" }}>
+          {row.configPolicyId || "N/A"}
+        </Typography>
+      ),
+    },
+    {
+      field: "configIsActive",
+      headerName: "Config Active",
+      flex: 0.1,
+      minWidth: 120,
+      sortable: true,
+      renderCell: (row) => (
+        <Typography
+          sx={{
+            color: row.configIsActive ? "success.main" : "text.secondary",
+            fontWeight: 500,
+            fontSize: "13px",
+          }}
+        >
+          {row.configIsActive ? "Yes" : "No"}
+        </Typography>
+      ),
+    },
+    {
+      field: "configCreatedAt",
+      headerName: "Config Created At",
+      flex: 0.12,
+      minWidth: 140,
+      sortable: true,
+      renderCell: (row) => (
+        <Typography sx={{ fontWeight: 400, fontSize: "13px" }}>
+          {row.configCreatedAt || "N/A"}
+        </Typography>
+      ),
+    },
+    {
+      field: "configUpdatedAt",
+      headerName: "Config Updated At",
+      flex: 0.12,
+      minWidth: 140,
+      sortable: true,
+      renderCell: (row) => (
+        <Typography sx={{ fontWeight: 400, fontSize: "13px" }}>
+          {row.configUpdatedAt || "N/A"}
+        </Typography>
+      ),
+    },
+    {
+      field: "configDeletedAt",
+      headerName: "Config Deleted At",
+      flex: 0.12,
+      minWidth: 140,
+      sortable: true,
+      renderCell: (row) => (
+        <Typography sx={{ fontWeight: 400, fontSize: "13px" }}>
+          {row.configDeletedAt || "N/A"}
+        </Typography>
+      ),
     },
   ];
 
@@ -383,16 +508,21 @@ export default function CancellationPolicyContent() {
       id: policy.id,
       sl: (pagination.page - 1) * pagination.limit + index + 1,
       name: policy.name,
+      type: policy.type,
       description: policy.description,
       isActive: policy.isActive,
       isDefault: policy.isDefault,
-      type: policy.type,
+      createdBy: policy.createdBy,
+      updatedBy: policy.updatedBy,
       createdAt: policy.createdAt
         ? new Date(policy.createdAt).toLocaleDateString()
         : "N/A",
       updatedAt: policy.updatedAt
         ? new Date(policy.updatedAt).toLocaleDateString()
         : "N/A",
+      deletedAt: policy.deletedAt
+        ? new Date(policy.deletedAt).toLocaleDateString()
+        : null,
       // Pre-Pickup Charges
       prePickupAbsoluteCurrency: config.prePickupAbsoluteCurrency || "USD",
       prePickupAbsoluteAmount: config.prePickupAbsoluteAmount || "0.00",
@@ -412,6 +542,19 @@ export default function CancellationPolicyContent() {
       courtesyCount: config.courtesyCount || 0,
       // Customer Leniency
       customerLeniencyEnabled: config.customerLeniencyEnabled ?? false,
+      // Config metadata
+      configId: config.id,
+      configPolicyId: config.policyId,
+      configIsActive: config.isActive,
+      configCreatedAt: config.createdAt
+        ? new Date(config.createdAt).toLocaleDateString()
+        : null,
+      configUpdatedAt: config.updatedAt
+        ? new Date(config.updatedAt).toLocaleDateString()
+        : null,
+      configDeletedAt: config.deletedAt
+        ? new Date(config.deletedAt).toLocaleDateString()
+        : null,
       // Keep original config for edit functionality
       cancellationConfig: policy.cancellationConfig,
     };
@@ -428,8 +571,10 @@ export default function CancellationPolicyContent() {
     reset({
       name: "",
       description: "",
+      createdDate: dayjs(),
+      expiryDate: null,
       isActive: true,
-      isDefault: false,
+      isDefault: true,
       prePickupAbsoluteCurrency: "USD",
       prePickupAbsoluteAmount: "",
       prePickupPercentage: "",
@@ -592,8 +737,10 @@ export default function CancellationPolicyContent() {
     reset({
       name: policy.name || "",
       description: policy.description || "",
-      isActive: policy.isActive ?? true,
-      isDefault: policy.isDefault ?? false,
+      createdDate: policy.createdAt ? dayjs(policy.createdAt) : dayjs(),
+      expiryDate: policy.expiry_date ? dayjs(policy.expiry_date) : null,
+      isActive: true,
+      isDefault: true,
       prePickupAbsoluteCurrency: config.prePickupAbsoluteCurrency || "USD",
       prePickupAbsoluteAmount: config.prePickupAbsoluteAmount?.toString() || "",
       prePickupPercentage: config.prePickupPercentage?.toString() || "",
@@ -645,8 +792,9 @@ export default function CancellationPolicyContent() {
       const payload = {
         name: data.name,
         description: data.description,
-        isActive: data.isActive,
-        isDefault: data.isDefault,
+        expiry_date: data.expiryDate ? data.expiryDate.format("YYYY-MM-DD") : null,
+        isActive: true,
+        isDefault: true,
         prePickupAbsoluteCurrency: data.prePickupAbsoluteCurrency,
         prePickupAbsoluteAmount: data.prePickupAbsoluteAmount ? parseFloat(data.prePickupAbsoluteAmount) : 0,
         prePickupPercentage: data.prePickupPercentage ? parseFloat(data.prePickupPercentage) : 0,
@@ -779,7 +927,8 @@ export default function CancellationPolicyContent() {
           onClick: handleClose,
         }}
       >
-        <Box className="flex flex-col gap-5">
+        <LocalizationProvider dateAdapter={AdapterDayjs}>
+          <Box className="flex flex-col gap-5">
           {/* Basic Information Section */}
           <Box>
             <Typography variant="h6" sx={{ mb: 2, fontFamily: "Switzer", fontWeight: 600 }}>
@@ -797,6 +946,7 @@ export default function CancellationPolicyContent() {
                       placeholder="Enter policy name"
                       value={value || ""}
                       onChange={(e) => onChange(e.target.value)}
+                      tooltipText="Policy name/identifier. This is a required field and must be unique."
                     />
                     {errors.name && (
                       <Typography variant="caption" sx={{ color: "error.main", mt: 1, display: "block" }}>
@@ -818,6 +968,7 @@ export default function CancellationPolicyContent() {
                       placeholder="Enter policy description"
                       value={value || ""}
                       onChange={(e) => onChange(e.target.value)}
+                      tooltipText="Policy description or notes. Optional field to provide additional context about the policy."
                     />
                     {errors.description && (
                       <Typography variant="caption" sx={{ color: "error.main", mt: 1, display: "block" }}>
@@ -827,32 +978,119 @@ export default function CancellationPolicyContent() {
                   </Box>
                 )}
               />
-
-              <Box className="flex items-center gap-4">
+              <Box className="grid grid-cols-2 gap-4">
                 <Controller
-                  name="isActive"
+                  name="createdDate"
                   control={control}
-                  render={({ field: { onChange, value } }) => (
-                    <Box className="flex items-center gap-2">
-                      <StyledCheckbox
-                        checked={value}
-                        onChange={(e) => onChange(e.target.checked)}
+                  render={({ field: { value } }) => (
+                    <Box sx={{ width: "100%" }}>
+                      <Box sx={{ display: "flex", alignItems: "center", gap: "4px", mb: "8px" }}>
+                        <Typography variant="body2" sx={{ color: "#374151" }}>
+                          Created Date
+                        </Typography>
+                      </Box>
+                      <DatePicker
+                        value={value || dayjs()}
+                        disabled
+                        slotProps={{
+                          textField: {
+                            placeholder: "Created date",
+                            fullWidth: true,
+                            sx: {
+                              width: "100%",
+                              "& .MuiOutlinedInput-root": {
+                                height: "52px",
+                                borderRadius: "8px",
+                                backgroundColor: "#F4F7FF !important",
+                                fontFamily: "Switzer",
+                                border: "none !important",
+                                boxShadow: "none !important",
+                                "& fieldset": {
+                                  border: "none !important",
+                                  display: "none",
+                                },
+                                "&:hover fieldset": {
+                                  border: "none !important",
+                                },
+                                "&.Mui-focused fieldset": {
+                                  border: "none !important",
+                                },
+                                "&.Mui-disabled": {
+                                  backgroundColor: "#F3F4F6 !important",
+                                  border: "none !important",
+                                  boxShadow: "none !important",
+                                },
+                              },
+                              "& .MuiPickersInputBase-root": {
+                                backgroundColor: "#F4F7FF !important",
+                                border: "none !important",
+                                boxShadow: "none !important",
+                                "&.Mui-disabled": {
+                                  backgroundColor: "#F3F4F6 !important",
+                                  border: "none !important",
+                                  boxShadow: "none !important",
+                                },
+                              },
+                              "& .MuiInputBase-input": {
+                                fontFamily: "Switzer",
+                                fontSize: "16px",
+                                color: "#374151",
+                                backgroundColor: "transparent",
+                              },
+                            },
+                          },
+                        }}
+                        slots={{
+                          openPickerIcon: () => <TbCalendar size={20} style={{ color: "#6B7280" }} />,
+                        }}
                       />
-                      <Typography variant="body2">Active</Typography>
                     </Box>
                   )}
                 />
-
                 <Controller
-                  name="isDefault"
+                  name="expiryDate"
                   control={control}
                   render={({ field: { onChange, value } }) => (
-                    <Box className="flex items-center gap-2">
-                      <StyledCheckbox
-                        checked={value}
-                        onChange={(e) => onChange(e.target.checked)}
+                    <Box sx={{ width: "100%" }}>
+                      <Box sx={{ display: "flex", alignItems: "center", gap: "4px", mb: "8px" }}>
+                        <Typography variant="body2" sx={{ color: "#374151" }}>
+                          Expiry Date
+                        </Typography>
+                      </Box>
+                      <DatePicker
+                        value={value}
+                        onChange={(newValue) => onChange(newValue)}
+                        slotProps={{
+                          textField: {
+                            placeholder: "Select expiry date",
+                            fullWidth: true,
+                            sx: {
+                              width: "100%",
+                              "& .MuiOutlinedInput-root": {
+                                height: "52px",
+                                borderRadius: "8px",
+                                backgroundColor: "#F4F7FF !important",
+                                fontFamily: "Switzer",
+                                "& fieldset": {
+                                  border: "none",
+                                },
+                              },
+                              "& .MuiPickersInputBase-root": {
+                                backgroundColor: "#F4F7FF !important",
+                              },
+                              "& .MuiInputBase-input": {
+                                fontFamily: "Switzer",
+                                fontSize: "16px",
+                                color: "#374151",
+                                backgroundColor: "transparent",
+                              },
+                            },
+                          },
+                        }}
+                        slots={{
+                          openPickerIcon: () => <TbCalendar size={20} style={{ color: "#6B7280" }} />,
+                        }}
                       />
-                      <Typography variant="body2">Set as Default</Typography>
                     </Box>
                   )}
                 />
@@ -880,6 +1118,7 @@ export default function CancellationPolicyContent() {
                       options={currencyOptions}
                       placeholder="Select currency"
                       fullWidth
+                      tooltipText="Currency code for pre-pickup cancellation charges (e.g., USD, EUR, GBP)."
                     />
                   )}
                 />
@@ -894,6 +1133,7 @@ export default function CancellationPolicyContent() {
                       type="number"
                       value={value || ""}
                       onChange={(e) => onChange(e.target.value)}
+                      tooltipText="Fixed cancellation fee amount for pre-pickup cancellations. This is a flat fee charged when a customer cancels before pickup."
                     />
                   )}
                 />
@@ -909,6 +1149,7 @@ export default function CancellationPolicyContent() {
                     type="number"
                     value={value || ""}
                     onChange={(e) => onChange(e.target.value)}
+                    tooltipText="Percentage-based cancellation fee for pre-pickup cancellations (e.g., 5.00 for 5% of order value)."
                   />
                 )}
               />
@@ -923,6 +1164,7 @@ export default function CancellationPolicyContent() {
                     type="number"
                     value={value || ""}
                     onChange={(e) => onChange(e.target.value)}
+                    tooltipText="Time window in minutes after order placement where cancellations are free. Cancellations within this window will not incur any charges."
                   />
                 )}
               />
@@ -936,7 +1178,10 @@ export default function CancellationPolicyContent() {
                       checked={value}
                       onChange={(e) => onChange(e.target.checked)}
                     />
-                    <Typography variant="body2">First Cancellation Leniency</Typography>
+                    <LabelWithTooltip
+                      label="First Cancellation Leniency"
+                      tooltipText="Automatically forgive the first cancellation. When enabled, the first cancellation for each customer is automatically forgiven without charging a fee."
+                    />
                   </Box>
                 )}
               />
@@ -963,6 +1208,7 @@ export default function CancellationPolicyContent() {
                       options={currencyOptions}
                       placeholder="Select currency"
                       fullWidth
+                      tooltipText="Currency code for unprocessed order cancellation charges (e.g., USD, EUR, GBP)."
                     />
                   )}
                 />
@@ -977,6 +1223,7 @@ export default function CancellationPolicyContent() {
                       type="number"
                       value={value || ""}
                       onChange={(e) => onChange(e.target.value)}
+                      tooltipText="Fixed cancellation fee amount for unprocessed order cancellations. This is a flat fee charged when a customer cancels an unprocessed order."
                     />
                   )}
                 />
@@ -993,6 +1240,7 @@ export default function CancellationPolicyContent() {
                       type="number"
                       value={value || ""}
                       onChange={(e) => onChange(e.target.value)}
+                      tooltipText="Percentage-based cancellation fee for unprocessed orders (e.g., 5.00 for 5% of order value)."
                     />
                   )}
                 />
@@ -1007,6 +1255,7 @@ export default function CancellationPolicyContent() {
                       type="number"
                       value={value || ""}
                       onChange={(e) => onChange(e.target.value)}
+                      tooltipText="Time window in minutes after pickup where cancellations are allowed. Cancellations after this window may have different charges or restrictions."
                     />
                   )}
                 />
@@ -1022,6 +1271,7 @@ export default function CancellationPolicyContent() {
                     type="number"
                     value={value || ""}
                     onChange={(e) => onChange(e.target.value)}
+                    tooltipText="Percentage of order value used for calculating cancellation fees for unprocessed orders (e.g., 10.00 for 10% of order value)."
                   />
                 )}
               />
@@ -1035,7 +1285,10 @@ export default function CancellationPolicyContent() {
                       checked={value}
                       onChange={(e) => onChange(e.target.checked)}
                     />
-                    <Typography variant="body2">Allow Cancel Unprocessed</Typography>
+                    <LabelWithTooltip
+                      label="Allow Cancel Unprocessed"
+                      tooltipText="Allow cancellation of unprocessed orders. When enabled, customers can cancel orders that have not yet been processed."
+                    />
                   </Box>
                 )}
               />
@@ -1061,6 +1314,7 @@ export default function CancellationPolicyContent() {
                       type="number"
                       value={value || ""}
                       onChange={(e) => onChange(e.target.value)}
+                      tooltipText="Time window in days for courtesy cancellations. Cancellations within this window may be eligible for courtesy waivers."
                     />
                   )}
                 />
@@ -1075,6 +1329,7 @@ export default function CancellationPolicyContent() {
                       type="number"
                       value={value || ""}
                       onChange={(e) => onChange(e.target.value)}
+                      tooltipText="Maximum total cancellation charges per customer within the courtesy window. Once this cap is reached, additional cancellations may be waived."
                     />
                   )}
                 />
@@ -1090,6 +1345,7 @@ export default function CancellationPolicyContent() {
                     type="number"
                     value={value || ""}
                     onChange={(e) => onChange(e.target.value)}
+                    tooltipText="Maximum number of courtesy cancellations allowed per customer within the courtesy window period."
                   />
                 )}
               />
@@ -1112,12 +1368,16 @@ export default function CancellationPolicyContent() {
                     checked={value}
                     onChange={(e) => onChange(e.target.checked)}
                   />
-                  <Typography variant="body2">Enable Customer Leniency</Typography>
+                  <LabelWithTooltip
+                    label="Enable Customer Leniency"
+                    tooltipText="Enable customer leniency features. When enabled, the system applies leniency rules such as first cancellation forgiveness and courtesy windows."
+                  />
                 </Box>
               )}
             />
           </Box>
         </Box>
+        </LocalizationProvider>
       </ModalComponent>
 
       {/* Delete Confirmation Modal */}

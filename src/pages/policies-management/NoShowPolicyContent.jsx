@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
 import { Box, Typography, Divider } from "@mui/material";
-import { TbPlus } from "../../shared/icons/index";
+import { TbPlus, TbCalendar } from "../../shared/icons/index";
 import StyledCheckbox from "../../components/ui/StyledCheckbox";
+import LabelWithTooltip from "../../components/ui/LabelWithTooltip";
 import DataTable from "../../components/ui/DataTable";
-import ActionButtons from "../../components/ui/ActionButtons";
 import ModalComponent from "../../components/shared/Modal";
 import InputFieldModal from "../../components/ui/InputFieldModal";
 import SelectField from "../../components/ui/SelectField";
@@ -12,6 +12,10 @@ import ButtonBlueLight from "../../components/ui/ButtonBlueLight";
 import useToaster from "../../components/ui/Toaster";
 import { useAddNoShowPolicyMutation, useGetNoShowPoliciesQuery, useUpdateNoShowPolicyMutation, useDeleteNoShowPolicyMutation } from "../../store/services/api";
 import { Delay } from "../../components/shared/Loaders";
+import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
+import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
+import { DatePicker } from "@mui/x-date-pickers/DatePicker";
+import dayjs from "dayjs";
 
 export default function NoShowPolicyContent({ onAddButtonRef }) {
   const { success, error: showError } = useToaster();
@@ -60,8 +64,10 @@ export default function NoShowPolicyContent({ onAddButtonRef }) {
     defaultValues: {
       name: "",
       description: "",
+      createdDate: dayjs(),
+      expiryDate: null,
       isActive: true,
-      isDefault: false,
+      isDefault: true,
       enableForPickup: true,
       enableForDelivery: true,
       useUnifiedFee: true,
@@ -583,20 +589,6 @@ export default function NoShowPolicyContent({ onAddButtonRef }) {
         </Typography>
       ),
     },
-    {
-      field: "actions",
-      headerName: "Action",
-      flex: 0.12,
-      minWidth: 150,
-      renderCell: (row) => (
-        <ActionButtons
-          showView={false}
-          onEdit={() => handleEdit(row)}
-          onDelete={() => handleDelete(row)}
-        />
-      ),
-      sortable: false,
-    },
   ];
 
   // Prepare table data
@@ -666,8 +658,10 @@ export default function NoShowPolicyContent({ onAddButtonRef }) {
     reset({
       name: "",
       description: "",
+      createdDate: dayjs(),
+      expiryDate: null,
       isActive: true,
-      isDefault: false,
+      isDefault: true,
       enableForPickup: true,
       enableForDelivery: true,
       useUnifiedFee: true,
@@ -713,8 +707,10 @@ export default function NoShowPolicyContent({ onAddButtonRef }) {
     reset({
       name: policy.name || "",
       description: policy.description || "",
-      isActive: policy.isActive ?? true,
-      isDefault: policy.isDefault ?? false,
+      createdDate: policy.createdAt ? dayjs(policy.createdAt) : dayjs(),
+      expiryDate: policy.expiry_date ? dayjs(policy.expiry_date) : null,
+      isActive: true,
+      isDefault: true,
       enableForPickup: config.enableForPickup ?? true,
       enableForDelivery: config.enableForDelivery ?? true,
       useUnifiedFee: config.useUnifiedFee ?? true,
@@ -778,8 +774,9 @@ export default function NoShowPolicyContent({ onAddButtonRef }) {
       const payload = {
         name: data.name,
         description: data.description,
-        isActive: data.isActive,
-        isDefault: data.isDefault,
+        expiry_date: data.expiryDate ? data.expiryDate.format("YYYY-MM-DD") : null,
+        isActive: true,
+        isDefault: true,
         enableForPickup: data.enableForPickup,
         enableForDelivery: data.enableForDelivery,
         useUnifiedFee: data.useUnifiedFee,
@@ -882,11 +879,15 @@ export default function NoShowPolicyContent({ onAddButtonRef }) {
           onClick: handleClose,
         }}
       >
-        <Box className="flex flex-col gap-6">
+        <LocalizationProvider dateAdapter={AdapterDayjs}>
+          <Box className="flex flex-col gap-6">
           {/* Basic Information */}
           <Box>
-            <Typography variant="h6" sx={{ mb: 2, fontFamily: "Switzer", fontWeight: 600 }}>
+            <Typography variant="h6" sx={{ mb: 1, fontFamily: "Switzer", fontWeight: 600 }}>
               Basic Information
+            </Typography>
+            <Typography variant="body2" sx={{ mb: 2, color: "grey.80", fontFamily: "Switzer", fontSize: "12px" }}>
+              Configure the fundamental settings for this no-show policy, including name, description, and activation status.
             </Typography>
             <Box className="flex flex-col gap-4">
               <Controller
@@ -900,6 +901,7 @@ export default function NoShowPolicyContent({ onAddButtonRef }) {
                     value={value || ""}
                     onChange={(e) => onChange(e.target.value)}
                     error={errors.name?.message}
+                    tooltipText="Policy name/identifier. This is a required field and must be unique."
                   />
                 )}
               />
@@ -914,33 +916,123 @@ export default function NoShowPolicyContent({ onAddButtonRef }) {
                     value={value || ""}
                     onChange={(e) => onChange(e.target.value)}
                     error={errors.description?.message}
+                    tooltipText="Policy description or notes. Optional field to provide additional context about the policy."
                   />
                 )}
               />
-              <Box className="flex items-center gap-4">
+              <Box className="grid grid-cols-2 gap-4">
                 <Controller
-                  name="isActive"
+                  name="createdDate"
                   control={control}
-                  render={({ field: { onChange, value } }) => (
-                    <Box className="flex items-center gap-2">
-                      <StyledCheckbox
-                        checked={value}
-                        onChange={(e) => onChange(e.target.checked)}
+                  render={({ field: { value } }) => (
+                    <Box sx={{ width: "100%" }}>
+                      <Box sx={{ display: "flex", alignItems: "center", gap: "4px", mb: "8px" }}>
+                        <Typography variant="body2" sx={{ color: "#374151" }}>
+                          Created Date
+                        </Typography>
+                      </Box>
+                      <DatePicker
+                        value={value || dayjs()}
+                        disabled
+                        slotProps={{
+                          textField: {
+                            placeholder: "Created date",
+                            fullWidth: true,
+                            sx: {
+                              width: "100%",
+                              "& .MuiOutlinedInput-root": {
+                                height: "52px",
+                                borderRadius: "8px",
+                                backgroundColor: "#F4F7FF !important",
+                                fontFamily: "Switzer",
+                                border: "none !important",
+                                boxShadow: "none !important",
+                                "& fieldset": {
+                                  border: "none !important",
+                                  display: "none",
+                                },
+                                "&:hover fieldset": {
+                                  border: "none !important",
+                                },
+                                "&.Mui-focused fieldset": {
+                                  border: "none !important",
+                                },
+                                "&.Mui-disabled": {
+                                  backgroundColor: "#F3F4F6 !important",
+                                  border: "none !important",
+                                  boxShadow: "none !important",
+                                },
+                              },
+                              "& .MuiPickersInputBase-root": {
+                                backgroundColor: "#F4F7FF !important",
+                                border: "none !important",
+                                boxShadow: "none !important",
+                                "&.Mui-disabled": {
+                                  backgroundColor: "#F3F4F6 !important",
+                                  border: "none !important",
+                                  boxShadow: "none !important",
+                                },
+                              },
+                              "& .MuiInputBase-input": {
+                                fontFamily: "Switzer",
+                                fontSize: "16px",
+                                color: "#374151",
+                                backgroundColor: "transparent",
+                              },
+                            },
+                          },
+                        }}
+                        slots={{
+                          openPickerIcon: () => <TbCalendar size={20} style={{ color: "#6B7280" }} />,
+                        }}
                       />
-                      <Typography variant="body2">Active</Typography>
                     </Box>
                   )}
                 />
                 <Controller
-                  name="isDefault"
+                  name="expiryDate"
                   control={control}
                   render={({ field: { onChange, value } }) => (
-                    <Box className="flex items-center gap-2">
-                      <StyledCheckbox
-                        checked={value}
-                        onChange={(e) => onChange(e.target.checked)}
+                    <Box sx={{ width: "100%" }}>
+                      <Box sx={{ display: "flex", alignItems: "center", gap: "4px", mb: "8px" }}>
+                        <Typography variant="body2" sx={{ color: "#374151" }}>
+                          Expiry Date
+                        </Typography>
+                      </Box>
+                      <DatePicker
+                        value={value}
+                        onChange={(newValue) => onChange(newValue)}
+                        slotProps={{
+                          textField: {
+                            placeholder: "Select expiry date",
+                            fullWidth: true,
+                            sx: {
+                              width: "100%",
+                              "& .MuiOutlinedInput-root": {
+                                height: "52px",
+                                borderRadius: "8px",
+                                backgroundColor: "#F4F7FF !important",
+                                fontFamily: "Switzer",
+                                "& fieldset": {
+                                  border: "1px solid #D0D5DD",
+                                },
+                              },
+                              "& .MuiPickersInputBase-root": {
+                                backgroundColor: "#F4F7FF !important",
+                              },
+                              "& .MuiInputBase-input": {
+                                fontFamily: "Switzer",
+                                fontSize: "16px",
+                                color: "#374151",
+                                backgroundColor: "transparent",
+                              },
+                            },
+                          },
+                        }}
+                        slots={{
+                          openPickerIcon: () => <TbCalendar size={20} style={{ color: "#6B7280" }} />,
+                        }}
                       />
-                      <Typography variant="body2">Set as Default</Typography>
                     </Box>
                   )}
                 />
@@ -952,8 +1044,11 @@ export default function NoShowPolicyContent({ onAddButtonRef }) {
 
           {/* Enablement Settings */}
           <Box>
-            <Typography variant="h6" sx={{ mb: 2, fontFamily: "Switzer", fontWeight: 600 }}>
+            <Typography variant="h6" sx={{ mb: 1, fontFamily: "Switzer", fontWeight: 600 }}>
               Enablement Settings
+            </Typography>
+            <Typography variant="body2" sx={{ mb: 2, color: "grey.80", fontFamily: "Switzer", fontSize: "12px" }}>
+              Specify which order types this no-show policy applies to. Enable the policy for pickup orders, delivery orders, or both, and choose whether to use unified fees.
             </Typography>
             <Box className="flex flex-col gap-4">
               <Controller
@@ -965,7 +1060,10 @@ export default function NoShowPolicyContent({ onAddButtonRef }) {
                       checked={value}
                       onChange={(e) => onChange(e.target.checked)}
                     />
-                    <Typography variant="body2">Enable For Pickup</Typography>
+                    <LabelWithTooltip
+                      label="Enable For Pickup"
+                      tooltipText="Enable no-show policy for pickup orders. When enabled, this policy will apply to pickup order no-shows."
+                    />
                   </Box>
                 )}
               />
@@ -978,7 +1076,10 @@ export default function NoShowPolicyContent({ onAddButtonRef }) {
                       checked={value}
                       onChange={(e) => onChange(e.target.checked)}
                     />
-                    <Typography variant="body2">Enable For Delivery</Typography>
+                    <LabelWithTooltip
+                      label="Enable For Delivery"
+                      tooltipText="Enable no-show policy for delivery orders. When enabled, this policy will apply to delivery order no-shows."
+                    />
                   </Box>
                 )}
               />
@@ -991,7 +1092,10 @@ export default function NoShowPolicyContent({ onAddButtonRef }) {
                       checked={value}
                       onChange={(e) => onChange(e.target.checked)}
                     />
-                    <Typography variant="body2">Use Unified Fee</Typography>
+                    <LabelWithTooltip
+                      label="Use Unified Fee"
+                      tooltipText="Use unified fee for both pickup and delivery. When enabled, the same fee amount applies to both pickup and delivery no-shows."
+                    />
                   </Box>
                 )}
               />
@@ -1002,8 +1106,11 @@ export default function NoShowPolicyContent({ onAddButtonRef }) {
 
           {/* Fee Configuration */}
           <Box>
-            <Typography variant="h6" sx={{ mb: 2, fontFamily: "Switzer", fontWeight: 600 }}>
+            <Typography variant="h6" sx={{ mb: 1, fontFamily: "Switzer", fontWeight: 600 }}>
               Fee Configuration
+            </Typography>
+            <Typography variant="body2" sx={{ mb: 2, color: "grey.80", fontFamily: "Switzer", fontSize: "12px" }}>
+              Define the fee structure for no-show charges. Set absolute amounts, percentage-based fees, storage fees, and choose between unified or separate fees for pickup and delivery.
             </Typography>
             <Box className="flex flex-col gap-4">
               <Controller
@@ -1020,6 +1127,7 @@ export default function NoShowPolicyContent({ onAddButtonRef }) {
                     ]}
                     placeholder="Select Fee Type"
                     fullWidth
+                    tooltipText="Fee calculation type. Choose 'Absolute' for fixed amount fees or 'Percentage' for percentage-based fees."
                   />
                 )}
               />
@@ -1034,6 +1142,7 @@ export default function NoShowPolicyContent({ onAddButtonRef }) {
                     options={currencyOptions}
                     placeholder="Select Currency"
                     fullWidth
+                    tooltipText="Currency code for the fee amounts (e.g., USD, EUR, GBP)."
                   />
                 )}
               />
@@ -1049,6 +1158,7 @@ export default function NoShowPolicyContent({ onAddButtonRef }) {
                         type="number"
                         value={value || ""}
                         onChange={(e) => onChange(e.target.value)}
+                        tooltipText="No-show fee for pickup orders in absolute amount. Default: 15.00"
                       />
                     )}
                   />
@@ -1062,6 +1172,7 @@ export default function NoShowPolicyContent({ onAddButtonRef }) {
                         type="number"
                         value={value || ""}
                         onChange={(e) => onChange(e.target.value)}
+                        tooltipText="No-show fee for delivery orders in absolute amount. Default: 20.00"
                       />
                     )}
                   />
@@ -1078,6 +1189,7 @@ export default function NoShowPolicyContent({ onAddButtonRef }) {
                       type="number"
                       value={value || ""}
                       onChange={(e) => onChange(e.target.value)}
+                      tooltipText="Unified no-show fee applied to both pickup and delivery orders when 'Use Unified Fee' is enabled."
                     />
                   )}
                 />
@@ -1092,6 +1204,7 @@ export default function NoShowPolicyContent({ onAddButtonRef }) {
                     type="number"
                     value={value || ""}
                     onChange={(e) => onChange(e.target.value)}
+                    tooltipText="Daily storage fee for unclaimed orders. This fee is charged per day for orders that remain unclaimed. Default: 1.00"
                   />
                 )}
               />
@@ -1106,6 +1219,7 @@ export default function NoShowPolicyContent({ onAddButtonRef }) {
                       type="number"
                       value={value || ""}
                       onChange={(e) => onChange(e.target.value)}
+                      tooltipText="Percentage fee (e.g., 5.00 for 5%). Used when Fee Type is 'Percentage' or 'Both'."
                     />
                   )}
                 />
@@ -1117,8 +1231,11 @@ export default function NoShowPolicyContent({ onAddButtonRef }) {
 
           {/* Timing Settings */}
           <Box>
-            <Typography variant="h6" sx={{ mb: 2, fontFamily: "Switzer", fontWeight: 600 }}>
+            <Typography variant="h6" sx={{ mb: 1, fontFamily: "Switzer", fontWeight: 600 }}>
               Timing Settings
+            </Typography>
+            <Typography variant="body2" sx={{ mb: 2, color: "grey.80", fontFamily: "Switzer", fontSize: "12px" }}>
+              Configure time-based rules for no-show detection. Set grace periods, driver SLA thresholds, and waiting times for calls and SMS notifications before a no-show is declared.
             </Typography>
             <Box className="flex flex-col gap-4">
               <Controller
@@ -1131,6 +1248,7 @@ export default function NoShowPolicyContent({ onAddButtonRef }) {
                     type="number"
                     value={value || ""}
                     onChange={(e) => onChange(e.target.value)}
+                    tooltipText="Minutes to wait before no-show applies. The driver will wait this many minutes before considering it a no-show. Default: 15"
                   />
                 )}
               />
@@ -1144,6 +1262,7 @@ export default function NoShowPolicyContent({ onAddButtonRef }) {
                     type="number"
                     value={value || ""}
                     onChange={(e) => onChange(e.target.value)}
+                    tooltipText="Driver late SLA in minutes - auto-waive if exceeded. If the driver arrives later than this time, the no-show fee is automatically waived. Default: 30"
                   />
                 )}
               />
@@ -1157,6 +1276,7 @@ export default function NoShowPolicyContent({ onAddButtonRef }) {
                     type="number"
                     value={value || ""}
                     onChange={(e) => onChange(e.target.value)}
+                    tooltipText="Minutes to wait before no-show applies for calls. Time to wait after making a call before considering it a no-show. Default: 5"
                   />
                 )}
               />
@@ -1170,6 +1290,7 @@ export default function NoShowPolicyContent({ onAddButtonRef }) {
                     type="number"
                     value={value || ""}
                     onChange={(e) => onChange(e.target.value)}
+                    tooltipText="Minutes to wait before no-show applies for SMS. Time to wait after sending an SMS before considering it a no-show. Default: 5"
                   />
                 )}
               />
@@ -1180,8 +1301,11 @@ export default function NoShowPolicyContent({ onAddButtonRef }) {
 
           {/* Delivery Options */}
           <Box>
-            <Typography variant="h6" sx={{ mb: 2, fontFamily: "Switzer", fontWeight: 600 }}>
+            <Typography variant="h6" sx={{ mb: 1, fontFamily: "Switzer", fontWeight: 600 }}>
               Delivery Options
+            </Typography>
+            <Typography variant="body2" sx={{ mb: 2, color: "grey.80", fontFamily: "Switzer", fontSize: "12px" }}>
+              Enable unattended delivery and pickup options to provide flexibility for customers. Configure options such as leaving items at door, concierge service, lockers, and photo requirements.
             </Typography>
             <Box className="flex flex-col gap-4">
               <Controller
@@ -1193,7 +1317,10 @@ export default function NoShowPolicyContent({ onAddButtonRef }) {
                       checked={value}
                       onChange={(e) => onChange(e.target.checked)}
                     />
-                    <Typography variant="body2">Pickup Bag At Door</Typography>
+                    <LabelWithTooltip
+                      label="Pickup Bag At Door"
+                      tooltipText="Allow pickup bag at door. When enabled, customers can leave their bag at the door for pickup."
+                    />
                   </Box>
                 )}
               />
@@ -1206,7 +1333,10 @@ export default function NoShowPolicyContent({ onAddButtonRef }) {
                       checked={value}
                       onChange={(e) => onChange(e.target.checked)}
                     />
-                    <Typography variant="body2">Delivery Leave At Door</Typography>
+                    <LabelWithTooltip
+                      label="Delivery Leave At Door"
+                      tooltipText="Allow delivery to be left at door. When enabled, deliveries can be left at the door without customer presence."
+                    />
                   </Box>
                 )}
               />
@@ -1219,7 +1349,10 @@ export default function NoShowPolicyContent({ onAddButtonRef }) {
                       checked={value}
                       onChange={(e) => onChange(e.target.checked)}
                     />
-                    <Typography variant="body2">Concierge</Typography>
+                    <LabelWithTooltip
+                      label="Concierge"
+                      tooltipText="Allow concierge service. When enabled, concierge services are available for unattended deliveries."
+                    />
                   </Box>
                 )}
               />
@@ -1232,7 +1365,10 @@ export default function NoShowPolicyContent({ onAddButtonRef }) {
                       checked={value}
                       onChange={(e) => onChange(e.target.checked)}
                     />
-                    <Typography variant="body2">Locker</Typography>
+                    <LabelWithTooltip
+                      label="Locker"
+                      tooltipText="Allow locker service. When enabled, deliveries can be placed in lockers for customer pickup."
+                    />
                   </Box>
                 )}
               />
@@ -1245,7 +1381,10 @@ export default function NoShowPolicyContent({ onAddButtonRef }) {
                       checked={value}
                       onChange={(e) => onChange(e.target.checked)}
                     />
-                    <Typography variant="body2">Require Photo</Typography>
+                    <LabelWithTooltip
+                      label="Require Photo"
+                      tooltipText="Require photo proof for unattended deliveries. When enabled, drivers must provide a photo as proof of delivery."
+                    />
                   </Box>
                 )}
               />
@@ -1256,8 +1395,11 @@ export default function NoShowPolicyContent({ onAddButtonRef }) {
 
           {/* Waiver Settings */}
           <Box>
-            <Typography variant="h6" sx={{ mb: 2, fontFamily: "Switzer", fontWeight: 600 }}>
+            <Typography variant="h6" sx={{ mb: 1, fontFamily: "Switzer", fontWeight: 600 }}>
               Waiver Settings
+            </Typography>
+            <Typography variant="body2" sx={{ mb: 2, color: "grey.80", fontFamily: "Switzer", fontSize: "12px" }}>
+              Configure automatic fee waivers based on order value or absolute amounts. Set thresholds that automatically waive no-show fees for smaller orders or specific conditions.
             </Typography>
             <Box className="flex flex-col gap-4">
               <Controller
@@ -1274,6 +1416,7 @@ export default function NoShowPolicyContent({ onAddButtonRef }) {
                     ]}
                     placeholder="Select Waiver Type"
                     fullWidth
+                    tooltipText="Waiver calculation type. Choose 'Absolute' for fixed amount waivers or 'Percentage' for percentage-based waivers."
                   />
                 )}
               />
@@ -1288,6 +1431,7 @@ export default function NoShowPolicyContent({ onAddButtonRef }) {
                       type="number"
                       value={value || ""}
                       onChange={(e) => onChange(e.target.value)}
+                      tooltipText="Absolute amount for auto-waive. Used when Waiver Type is 'Absolute' or 'Both'. Orders below this amount will have fees automatically waived."
                     />
                   )}
                 />
@@ -1303,6 +1447,7 @@ export default function NoShowPolicyContent({ onAddButtonRef }) {
                       type="number"
                       value={value || ""}
                       onChange={(e) => onChange(e.target.value)}
+                      tooltipText="Percentage of order value for auto-waive (e.g., 5.00 for 5%). Used when Waiver Type is 'Percentage' or 'Both'."
                     />
                   )}
                 />
@@ -1314,8 +1459,11 @@ export default function NoShowPolicyContent({ onAddButtonRef }) {
 
           {/* Auto Forgive Settings */}
           <Box>
-            <Typography variant="h6" sx={{ mb: 2, fontFamily: "Switzer", fontWeight: 600 }}>
+            <Typography variant="h6" sx={{ mb: 1, fontFamily: "Switzer", fontWeight: 600 }}>
               Auto Forgive Settings
+            </Typography>
+            <Typography variant="body2" sx={{ mb: 2, color: "grey.80", fontFamily: "Switzer", fontSize: "12px" }}>
+              Automatically forgive no-show fees for customers within specified limits. Configure how many no-shows to forgive, over what time period, to provide leniency for occasional issues.
             </Typography>
             <Box className="flex flex-col gap-4">
               <Controller
@@ -1327,7 +1475,10 @@ export default function NoShowPolicyContent({ onAddButtonRef }) {
                       checked={value}
                       onChange={(e) => onChange(e.target.checked)}
                     />
-                    <Typography variant="body2">Auto Forgive First No-Show</Typography>
+                    <LabelWithTooltip
+                      label="Auto Forgive First No-Show"
+                      tooltipText="Automatically forgive first no-show. When enabled, the first no-show for each customer is automatically forgiven without charging a fee. Default: true"
+                    />
                   </Box>
                 )}
               />
@@ -1341,6 +1492,7 @@ export default function NoShowPolicyContent({ onAddButtonRef }) {
                     type="number"
                     value={value || ""}
                     onChange={(e) => onChange(e.target.value)}
+                    tooltipText="Number of no-shows to auto-forgive. The system will automatically forgive this many no-shows per customer within the auto-forgive period. Default: 1"
                   />
                 )}
               />
@@ -1354,6 +1506,7 @@ export default function NoShowPolicyContent({ onAddButtonRef }) {
                     type="number"
                     value={value || ""}
                     onChange={(e) => onChange(e.target.value)}
+                    tooltipText="Period in days for auto-forgive. No-shows within this period will be automatically forgiven up to the auto-forgive count. Default: 30"
                   />
                 )}
               />
@@ -1364,8 +1517,11 @@ export default function NoShowPolicyContent({ onAddButtonRef }) {
 
           {/* Cap Settings */}
           <Box>
-            <Typography variant="h6" sx={{ mb: 2, fontFamily: "Switzer", fontWeight: 600 }}>
+            <Typography variant="h6" sx={{ mb: 1, fontFamily: "Switzer", fontWeight: 600 }}>
               Cap Settings
+            </Typography>
+            <Typography variant="body2" sx={{ mb: 2, color: "grey.80", fontFamily: "Switzer", fontSize: "12px" }}>
+              Set maximum limits on no-show charges per customer. Configure the maximum number of charges allowed within a time window and whether payment is required after reaching the cap.
             </Typography>
             <Box className="flex flex-col gap-4">
               <Controller
@@ -1377,7 +1533,10 @@ export default function NoShowPolicyContent({ onAddButtonRef }) {
                       checked={value}
                       onChange={(e) => onChange(e.target.checked)}
                     />
-                    <Typography variant="body2">Require Payment After Cap</Typography>
+                    <LabelWithTooltip
+                      label="Require Payment After Cap"
+                      tooltipText="Require payment after cap is reached. When enabled, customers must pay outstanding fees before placing new orders once they reach the per-customer cap. Default: true"
+                    />
                   </Box>
                 )}
               />
@@ -1391,6 +1550,7 @@ export default function NoShowPolicyContent({ onAddButtonRef }) {
                     type="number"
                     value={value || ""}
                     onChange={(e) => onChange(e.target.value)}
+                    tooltipText="Maximum charges per customer. The maximum number of no-show fees that can be charged to a single customer within the cap window. Default: 3"
                   />
                 )}
               />
@@ -1404,12 +1564,14 @@ export default function NoShowPolicyContent({ onAddButtonRef }) {
                     type="number"
                     value={value || ""}
                     onChange={(e) => onChange(e.target.value)}
+                    tooltipText="Window in days for cap calculation. The time period within which the per-customer cap is calculated. Default: 90"
                   />
                 )}
               />
             </Box>
           </Box>
         </Box>
+        </LocalizationProvider>
       </ModalComponent>
 
       {/* Delete Confirmation Modal */}

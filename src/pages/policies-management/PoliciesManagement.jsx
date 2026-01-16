@@ -4,7 +4,6 @@ import { useNavigate, useLocation } from "react-router-dom";
 import Layout from "../../components/shared/Layout";
 import { BsCardList } from "../../shared/icons/index";
 import DataTable from "../../components/ui/DataTable";
-import ActionButtons from "../../components/ui/ActionButtons";
 import StatCard from "../../components/ui/StatCard";
 import Search from "../../components/ui/Search";
 import FiltersButton from "../../components/ui/FiltersButton";
@@ -111,20 +110,6 @@ export default function PoliciesManagement() {
       minWidth: 120,
       sortable: true,
     },
-    {
-      field: "actions",
-      headerName: "Action",
-      flex: 0.15,
-      minWidth: 150,
-      renderCell: (row) => (
-        <ActionButtons
-          showView={false}
-          onEdit={() => handleEdit(row)}
-          onDelete={() => handleDelete(row)}
-        />
-      ),
-      sortable: false,
-    },
   ];
 
   // Fee summary data (mock data - would come from API)
@@ -155,28 +140,6 @@ export default function PoliciesManagement() {
     console.log("Download policies data");
   };
 
-  const handleEdit = (row) => {
-    console.log("Edit policy:", row);
-    // Open edit modal
-  };
-
-  const handleDelete = (row) => {
-    console.log("Delete policy:", row);
-    // Open delete confirmation modal
-  };
-
-  const handleRowAction = (actionType, rowData) => {
-    switch (actionType) {
-      case "edit":
-        handleEdit(rowData);
-        break;
-      case "delete":
-        handleDelete(rowData);
-        break;
-      default:
-        break;
-    }
-  };
 
   const handleTabChange = (event, newValue) => {
     setActiveTab(newValue);
@@ -471,7 +434,6 @@ export default function PoliciesManagement() {
                     onFilter={handleFilter}
                     onDateRangeChange={handleDateChange}
                     onDownload={handleDownload}
-                    onRowAction={handleRowAction}
                     height={600}
                   />
                 </Box>

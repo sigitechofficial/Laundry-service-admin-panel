@@ -4,8 +4,10 @@ import {
   FormControl,
   InputLabel,
   Typography,
+  Box,
 } from "@mui/material";
 import { TbChevronDown } from "../../shared/icons/index";
+import InfoIcon from "./InfoIcon";
 
 function CustomDropdownIcon(props) {
   return (
@@ -33,6 +35,7 @@ export default function SelectField({
   border = "none",
   labelColor = "#374151",
   disabled = false,
+  tooltipText,
 }) {
   // If width is specified, disable fullWidth to prevent extra spacing
   const isFullWidth = width ? false : fullWidth;
@@ -52,9 +55,12 @@ export default function SelectField({
       {label && <InputLabel shrink>{label}</InputLabel>}
 
       {title && (
-        <Typography variant="body2" sx={{ mb: "8px", color: labelColor }}>
-          {title}
-        </Typography>
+        <Box sx={{ display: "flex", alignItems: "center", gap: "4px", mb: "8px" }}>
+          <Typography variant="body2" sx={{ color: labelColor }}>
+            {title}
+          </Typography>
+          {tooltipText && <InfoIcon tooltipText={tooltipText} />}
+        </Box>
       )}
       <Select
         value={value}
