@@ -6,7 +6,8 @@ The Cancellation Policy system manages how customers can cancel their bookings a
 
 ## Table of Contents
 
-1. [API Endpoints](#api-endpoints)
+<!-- 1. [API Endpoints](#api-endpoints) -->
+
 2. [Policy Structure](#policy-structure)
 3. [Policy Fields](#policy-fields)
 4. [Business Logic](#business-logic)
@@ -23,12 +24,14 @@ The Cancellation Policy system manages how customers can cancel their bookings a
 **Endpoint:** `GET /admin/getCancellationPolicies`
 
 **Query Parameters:**
+
 - `isActive` (optional): Filter by active status (1 = active, 0 = inactive)
 - `isDefault` (optional): Filter by default status (1 = default, 0 = not default)
 - `page` (optional): Page number for pagination
 - `limit` (optional): Number of records per page
 
 **Response:**
+
 ```json
 {
   "data": {
@@ -43,18 +46,18 @@ The Cancellation Policy system manages how customers can cancel their bookings a
         "expiry_date": "2027-01-15",
         "cancellationConfig": {
           "prePickupAbsoluteCurrency": "USD",
-          "prePickupAbsoluteAmount": 10.00,
+          "prePickupAbsoluteAmount": 10.0,
           "prePickupPercentage": null,
           "prePickupFreeChargeWindowMinutes": 30,
           "prePickupFirstCancellationLeniency": true,
           "unprocessedAbsoluteCurrency": "USD",
-          "unprocessedAbsoluteAmount": 15.00,
+          "unprocessedAbsoluteAmount": 15.0,
           "unprocessedPercentage": null,
           "unprocessedAfterPickupMinutes": 60,
-          "unprocessedOrderValuePercentage": 20.00,
+          "unprocessedOrderValuePercentage": 20.0,
           "allowCancelUnprocessed": true,
           "courtesyWindowDays": 7,
-          "courtesyCapAmount": 50.00,
+          "courtesyCapAmount": 50.0,
           "courtesyCount": 2,
           "customerLeniencyEnabled": true
         }
@@ -75,6 +78,7 @@ The Cancellation Policy system manages how customers can cancel their bookings a
 To get the active default policy for customer-side checks:
 
 **Recommended Approach:**
+
 ```javascript
 // Get the default active policy
 GET /admin/getCancellationPolicies?isActive=1&isDefault=1&limit=1
@@ -107,13 +111,13 @@ The policy contains a `cancellationConfig` object with all the cancellation rule
 
 Charges applied when a customer cancels before the order is picked up.
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `prePickupAbsoluteCurrency` | String | Currency code (e.g., "USD", "EUR", "GBP") |
-| `prePickupAbsoluteAmount` | Number | Fixed cancellation fee amount (flat fee) |
-| `prePickupPercentage` | Number/null | Percentage-based fee (e.g., 5.00 for 5% of order value) |
-| `prePickupFreeChargeWindowMinutes` | Number | Minutes after order placement where cancellations are free |
-| `prePickupFirstCancellationLeniency` | Boolean | If true, first cancellation is automatically forgiven |
+| Field                                | Type        | Description                                                |
+| ------------------------------------ | ----------- | ---------------------------------------------------------- |
+| `prePickupAbsoluteCurrency`          | String      | Currency code (e.g., "USD", "EUR", "GBP")                  |
+| `prePickupAbsoluteAmount`            | Number      | Fixed cancellation fee amount (flat fee)                   |
+| `prePickupPercentage`                | Number/null | Percentage-based fee (e.g., 5.00 for 5% of order value)    |
+| `prePickupFreeChargeWindowMinutes`   | Number      | Minutes after order placement where cancellations are free |
+| `prePickupFirstCancellationLeniency` | Boolean     | If true, first cancellation is automatically forgiven      |
 
 **Note:** Either `prePickupAbsoluteAmount` OR `prePickupPercentage` should be used, not both.
 
@@ -121,14 +125,14 @@ Charges applied when a customer cancels before the order is picked up.
 
 Charges applied when a customer cancels an unprocessed order (after pickup but before processing).
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `unprocessedAbsoluteCurrency` | String | Currency code for unprocessed charges |
-| `unprocessedAbsoluteAmount` | Number | Fixed cancellation fee for unprocessed orders |
-| `unprocessedPercentage` | Number/null | Percentage-based fee for unprocessed orders |
-| `unprocessedAfterPickupMinutes` | Number | Minutes after pickup when unprocessed cancellation charges apply |
-| `unprocessedOrderValuePercentage` | Number | Percentage of order value used for calculation (if percentage-based) |
-| `allowCancelUnprocessed` | Boolean | Whether customers can cancel unprocessed orders |
+| Field                             | Type        | Description                                                          |
+| --------------------------------- | ----------- | -------------------------------------------------------------------- |
+| `unprocessedAbsoluteCurrency`     | String      | Currency code for unprocessed charges                                |
+| `unprocessedAbsoluteAmount`       | Number      | Fixed cancellation fee for unprocessed orders                        |
+| `unprocessedPercentage`           | Number/null | Percentage-based fee for unprocessed orders                          |
+| `unprocessedAfterPickupMinutes`   | Number      | Minutes after pickup when unprocessed cancellation charges apply     |
+| `unprocessedOrderValuePercentage` | Number      | Percentage of order value used for calculation (if percentage-based) |
+| `allowCancelUnprocessed`          | Boolean     | Whether customers can cancel unprocessed orders                      |
 
 **Note:** Either `unprocessedAbsoluteAmount` OR `unprocessedPercentage` should be used, not both.
 
@@ -136,12 +140,12 @@ Charges applied when a customer cancels an unprocessed order (after pickup but b
 
 Settings that provide leniency to customers for cancellations.
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `customerLeniencyEnabled` | Boolean | Master switch for customer leniency features |
-| `courtesyWindowDays` | Number | Days within which courtesy cancellations are tracked |
-| `courtesyCapAmount` | Number | Maximum total amount that can be waived in courtesy window |
-| `courtesyCount` | Number | Maximum number of courtesy cancellations allowed in window |
+| Field                     | Type    | Description                                                |
+| ------------------------- | ------- | ---------------------------------------------------------- |
+| `customerLeniencyEnabled` | Boolean | Master switch for customer leniency features               |
+| `courtesyWindowDays`      | Number  | Days within which courtesy cancellations are tracked       |
+| `courtesyCapAmount`       | Number  | Maximum total amount that can be waived in courtesy window |
+| `courtesyCount`           | Number  | Maximum number of courtesy cancellations allowed in window |
 
 ---
 
@@ -159,8 +163,8 @@ To determine which cancellation charges apply, check the order status:
 
 1. **Pre-Pickup**: Order not yet picked up
    - Use `prePickup*` fields
-   
 2. **Unprocessed**: Order picked up but not yet processed
+
    - Use `unprocessed*` fields
    - Only if `allowCancelUnprocessed` is `true`
 
@@ -176,23 +180,29 @@ To determine which cancellation charges apply, check the order status:
 ```javascript
 function canCancelOrder(order, policy) {
   // Check if order can be cancelled
-  if (order.status === 'processed') {
-    return { canCancel: false, reason: 'Order already processed' };
+  if (order.status === "processed") {
+    return { canCancel: false, reason: "Order already processed" };
   }
-  
+
   // Check unprocessed cancellation allowance
-  if (order.status === 'unprocessed' && !policy.cancellationConfig.allowCancelUnprocessed) {
-    return { canCancel: false, reason: 'Unprocessed orders cannot be cancelled' };
+  if (
+    order.status === "unprocessed" &&
+    !policy.cancellationConfig.allowCancelUnprocessed
+  ) {
+    return {
+      canCancel: false,
+      reason: "Unprocessed orders cannot be cancelled",
+    };
   }
-  
+
   // Check policy expiry
   if (policy.expiry_date) {
     const expiryDate = new Date(policy.expiry_date);
     if (expiryDate < new Date()) {
-      return { canCancel: false, reason: 'Policy expired' };
+      return { canCancel: false, reason: "Policy expired" };
     }
   }
-  
+
   return { canCancel: true };
 }
 ```
@@ -202,14 +212,14 @@ function canCancelOrder(order, policy) {
 ```javascript
 function getOrderStage(order) {
   if (!order.pickupDate || order.pickupDate > new Date()) {
-    return 'prePickup';
+    return "prePickup";
   }
-  
-  if (order.status === 'unprocessed' || order.status === 'picked_up') {
-    return 'unprocessed';
+
+  if (order.status === "unprocessed" || order.status === "picked_up") {
+    return "unprocessed";
   }
-  
-  return 'processed';
+
+  return "processed";
 }
 ```
 
@@ -217,17 +227,18 @@ function getOrderStage(order) {
 
 ```javascript
 function isWithinFreeWindow(order, policy, stage) {
-  if (stage === 'prePickup') {
-    const freeWindowMinutes = policy.cancellationConfig.prePickupFreeChargeWindowMinutes || 0;
+  if (stage === "prePickup") {
+    const freeWindowMinutes =
+      policy.cancellationConfig.prePickupFreeChargeWindowMinutes || 0;
     if (freeWindowMinutes === 0) return false;
-    
+
     const orderTime = new Date(order.createdAt);
     const now = new Date();
     const minutesSinceOrder = (now - orderTime) / (1000 * 60);
-    
+
     return minutesSinceOrder <= freeWindowMinutes;
   }
-  
+
   return false;
 }
 ```
@@ -239,7 +250,7 @@ async function checkFirstCancellationLeniency(customerId, policy) {
   if (!policy.cancellationConfig.prePickupFirstCancellationLeniency) {
     return false;
   }
-  
+
   // Check if this is customer's first cancellation
   // You need to implement this based on your order history
   const previousCancellations = await getCustomerCancellations(customerId);
@@ -254,37 +265,37 @@ function checkCourtesyWindow(customerId, cancellationAmount, policy) {
   if (!policy.cancellationConfig.customerLeniencyEnabled) {
     return { eligible: false, reason: 'Customer leniency disabled' };
   }
-  
+
   const windowDays = policy.cancellationConfig.courtesyWindowDays || 0;
   const capAmount = policy.cancellationConfig.courtesyCapAmount || 0;
   const maxCount = policy.cancellationConfig.courtesyCount || 0;
-  
+
   if (windowDays === 0 || capAmount === 0 || maxCount === 0) {
     return { eligible: false, reason: 'Courtesy window not configured' };
   }
-  
+
   // Get cancellations within window
   const windowStart = new Date();
   windowStart.setDate(windowStart.getDate() - windowDays);
-  
+
   const recentCancellations = await getCustomerCancellationsInWindow(
-    customerId, 
+    customerId,
     windowStart
   );
-  
+
   const totalWaived = recentCancellations.reduce((sum, c) => sum + c.waivedAmount, 0);
   const cancellationCount = recentCancellations.length;
-  
+
   if (cancellationCount >= maxCount) {
     return { eligible: false, reason: 'Maximum courtesy cancellations reached' };
   }
-  
+
   if (totalWaived + cancellationAmount > capAmount) {
     return { eligible: false, reason: 'Courtesy cap amount exceeded' };
   }
-  
-  return { 
-    eligible: true, 
+
+  return {
+    eligible: true,
     remainingCount: maxCount - cancellationCount,
     remainingAmount: capAmount - totalWaived
   };
@@ -301,43 +312,43 @@ function checkCourtesyWindow(customerId, cancellationAmount, policy) {
 function calculatePrePickupCharge(order, policy) {
   const config = policy.cancellationConfig;
   const orderValue = order.totalAmount;
-  
+
   // Check if within free window
   if (isWithinFreeWindow(order, policy, 'prePickup')) {
     return { charge: 0, reason: 'Within free cancellation window' };
   }
-  
+
   // Check first cancellation leniency
   if (await checkFirstCancellationLeniency(order.customerId, policy)) {
     return { charge: 0, reason: 'First cancellation leniency' };
   }
-  
+
   // Calculate charge
   let charge = 0;
-  
+
   if (config.prePickupAbsoluteAmount && config.prePickupAbsoluteAmount > 0) {
     charge = config.prePickupAbsoluteAmount;
   } else if (config.prePickupPercentage && config.prePickupPercentage > 0) {
     charge = (orderValue * config.prePickupPercentage) / 100;
   }
-  
+
   // Check courtesy window
   const courtesyCheck = await checkCourtesyWindow(
-    order.customerId, 
-    charge, 
+    order.customerId,
+    charge,
     policy
   );
-  
+
   if (courtesyCheck.eligible) {
-    return { 
-      charge: 0, 
+    return {
+      charge: 0,
       reason: 'Courtesy window waiver',
       waivedAmount: charge,
       courtesyInfo: courtesyCheck
     };
   }
-  
-  return { 
+
+  return {
     charge: charge,
     currency: config.prePickupAbsoluteCurrency,
     reason: 'Standard cancellation charge'
@@ -350,38 +361,41 @@ function calculatePrePickupCharge(order, policy) {
 ```javascript
 function calculateUnprocessedCharge(order, policy) {
   const config = policy.cancellationConfig;
-  
+
   if (!config.allowCancelUnprocessed) {
-    return { charge: null, reason: 'Unprocessed cancellations not allowed' };
+    return { charge: null, reason: "Unprocessed cancellations not allowed" };
   }
-  
+
   // Check if enough time has passed since pickup
   const pickupTime = new Date(order.pickupDate);
   const now = new Date();
   const minutesSincePickup = (now - pickupTime) / (1000 * 60);
-  
+
   if (minutesSincePickup < config.unprocessedAfterPickupMinutes) {
-    return { charge: 0, reason: 'Within grace period after pickup' };
+    return { charge: 0, reason: "Within grace period after pickup" };
   }
-  
+
   // Calculate charge
   let charge = 0;
   const orderValue = order.totalAmount;
-  
-  if (config.unprocessedAbsoluteAmount && config.unprocessedAbsoluteAmount > 0) {
+
+  if (
+    config.unprocessedAbsoluteAmount &&
+    config.unprocessedAbsoluteAmount > 0
+  ) {
     charge = config.unprocessedAbsoluteAmount;
   } else if (config.unprocessedPercentage && config.unprocessedPercentage > 0) {
     // Use order value percentage if specified
-    const percentageBase = config.unprocessedOrderValuePercentage 
-      ? (orderValue * config.unprocessedOrderValuePercentage / 100)
+    const percentageBase = config.unprocessedOrderValuePercentage
+      ? (orderValue * config.unprocessedOrderValuePercentage) / 100
       : orderValue;
     charge = (percentageBase * config.unprocessedPercentage) / 100;
   }
-  
-  return { 
+
+  return {
     charge: charge,
     currency: config.unprocessedAbsoluteCurrency,
-    reason: 'Unprocessed order cancellation charge'
+    reason: "Unprocessed order cancellation charge",
   };
 }
 ```
@@ -395,22 +409,22 @@ async function calculateCancellationCharge(order, policy) {
   if (!eligibility.canCancel) {
     return { error: eligibility.reason };
   }
-  
+
   // Determine order stage
   const stage = getOrderStage(order);
-  
-  if (stage === 'processed') {
-    return { error: 'Cannot cancel processed orders' };
+
+  if (stage === "processed") {
+    return { error: "Cannot cancel processed orders" };
   }
-  
+
   // Calculate charge based on stage
-  if (stage === 'prePickup') {
+  if (stage === "prePickup") {
     return await calculatePrePickupCharge(order, policy);
-  } else if (stage === 'unprocessed') {
+  } else if (stage === "unprocessed") {
     return calculateUnprocessedCharge(order, policy);
   }
-  
-  return { error: 'Unknown order stage' };
+
+  return { error: "Unknown order stage" };
 }
 ```
 
@@ -424,25 +438,25 @@ async function calculateCancellationCharge(order, policy) {
 async function getActiveCancellationPolicy() {
   try {
     const response = await fetch(
-      '/admin/getCancellationPolicies?isActive=1&isDefault=1&limit=1',
+      "/admin/getCancellationPolicies?isActive=1&isDefault=1&limit=1",
       {
-        method: 'GET',
+        method: "GET",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
           // Add authentication headers as needed
-        }
+        },
       }
     );
-    
+
     const data = await response.json();
-    
+
     if (data.data.policies && data.data.policies.length > 0) {
       return data.data.policies[0];
     }
-    
+
     return null; // No active policy found
   } catch (error) {
-    console.error('Error fetching cancellation policy:', error);
+    console.error("Error fetching cancellation policy:", error);
     return null;
   }
 }
@@ -454,27 +468,27 @@ async function getActiveCancellationPolicy() {
 async function displayCancellationInfo(orderId) {
   const order = await getOrder(orderId);
   const policy = await getActiveCancellationPolicy();
-  
+
   if (!policy) {
     // Handle no policy case
-    return { canCancel: true, charge: 0, message: 'Cancellation available' };
+    return { canCancel: true, charge: 0, message: "Cancellation available" };
   }
-  
+
   const chargeInfo = await calculateCancellationCharge(order, policy);
-  
+
   if (chargeInfo.error) {
     return {
       canCancel: false,
-      message: chargeInfo.error
+      message: chargeInfo.error,
     };
   }
-  
+
   return {
     canCancel: true,
     charge: chargeInfo.charge,
     currency: chargeInfo.currency,
     reason: chargeInfo.reason,
-    waivedAmount: chargeInfo.waivedAmount || 0
+    waivedAmount: chargeInfo.waivedAmount || 0,
   };
 }
 ```
@@ -486,43 +500,43 @@ async function processCancellation(orderId, customerId) {
   // Get order and policy
   const order = await getOrder(orderId);
   const policy = await getActiveCancellationPolicy();
-  
+
   if (!policy) {
     // Handle cancellation without policy
     await cancelOrder(orderId);
     return { success: true, charge: 0 };
   }
-  
+
   // Calculate charge
   const chargeInfo = await calculateCancellationCharge(order, policy);
-  
+
   if (chargeInfo.error) {
     return { success: false, error: chargeInfo.error };
   }
-  
+
   // If charge is 0, cancel immediately
   if (chargeInfo.charge === 0) {
     await cancelOrder(orderId);
-    
+
     // Track waived amount if applicable
     if (chargeInfo.waivedAmount) {
       await trackCourtesyWaiver(customerId, chargeInfo.waivedAmount);
     }
-    
-    return { 
-      success: true, 
+
+    return {
+      success: true,
       charge: 0,
-      reason: chargeInfo.reason
+      reason: chargeInfo.reason,
     };
   }
-  
+
   // If charge > 0, show confirmation to customer
   return {
     success: false, // Requires customer confirmation
     requiresConfirmation: true,
     charge: chargeInfo.charge,
     currency: chargeInfo.currency,
-    message: `Cancellation will incur a charge of ${chargeInfo.currency} ${chargeInfo.charge}`
+    message: `Cancellation will incur a charge of ${chargeInfo.currency} ${chargeInfo.charge}`,
   };
 }
 ```
@@ -530,11 +544,15 @@ async function processCancellation(orderId, customerId) {
 ### 4. Confirm Cancellation with Charge
 
 ```javascript
-async function confirmCancellationWithCharge(orderId, customerId, paymentMethodId) {
+async function confirmCancellationWithCharge(
+  orderId,
+  customerId,
+  paymentMethodId
+) {
   const order = await getOrder(orderId);
   const policy = await getActiveCancellationPolicy();
   const chargeInfo = await calculateCancellationCharge(order, policy);
-  
+
   // Process payment for cancellation charge
   const paymentResult = await processPayment({
     amount: chargeInfo.charge,
@@ -542,16 +560,16 @@ async function confirmCancellationWithCharge(orderId, customerId, paymentMethodI
     orderId: orderId,
     customerId: customerId,
     paymentMethodId: paymentMethodId,
-    type: 'cancellation_fee'
+    type: "cancellation_fee",
   });
-  
+
   if (!paymentResult.success) {
-    return { success: false, error: 'Payment processing failed' };
+    return { success: false, error: "Payment processing failed" };
   }
-  
+
   // Cancel the order
   await cancelOrder(orderId);
-  
+
   // Record cancellation with charge
   await recordCancellation({
     orderId: orderId,
@@ -559,13 +577,13 @@ async function confirmCancellationWithCharge(orderId, customerId, paymentMethodI
     charge: chargeInfo.charge,
     currency: chargeInfo.currency,
     reason: chargeInfo.reason,
-    paymentId: paymentResult.paymentId
+    paymentId: paymentResult.paymentId,
   });
-  
-  return { 
-    success: true, 
+
+  return {
+    success: true,
     charge: chargeInfo.charge,
-    paymentId: paymentResult.paymentId
+    paymentId: paymentResult.paymentId,
   };
 }
 ```
@@ -579,6 +597,7 @@ async function confirmCancellationWithCharge(orderId, customerId, paymentMethodI
 2. **Policy Expiry**: Always check `expiry_date` before applying a policy. Expired policies should not be used.
 
 3. **Charge Calculation Priority**:
+
    - First check free cancellation window
    - Then check first cancellation leniency
    - Then check courtesy window
@@ -603,9 +622,9 @@ try {
   // Process cancellation
 } catch (error) {
   // Handle errors gracefully
-  if (error.type === 'POLICY_NOT_FOUND') {
+  if (error.type === "POLICY_NOT_FOUND") {
     // Fallback: allow cancellation with no charge
-  } else if (error.type === 'POLICY_EXPIRED') {
+  } else if (error.type === "POLICY_EXPIRED") {
     // Use fallback policy or deny cancellation
   } else {
     // Log error and show user-friendly message
@@ -635,5 +654,3 @@ try {
 ## Support
 
 For questions or issues regarding cancellation policy implementation, please refer to the admin panel or contact the development team.
-
-
