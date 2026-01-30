@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Box, Typography, Divider } from "@mui/material";
-import { TbPlus, TbCalendar } from "../../shared/icons/index";
+import { TbPlus, TbCalendar, TbTrash } from "../../shared/icons/index";
 import StyledCheckbox from "../../components/ui/StyledCheckbox";
 import LabelWithTooltip from "../../components/ui/LabelWithTooltip";
 import DataTable from "../../components/ui/DataTable";
@@ -10,7 +10,7 @@ import SelectField from "../../components/ui/SelectField";
 import { useForm, Controller } from "react-hook-form";
 import ButtonBlueLight from "../../components/ui/ButtonBlueLight";
 import useToaster from "../../components/ui/Toaster";
-import { useAddCancellationPolicyMutation, useGetCancellationPoliciesQuery, useUpdateCancellationPolicyMutation, useDeleteCancellationPolicyMutation } from "../../store/services/api";
+import { useAddCancellationPolicyMutation, useGetCancellationPoliciesQuery, useUpdateCancellationPolicyMutation, useDeleteCancellationPolicyMutation, useCreateReasonMutation, useGetAllReasonsQuery, useDeleteReasonMutation } from "../../store/services/api";
 import { Delay } from "../../components/shared/Loaders";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
@@ -24,6 +24,9 @@ export default function CancellationPolicyContent() {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [policyToDelete, setPolicyToDelete] = useState(null);
   const [filterModalOpen, setFilterModalOpen] = useState(false);
+  const [reasonsModalOpen, setReasonsModalOpen] = useState(false);
+  const [cancelReasons, setCancelReasons] = useState([""]);
+  const [reasonIds, setReasonIds] = useState([]); // Store IDs for deletion
   
   // Filter states
   const [isActiveFilter, setIsActiveFilter] = useState("");
@@ -47,6 +50,11 @@ export default function CancellationPolicyContent() {
   const [addCancellationPolicy, { isLoading: isAdding }] = useAddCancellationPolicyMutation();
   const [updateCancellationPolicy, { isLoading: isUpdating }] = useUpdateCancellationPolicyMutation();
   const [deleteCancellationPolicy, { isLoading: isDeleting }] = useDeleteCancellationPolicyMutation();
+  const [createReason, { isLoading: isCreatingReason }] = useCreateReasonMutation();
+  const [deleteReason, { isLoading: isDeletingReason }] = useDeleteReasonMutation();
+  const { data: reasonsResponse, refetch: refetchReasons } = useGetAllReasonsQuery(undefined, {
+    skip: !reasonsModalOpen, // Only fetch when modal is open
+  });
   
   const isSubmitting = isAdding || isUpdating;
 
@@ -787,6 +795,150 @@ export default function CancellationPolicyContent() {
     setPolicyToDelete(null);
   };
 
+  // Cancellation Reasons Management
+  const handleAddReason = () => {
+    setCancelReasons([...cancelReasons, ""]);
+    setReasonIds([...reasonIds, null]); // New reason has no ID
+  };
+
+  const handleRemoveReason = (index) => {
+    if (cancelReasons.length > 1) {
+      const newReasons = cancelReasons.filter((_, i) => i !== index);
+      const newIds = reasonIds.filter((_, i) => i !== index);
+      setCancelReasons(newReasons);
+      setReasonIds(newIds);
+    }
+  };
+
+  const handleDeleteReason = async (index) => {
+    const reasonId = reasonIds[index];
+    
+    // If it's a new reason (no ID), just remove it from the list
+    if (!reasonId) {
+      handleRemoveReason(index);
+      return;
+    }
+
+    try {
+      await deleteReason(reasonId).unwrap();
+      success("Cancellation reason deleted successfully!");
+      // Remove from local state
+      handleRemoveReason(index);
+      // Refresh the list
+      refetchReasons();
+    } catch (error) {
+      console.error("Error deleting cancellation reason:", error);
+      showError(error?.data?.message || "Failed to delete cancellation reason. Please try again.");
+    }
+  };
+
+  const handleReasonChange = (index, value) => {
+    const newReasons = [...cancelReasons];
+    newReasons[index] = value;
+    setCancelReasons(newReasons);
+    // Keep the ID when editing
+  };
+
+  const handleSubmitReasons = async () => {
+    try {
+      // Filter out empty reasons
+      const validReasons = cancelReasons.filter((reason) => reason.trim() !== "");
+      
+      if (validReasons.length === 0) {
+        showError("Please add at least one cancellation reason");
+        return;
+      }
+
+      // Use single format if only one reason, array format if multiple
+      const payload = validReasons.length === 1
+        ? { cancelReason: validReasons[0] }
+        : { cancelReasons: validReasons };
+
+      try {
+        await createReason(payload).unwrap();
+        success("Cancellation reasons saved successfully!");
+        refetchReasons(); // Refresh the reasons list
+        // Keep modal open to show updated reasons
+      } catch (error) {
+        console.error("Error creating cancellation reasons:", error);
+        // Handle 409 conflict error (all reasons already exist)
+        if (error?.status === 409 || error?.data?.statusCode === 409) {
+          showError(error?.data?.message || "All reasons already exist in the database");
+          // Still refresh to show current reasons
+          refetchReasons();
+        } else {
+          showError(error?.data?.message || "Failed to create cancellation reasons. Please try again.");
+        }
+      }
+  };
+
+  const handleCloseReasonsModal = () => {
+    setReasonsModalOpen(false);
+    setCancelReasons([""]);
+    setReasonIds([null]);
+  };
+
+  // Load existing reasons when modal opens
+  useEffect(() => {
+    if (reasonsModalOpen && reasonsResponse?.data) {
+      // Handle both single reason and array of reasons
+      let existingReasons = [];
+      let existingIds = [];
+
+      if (Array.isArray(reasonsResponse.data)) {
+        // If data is an array
+        reasonsResponse.data.forEach(item => {
+          let reasonText = '';
+          let reasonId = null;
+          
+          if (typeof item === 'string') {
+            reasonText = item;
+          } else if (item.cancelReason) {
+            reasonText = item.cancelReason;
+            reasonId = item.id || item._id || null;
+          } else if (item.reason) {
+            reasonText = item.reason;
+            reasonId = item.id || item._id || null;
+          } else if (item.name) {
+            reasonText = item.name;
+            reasonId = item.id || item._id || null;
+          }
+          
+          if (reasonText) {
+            existingReasons.push(reasonText);
+            existingIds.push(reasonId);
+          }
+        });
+      } else if (reasonsResponse.data.cancelReason) {
+        // Single reason object
+        existingReasons = [reasonsResponse.data.cancelReason];
+        existingIds = [reasonsResponse.data.id || reasonsResponse.data._id || null];
+      } else if (reasonsResponse.data.cancelReasons) {
+        // Array of reasons in object
+        existingReasons = reasonsResponse.data.cancelReasons;
+        existingIds = reasonsResponse.data.cancelReasons.map((_, index) => 
+          reasonsResponse.data.ids?.[index] || null
+        );
+      } else if (typeof reasonsResponse.data === 'string') {
+        // Single reason string
+        existingReasons = [reasonsResponse.data];
+        existingIds = [null];
+      }
+
+      if (existingReasons.length > 0) {
+        setCancelReasons(existingReasons);
+        setReasonIds(existingIds);
+      } else {
+        setCancelReasons([""]);
+        setReasonIds([null]);
+      }
+    } else if (reasonsModalOpen) {
+      // If modal opens but no data yet, keep empty or fetch
+      setCancelReasons([""]);
+      setReasonIds([null]);
+    }
+  }, [reasonsModalOpen, reasonsResponse]);
+
   const onSubmit = async (data) => {
     try {
       const payload = {
@@ -853,6 +1005,23 @@ export default function CancellationPolicyContent() {
       {/* Action Buttons */}
       <Box className="flex items-center justify-end mb-4">
         <Box className="flex items-center gap-3">
+          <ButtonBlueLight
+            variant="outlined"
+            bgColor="#8B5CF6"
+            color="white"
+            radius="8px"
+            startIcon={<TbPlus size={"24px"} />}
+            onClick={() => setReasonsModalOpen(true)}
+            sx={{
+              border: "1px solid #8B5CF6",
+              "&:hover": {
+                backgroundColor: "#7C3AED",
+                borderColor: "#7C3AED",
+              },
+            }}
+          >
+            Manage Cancellation Reasons
+          </ButtonBlueLight>
           <ButtonBlueLight
             variant="contained"
             bgColor="#10b981"
@@ -1466,6 +1635,83 @@ export default function CancellationPolicyContent() {
               bgcolor="grey.60"
             />
           </Box>
+        </Box>
+      </ModalComponent>
+
+      {/* Cancellation Reasons Modal */}
+      <ModalComponent
+        open={reasonsModalOpen}
+        title="MANAGE CANCELLATION REASONS"
+        onClose={handleCloseReasonsModal}
+        width={600}
+        primaryAction={{
+          label: "Save Reasons",
+          onClick: handleSubmitReasons,
+          isLoading: isCreatingReason,
+        }}
+        secondaryAction={{
+          label: "Cancel",
+          onClick: handleCloseReasonsModal,
+        }}
+      >
+        <Box className="flex flex-col gap-4">
+          <Typography
+            variant="body2"
+            sx={{ color: "grey.80", fontFamily: "Switzer", mb: 2 }}
+          >
+            Add cancellation reasons that customers can select when canceling their orders.
+          </Typography>
+          
+              {cancelReasons.map((reason, index) => {
+                const hasId = reasonIds[index] !== null && reasonIds[index] !== undefined;
+                return (
+                  <Box key={index} className="flex items-center gap-2">
+                    <Box className="flex-1">
+                      <InputFieldModal
+                        placeholder={`Enter cancellation reason ${index + 1}`}
+                        value={reason}
+                        onChange={(e) => handleReasonChange(index, e.target.value)}
+                        title={index === 0 ? "Cancellation Reason" : ""}
+                        disabled={hasId} // Disable editing existing reasons
+                      />
+                    </Box>
+                    {(cancelReasons.length > 1 || hasId) && (
+                      <Box
+                        onClick={() => hasId ? handleDeleteReason(index) : handleRemoveReason(index)}
+                        sx={{
+                          cursor: "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          width: "40px",
+                          height: "52px",
+                          borderRadius: "8px",
+                          backgroundColor: hasId ? "#FEE2E2" : "#FEE2E2",
+                          color: "#DC2626",
+                          "&:hover": {
+                            backgroundColor: "#FECACA",
+                          },
+                        }}
+                        title={hasId ? "Delete from database" : "Remove from list"}
+                      >
+                        <TbTrash size={20} />
+                      </Box>
+                    )}
+                  </Box>
+                );
+              })}
+
+          <ButtonBlueLight
+            variant="outlined"
+            bgColor="blue.200"
+            color="white"
+            radius="8px"
+            startIcon={<TbPlus size={"20px"} />}
+            onClick={handleAddReason}
+            sx={{ mt: 1 }}
+          >
+            Add Another Reason
+          </ButtonBlueLight>
         </Box>
       </ModalComponent>
     </Box>

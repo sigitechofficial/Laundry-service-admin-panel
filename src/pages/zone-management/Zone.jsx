@@ -16,7 +16,7 @@ import {
   useGetAllCountriesQuery,
   useGetCitiesByCountryIdQuery,
   useGetUnitsDistanceAndCurrencyQuery,
-  useAddZoneMutation,
+  useAddZoneByPostcodesMutation,
 } from "../../store/services/api";
 import { useSelector } from "react-redux";
 import { Delay } from "../../components/shared/Loaders";
@@ -85,12 +85,13 @@ export default function ZoneManagement() {
     paymentMethod: "",
     deliveryCharges: "",
     ExDeliveryCharges: " ",
+    zoneAdminId: "",
   });
   console.log("🚀 ~ ZoneManagement ~ add:", add);
   const { success, error: showError } = useToaster();
   const { isLoading, refetch: refetchZones } = useGetAllZonesQuery();
   const { isLoading: _countriesLoading } = useGetAllCountriesQuery();
-  const [addZone, { isLoading: isAddingZone }] = useAddZoneMutation();
+  const [addZoneByPostcodes, { isLoading: isAddingZone }] = useAddZoneByPostcodesMutation();
   const zones = useSelector((state) => state?.apiData?.zones);
   const countries = useSelector((state) => state?.apiData?.countries);
   const cities = useSelector((state) => state?.apiData?.cities);
@@ -296,16 +297,14 @@ export default function ZoneManagement() {
 
   const handleAddZone = async () => {
     try {
-      // Format coordinates as: [[[lng, lat], [lng, lat], ...]]
-      // Round each coordinate to 4 decimal places
-      const formattedCoordinates = _coordinates.length > 0
-        ? [
-          _coordinates.map((coord) => [
-            parseFloat(coord[0].toFixed(4)),
-            parseFloat(coord[1].toFixed(4)),
-          ])
-        ]
-        : [];
+      // Validate that at least one postal code is added
+      if (!addedPostcodes || addedPostcodes.length === 0) {
+        showError("Please add at least one postal code before creating a zone");
+        return;
+      }
+
+      // Extract postcodes array from addedPostcodes
+      const postcodes = addedPostcodes.map((pc) => pc.postcode);
 
       // Find the selected currency to get its ID
       const selectedCurrency = Array.isArray(currencies)
@@ -313,24 +312,30 @@ export default function ZoneManagement() {
         : null;
       const currencyUnitId = selectedCurrency ? selectedCurrency.id : null;
 
+      // Get distanceUnitId - using default value of 2 as per API example
+      const distanceUnitId = 2;
+
       const zoneData = {
         name: add.zoneName,
-        coordinates: formattedCoordinates,
+        postcodes: postcodes,
         cityId: parseInt(add.cityId) || 1,
         zoneMinimumAmount: parseFloat(add.zoneMinimumAmount) || 0,
+        currencyUnitId: currencyUnitId || 1,
+        distanceUnitId: distanceUnitId,
         serviceCharge: parseFloat(add.deliveryCharges) || 0,
-        currencyUnitId: currencyUnitId,
-        distanceUnitId: 3,
-        zoneCommission: parseFloat(add.zoneCommission) || 0,
-        paymentMethod: add.paymentMethod || "",
-        expressDeliveryCharges: parseFloat(add.ExDeliveryCharges) || 0,
+        zoneAdminComission: parseFloat(add.zoneCommission) || 0,
+        zoneAdminId: add.zoneAdminId && add.zoneAdminId.trim() !== "" ? parseInt(add.zoneAdminId) : null,
+        status: true, // Default to active
       };
 
       console.log("Zone data being sent:", zoneData);
-      const result = await addZone(zoneData).unwrap();
+      const result = await addZoneByPostcodes(zoneData).unwrap();
       console.log("Zone added successfully:", result);
 
-      // Reset coordinates state
+      // Reset state
+      setAddedPostcodes([]);
+      setMultiplePostcodeHighlights([]);
+      setPostalCodeMarkers([]);
       setCoordinates([]);
       handleToggle();
       success("Zone added successfully!");
@@ -1188,6 +1193,18 @@ export default function ZoneManagement() {
                   />
                 </Box>
                 <Box className="flex flex-col gap-y-3">
+                  <label htmlFor="zoneMinimumAmount" className="text-grey40">
+                    Zone Minimum Amount
+                  </label>
+                  <InputFieldModal
+                    name="zoneMinimumAmount"
+                    type="number"
+                    value={add.zoneMinimumAmount}
+                    onChange={handleChange}
+                    placeholder="Enter zone minimum amount"
+                  />
+                </Box>
+                <Box className="flex flex-col gap-y-3">
                   <label htmlFor="description" className="text-grey40">
                     Zone commission%
                   </label>
@@ -1274,6 +1291,19 @@ export default function ZoneManagement() {
                     value={add.ExDeliveryCharges}
                     onChange={handleChange}
                     placeholder="Enter express-delivery charges"
+                  />
+                </Box>
+
+                <Box className="flex flex-col gap-y-3">
+                  <label htmlFor="zoneAdminId" className="text-grey40">
+                    Zone Admin ID
+                  </label>
+                  <InputFieldModal
+                    name="zoneAdminId"
+                    type="number"
+                    value={add.zoneAdminId}
+                    onChange={handleChange}
+                    placeholder="Enter zone admin ID"
                   />
                 </Box>
               </Box>

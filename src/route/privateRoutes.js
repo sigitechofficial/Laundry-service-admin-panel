@@ -20,6 +20,7 @@ import {
   ShopEmployeesPage,
   Configurations,
   Reports,
+  Blogs,
   EditCustomer,
   AllOrders,
   CompleteOrders,
@@ -143,6 +144,11 @@ export const privateRoutes = [
     path: "/reports",
     element: Reports,
     resourceKey: "reports_Page",
+  },
+  {
+    path: "/blogs",
+    element: Blogs,
+    resourceKey: "blogs_Page",
   },
   {
     path: "/orders/all-orders",

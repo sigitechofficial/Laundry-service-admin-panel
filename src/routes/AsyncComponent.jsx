@@ -98,6 +98,8 @@ export const EditOrder = lazy(() =>
 
 export const Reports = lazy(() => import("../pages/reports/Reports"));
 
+export const Blogs = lazy(() => import("../pages/blogs/Blogs"));
+
 export const CountriesAndCities = lazy(() =>
   import("../pages/countries-cities/CountriesAndCities")
 );

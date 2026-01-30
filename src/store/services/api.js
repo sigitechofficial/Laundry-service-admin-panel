@@ -357,6 +357,14 @@ export const api = createApi({
       }),
     }),
 
+    addZoneByPostcodes: builder.mutation({
+      query: (body) => ({
+        url: "admin/addZoneByPostcodes",
+        method: "POST",
+        body,
+      }),
+    }),
+
     updateDriver: builder.mutation({
       query: ({ id, body }) => ({
         url: `admin/updateDriver/${id}`,
@@ -476,6 +484,28 @@ export const api = createApi({
       }),
     }),
 
+    createReason: builder.mutation({
+      query: (body) => ({
+        url: "admin/createReason",
+        method: "POST",
+        body,
+      }),
+    }),
+
+    getAllReasons: builder.query({
+      query: () => ({
+        url: "admin/getAllReasons",
+        method: "GET",
+      }),
+    }),
+
+    deleteReason: builder.mutation({
+      query: (reasonId) => ({
+        url: `admin/deleteReason/${reasonId}`,
+        method: "DELETE",
+      }),
+    }),
+
     addNoShowPolicy: builder.mutation({
       query: (body) => ({
         url: "admin/addNoShowPolicy",
@@ -579,6 +609,7 @@ export const {
   useDeleteCityMutation,
   useGetUnitsDistanceAndCurrencyQuery,
   useAddZoneMutation,
+  useAddZoneByPostcodesMutation,
   useUpdateDriverMutation,
   useAddDriverByLaundryShopMutation,
   useGetAllDriverMiniDetailsQuery,
@@ -591,6 +622,9 @@ export const {
   useGetCancellationPoliciesQuery,
   useUpdateCancellationPolicyMutation,
   useDeleteCancellationPolicyMutation,
+  useCreateReasonMutation,
+  useGetAllReasonsQuery,
+  useDeleteReasonMutation,
   useAddNoShowPolicyMutation,
   useGetNoShowPoliciesQuery,
   useUpdateNoShowPolicyMutation,

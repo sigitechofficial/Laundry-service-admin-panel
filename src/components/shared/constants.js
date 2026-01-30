@@ -12,6 +12,7 @@ import {
   TbDeviceIpadHorizontalCog,
   TbSettings,
   TbReportSearch,
+  TbFileDescription,
   BsCardList,
   TbX,
 } from "../../shared/icons/index";
@@ -210,6 +211,12 @@ export const sidebarList = [
     // ],
   },
   {
+    label: "Blogs",
+    Icon: TbFileDescription,
+    path: "/blogs",
+    size: "24px",
+  },
+  {
     label: "Reports",
     Icon: TbReportSearch,
     path: "/reports",
@@ -237,7 +244,7 @@ export const getInitialSubmenuOpen = () => {
     const stored =
       typeof window !== "undefined" && localStorage.getItem("submenuOpen");
     if (stored) return JSON.parse(stored);
-  } catch (e) {}
+  } catch (e) { }
 
   const init = {};
   sidebarList.forEach((item) => {

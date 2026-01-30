@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Box, Typography, Divider } from "@mui/material";
 import Layout from "../../components/shared/Layout";
-import { BsCardList, TbPlus, TbCalendar } from "../../shared/icons/index";
+import { BsCardList, TbPlus, TbCalendar, TbTrash } from "../../shared/icons/index";
 import DataTable from "../../components/ui/DataTable";
 import ModalComponent from "../../components/shared/Modal";
 import InputFieldModal from "../../components/ui/InputFieldModal";
@@ -10,7 +10,7 @@ import FiltersButton from "../../components/ui/FiltersButton";
 import { useForm, Controller } from "react-hook-form";
 import ButtonBlueLight from "../../components/ui/ButtonBlueLight";
 import useToaster from "../../components/ui/Toaster";
-import { useAddCancellationPolicyMutation, useGetCancellationPoliciesQuery, useUpdateCancellationPolicyMutation, useDeleteCancellationPolicyMutation } from "../../store/services/api";
+import { useAddCancellationPolicyMutation, useGetCancellationPoliciesQuery, useUpdateCancellationPolicyMutation, useDeleteCancellationPolicyMutation, useCreateReasonMutation, useGetAllReasonsQuery, useDeleteReasonMutation } from "../../store/services/api";
 import { Delay } from "../../components/shared/Loaders";
 import StyledCheckbox from "../../components/ui/StyledCheckbox";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
@@ -26,7 +26,10 @@ export default function CancellationPolicy() {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [policyToDelete, setPolicyToDelete] = useState(null);
   const [filterModalOpen, setFilterModalOpen] = useState(false);
-  
+  const [reasonsModalOpen, setReasonsModalOpen] = useState(false);
+  const [cancelReasons, setCancelReasons] = useState([""]);
+  const [reasonIds, setReasonIds] = useState([]); // Store IDs for deletion
+
   // Filter states
   const [isActiveFilter, setIsActiveFilter] = useState("");
   const [isDefaultFilter, setIsDefaultFilter] = useState("");
@@ -49,7 +52,12 @@ export default function CancellationPolicy() {
   const [addCancellationPolicy, { isLoading: isAdding }] = useAddCancellationPolicyMutation();
   const [updateCancellationPolicy, { isLoading: isUpdating }] = useUpdateCancellationPolicyMutation();
   const [deleteCancellationPolicy, { isLoading: isDeleting }] = useDeleteCancellationPolicyMutation();
-  
+  const [createReason, { isLoading: isCreatingReason }] = useCreateReasonMutation();
+  const [deleteReason] = useDeleteReasonMutation();
+  const { data: reasonsResponse, refetch: refetchReasons } = useGetAllReasonsQuery(undefined, {
+    skip: !reasonsModalOpen, // Only fetch when modal is open
+  });
+
   const isSubmitting = isAdding || isUpdating;
 
   const policies = policiesResponse?.data?.policies || [];
@@ -605,12 +613,12 @@ export default function CancellationPolicy() {
 
     // Get the highest version
     const highest = versionNumbers[0];
-    
+
     // If highest is a whole number (like 1.00), start with 1.01
     if (highest.minor === 0) {
       return `Version ${highest.major}.01`;
     }
-    
+
     // Otherwise, increment the minor version
     const nextMinor = highest.minor + 1;
     return `Version ${highest.major}.${nextMinor.toString().padStart(2, "0")}`;
@@ -652,13 +660,13 @@ export default function CancellationPolicy() {
   const handleEdit = (policy) => {
     setEditingPolicy(policy);
     const config = policy.cancellationConfig || {};
-    
+
     // Determine fee type based on existing data (prefer percentage if both exist)
     const hasPercentage = config.prePickupPercentage && parseFloat(config.prePickupPercentage) > 0;
     const hasAbsolute = config.prePickupAbsoluteAmount && parseFloat(config.prePickupAbsoluteAmount) > 0;
     const feeType = hasPercentage ? "percentage" : (hasAbsolute ? "absolute" : "absolute");
-    const feeValue = hasPercentage 
-      ? config.prePickupPercentage?.toString() 
+    const feeValue = hasPercentage
+      ? config.prePickupPercentage?.toString()
       : (hasAbsolute ? config.prePickupAbsoluteAmount?.toString() : "");
 
     reset({
@@ -685,8 +693,8 @@ export default function CancellationPolicy() {
       unprocessedFeeValue: (() => {
         const hasPercentage = config.unprocessedPercentage && parseFloat(config.unprocessedPercentage) > 0;
         const hasAbsolute = config.unprocessedAbsoluteAmount && parseFloat(config.unprocessedAbsoluteAmount) > 0;
-        return hasPercentage 
-          ? config.unprocessedPercentage?.toString() 
+        return hasPercentage
+          ? config.unprocessedPercentage?.toString()
           : (hasAbsolute ? config.unprocessedAbsoluteAmount?.toString() : "");
       })(),
       unprocessedAbsoluteAmount: config.unprocessedAbsoluteAmount?.toString() || "",
@@ -732,19 +740,19 @@ export default function CancellationPolicy() {
   const onSubmit = async (data) => {
     try {
       // Determine which field to set based on fee type
-      const prePickupAbsoluteAmount = data.prePickupFeeType === "absolute" && data.prePickupFeeValue 
-        ? parseFloat(data.prePickupFeeValue) 
+      const prePickupAbsoluteAmount = data.prePickupFeeType === "absolute" && data.prePickupFeeValue
+        ? parseFloat(data.prePickupFeeValue)
         : 0;
-      const prePickupPercentage = data.prePickupFeeType === "percentage" && data.prePickupFeeValue 
-        ? parseFloat(data.prePickupFeeValue) 
+      const prePickupPercentage = data.prePickupFeeType === "percentage" && data.prePickupFeeValue
+        ? parseFloat(data.prePickupFeeValue)
         : null;
 
       // Determine which field to set for unprocessed orders based on fee type
-      const unprocessedAbsoluteAmount = data.unprocessedFeeType === "absolute" && data.unprocessedFeeValue 
-        ? parseFloat(data.unprocessedFeeValue) 
+      const unprocessedAbsoluteAmount = data.unprocessedFeeType === "absolute" && data.unprocessedFeeValue
+        ? parseFloat(data.unprocessedFeeValue)
         : 0;
-      const unprocessedPercentage = data.unprocessedFeeType === "percentage" && data.unprocessedFeeValue 
-        ? parseFloat(data.unprocessedFeeValue) 
+      const unprocessedPercentage = data.unprocessedFeeType === "percentage" && data.unprocessedFeeValue
+        ? parseFloat(data.unprocessedFeeValue)
         : null;
 
       const payload = {
@@ -796,6 +804,160 @@ export default function CancellationPolicy() {
     reset();
   };
 
+  // Cancellation Reasons Management
+  const handleAddReason = () => {
+    setCancelReasons([...cancelReasons, ""]);
+    setReasonIds([...reasonIds, null]); // New reason has no ID
+  };
+
+  const handleRemoveReason = (index) => {
+    if (cancelReasons.length > 1) {
+      const newReasons = cancelReasons.filter((_, i) => i !== index);
+      const newIds = reasonIds.filter((_, i) => i !== index);
+      setCancelReasons(newReasons);
+      setReasonIds(newIds);
+    }
+  };
+
+  const handleDeleteReason = async (index) => {
+    const reasonId = reasonIds[index];
+
+    // If it's a new reason (no ID), just remove it from the list
+    if (!reasonId) {
+      handleRemoveReason(index);
+      return;
+    }
+
+    try {
+      await deleteReason(reasonId).unwrap();
+      success("Cancellation reason deleted successfully!");
+      // Remove from local state
+      handleRemoveReason(index);
+      // Refresh the list
+      refetchReasons();
+    } catch (error) {
+      console.error("Error deleting cancellation reason:", error);
+      showError(error?.data?.message || "Failed to delete cancellation reason. Please try again.");
+    }
+  };
+
+  const handleReasonChange = (index, value) => {
+    const newReasons = [...cancelReasons];
+    newReasons[index] = value;
+    setCancelReasons(newReasons);
+    // Keep the ID when editing
+  };
+
+  const handleSubmitReasons = async () => {
+    try {
+      // Filter out empty reasons
+      const validReasons = cancelReasons.filter((reason) => reason.trim() !== "");
+
+      if (validReasons.length === 0) {
+        showError("Please add at least one cancellation reason");
+        return;
+      }
+
+      // Use single format if only one reason, array format if multiple
+      const payload = validReasons.length === 1
+        ? { cancelReason: validReasons[0] }
+        : { cancelReasons: validReasons };
+
+      try {
+        await createReason(payload).unwrap();
+        success("Cancellation reasons saved successfully!");
+        refetchReasons(); // Refresh the reasons list
+        // Keep modal open to show updated reasons
+      } catch (error) {
+        // Handle 409 conflict error (all reasons already exist)
+        if (error?.status === 409 || error?.data?.statusCode === 409) {
+          showError(error?.data?.message || "All reasons already exist in the database");
+          // Still refresh to show current reasons
+          refetchReasons();
+        } else {
+          throw error; // Re-throw other errors
+        }
+      }
+    } catch (error) {
+      console.error("Error creating cancellation reasons:", error);
+      // Handle 409 conflict error (all reasons already exist)
+      if (error?.status === 409 || error?.data?.statusCode === 409) {
+        showError(error?.data?.message || "All reasons already exist in the database");
+        // Still refresh to show current reasons
+        refetchReasons();
+      } else {
+        showError(error?.data?.message || "Failed to create cancellation reasons. Please try again.");
+      }
+    }
+  };
+
+  const handleCloseReasonsModal = () => {
+    setReasonsModalOpen(false);
+    setCancelReasons([""]);
+    setReasonIds([null]);
+  };
+
+  // Load existing reasons when modal opens
+  useEffect(() => {
+    if (reasonsModalOpen && reasonsResponse?.data) {
+      // Handle both single reason and array of reasons
+      let existingReasons = [];
+      let existingIds = [];
+
+      if (Array.isArray(reasonsResponse.data)) {
+        // If data is an array
+        reasonsResponse.data.forEach(item => {
+          let reasonText = '';
+          let reasonId = null;
+
+          if (typeof item === 'string') {
+            reasonText = item;
+          } else if (item.cancelReason) {
+            reasonText = item.cancelReason;
+            reasonId = item.id || item._id || null;
+          } else if (item.reason) {
+            reasonText = item.reason;
+            reasonId = item.id || item._id || null;
+          } else if (item.name) {
+            reasonText = item.name;
+            reasonId = item.id || item._id || null;
+          }
+
+          if (reasonText) {
+            existingReasons.push(reasonText);
+            existingIds.push(reasonId);
+          }
+        });
+      } else if (reasonsResponse.data.cancelReason) {
+        // Single reason object
+        existingReasons = [reasonsResponse.data.cancelReason];
+        existingIds = [reasonsResponse.data.id || reasonsResponse.data._id || null];
+      } else if (reasonsResponse.data.cancelReasons) {
+        // Array of reasons in object
+        existingReasons = reasonsResponse.data.cancelReasons;
+        existingIds = reasonsResponse.data.cancelReasons.map((_, index) =>
+          reasonsResponse.data.ids?.[index] || null
+        );
+      } else if (typeof reasonsResponse.data === 'string') {
+        // Single reason string
+        existingReasons = [reasonsResponse.data];
+        existingIds = [null];
+      }
+
+      if (existingReasons.length > 0) {
+        setCancelReasons(existingReasons);
+        setReasonIds(existingIds);
+      } else {
+        setCancelReasons([""]);
+        setReasonIds([null]);
+      }
+    } else if (reasonsModalOpen) {
+      // If modal opens but no data yet, keep empty or fetch
+      setCancelReasons([""]);
+      setReasonIds([null]);
+    }
+  }, [reasonsModalOpen, reasonsResponse]);
+
   const currencyOptions = [
     { value: "USD", label: "USD" },
     { value: "EUR", label: "EUR" },
@@ -822,6 +984,23 @@ export default function CancellationPolicy() {
                 text="Filters"
                 onClick={() => setFilterModalOpen(true)}
               />
+              <ButtonBlueLight
+                variant="outlined"
+                bgColor="#8B5CF6"
+                color="white"
+                radius="8px"
+                startIcon={<TbPlus size={"24px"} />}
+                onClick={() => setReasonsModalOpen(true)}
+                sx={{
+                  border: "1px solid #8B5CF6",
+                  "&:hover": {
+                    backgroundColor: "#7C3AED",
+                    borderColor: "#7C3AED",
+                  },
+                }}
+              >
+                Manage Cancellation Reasons
+              </ButtonBlueLight>
               <ButtonBlueLight
                 variant="outlined"
                 bgColor="blue.200"
@@ -867,398 +1046,487 @@ export default function CancellationPolicy() {
           >
             <LocalizationProvider dateAdapter={AdapterDayjs}>
               <Box className="flex flex-col gap-5">
-              {/* Basic Information Section */}
-              <Box>
-                <Typography variant="h6" sx={{ mb: 1, fontFamily: "Switzer", fontWeight: 600 }}>
-                  Basic Information
-                </Typography>
-                <Typography variant="body2" sx={{ mb: 2, color: "grey.80", fontFamily: "Switzer", fontSize: "12px" }}>
-                  Configure the fundamental settings for this cancellation policy, including name, description, and activation status.
-                </Typography>
-                <Box className="flex flex-col gap-4">
-                  <Controller
-                    name="name"
-                    control={control}
-                    rules={{ required: "Policy name is required" }}
-                    render={({ field: { onChange, value } }) => (
-                      <Box>
-                        <InputFieldModal
-                          title="Policy Name*"
-                          placeholder="Enter policy name"
-                          value={value || ""}
-                          onChange={(e) => onChange(e.target.value)}
-                          disabled={!editingPolicy} // Disable when adding new policy (not editing)
-                          tooltipText={editingPolicy ? "Policy name/identifier. This is a required field and must be unique." : "Policy name is auto-generated and cannot be edited."}
-                        />
-                        {errors.name && (
-                          <Typography variant="caption" sx={{ color: "error.main", mt: 1, display: "block" }}>
-                            {errors.name.message}
-                          </Typography>
-                        )}
-                      </Box>
-                    )}
-                  />
-
-                  <Controller
-                    name="description"
-                    control={control}
-                    rules={{ required: "Description is required" }}
-                    render={({ field: { onChange, value } }) => (
-                      <Box>
-                        <InputFieldModal
-                          title="Description*"
-                          placeholder="Enter policy description"
-                          value={value || ""}
-                          onChange={(e) => onChange(e.target.value)}
-                          tooltipText="Policy description or notes. Optional field to provide additional context about the policy."
-                        />
-                        {errors.description && (
-                          <Typography variant="caption" sx={{ color: "error.main", mt: 1, display: "block" }}>
-                            {errors.description.message}
-                          </Typography>
-                        )}
-                      </Box>
-                    )}
-                  />
-                  <Box className="grid grid-cols-2 gap-4">
+                {/* Basic Information Section */}
+                <Box>
+                  <Typography variant="h6" sx={{ mb: 1, fontFamily: "Switzer", fontWeight: 600 }}>
+                    Basic Information
+                  </Typography>
+                  <Typography variant="body2" sx={{ mb: 2, color: "grey.80", fontFamily: "Switzer", fontSize: "12px" }}>
+                    Configure the fundamental settings for this cancellation policy, including name, description, and activation status.
+                  </Typography>
+                  <Box className="flex flex-col gap-4">
                     <Controller
-                      name="createdDate"
+                      name="name"
                       control={control}
-                      render={({ field: { value } }) => (
-                        <Box sx={{ width: "100%" }}>
-                          <Box sx={{ display: "flex", alignItems: "center", gap: "4px", mb: "8px" }}>
-                            <Typography variant="body2" sx={{ color: "#374151" }}>
-                              Created Date
-                            </Typography>
-                          </Box>
-                          <DatePicker
-                            value={value || dayjs()}
-                            disabled
-                            slotProps={{
-                              textField: {
-                                placeholder: "Created date",
-                                fullWidth: true,
-                                sx: {
-                                  width: "100%",
-                                  "& .MuiOutlinedInput-root": {
-                                    height: "52px",
-                                    borderRadius: "8px",
-                                    backgroundColor: "#F4F7FF !important",
-                                    fontFamily: "Switzer",
-                                    border: "none !important",
-                                    boxShadow: "none !important",
-                                    "& fieldset": {
-                                      border: "none !important",
-                                      display: "none",
-                                    },
-                                    "&:hover fieldset": {
-                                      border: "none !important",
-                                    },
-                                    "&.Mui-focused fieldset": {
-                                      border: "none !important",
-                                    },
-                                    "&.Mui-disabled": {
-                                      backgroundColor: "#F3F4F6 !important",
-                                      border: "none !important",
-                                      boxShadow: "none !important",
-                                    },
-                                  },
-                                  "& .MuiPickersInputBase-root": {
-                                    backgroundColor: "#F4F7FF !important",
-                                    border: "none !important",
-                                    boxShadow: "none !important",
-                                    "&.Mui-disabled": {
-                                      backgroundColor: "#F3F4F6 !important",
-                                      border: "none !important",
-                                      boxShadow: "none !important",
-                                    },
-                                  },
-                                  "& .MuiInputBase-input": {
-                                    fontFamily: "Switzer",
-                                    fontSize: "16px",
-                                    color: "#374151",
-                                    backgroundColor: "transparent",
-                                  },
-                                },
-                              },
-                            }}
-                            slots={{
-                              openPickerIcon: () => <TbCalendar size={20} style={{ color: "#6B7280" }} />,
-                            }}
+                      rules={{ required: "Policy name is required" }}
+                      render={({ field: { onChange, value } }) => (
+                        <Box>
+                          <InputFieldModal
+                            title="Policy Name*"
+                            placeholder="Enter policy name"
+                            value={value || ""}
+                            onChange={(e) => onChange(e.target.value)}
+                            disabled={!editingPolicy} // Disable when adding new policy (not editing)
+                            tooltipText={editingPolicy ? "Policy name/identifier. This is a required field and must be unique." : "Policy name is auto-generated and cannot be edited."}
                           />
+                          {errors.name && (
+                            <Typography variant="caption" sx={{ color: "error.main", mt: 1, display: "block" }}>
+                              {errors.name.message}
+                            </Typography>
+                          )}
                         </Box>
                       )}
                     />
+
                     <Controller
-                      name="expiryDate"
+                      name="description"
                       control={control}
+                      rules={{ required: "Description is required" }}
                       render={({ field: { onChange, value } }) => (
-                        <Box sx={{ width: "100%" }}>
-                          <Box sx={{ display: "flex", alignItems: "center", gap: "4px", mb: "8px" }}>
-                            <Typography variant="body2" sx={{ color: "#374151" }}>
-                              Expiry Date
+                        <Box>
+                          <InputFieldModal
+                            title="Description*"
+                            placeholder="Enter policy description"
+                            value={value || ""}
+                            onChange={(e) => onChange(e.target.value)}
+                            tooltipText="Policy description or notes. Optional field to provide additional context about the policy."
+                          />
+                          {errors.description && (
+                            <Typography variant="caption" sx={{ color: "error.main", mt: 1, display: "block" }}>
+                              {errors.description.message}
                             </Typography>
+                          )}
+                        </Box>
+                      )}
+                    />
+                    <Box className="grid grid-cols-2 gap-4">
+                      <Controller
+                        name="createdDate"
+                        control={control}
+                        render={({ field: { value } }) => (
+                          <Box sx={{ width: "100%" }}>
+                            <Box sx={{ display: "flex", alignItems: "center", gap: "4px", mb: "8px" }}>
+                              <Typography variant="body2" sx={{ color: "#374151" }}>
+                                Created Date
+                              </Typography>
+                            </Box>
+                            <DatePicker
+                              value={value || dayjs()}
+                              disabled
+                              slotProps={{
+                                textField: {
+                                  placeholder: "Created date",
+                                  fullWidth: true,
+                                  sx: {
+                                    width: "100%",
+                                    "& .MuiOutlinedInput-root": {
+                                      height: "52px",
+                                      borderRadius: "8px",
+                                      backgroundColor: "#F4F7FF !important",
+                                      fontFamily: "Switzer",
+                                      border: "none !important",
+                                      boxShadow: "none !important",
+                                      "& fieldset": {
+                                        border: "none !important",
+                                        display: "none",
+                                      },
+                                      "&:hover fieldset": {
+                                        border: "none !important",
+                                      },
+                                      "&.Mui-focused fieldset": {
+                                        border: "none !important",
+                                      },
+                                      "&.Mui-disabled": {
+                                        backgroundColor: "#F3F4F6 !important",
+                                        border: "none !important",
+                                        boxShadow: "none !important",
+                                      },
+                                    },
+                                    "& .MuiPickersInputBase-root": {
+                                      backgroundColor: "#F4F7FF !important",
+                                      border: "none !important",
+                                      boxShadow: "none !important",
+                                      "&.Mui-disabled": {
+                                        backgroundColor: "#F3F4F6 !important",
+                                        border: "none !important",
+                                        boxShadow: "none !important",
+                                      },
+                                    },
+                                    "& .MuiInputBase-input": {
+                                      fontFamily: "Switzer",
+                                      fontSize: "16px",
+                                      color: "#374151",
+                                      backgroundColor: "transparent",
+                                    },
+                                  },
+                                },
+                              }}
+                              slots={{
+                                openPickerIcon: () => <TbCalendar size={20} style={{ color: "#6B7280" }} />,
+                              }}
+                            />
                           </Box>
-                          <DatePicker
+                        )}
+                      />
+                      <Controller
+                        name="expiryDate"
+                        control={control}
+                        render={({ field: { onChange, value } }) => (
+                          <Box sx={{ width: "100%" }}>
+                            <Box sx={{ display: "flex", alignItems: "center", gap: "4px", mb: "8px" }}>
+                              <Typography variant="body2" sx={{ color: "#374151" }}>
+                                Expiry Date
+                              </Typography>
+                            </Box>
+                            <DatePicker
+                              value={value}
+                              onChange={(newValue) => onChange(newValue)}
+                              slotProps={{
+                                textField: {
+                                  placeholder: "Select expiry date",
+                                  fullWidth: true,
+                                  sx: {
+                                    width: "100%",
+                                    "& .MuiOutlinedInput-root": {
+                                      height: "52px",
+                                      borderRadius: "8px",
+                                      backgroundColor: "#F4F7FF !important",
+                                      fontFamily: "Switzer",
+                                      "& fieldset": {
+                                        border: "none",
+                                      },
+                                    },
+                                    "& .MuiPickersInputBase-root": {
+                                      backgroundColor: "#F4F7FF !important",
+                                    },
+                                    "& .MuiInputBase-input": {
+                                      fontFamily: "Switzer",
+                                      fontSize: "16px",
+                                      color: "#374151",
+                                      backgroundColor: "transparent",
+                                    },
+                                  },
+                                },
+                              }}
+                              slots={{
+                                openPickerIcon: () => <TbCalendar size={20} style={{ color: "#6B7280" }} />,
+                              }}
+                            />
+                          </Box>
+                        )}
+                      />
+                    </Box>
+                  </Box>
+                </Box>
+
+                <Divider />
+
+                {/* Pre-Pickup Charges Section */}
+                <Box>
+                  <Typography variant="h6" sx={{ mb: 1, fontFamily: "Switzer", fontWeight: 600 }}>
+                    Pre-Pickup Charges
+                  </Typography>
+                  <Typography variant="body2" sx={{ mb: 2, color: "grey.80", fontFamily: "Switzer", fontSize: "12px" }}>
+                    Define cancellation fees and policies for orders that are cancelled before the pickup has occurred. Set absolute amounts, percentages, free charge windows, and first cancellation leniency.
+                  </Typography>
+                  <Box className="flex flex-col gap-4">
+                    <Box className="grid grid-cols-2 gap-4">
+                      <Controller
+                        name="prePickupAbsoluteCurrency"
+                        control={control}
+                        render={({ field: { onChange, value } }) => (
+                          <SelectField
+                            title="Currency"
                             value={value}
-                            onChange={(newValue) => onChange(newValue)}
-                            slotProps={{
-                              textField: {
-                                placeholder: "Select expiry date",
-                                fullWidth: true,
-                                sx: {
-                                  width: "100%",
-                                  "& .MuiOutlinedInput-root": {
-                                    height: "52px",
-                                    borderRadius: "8px",
-                                    backgroundColor: "#F4F7FF !important",
-                                    fontFamily: "Switzer",
-                                    "& fieldset": {
-                                      border: "none",
-                                    },
-                                  },
-                                  "& .MuiPickersInputBase-root": {
-                                    backgroundColor: "#F4F7FF !important",
-                                  },
-                                  "& .MuiInputBase-input": {
-                                    fontFamily: "Switzer",
-                                    fontSize: "16px",
-                                    color: "#374151",
-                                    backgroundColor: "transparent",
-                                  },
-                                },
-                              },
-                            }}
-                            slots={{
-                              openPickerIcon: () => <TbCalendar size={20} style={{ color: "#6B7280" }} />,
-                            }}
+                            onChange={(e) => onChange(e.target.value)}
+                            options={currencyOptions}
+                            placeholder="Select currency"
+                            fullWidth
+                            tooltipText="Currency code for pre-pickup cancellation charges (e.g., USD, EUR, GBP)."
                           />
-                        </Box>
-                      )}
-                    />
-                  </Box>
-                </Box>
-              </Box>
-
-              <Divider />
-
-              {/* Pre-Pickup Charges Section */}
-              <Box>
-                <Typography variant="h6" sx={{ mb: 1, fontFamily: "Switzer", fontWeight: 600 }}>
-                  Pre-Pickup Charges
-                </Typography>
-                <Typography variant="body2" sx={{ mb: 2, color: "grey.80", fontFamily: "Switzer", fontSize: "12px" }}>
-                  Define cancellation fees and policies for orders that are cancelled before the pickup has occurred. Set absolute amounts, percentages, free charge windows, and first cancellation leniency.
-                </Typography>
-                <Box className="flex flex-col gap-4">
-                  <Box className="grid grid-cols-2 gap-4">
-                    <Controller
-                      name="prePickupAbsoluteCurrency"
-                      control={control}
-                      render={({ field: { onChange, value } }) => (
-                        <SelectField
-                          title="Currency"
-                          value={value}
-                          onChange={(e) => onChange(e.target.value)}
-                          options={currencyOptions}
-                          placeholder="Select currency"
-                          fullWidth
-                          tooltipText="Currency code for pre-pickup cancellation charges (e.g., USD, EUR, GBP)."
-                        />
-                      )}
-                    />
-
-                    <Controller
-                      name="prePickupFeeType"
-                      control={control}
-                      render={({ field: { onChange, value } }) => (
-                        <SelectField
-                          title="Fee Type"
-                          value={value}
-                          onChange={(e) => {
-                            onChange(e.target.value);
-                            // Clear the fee value when switching types
-                            reset({
-                              ...watch(),
-                              prePickupFeeType: e.target.value,
-                              prePickupFeeValue: "",
-                            });
-                          }}
-                          options={[
-                            { value: "absolute", label: "Absolute Amount" },
-                            { value: "percentage", label: "Percentage (%)" },
-                          ]}
-                          placeholder="Select fee type"
-                          fullWidth
-                          tooltipText="Choose between a fixed amount (Absolute) or a percentage of the order value (Percentage)."
-                        />
-                      )}
-                    />
-                  </Box>
-
-                  <Controller
-                    name="prePickupFeeValue"
-                    control={control}
-                    render={({ field: { onChange, value } }) => (
-                      <InputFieldModal
-                        title={prePickupFeeType === "absolute" ? "Absolute Amount" : "Percentage (%)"}
-                        placeholder={prePickupFeeType === "absolute" ? "Enter amount" : "Enter percentage"}
-                        type="number"
-                        value={value || ""}
-                        onChange={(e) => onChange(e.target.value)}
-                        tooltipText={
-                          prePickupFeeType === "absolute"
-                            ? "Fixed cancellation fee amount for pre-pickup cancellations. This is a flat fee charged when a customer cancels before pickup."
-                            : "Percentage-based cancellation fee for pre-pickup cancellations (e.g., 5.00 for 5% of order value)."
-                        }
+                        )}
                       />
-                    )}
-                  />
 
-                  <Controller
-                    name="prePickupFreeChargeWindowMinutes"
-                    control={control}
-                    render={({ field: { onChange, value } }) => (
-                      <InputFieldModal
-                        title="Free Charge Window (Minutes)"
-                        placeholder="Enter minutes"
-                        type="number"
-                        value={value || ""}
-                        onChange={(e) => onChange(e.target.value)}
-                        tooltipText="Time window in minutes after order placement where cancellations are free. Cancellations within this window will not incur any charges."
+                      <Controller
+                        name="prePickupFeeType"
+                        control={control}
+                        render={({ field: { onChange, value } }) => (
+                          <SelectField
+                            title="Fee Type"
+                            value={value}
+                            onChange={(e) => {
+                              onChange(e.target.value);
+                              // Clear the fee value when switching types
+                              reset({
+                                ...watch(),
+                                prePickupFeeType: e.target.value,
+                                prePickupFeeValue: "",
+                              });
+                            }}
+                            options={[
+                              { value: "absolute", label: "Absolute Amount" },
+                              { value: "percentage", label: "Percentage (%)" },
+                            ]}
+                            placeholder="Select fee type"
+                            fullWidth
+                            tooltipText="Choose between a fixed amount (Absolute) or a percentage of the order value (Percentage)."
+                          />
+                        )}
                       />
-                    )}
-                  />
-
-                  <Controller
-                    name="prePickupFirstCancellationLeniency"
-                    control={control}
-                    render={({ field: { onChange, value } }) => (
-                      <Box className="flex items-center gap-2">
-                        <StyledCheckbox
-                          checked={value}
-                          onChange={(e) => onChange(e.target.checked)}
-                        />
-                        <LabelWithTooltip
-                          label="First Cancellation Leniency"
-                          tooltipText="Automatically forgive the first cancellation. When enabled, the first cancellation for each customer is automatically forgiven without charging a fee."
-                        />
-                      </Box>
-                    )}
-                  />
-                </Box>
-              </Box>
-
-              <Divider />
-
-              {/* Unprocessed Order Charges Section */}
-              <Box>
-                <Typography variant="h6" sx={{ mb: 1, fontFamily: "Switzer", fontWeight: 600 }}>
-                  Unprocessed Order Charges
-                </Typography>
-                <Typography variant="body2" sx={{ mb: 2, color: "grey.80", fontFamily: "Switzer", fontSize: "12px" }}>
-                  Configure cancellation fees for orders that have been picked up but not yet processed. Set charges based on time after pickup, order value percentage, and cancellation permissions.
-                </Typography>
-                <Box className="flex flex-col gap-4">
-                  <Box className="grid grid-cols-2 gap-4">
-                    <Controller
-                      name="unprocessedAbsoluteCurrency"
-                      control={control}
-                      render={({ field: { onChange, value } }) => (
-                        <SelectField
-                          title="Currency"
-                          value={value}
-                          onChange={(e) => onChange(e.target.value)}
-                          options={currencyOptions}
-                          placeholder="Select currency"
-                          fullWidth
-                          tooltipText="Currency code for unprocessed order cancellation charges (e.g., USD, EUR, GBP)."
-                        />
-                      )}
-                    />
+                    </Box>
 
                     <Controller
-                      name="unprocessedFeeType"
-                      control={control}
-                      render={({ field: { onChange, value } }) => (
-                        <SelectField
-                          title="Fee Type"
-                          value={value}
-                          onChange={(e) => {
-                            onChange(e.target.value);
-                            // Clear the fee value when switching types
-                            reset({
-                              ...watch(),
-                              unprocessedFeeType: e.target.value,
-                              unprocessedFeeValue: "",
-                            });
-                          }}
-                          options={[
-                            { value: "absolute", label: "Absolute Amount" },
-                            { value: "percentage", label: "Percentage (%)" },
-                          ]}
-                          placeholder="Select fee type"
-                          fullWidth
-                          tooltipText="Choose between a fixed amount (Absolute) or a percentage of the order value (Percentage)."
-                        />
-                      )}
-                    />
-                  </Box>
-
-                  <Controller
-                    name="unprocessedFeeValue"
-                    control={control}
-                    render={({ field: { onChange, value } }) => (
-                      <InputFieldModal
-                        title={unprocessedFeeType === "absolute" ? "Absolute Amount" : "Percentage (%)"}
-                        placeholder={unprocessedFeeType === "absolute" ? "Enter amount" : "Enter percentage"}
-                        type="number"
-                        value={value || ""}
-                        onChange={(e) => onChange(e.target.value)}
-                        tooltipText={
-                          unprocessedFeeType === "absolute"
-                            ? "Fixed cancellation fee amount for unprocessed order cancellations. This is a flat fee charged when a customer cancels an unprocessed order."
-                            : "Percentage-based cancellation fee for unprocessed orders (e.g., 5.00 for 5% of order value)."
-                        }
-                      />
-                    )}
-                  />
-
-                  <Box className="grid grid-cols-2 gap-4">
-
-                    <Controller
-                      name="unprocessedAfterPickupMinutes"
+                      name="prePickupFeeValue"
                       control={control}
                       render={({ field: { onChange, value } }) => (
                         <InputFieldModal
-                          title="After Pickup (Minutes)"
+                          title={prePickupFeeType === "absolute" ? "Absolute Amount" : "Percentage (%)"}
+                          placeholder={prePickupFeeType === "absolute" ? "Enter amount" : "Enter percentage"}
+                          type="number"
+                          value={value || ""}
+                          onChange={(e) => onChange(e.target.value)}
+                          tooltipText={
+                            prePickupFeeType === "absolute"
+                              ? "Fixed cancellation fee amount for pre-pickup cancellations. This is a flat fee charged when a customer cancels before pickup."
+                              : "Percentage-based cancellation fee for pre-pickup cancellations (e.g., 5.00 for 5% of order value)."
+                          }
+                        />
+                      )}
+                    />
+
+                    <Controller
+                      name="prePickupFreeChargeWindowMinutes"
+                      control={control}
+                      render={({ field: { onChange, value } }) => (
+                        <InputFieldModal
+                          title="Free Charge Window (Minutes)"
                           placeholder="Enter minutes"
                           type="number"
                           value={value || ""}
                           onChange={(e) => onChange(e.target.value)}
-                          tooltipText="Time window in minutes after pickup where cancellations are allowed. Cancellations after this window may have different charges or restrictions."
+                          tooltipText="Time window in minutes after order placement where cancellations are free. Cancellations within this window will not incur any charges."
+                        />
+                      )}
+                    />
+
+                    <Controller
+                      name="prePickupFirstCancellationLeniency"
+                      control={control}
+                      render={({ field: { onChange, value } }) => (
+                        <Box className="flex items-center gap-2">
+                          <StyledCheckbox
+                            checked={value}
+                            onChange={(e) => onChange(e.target.checked)}
+                          />
+                          <LabelWithTooltip
+                            label="First Cancellation Leniency"
+                            tooltipText="Automatically forgive the first cancellation. When enabled, the first cancellation for each customer is automatically forgiven without charging a fee."
+                          />
+                        </Box>
+                      )}
+                    />
+                  </Box>
+                </Box>
+
+                <Divider />
+
+                {/* Unprocessed Order Charges Section */}
+                <Box>
+                  <Typography variant="h6" sx={{ mb: 1, fontFamily: "Switzer", fontWeight: 600 }}>
+                    Unprocessed Order Charges
+                  </Typography>
+                  <Typography variant="body2" sx={{ mb: 2, color: "grey.80", fontFamily: "Switzer", fontSize: "12px" }}>
+                    Configure cancellation fees for orders that have been picked up but not yet processed. Set charges based on time after pickup, order value percentage, and cancellation permissions.
+                  </Typography>
+                  <Box className="flex flex-col gap-4">
+                    <Box className="grid grid-cols-2 gap-4">
+                      <Controller
+                        name="unprocessedAbsoluteCurrency"
+                        control={control}
+                        render={({ field: { onChange, value } }) => (
+                          <SelectField
+                            title="Currency"
+                            value={value}
+                            onChange={(e) => onChange(e.target.value)}
+                            options={currencyOptions}
+                            placeholder="Select currency"
+                            fullWidth
+                            tooltipText="Currency code for unprocessed order cancellation charges (e.g., USD, EUR, GBP)."
+                          />
+                        )}
+                      />
+
+                      <Controller
+                        name="unprocessedFeeType"
+                        control={control}
+                        render={({ field: { onChange, value } }) => (
+                          <SelectField
+                            title="Fee Type"
+                            value={value}
+                            onChange={(e) => {
+                              onChange(e.target.value);
+                              // Clear the fee value when switching types
+                              reset({
+                                ...watch(),
+                                unprocessedFeeType: e.target.value,
+                                unprocessedFeeValue: "",
+                              });
+                            }}
+                            options={[
+                              { value: "absolute", label: "Absolute Amount" },
+                              { value: "percentage", label: "Percentage (%)" },
+                            ]}
+                            placeholder="Select fee type"
+                            fullWidth
+                            tooltipText="Choose between a fixed amount (Absolute) or a percentage of the order value (Percentage)."
+                          />
+                        )}
+                      />
+                    </Box>
+
+                    <Controller
+                      name="unprocessedFeeValue"
+                      control={control}
+                      render={({ field: { onChange, value } }) => (
+                        <InputFieldModal
+                          title={unprocessedFeeType === "absolute" ? "Absolute Amount" : "Percentage (%)"}
+                          placeholder={unprocessedFeeType === "absolute" ? "Enter amount" : "Enter percentage"}
+                          type="number"
+                          value={value || ""}
+                          onChange={(e) => onChange(e.target.value)}
+                          tooltipText={
+                            unprocessedFeeType === "absolute"
+                              ? "Fixed cancellation fee amount for unprocessed order cancellations. This is a flat fee charged when a customer cancels an unprocessed order."
+                              : "Percentage-based cancellation fee for unprocessed orders (e.g., 5.00 for 5% of order value)."
+                          }
+                        />
+                      )}
+                    />
+
+                    <Box className="grid grid-cols-2 gap-4">
+
+                      <Controller
+                        name="unprocessedAfterPickupMinutes"
+                        control={control}
+                        render={({ field: { onChange, value } }) => (
+                          <InputFieldModal
+                            title="After Pickup (Minutes)"
+                            placeholder="Enter minutes"
+                            type="number"
+                            value={value || ""}
+                            onChange={(e) => onChange(e.target.value)}
+                            tooltipText="Time window in minutes after pickup where cancellations are allowed. Cancellations after this window may have different charges or restrictions."
+                          />
+                        )}
+                      />
+                    </Box>
+
+                    <Controller
+                      name="unprocessedOrderValuePercentage"
+                      control={control}
+                      render={({ field: { onChange, value } }) => (
+                        <InputFieldModal
+                          title="Order Value Percentage (%)"
+                          placeholder="Enter percentage"
+                          type="number"
+                          value={value || ""}
+                          onChange={(e) => onChange(e.target.value)}
+                          tooltipText="Percentage of order value used for calculating cancellation fees for unprocessed orders (e.g., 10.00 for 10% of order value)."
+                        />
+                      )}
+                    />
+
+                    <Controller
+                      name="allowCancelUnprocessed"
+                      control={control}
+                      render={({ field: { onChange, value } }) => (
+                        <Box className="flex items-center gap-2">
+                          <StyledCheckbox
+                            checked={value}
+                            onChange={(e) => onChange(e.target.checked)}
+                          />
+                          <LabelWithTooltip
+                            label="Allow Cancel Unprocessed"
+                            tooltipText="Allow cancellation of unprocessed orders. When enabled, customers can cancel orders that have not yet been processed."
+                          />
+                        </Box>
+                      )}
+                    />
+                  </Box>
+                </Box>
+
+                <Divider />
+
+                {/* Courtesy Window Section */}
+                <Box>
+                  <Typography variant="h6" sx={{ mb: 1, fontFamily: "Switzer", fontWeight: 600 }}>
+                    Courtesy Window
+                  </Typography>
+                  <Typography variant="body2" sx={{ mb: 2, color: "grey.80", fontFamily: "Switzer", fontSize: "12px" }}>
+                    Set up a grace period where customers can cancel orders with reduced or waived fees. Configure the time window, maximum charge cap, and number of allowed courtesy cancellations.
+                  </Typography>
+                  <Box className="flex flex-col gap-4">
+                    <Box className="grid grid-cols-2 gap-4">
+                      <Controller
+                        name="courtesyWindowDays"
+                        control={control}
+                        render={({ field: { onChange, value } }) => (
+                          <InputFieldModal
+                            title="Window Days"
+                            placeholder="Enter days"
+                            type="number"
+                            value={value || ""}
+                            onChange={(e) => onChange(e.target.value)}
+                            tooltipText="Time window in days for courtesy cancellations. Cancellations within this window may be eligible for courtesy waivers."
+                          />
+                        )}
+                      />
+
+                      <Controller
+                        name="courtesyCapAmount"
+                        control={control}
+                        render={({ field: { onChange, value } }) => (
+                          <InputFieldModal
+                            title="Cap Amount"
+                            placeholder="Enter amount"
+                            type="number"
+                            value={value || ""}
+                            onChange={(e) => onChange(e.target.value)}
+                            tooltipText="Maximum total cancellation charges per customer within the courtesy window. Once this cap is reached, additional cancellations may be waived."
+                          />
+                        )}
+                      />
+                    </Box>
+
+                    <Controller
+                      name="courtesyCount"
+                      control={control}
+                      render={({ field: { onChange, value } }) => (
+                        <InputFieldModal
+                          title="Count"
+                          placeholder="Enter count"
+                          type="number"
+                          value={value || ""}
+                          onChange={(e) => onChange(e.target.value)}
+                          tooltipText="Maximum number of courtesy cancellations allowed per customer within the courtesy window period."
                         />
                       )}
                     />
                   </Box>
+                </Box>
 
-                  <Controller
-                    name="unprocessedOrderValuePercentage"
-                    control={control}
-                    render={({ field: { onChange, value } }) => (
-                      <InputFieldModal
-                        title="Order Value Percentage (%)"
-                        placeholder="Enter percentage"
-                        type="number"
-                        value={value || ""}
-                        onChange={(e) => onChange(e.target.value)}
-                        tooltipText="Percentage of order value used for calculating cancellation fees for unprocessed orders (e.g., 10.00 for 10% of order value)."
-                      />
-                    )}
-                  />
+                <Divider />
 
+                {/* Customer Leniency Section */}
+                <Box>
+                  <Typography variant="h6" sx={{ mb: 1, fontFamily: "Switzer", fontWeight: 600 }}>
+                    Customer Leniency
+                  </Typography>
+                  <Typography variant="body2" sx={{ mb: 2, color: "grey.80", fontFamily: "Switzer", fontSize: "12px" }}>
+                    Enable customer-friendly leniency features such as first cancellation forgiveness and courtesy windows to provide a better customer experience while managing cancellation policies.
+                  </Typography>
                   <Controller
-                    name="allowCancelUnprocessed"
+                    name="customerLeniencyEnabled"
                     control={control}
                     render={({ field: { onChange, value } }) => (
                       <Box className="flex items-center gap-2">
@@ -1267,103 +1535,14 @@ export default function CancellationPolicy() {
                           onChange={(e) => onChange(e.target.checked)}
                         />
                         <LabelWithTooltip
-                          label="Allow Cancel Unprocessed"
-                          tooltipText="Allow cancellation of unprocessed orders. When enabled, customers can cancel orders that have not yet been processed."
+                          label="Enable Customer Leniency"
+                          tooltipText="Enable customer leniency features. When enabled, the system applies leniency rules such as first cancellation forgiveness and courtesy windows."
                         />
                       </Box>
                     )}
                   />
                 </Box>
               </Box>
-
-              <Divider />
-
-              {/* Courtesy Window Section */}
-              <Box>
-                <Typography variant="h6" sx={{ mb: 1, fontFamily: "Switzer", fontWeight: 600 }}>
-                  Courtesy Window
-                </Typography>
-                <Typography variant="body2" sx={{ mb: 2, color: "grey.80", fontFamily: "Switzer", fontSize: "12px" }}>
-                  Set up a grace period where customers can cancel orders with reduced or waived fees. Configure the time window, maximum charge cap, and number of allowed courtesy cancellations.
-                </Typography>
-                <Box className="flex flex-col gap-4">
-                  <Box className="grid grid-cols-2 gap-4">
-                    <Controller
-                      name="courtesyWindowDays"
-                      control={control}
-                      render={({ field: { onChange, value } }) => (
-                        <InputFieldModal
-                          title="Window Days"
-                          placeholder="Enter days"
-                          type="number"
-                          value={value || ""}
-                          onChange={(e) => onChange(e.target.value)}
-                          tooltipText="Time window in days for courtesy cancellations. Cancellations within this window may be eligible for courtesy waivers."
-                        />
-                      )}
-                    />
-
-                    <Controller
-                      name="courtesyCapAmount"
-                      control={control}
-                      render={({ field: { onChange, value } }) => (
-                        <InputFieldModal
-                          title="Cap Amount"
-                          placeholder="Enter amount"
-                          type="number"
-                          value={value || ""}
-                          onChange={(e) => onChange(e.target.value)}
-                          tooltipText="Maximum total cancellation charges per customer within the courtesy window. Once this cap is reached, additional cancellations may be waived."
-                        />
-                      )}
-                    />
-                  </Box>
-
-                  <Controller
-                    name="courtesyCount"
-                    control={control}
-                    render={({ field: { onChange, value } }) => (
-                      <InputFieldModal
-                        title="Count"
-                        placeholder="Enter count"
-                        type="number"
-                        value={value || ""}
-                        onChange={(e) => onChange(e.target.value)}
-                        tooltipText="Maximum number of courtesy cancellations allowed per customer within the courtesy window period."
-                      />
-                    )}
-                  />
-                </Box>
-              </Box>
-
-              <Divider />
-
-              {/* Customer Leniency Section */}
-              <Box>
-                <Typography variant="h6" sx={{ mb: 1, fontFamily: "Switzer", fontWeight: 600 }}>
-                  Customer Leniency
-                </Typography>
-                <Typography variant="body2" sx={{ mb: 2, color: "grey.80", fontFamily: "Switzer", fontSize: "12px" }}>
-                  Enable customer-friendly leniency features such as first cancellation forgiveness and courtesy windows to provide a better customer experience while managing cancellation policies.
-                </Typography>
-                <Controller
-                  name="customerLeniencyEnabled"
-                  control={control}
-                  render={({ field: { onChange, value } }) => (
-                    <Box className="flex items-center gap-2">
-                      <StyledCheckbox
-                        checked={value}
-                        onChange={(e) => onChange(e.target.checked)}
-                      />
-                      <LabelWithTooltip
-                        label="Enable Customer Leniency"
-                        tooltipText="Enable customer leniency features. When enabled, the system applies leniency rules such as first cancellation forgiveness and courtesy windows."
-                      />
-                    </Box>
-                  )}
-                />
-              </Box>
-            </Box>
             </LocalizationProvider>
           </ModalComponent>
 
@@ -1453,6 +1632,83 @@ export default function CancellationPolicy() {
                   bgcolor="grey.60"
                 />
               </Box>
+            </Box>
+          </ModalComponent>
+
+          {/* Cancellation Reasons Modal */}
+          <ModalComponent
+            open={reasonsModalOpen}
+            title="MANAGE CANCELLATION REASONS"
+            onClose={handleCloseReasonsModal}
+            width={600}
+            primaryAction={{
+              label: "Save Reasons",
+              onClick: handleSubmitReasons,
+              isLoading: isCreatingReason,
+            }}
+            secondaryAction={{
+              label: "Cancel",
+              onClick: handleCloseReasonsModal,
+            }}
+          >
+            <Box className="flex flex-col gap-4">
+              <Typography
+                variant="body2"
+                sx={{ color: "grey.80", fontFamily: "Switzer", mb: 2 }}
+              >
+                Add cancellation reasons that customers can select when canceling their orders.
+              </Typography>
+
+              {cancelReasons.map((reason, index) => {
+                const hasId = reasonIds[index] !== null && reasonIds[index] !== undefined;
+                return (
+                  <Box key={index} className="flex items-center gap-2">
+                    <Box className="flex-1">
+                      <InputFieldModal
+                        placeholder={`Enter cancellation reason ${index + 1}`}
+                        value={reason}
+                        onChange={(e) => handleReasonChange(index, e.target.value)}
+                        title={index === 0 ? "Cancellation Reason" : ""}
+                        disabled={hasId} // Disable editing existing reasons
+                      />
+                    </Box>
+                    {(cancelReasons.length > 1 || hasId) && (
+                      <Box
+                        onClick={() => hasId ? handleDeleteReason(index) : handleRemoveReason(index)}
+                        sx={{
+                          cursor: "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          width: "40px",
+                          height: "52px",
+                          borderRadius: "8px",
+                          backgroundColor: hasId ? "#FEE2E2" : "#FEE2E2",
+                          color: "#DC2626",
+                          "&:hover": {
+                            backgroundColor: "#FECACA",
+                          },
+                        }}
+                        title={hasId ? "Delete from database" : "Remove from list"}
+                      >
+                        <TbTrash size={20} />
+                      </Box>
+                    )}
+                  </Box>
+                );
+              })}
+
+              <ButtonBlueLight
+                variant="outlined"
+                bgColor="blue.200"
+                color="white"
+                radius="8px"
+                startIcon={<TbPlus size={"20px"} />}
+                onClick={handleAddReason}
+                sx={{ mt: 1 }}
+              >
+                Add Another Reason
+              </ButtonBlueLight>
             </Box>
           </ModalComponent>
         </Box>
