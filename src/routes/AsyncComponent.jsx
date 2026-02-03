@@ -100,6 +100,8 @@ export const Reports = lazy(() => import("../pages/reports/Reports"));
 
 export const Blogs = lazy(() => import("../pages/blogs/Blogs"));
 
+export const FAQ = lazy(() => import("../pages/faq/FAQ"));
+
 export const CountriesAndCities = lazy(() =>
   import("../pages/countries-cities/CountriesAndCities")
 );

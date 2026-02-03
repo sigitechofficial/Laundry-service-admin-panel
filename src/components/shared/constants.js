@@ -13,6 +13,7 @@ import {
   TbSettings,
   TbReportSearch,
   TbFileDescription,
+  TbHelp,
   BsCardList,
   TbX,
 } from "../../shared/icons/index";
@@ -214,6 +215,12 @@ export const sidebarList = [
     label: "Blogs",
     Icon: TbFileDescription,
     path: "/blogs",
+    size: "24px",
+  },
+  {
+    label: "FAQ",
+    Icon: TbHelp,
+    path: "/faq",
     size: "24px",
   },
   {

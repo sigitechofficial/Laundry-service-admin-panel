@@ -558,6 +558,66 @@ export const api = createApi({
         method: "DELETE",
       }),
     }),
+
+    getAllFAQs: builder.query({
+      query: () => ({
+        url: "admin/getAllFAQs",
+        method: "GET",
+      }),
+    }),
+
+    createFAQ: builder.mutation({
+      query: (body) => ({
+        url: "admin/createFAQ",
+        method: "POST",
+        body,
+      }),
+    }),
+
+    updateFAQ: builder.mutation({
+      query: ({ faqId, body }) => ({
+        url: `admin/updateFAQ/${faqId}`,
+        method: "PUT",
+        body,
+      }),
+    }),
+
+    deleteFAQ: builder.mutation({
+      query: (faqId) => ({
+        url: `admin/deleteFAQ/${faqId}`,
+        method: "DELETE",
+      }),
+    }),
+
+    getAllBlogs: builder.query({
+      query: () => ({
+        url: "admin/getAllBlogs",
+        method: "GET",
+      }),
+    }),
+
+    deleteBlog: builder.mutation({
+      query: (blogId) => ({
+        url: `admin/deleteBlog/${blogId}`,
+        method: "DELETE",
+      }),
+    }),
+
+    createBlog: builder.mutation({
+      query: (body) => ({
+        url: "admin/createBlog",
+        method: "POST",
+        body,
+      }),
+    }),
+
+    updateBlog: builder.mutation({
+      query: ({ blogId, body }) => ({
+        url: `admin/updateBlog/${blogId}`,
+        method: "PUT",
+        body,
+      }),
+    }),
   }),
 });
 
@@ -628,5 +688,13 @@ export const {
   useAddNoShowPolicyMutation,
   useGetNoShowPoliciesQuery,
   useUpdateNoShowPolicyMutation,
-  useDeleteNoShowPolicyMutation
+  useDeleteNoShowPolicyMutation,
+  useGetAllFAQsQuery,
+  useCreateFAQMutation,
+  useUpdateFAQMutation,
+  useDeleteFAQMutation,
+  useGetAllBlogsQuery,
+  useDeleteBlogMutation,
+  useCreateBlogMutation,
+  useUpdateBlogMutation
 } = api;

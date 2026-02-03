@@ -34,6 +34,8 @@ import {
   TbFilter,
   TbArrowsSort,
   TbReportSearch,
+  TbHelp,
+  TbSparkles,
 } from "react-icons/tb";
 import { IoEye, IoChevronBackOutline } from "react-icons/io5";
 import { CiViewList, CiEdit } from "react-icons/ci";
@@ -116,6 +118,8 @@ export {
   IconShop,
   IconDriver,
   TbReportSearch,
+  TbHelp,
+  TbSparkles,
   AiFillFileText,
   AiOutlineEye,
   AiOutlineEyeInvisible,

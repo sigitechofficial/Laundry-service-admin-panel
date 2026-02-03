@@ -21,6 +21,7 @@ import {
   Configurations,
   Reports,
   Blogs,
+  FAQ,
   EditCustomer,
   AllOrders,
   CompleteOrders,
@@ -149,6 +150,11 @@ export const privateRoutes = [
     path: "/blogs",
     element: Blogs,
     resourceKey: "blogs_Page",
+  },
+  {
+    path: "/faq",
+    element: FAQ,
+    resourceKey: "faq_Page",
   },
   {
     path: "/orders/all-orders",
