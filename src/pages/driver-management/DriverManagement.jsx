@@ -84,7 +84,6 @@ export default function DriverManagement() {
       // Keep original driver data for edit modal - include all available fields from API
       firstName: driver.firstName || "",
       lastName: driver.lastName || "",
-      id: driver.id,
       classifiedAsId: driver.classifiedAsId || null,
       phoneNum: driver.phoneNum || driver.phone || "",
       countryCode: driver.countryCode || "",
