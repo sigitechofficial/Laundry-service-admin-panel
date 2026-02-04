@@ -31,7 +31,7 @@ export default function DriverManagement() {
   const [selectedDriver, setSelectedDriver] = useState(null);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [driverToDelete, setDriverToDelete] = useState(null);
-  
+
   // Debug: Log selectedDriver when it changes
   React.useEffect(() => {
     console.log("=== selectedDriver state changed ===");
@@ -46,10 +46,10 @@ export default function DriverManagement() {
   // Fetch drivers data from the new API
   const { data: driversResponse, isLoading, refetch: refetchDrivers } = useGetAllDriverMiniDetailsQuery();
   const { data, refetch: refetchCount } = useGetAllCustomersCountQuery();
-  
+
   // Extract drivers from API response
   const drivers = driversResponse?.data || [];
-  
+
   // Debug: Log API response to see available fields
   React.useEffect(() => {
     if (driversResponse?.data && driversResponse.data.length > 0) {
@@ -84,7 +84,6 @@ export default function DriverManagement() {
       // Keep original driver data for edit modal - include all available fields from API
       firstName: driver.firstName || "",
       lastName: driver.lastName || "",
-      email: driver.email || "",
       id: driver.id,
       classifiedAsId: driver.classifiedAsId || null,
       phoneNum: driver.phoneNum || driver.phone || "",
@@ -173,7 +172,7 @@ export default function DriverManagement() {
         <ChangeStatus
           width={"45px"}
           checked={row.changeStatus}
-          // onChange={(e) => setChecked(e.target.checked)}
+        // onChange={(e) => setChecked(e.target.checked)}
         />
       ),
     },
