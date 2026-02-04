@@ -13,7 +13,7 @@ import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
 import ModalComponent from "../../components/shared/Modal";
 import InputFieldModal from "../../components/ui/InputFieldModal";
-import TextareaField from "../../components/ui/TextArea";
+import BlogEditor from "../../components/ui/BlogEditor";
 import ImageUpload from "../../components/ui/ImageUpload";
 import { TbSparkles } from "../../shared/icons/index";
 import { generateWithGemini } from "../../utilities/geminiApi";
@@ -38,9 +38,9 @@ const getBlogSchema = (isEdit) =>
     image: isEdit
       ? yup.mixed().nullable()
       : yup
-          .mixed()
-          .required("Image is required")
-          .test("isFile", "Please select an image file", (value) => value instanceof File),
+        .mixed()
+        .required("Image is required")
+        .test("isFile", "Please select an image file", (value) => value instanceof File),
   });
 
 const defaultValues = {
@@ -179,13 +179,12 @@ export default function AddBlogModal({ open, onClose, onSave, isLoading = false,
           render={({ field: { onChange, value } }) => (
             <Box>
               <Box sx={{ position: "relative", width: "100%" }}>
-                <TextareaField
+                <BlogEditor
                   title="Description"
                   placeholder="Enter blog description"
-                  name="description"
-                  value={value}
-                  onChange={(e) => onChange(e.target.value)}
-                  rows={4}
+                  value={value || ""}
+                  onChange={(html) => onChange(html)}
+                  minHeight={140}
                 />
                 <IconButton
                   ref={aiButtonRef}
