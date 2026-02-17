@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { Box, Typography } from "@mui/material";
-import Layout from "../../components/shared/Layout";
 import { BsCardList } from "../../shared/icons/index";
 
 import DataTable from "../../components/ui/DataTable";
@@ -126,13 +125,10 @@ export default function Reports() {
         break;
     }
   };
+  if (isLoading) return <Delay />;
+
   return (
-    <Layout
-      content={
-        isLoading ? (
-          <Delay />
-        ) : (
-          <div className="!space-y-11">
+    <div className="!space-y-11">
             <Box className="flex items-center gap-x-5 justify-between">
               <Box className="flex items-center gap-x-5">
                 <Typography color="blue.50">
@@ -166,8 +162,5 @@ export default function Reports() {
               />
             </div>
           </div>
-        )
-      }
-    />
   );
 }

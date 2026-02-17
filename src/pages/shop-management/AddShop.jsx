@@ -1,19 +1,30 @@
 import React, { useState } from "react";
-import InputFieldModal from "../../components/ui/InputFieldModal";
+import { useNavigate } from "react-router-dom";
 import InputFieldBordered from "../../components/ui/InputFieldBordered";
 import SelectField from "../../components/ui/SelectField";
 import { Select, MenuItem, FormControl, Typography, Checkbox, ListItemText } from "@mui/material";
-import { useGetAllServicesQuery } from "../../store/services/api";
+import {
+  useGetAllServicesQuery,
+  useGetAllCountriesQuery,
+  useGetCitiesByCountryIdQuery,
+  useGetAllZonesQuery,
+  useAddShopMutation,
+} from "../../store/services/api";
 import { useSelector } from "react-redux";
+import useToaster from "../../components/ui/Toaster";
 
 export default function ShopProfile() {
+  const navigate = useNavigate();
+  const { success, error } = useToaster();
   const [tab, setTab] = useState(0);
   const [formData, setFormData] = useState({
     shopName: "",
     email: "",
     phone: "",
     country: "",
+    countryId: "",
     city: "",
+    cityId: "",
     address: "",
     bussinessName: "",
     turnaroundTime: "",
@@ -21,52 +32,55 @@ export default function ShopProfile() {
     countOfMachinery: "",
     services: [],
     whatMatchYourProfile: "",
+    noOfEmployee: "",
     noOfEmployees: "",
     zone: "",
   });
 
-  // Fetch services
+  // Fetch services, countries, zones
   const { isLoading: servicesLoading } = useGetAllServicesQuery();
+  const { data: countriesData } = useGetAllCountriesQuery();
+  const { data: zonesResponse } = useGetAllZonesQuery();
+  const { data: citiesData } = useGetCitiesByCountryIdQuery(formData.countryId, {
+    skip: !formData.countryId,
+  });
+  const [addShop, { isLoading: isAdding }] = useAddShopMutation();
+
   const services = useSelector((state) => state.apiData.services);
+  const countries = countriesData?.data ?? [];
+  const zones = zonesResponse?.data ?? [];
+  const cities = citiesData?.data ?? [];
 
-  // Transform services to options format
-  const serviceOptions = services?.map((service) => ({
-    value: service.id,
-    label: service.name,
-  })) || [];
+  const serviceOptions =
+    services?.map((service) => ({
+      value: service.id,
+      label: service.name,
+    })) ?? [];
 
-  const countryOptions = [
-    { value: "pakistan", label: "Pakistan" },
-    { value: "usa", label: "United States" },
-    { value: "uk", label: "United Kingdom" },
-  ];
+  const countryOptions = countries.map((c) => ({
+    value: c.id,
+    label: c.name ?? c.shortName ?? String(c.id),
+  }));
 
-  const cityOptionsMap = {
-    pakistan: [
-      { value: "lahore", label: "Lahore" },
-      { value: "karachi", label: "Karachi" },
-      { value: "islamabad", label: "Islamabad" },
-    ],
-    usa: [
-      { value: "newyork", label: "New York" },
-      { value: "losangeles", label: "Los Angeles" },
-      { value: "chicago", label: "Chicago" },
-    ],
-    uk: [
-      { value: "london", label: "London" },
-      { value: "manchester", label: "Manchester" },
-      { value: "birmingham", label: "Birmingham" },
-    ],
-  };
+  const cityOptions = cities.map((c) => ({
+    value: c.id,
+    label: c.name ?? String(c.id),
+  }));
 
-  const currentCityOptions = cityOptionsMap[formData.country] || [];
-  console.log("formData", formData);
+  const zoneOptions = Array.isArray(zones)
+    ? zones.map((z) => ({
+        value: z.id ?? z.zoneId,
+        label: z.name ?? z.zoneName ?? String(z.id ?? z.zoneId),
+      }))
+    : [];
   const handleChange = (field) => (e) => {
     const value = e?.target?.value ?? e;
     setFormData((s) => {
-      if (field === "country") {
-        // when country changes, reset city
-        return { ...s, [field]: value, city: "" };
+      if (field === "countryId" || field === "country") {
+        return { ...s, countryId: value, cityId: "", city: "" };
+      }
+      if (field === "cityId" || field === "city") {
+        return { ...s, cityId: value };
       }
       return { ...s, [field]: value };
     });
@@ -85,8 +99,8 @@ export default function ShopProfile() {
       shopName,
       email,
       phone,
-      country,
-      city,
+      countryId,
+      cityId,
       address,
       noOfEmployee,
       zone,
@@ -95,16 +109,51 @@ export default function ShopProfile() {
       !shopName ||
       !email ||
       !phone ||
-      !country ||
-      !city ||
+      !countryId ||
+      !cityId ||
       !address ||
       !noOfEmployee ||
       !zone
     )
       return false;
-    // simple email check
     const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
     return emailValid;
+  };
+
+  const handleSave = async () => {
+    try {
+      const body = {
+        shopName: formData.shopName,
+        email: formData.email,
+        phone: formData.phone,
+        countryId: parseInt(formData.countryId) || formData.countryId,
+        cityId: parseInt(formData.cityId) || formData.cityId,
+        address: formData.address,
+        noOfEmployee: formData.noOfEmployee,
+        zoneId: formData.zone ? parseInt(formData.zone) || formData.zone : undefined,
+        services: formData.services?.length ? formData.services : undefined,
+        bussinessName: formData.bussinessName || undefined,
+        turnaroundTime: formData.turnaroundTime || undefined,
+        businessHours: formData.businessHours || undefined,
+        countOfMachinery: formData.countOfMachinery || undefined,
+        whatMatchYourProfile: formData.whatMatchYourProfile || undefined,
+        noOfEmployees: formData.noOfEmployees || undefined,
+      };
+      const res = await addShop(body).unwrap();
+      if (res?.status === "1") {
+        success(res?.message ?? "Shop added successfully");
+        navigate("/shop-management/shops");
+      } else {
+        error(res?.message ?? "Failed to add shop");
+      }
+    } catch (err) {
+      const msg =
+        err?.data?.message ??
+        err?.data?.error ??
+        err?.message ??
+        "Failed to add shop";
+      error(msg);
+    }
   };
   return (
     <div className="w-full">
@@ -155,8 +204,8 @@ export default function ShopProfile() {
           <SelectField
             title="Country"
             placeholder="select country"
-            value={formData.country}
-            onChange={handleChange("country")}
+            value={formData.countryId}
+            onChange={handleChange("countryId")}
             options={countryOptions}
             bgcolor="none"
             border="1px solid #00000033"
@@ -165,13 +214,14 @@ export default function ShopProfile() {
 
           <SelectField
             title="City"
-            placeholder="select city"
-            value={formData.city}
-            onChange={handleChange("city")}
-            options={currentCityOptions}
+            placeholder={formData.countryId ? "select city" : "select country first"}
+            value={formData.cityId}
+            onChange={handleChange("cityId")}
+            options={cityOptions}
             bgcolor="none"
             border="1px solid #00000033"
             labelColor="black"
+            disabled={!formData.countryId}
           />
 
           <InputFieldBordered
@@ -190,12 +240,15 @@ export default function ShopProfile() {
             onChange={handleChange("noOfEmployee")}
           />
 
-          <InputFieldBordered
+          <SelectField
             title="Zone"
-            placeholder="Lahore"
-            name="zone"
+            placeholder="Select zone"
             value={formData.zone}
             onChange={handleChange("zone")}
+            options={zoneOptions}
+            bgcolor="none"
+            border="1px solid #00000033"
+            labelColor="black"
           />
 
           <div className="sm:col-span-2 flex justify-end pt-4">
@@ -228,7 +281,13 @@ export default function ShopProfile() {
             value={formData.turnaroundTime}
             onChange={handleChange("turnaroundTime")}
           />
-          <InputFieldBordered title="Business Hours" label="" placeholder="" />
+          <InputFieldBordered
+            title="Business Hours"
+            label=""
+            placeholder=""
+            value={formData.businessHours}
+            onChange={handleChange("businessHours")}
+          />
           <InputFieldBordered
             title="Count of machinery?"
             label=""
@@ -296,12 +355,15 @@ export default function ShopProfile() {
             value={formData.noOfEmployees}
             onChange={handleChange("noOfEmployees")}
           />
-          <InputFieldBordered
+          <SelectField
             title="Zone"
-            label=""
-            placeholder=""
+            placeholder="Select zone"
             value={formData.zone}
             onChange={handleChange("zone")}
+            options={zoneOptions}
+            bgcolor="none"
+            border="1px solid #00000033"
+            labelColor="black"
           />
 
           <div className="sm:col-span-2 flex items-center justify-between pt-4">
@@ -315,9 +377,11 @@ export default function ShopProfile() {
 
             <button
               type="button"
-              className="rounded-lg font-medium text-white !px-12 !py-3 bg-blue200 hover:opacity-90 cursor-pointer"
+              disabled={isAdding}
+              onClick={handleSave}
+              className="rounded-lg font-medium text-white !px-12 !py-3 bg-blue200 hover:opacity-90 cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed"
             >
-              Save
+              {isAdding ? "Saving..." : "Save"}
             </button>
           </div>
         </div>

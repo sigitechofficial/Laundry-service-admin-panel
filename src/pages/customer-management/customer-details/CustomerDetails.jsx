@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { Box, Typography } from "@mui/material";
-import Layout from "../../../components/shared/Layout";
 import {
   BsCardList,
   MdOutlineLocationOn,
   MdOutlinePhone,
   MdMailOutline,
+  IoChevronBackOutline,
 } from "../../../shared/icons/index";
 import Search from "../../../components/ui/Search";
 import FiltersButton from "../../../components/ui/FiltersButton";
@@ -16,6 +16,7 @@ import { useGetCustomerByIdQuery } from "../../../store/services/api";
 import { Delay } from "../../../components/shared/Loaders";
 import dayjs from "dayjs";
 import OrderInvoiceModal from "../customer-modals/OrderInvoiceModal";
+import DeleteOrderModal from "../../order-management/order-modals/DeleteOrderModal";
 import { dateTimeFormat } from "../../../shared/constants";
 
 export default function CustomerDetails() {
@@ -24,28 +25,92 @@ export default function CustomerDetails() {
   const [dateRange, setDateRange] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [modalData, setModalData] = useState({ open: false, data: "" });
+  const [deleteModal, setDeleteModal] = useState({ open: false, orderId: null });
 
-  const { data, isLoading } = useGetCustomerByIdQuery(id, { skip: !id });
+  const { data, isLoading, refetch } = useGetCustomerByIdQuery(id, { skip: !id });
 
-  const customersData = data?.data?.bookingDetails?.map((booking, index) => {
+  const userDetails = data?.data?.userDetails;
+  const bookingDetails = data?.data?.bookingDetails ?? [];
+
+  // Build invoice payload for OrderInvoiceModal from specificCustomerDetails booking + userDetails
+  const bookingToInvoiceData = (booking, user) => {
+    if (!booking) return null;
+    const u = user ?? userDetails;
+    const address = [u?.streetAddress, u?.province].filter(Boolean).join(", ") || "—";
+    const shopName =
+      booking?.laundryShop?.bussinessInformations?.[0]?.shopName ||
+      booking?.laundryShop?.name ||
+      "—";
+    const num = (v) => (v != null && v !== "" ? Number(v) : 0);
+    return {
+      invoiceNo: booking?.orderTrackId ?? String(booking?.id ?? ""),
+      customer: {
+        name: u?.user
+          ? `${u.user.firstName || ""} ${u.user.lastName || ""}`.trim() || "—"
+          : "—",
+        id: u?.user?.id ?? u?.userId ?? "—",
+        address: address || "—",
+        email: u?.user?.email ?? "—",
+        phone: u?.user?.phoneNum ?? "—",
+        date: booking?.createdAt
+          ? dayjs(booking.createdAt).format(dateTimeFormat)
+          : "—",
+        driverInstruction: booking?.driverInstruction ?? "—",
+      },
+      deliveryAddress: address || "—",
+      pickupDate: booking?.collectionDate
+        ? dayjs(booking.collectionDate).format(dateTimeFormat)
+        : "—",
+      deliveryDate: booking?.deliveryDate
+        ? dayjs(booking.deliveryDate).format(dateTimeFormat)
+        : "—",
+      deliveryInstruction: booking?.driverInstruction ?? "—",
+      charges: {
+        total: num(booking?.orderAmount),
+        minimumOrderFee: 0,
+        serviceFee: 0,
+        driverTip: 0,
+      },
+      driverNote: booking?.driverInstruction ?? "",
+    };
+  };
+
+  const businessFromBooking = (booking) => {
+    const name =
+      booking?.laundryShop?.bussinessInformations?.[0]?.shopName ||
+      booking?.laundryShop?.name;
+    return name
+      ? { address: name, phone: "—", email: "—" }
+      : null;
+  };
+
+  const customersData = bookingDetails.map((booking, index) => {
+    const serviceNames = [
+      ...new Set(
+        (booking?.customerSelectedServices ?? [])
+          .map((s) => s?.service?.name)
+          .filter(Boolean)
+      ),
+    ].join(", ");
     return {
       id: booking?.id,
       sl: index + 1,
-      orderId: booking?.id,
+      orderId: booking?.orderTrackId ?? booking?.id,
       orderDateTime: dayjs(booking?.createdAt).format(dateTimeFormat),
-      serviceType: booking?.serviceType,
+      serviceType: serviceNames || "—",
       totalItems: booking?.totalItems,
       pickupDateTime: dayjs(booking?.collectionDate).format(dateTimeFormat),
       deliveryDateTime: dayjs(booking?.deliveryDate).format(dateTimeFormat),
       OrderStatus: booking?.bookingStatus?.title,
       OnHold: booking?.OnHoldConfirmations?.length,
-      pickupDriver: `
-        ${booking?.driver?.firstName || ""} ${booking?.driver?.lastName || ""}`,
-      deliveryDriver: `${booking?.driver?.firstName || ""} ${
-        booking?.driver?.lastName || ""
-      }`,
-      shopName: booking?.laundryShop?.name,
+      pickupDriver: `${booking?.driver?.firstName || ""} ${booking?.driver?.lastName || ""}`.trim(),
+      deliveryDriver: `${booking?.deliveryDriver?.firstName || ""} ${booking?.deliveryDriver?.lastName || ""}`.trim() || "—",
+      shopName:
+        booking?.laundryShop?.bussinessInformations?.[0]?.shopName ||
+        booking?.laundryShop?.name ||
+        "—",
       cost: booking?.orderAmount,
+      _booking: booking,
     };
   });
 
@@ -87,13 +152,13 @@ export default function CustomerDetails() {
       minWidth: 240,
     },
     {
-      field: "OnHold ",
-      headerName: "On-hold ",
+      field: "OnHold",
+      headerName: "On-hold",
       minWidth: 140,
     },
     {
-      field: "pickupDriver ",
-      headerName: "Pickup Driver ",
+      field: "pickupDriver",
+      headerName: "Pickup Driver",
       minWidth: 170,
     },
     {
@@ -124,9 +189,17 @@ export default function CustomerDetails() {
       sortable: false,
       renderCell: (row) => (
         <ActionButtons
-          onView={() => setModalData({ open: true, data: row })}
+          onView={() => {
+            const payload = bookingToInvoiceData(row._booking, userDetails);
+            const business = businessFromBooking(row._booking);
+            if (payload)
+              setModalData({
+                open: true,
+                data: { data: payload, business },
+              });
+          }}
           showEdit={false}
-          onDelete={() => alert("Delete clicked")}
+          onDelete={() => setDeleteModal({ open: true, orderId: row.id })}
         />
       ),
     },
@@ -161,32 +234,41 @@ export default function CustomerDetails() {
 
   const handleRowAction = (actionType, rowData) => {
     switch (actionType) {
-      case "view":
-        navigate(`/customer-management/${rowData.id}`);
+      case "view": {
+        const payload = bookingToInvoiceData(rowData?._booking, userDetails);
+        const business = businessFromBooking(rowData?._booking);
+        if (payload)
+          setModalData({ open: true, data: { data: payload, business } });
         break;
+      }
       case "edit":
-        console.log("Editing customer:", rowData.name);
+        console.log("Editing customer:", rowData?.id);
         break;
       case "delete":
-        console.log("Deleting customer:", rowData.name);
+        setDeleteModal({ open: true, orderId: rowData?.id });
         break;
       case "toggle-status":
-        console.log("Toggling status for customer:", rowData.name);
+        console.log("Toggling status for customer:", rowData?.id);
         break;
       default:
         break;
     }
   };
 
+  if (isLoading) return <Delay />;
+
   return (
-    <Layout
-      content={
-        isLoading ? (
-          <Delay />
-        ) : (
-          <div className="!space-y-11">
+    <div className="!space-y-11">
             <Box className="flex items-center gap-x-5 justify-between">
               <Box className="flex items-center gap-x-5">
+                <button
+                  type="button"
+                  onClick={() => navigate(-1)}
+                  aria-label="Go back"
+                  className="flex items-center justify-center p-1 rounded-lg hover:bg-grey50 transition-colors"
+                >
+                  <IoChevronBackOutline size={24} />
+                </button>
                 <Typography color="blue.50">
                   <BsCardList size="24px" color="blue.50" />
                 </Typography>
@@ -261,9 +343,12 @@ export default function CustomerDetails() {
               data={modalData}
               setModalData={setModalData}
             />
+            <DeleteOrderModal
+              open={deleteModal.open}
+              orderId={deleteModal.orderId}
+              onClose={() => setDeleteModal({ open: false, orderId: null })}
+              onSuccess={() => refetch()}
+            />
           </div>
-        )
-      }
-    />
   );
 }

@@ -1,6 +1,5 @@
 import { useState, useRef } from "react";
 import { Box, Typography } from "@mui/material";
-import Layout from "../../components/shared/Layout";
 import { TbPlus, BsCardList } from "../../shared/icons/index";
 import DataTable from "../../components/ui/DataTable";
 import StatusPill from "../../components/ui/StatusPill";
@@ -273,9 +272,7 @@ export default function CountriesPage() {
   const totalCountries = countriesData.length;
 
   return (
-    <Layout
-      content={
-        <Box>
+    <Box>
           {/* Header Section with Title and Button */}
           <Box className="flex items-center gap-x-5 justify-between" sx={{ mb: "44px" }}>
             <Box className="flex items-center gap-x-5">
@@ -506,8 +503,6 @@ export default function CountriesPage() {
             </Typography>
           </ModalComponent>
         </Box>
-      }
-    />
   );
 }
 

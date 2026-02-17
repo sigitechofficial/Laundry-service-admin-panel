@@ -2,7 +2,7 @@ export default function StatCard({
   title,
   value,
   bgColor = "gray.100",
-  titleColor = "#000",
+  titleColor = "#101828",
   onClick,
 }) {
   return (
@@ -11,11 +11,14 @@ export default function StatCard({
       className={`cursor-pointer rounded-lg !px-3.5 !py-3 2xl:!py-5 font-Inter h-[122px] 2xl:!h-[140px] flex flex-col justify-between ${bgColor}`}
     >
       <h6
-        className={`font-semibold 2xl:text-lg uppercase text-[${titleColor}] line-clamp-2`}
+        className="font-semibold text-sm 2xl:text-base uppercase tracking-wide line-clamp-2"
+        style={{ color: titleColor }}
       >
         {title}
       </h6>
-      <p className="font-medium text-lg 2xl:text-[22px]">{value}</p>
+      <p className="font-bold text-lg 2xl:text-xl mt-1" style={{ color: titleColor }}>
+        {value}
+      </p>
     </div>
   );
 }

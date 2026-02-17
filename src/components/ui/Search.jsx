@@ -2,6 +2,7 @@ import { Box, Typography } from "@mui/material";
 import { FiSearch } from "../../shared/icons/index";
 export default function Search({
   onChange,
+  value,
   bgColor = "white",
   border = "1px solid #D0D5DD",
   boxShadow = "0px 1px 2px rgba(16, 24, 40, 0.08)",
@@ -9,8 +10,6 @@ export default function Search({
 }) {
   return (
     <Box
-      onChange={onChange}
-      // width="320px"
       height="44px"
       borderRadius="8px"
       border={border}
@@ -29,6 +28,8 @@ export default function Search({
         className="w-full h-full border-none outline-none bg-transparent"
         type="search"
         placeholder={placeholder}
+        value={value ?? ""}
+        onChange={onChange}
       />
     </Box>
   );

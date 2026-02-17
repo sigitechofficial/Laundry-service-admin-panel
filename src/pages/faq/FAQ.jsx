@@ -7,7 +7,6 @@ import {
   AccordionDetails,
   IconButton,
 } from "@mui/material";
-import Layout from "../../components/shared/Layout";
 import { TbHelp, TbPlus, TbPencil, TbTrash, TbChevronDown } from "../../shared/icons/index";
 import ButtonBlue from "../../components/ui/ButtonBlue";
 import AddFAQModal from "./AddFAQModal";
@@ -92,16 +91,10 @@ export default function FAQ() {
     refetch();
   };
 
-  if (isLoading) {
-    return (
-      <Layout content={<Delay />} />
-    );
-  }
+  if (isLoading) return <Delay />;
 
   return (
-    <Layout
-      content={
-        <div className="!space-y-11">
+    <div className="!space-y-11">
           <Box className="flex items-center justify-between gap-x-5 flex-wrap">
             <Box className="flex items-center gap-x-5">
               <Typography color="blue.50">
@@ -243,7 +236,5 @@ export default function FAQ() {
             </Box>
           </ModalComponent>
         </div>
-      }
-    />
   );
 }

@@ -1,8 +1,17 @@
 import React, { Suspense } from "react";
 import { privateRoutes } from "../route/privateRoutes";
-import { Route, Routes } from "react-router-dom";
+import { Route, Routes, Navigate } from "react-router-dom";
 import { DelayFull } from "../components/shared/Loaders";
 import { AuthCheck } from "../hooks/useAuth";
+import PrivateLayout from "../components/shared/PrivateLayout";
+import {
+  ShopManagementLayout,
+  ShopDashboardPage,
+  ShopsPage,
+  AddShopPage,
+  ShopEmployeesPage,
+  ShopDetails,
+} from "./AsyncComponent";
 
 export default function PrivateRoutes() {
   return (
@@ -10,10 +19,19 @@ export default function PrivateRoutes() {
       <div className="!w-full">
         <Suspense fallback={<DelayFull />}>
           <Routes>
-            {/* eslint-disable-next-line no-unused-vars */}
-            {privateRoutes.map(({ path, element: Component }) => (
-              <Route key={path} path={path} element={<Component />} />
-            ))}
+            <Route element={<PrivateLayout />}>
+              {privateRoutes.map(({ path, element: Component }) => (
+                <Route key={path} path={path} element={<Component />} />
+              ))}
+              <Route path="/shop-management" element={<ShopManagementLayout />}>
+                <Route index element={<Navigate to="dashboard" replace />} />
+                <Route path="dashboard" element={<ShopDashboardPage />} />
+                <Route path="shops" element={<ShopsPage />} />
+                <Route path="add-shop" element={<AddShopPage />} />
+                <Route path="employees" element={<ShopEmployeesPage />} />
+                <Route path="details/:id" element={<ShopDetails />} />
+              </Route>
+            </Route>
           </Routes>
         </Suspense>
       </div>

@@ -6,7 +6,7 @@ export default function ServiceManagement() {
 
   useEffect(() => {
     // Redirect to services page by default
-    navigate("/services-management/services", { replace: true });
+    navigate("/services-management/dashboard", { replace: true });
   }, [navigate]);
 
   return null;

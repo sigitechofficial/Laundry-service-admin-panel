@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { Box, Typography } from "@mui/material";
-import Layout from "../../components/shared/Layout";
 import { BsCardList } from "../../shared/icons/index";
 import DataTable from "../../components/ui/DataTable";
 import StatCard from "../../components/ui/StatCard";
@@ -162,13 +161,10 @@ export default function OverallPolicies() {
     label: city.name,
   })) || [];
 
+  if (isLoading) return <Delay />;
+
   return (
-    <Layout
-      content={
-        isLoading ? (
-          <Delay />
-        ) : (
-          <Box>
+    <Box>
             {/* Header Section with Global Filters */}
             <Box className="flex items-center gap-x-5 justify-between" sx={{ mb: "44px", flexWrap: "wrap", gap: 2 }}>
               <Box className="flex items-center gap-x-5">
@@ -324,9 +320,6 @@ export default function OverallPolicies() {
               />
             </Box>
           </Box>
-        )
-      }
-    />
   );
 }
 

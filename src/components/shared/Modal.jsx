@@ -135,16 +135,17 @@ export default function ModalComponent({
               onClick={secondaryAction.onClick}
               variant="outlined"
               sx={{
-                height: "52px",
+                height: "40px",
+                minHeight: "40px",
                 borderRadius: "8px",
                 border: "1px solid #2B2D42",
                 color: "#344054",
                 bgcolor: "white",
                 fontFamily: "Switzer",
                 fontWeight: 500,
-                fontSize: "20px",
+                fontSize: "14px",
                 textTransform: "none",
-                padding: "10px 16px",
+                padding: "8px 16px",
                 minWidth: "80px",
                 "&:hover": {
                   bgcolor: "#F9FAFB",
@@ -161,15 +162,16 @@ export default function ModalComponent({
               onClick={primaryAction.onClick}
               variant="contained"
               sx={{
-                height: "52px",
+                height: "40px",
+                minHeight: "40px",
                 borderRadius: "8px",
                 bgcolor: "#000099",
                 color: "white",
                 fontFamily: "Switzer",
                 fontWeight: 500,
-                fontSize: "20px",
+                fontSize: "14px",
                 textTransform: "none",
-                padding: "10px 30px",
+                padding: "8px 24px",
                 minWidth: "100px",
                 boxShadow: "0px 1px 2px rgba(16, 24, 40, 0.05)",
               }}

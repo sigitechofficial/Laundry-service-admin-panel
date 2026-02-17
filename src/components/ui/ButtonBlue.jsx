@@ -19,8 +19,8 @@ export default function ButtonBlue({
       padding: "6px 16px",
     },
     medium: {
-      height: "46px",
-      fontSize: "16px",
+      height: "40px",
+      fontSize: "14px",
       padding: "8px 24px",
     },
     large: {
@@ -38,22 +38,19 @@ export default function ButtonBlue({
       variant="contained"
       startIcon={startIcon}
       sx={{
-        height: "52px",
+        ...sizeStyles[size],
         borderRadius: "8px",
         bgcolor: "#000099",
         color: "#FFFFFF !important",
         fontFamily: "Switzer",
         fontWeight: 500,
-        fontSize: "20px",
         textTransform: "none",
-        padding: "10px 30px",
         minWidth: "100px",
         width: width,
         boxShadow: "0px 1px 2px rgba(16, 24, 40, 0.05)",
         "& .MuiButton-root": {
           color: "#FFFFFF !important",
         },
-        ...sizeStyles[size],
       }}
       disabled={disabled || isLoading}
     >

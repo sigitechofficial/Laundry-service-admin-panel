@@ -5,7 +5,7 @@ import { yupResolver } from "@hookform/resolvers/yup";
 import ModalComponent from "../../../components/shared/Modal";
 import InputFieldModal from "../../../components/ui/InputFieldModal";
 import ImageUpload from "../../../components/ui/ImageUpload";
-import TextareaField from "../../../components/ui/TextArea";
+import RichTextEditor from "../../../components/ui/RichTextEditor";
 import useToaster from "../../../components/ui/Toaster";
 import { useAddCategoryMutation } from "../../../store/services/api";
 import { categoryValidationSchema, defaultCategoryValues } from "./constants";
@@ -153,9 +153,8 @@ export default function CategoryModal({ open, onClose }) {
           control={control}
           render={({ field: { onChange, value } }) => (
             <Box>
-              <TextareaField
+              <RichTextEditor
                 title="Description*"
-                name="description"
                 value={value}
                 onChange={(e) => onChange(e.target.value)}
                 placeholder="Enter category description"

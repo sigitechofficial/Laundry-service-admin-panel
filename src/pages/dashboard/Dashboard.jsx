@@ -1,4 +1,3 @@
-import Layout from "../../components/shared/Layout";
 import { Box, Typography } from "@mui/material";
 import DashboardFilter from "./DashboardFilter";
 import HomeCards from "../../components/ui/HomeCards";
@@ -21,13 +20,10 @@ export default function Dashboard() {
   const { isLoading } = useDashboardDataQuery();
   const dashboardData = useSelector((state) => state.apiData.dashboard);
 
+  if (isLoading) return <Delay />;
+
   return (
-    <Layout
-      content={
-        isLoading ? (
-          <Delay />
-        ) : (
-          <Box className="w-full relative before:absolute before:bg-textureGradient before:w-full before:h-52 before:bg-contain !pb-20">
+    <Box className="w-full relative before:absolute before:bg-textureGradient before:w-full before:h-52 before:bg-contain !pb-20">
             <div className="!px-8 2xl:!px-[60px] !pt-[22px] relative z-10">
               <Box className="flex items-center justify-between">
                 <div>
@@ -140,9 +136,6 @@ export default function Dashboard() {
                 </div>
               </Box>
             </div>
-          </Box>
-        )
-      }
-    />
+    </Box>
   );
 }

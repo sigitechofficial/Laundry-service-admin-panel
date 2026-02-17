@@ -5,6 +5,7 @@ import {
   ServicesPage,
   CategoriesPage,
   PreferencesPage,
+  ServiceDashboardPage,
   ConfigureServicesPage,
   CustomerManagement,
   CustomerDetails,
@@ -13,11 +14,8 @@ import {
   DriverDetails,
   ZoneManagement,
   EmployeeManagement,
-  ShopManagement,
-  ShopDashboardPage,
-  ShopsPage,
-  AddShopPage,
-  ShopEmployeesPage,
+  EmployeeDetails,
+  EditEmployee,
   Configurations,
   Reports,
   Blogs,
@@ -29,14 +27,14 @@ import {
   CancelledOrders,
   OnHoldOrders,
   EditOrder,
-  ShopEmployee,
   CountriesAndCities,
   CountriesPage,
   CitiesPage,
   PoliciesManagement,
   CancellationPolicy,
   OverallPolicies,
-  NoShowPolicy
+  NoShowPolicy,
+  ReschedulePolicy
 } from "../routes/AsyncComponent";
 
 export const privateRoutes = [
@@ -45,6 +43,11 @@ export const privateRoutes = [
     path: "/services-management",
     element: ServiceManagement,
     resourceKey: "services_management_Page",
+  },
+  {
+    path: "/services-management/dashboard",
+    element: ServiceDashboardPage,
+    resourceKey: "service_dashboard_Page",
   },
   {
     path: "/services-management/services",
@@ -77,16 +80,6 @@ export const privateRoutes = [
     resourceKey: "customer_details_Page",
   },
   {
-    path: "/shop-management/details/:id",
-    element: ShopDetails,
-    resourceKey: "customer_details_Page",
-  },
-  {
-    path: "/shop-management/details/:id/shop-employee",
-    element: ShopEmployee,
-    resourceKey: "shop_employee_Page",
-  },
-  {
     path: "/customer-management/edit/:id",
     element: EditCustomer,
     resourceKey: "customer_edit_Page",
@@ -112,29 +105,14 @@ export const privateRoutes = [
     resourceKey: "employee_management_Page",
   },
   {
-    path: "/shop-management",
-    element: ShopManagement,
-    resourceKey: "shop_management_Page",
+    path: "/employee-management/details/:id",
+    element: EmployeeDetails,
+    resourceKey: "employee_details_Page",
   },
   {
-    path: "/shop-management/dashboard",
-    element: ShopDashboardPage,
-    resourceKey: "shop_dashboard_Page",
-  },
-  {
-    path: "/shop-management/shops",
-    element: ShopsPage,
-    resourceKey: "shops_Page",
-  },
-  {
-    path: "/shop-management/add-shop",
-    element: AddShopPage,
-    resourceKey: "add_shop_Page",
-  },
-  {
-    path: "/shop-management/employees",
-    element: ShopEmployeesPage,
-    resourceKey: "shop_employees_Page",
+    path: "/employee-management/edit/:id",
+    element: EditEmployee,
+    resourceKey: "employee_edit_Page",
   },
   {
     path: "/configurations",
@@ -220,6 +198,11 @@ export const privateRoutes = [
     path: "/policies-management/no-show-policy",
     element: NoShowPolicy,
     resourceKey: "no_show_policy_page",
+  },
+  {
+    path: "/policies-management/reschedule-policy",
+    element: ReschedulePolicy,
+    resourceKey: "reschedule_policy_page",
   },
 ];
 

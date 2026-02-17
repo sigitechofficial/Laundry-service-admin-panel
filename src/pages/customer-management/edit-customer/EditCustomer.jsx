@@ -1,8 +1,7 @@
 import { Box, Typography } from "@mui/material";
-import Layout from "../../../components/shared/Layout";
-import InputFieldBordered from "../../../components/ui/InputFieldBordered";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
+import { IoChevronBackOutline } from "../../../shared/icons/index";
 import { useEffect } from "react";
 import {
   useEditCustomerMutation,
@@ -20,6 +19,7 @@ import FormInputField from "../../../components/ui/FormInputField";
 
 export default function EditCustomer() {
   const { id } = useParams();
+  const navigate = useNavigate();
 
   const customer = useSelector((state) =>
     state?.apiData?.customers?.find((item) => item.id == id)
@@ -81,14 +81,32 @@ export default function EditCustomer() {
     }
   }, [customer, reset]);
 
+  if (isFetchingCustomers) return <Delay />;
+
   return (
-    <Layout
-      content={
-        isFetchingCustomers ? (
-          <Delay />
-        ) : (
-          <Box className="w-full">
-            <Typography>Customer Update</Typography>
+    <Box className="w-full">
+            <Box className="flex items-center gap-x-5 mb-6">
+              <button
+                type="button"
+                onClick={() => navigate(-1)}
+                aria-label="Go back"
+                className="flex items-center justify-center p-1 rounded-lg hover:bg-grey50 transition-colors"
+              >
+                <IoChevronBackOutline size={24} />
+              </button>
+              <Typography
+                variant="h4"
+                sx={{
+                  fontSize: "1.5rem",
+                  fontWeight: 700,
+                  fontFamily: "Switzer, sans-serif",
+                  color: "#101828",
+                  letterSpacing: "-0.02em",
+                }}
+              >
+                Customer Update
+              </Typography>
+            </Box>
 
             <form onSubmit={handleSubmit(onSubmit)}>
               <Box className="w-full grid grid-cols-2 gap-5 !pt-10">
@@ -156,16 +174,19 @@ export default function EditCustomer() {
 
               <Box className="w-full flex justify-end gap-5 !pt-10 !pr-5">
                 <ButtonWhite
-                  text="cancel"
-                  onClick={() => window.history.back()}
+                  text="Cancel"
+                  onClick={() => navigate(-1)}
+                  size="medium"
                 />
 
-                <ButtonBlue text="update" type="submit" isLoading={isLoading} />
+                <ButtonBlue
+                  text="Update"
+                  type="submit"
+                  isLoading={isLoading}
+                  size="medium"
+                />
               </Box>
             </form>
-          </Box>
-        )
-      }
-    />
+    </Box>
   );
 }

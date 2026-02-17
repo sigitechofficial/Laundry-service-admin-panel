@@ -1,107 +1,51 @@
 import { useState } from "react";
 import { Box, Typography } from "@mui/material";
-import Layout from "../../components/shared/Layout";
-import { BsCardList, TbFileDownload } from "../../shared/icons/index";
+import { BsCardList, TbFileDownload, TbPlus } from "../../shared/icons/index";
 import Search from "../../components/ui/Search";
 import FiltersButton from "../../components/ui/FiltersButton";
 import DateRangeSelector from "../../components/ui/DateRangeSelector";
 import DataTable from "../../components/ui/DataTable";
 import StatusPill from "../../components/ui/StatusPill";
-import ChangeStatus from "../../components/ui/Switch";
 import ActionButtons from "../../components/ui/ActionButtons";
 import { useNavigate } from "react-router-dom";
-import {
-  useGetAllCustomersCountQuery,
-  useGetAllCustomersQuery,
-} from "../../store/services/api";
-import { useSelector } from "react-redux";
+import { useGetAdminEmployeesQuery } from "../../store/services/api";
 import { Delay } from "../../components/shared/Loaders";
 import { dateTimeFormat } from "../../shared/constants";
+import AddEmployeeModal from "./employee-modals/AddEmployeeModal";
+import DeleteEmployeeModal from "./employee-modals/DeleteEmployeeModal";
 
-export default function CustomerManagement() {
+export default function EmployeeManagement() {
   const navigate = useNavigate();
   const [dateRange, setDateRange] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [addModalOpen, setAddModalOpen] = useState(false);
+  const [editEmployee, setEditEmployee] = useState(null);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [employeeToDeleteId, setEmployeeToDeleteId] = useState(null);
 
-  const { isLoading } = useGetAllCustomersQuery();
-  const { data } = useGetAllCustomersCountQuery();
-  const customers = useSelector((state) => state.apiData.customers);
+  const { data, isLoading, refetch } = useGetAdminEmployeesQuery();
+  const adminEmployees = data?.data?.adminEmployees ?? [];
 
-  // Sample customer data
-  const customersData = customers?.map((cus, index) => {
-    return {
-      id: cus.id,
-      sl: index + 1,
-      customerId: cus.id,
-      name: cus?.firstName + " " + cus?.lastName,
-      email: cus?.email,
-      phone: cus?.phoneNum,
-      amountSpent: cus?.totalAmountSpent,
-      lastOrderDate: cus?.lastBookingDate,
-      totalOrders: cus?.bookingCount,
-      address: cus?.address,
-      createdAt: cus?.createdAt,
-      updatedAt: cus?.updatedAt,
-      status: cus?.status,
-      changeStatus: cus?.status,
-    };
-  });
+  const employeesData = adminEmployees.map((emp, index) => ({
+    id: emp.id,
+    sl: index + 1,
+    employeeId: emp.id,
+    name: [emp.firstName, emp.lastName].filter(Boolean).join(" ") || "—",
+    email: emp.email ?? "—",
+    phoneNum: emp.phoneNum ?? "—",
+    status: emp.status,
+  }));
 
-  // Column configuration for customer table
-  const customerColumns = [
-    {
-      field: "sl",
-      headerName: "SL",
-      flex: 0.15,
-      minWidth: 100,
-    },
-    {
-      field: "customerId",
-      headerName: "Customer Id",
-      flex: 0.12,
-      minWidth: 100,
-    },
-    {
-      field: "name",
-      headerName: "Name",
-      flex: 0.18,
-      minWidth: 150,
-    },
-    {
-      field: "email",
-      headerName: "Email",
-      flex: 0.18,
-      minWidth: 150,
-    },
-    {
-      field: "phoneNumber",
-      headerName: "Phone Number",
-      flex: 0.15,
-      minWidth: 150,
-    },
-    {
-      field: "totalOrders",
-      headerName: "Total Orders",
-      flex: 0.1,
-      minWidth: 130,
-      type: "number",
-    },
-    {
-      field: "lastOrderDate",
-      headerName: "Last Order Date",
-      flex: 0.12,
-      minWidth: 170,
-    },
-    {
-      field: "amountSpent",
-      headerName: "Total Amount Spent",
-      flex: 0.12,
-      minWidth: 120,
-    },
+  const employeeColumns = [
+    { field: "sl", headerName: "SL", flex: 0.08, minWidth: 60 },
+    { field: "employeeId", headerName: "ID", flex: 0.1, minWidth: 80 },
+    { field: "name", headerName: "Name", flex: 0.2, minWidth: 150 },
+    { field: "email", headerName: "Email", flex: 0.22, minWidth: 180 },
+    { field: "phoneNum", headerName: "Phone", flex: 0.18, minWidth: 130 },
     {
       field: "status",
       headerName: "Status",
-      flex: 0.08,
+      flex: 0.12,
       minWidth: 100,
       type: "chip",
       renderCell: (params) => (
@@ -109,32 +53,24 @@ export default function CustomerManagement() {
       ),
     },
     {
-      field: "changeStatus",
-      headerName: "Change Status",
-      flex: 0.1,
-      minWidth: 130,
-      type: "switch",
-      renderCell: (params) => (
-        <ChangeStatus
-          width={"45px"}
-          checked={params.value}
-          // onChange={(e) => setChecked(e.target.checked)}
-        />
-      ),
-    },
-    {
       field: "actions",
       headerName: "Actions",
       flex: 0.15,
-      minWidth: 200,
+      minWidth: 180,
       sortable: false,
       renderCell: (params) => (
         <ActionButtons
-          onView={() =>
-            navigate(`/customer-management/details/${params?.row?.id}`)
-          }
-          onEdit={() => alert("Edit clicked")}
-          onDelete={() => alert("Delete clicked")}
+          showView={false}
+          onEdit={() => {
+            const rowId = params?.row?.id;
+            const emp = adminEmployees.find((e) => String(e.id) === String(rowId));
+            setEditEmployee(emp ?? null);
+            setAddModalOpen(true);
+          }}
+          onDelete={() => {
+            setEmployeeToDeleteId(params?.row?.id);
+            setDeleteModalOpen(true);
+          }}
         />
       ),
     },
@@ -173,34 +109,25 @@ export default function CustomerManagement() {
   };
 
   const handleRowAction = (actionType, rowData) => {
-    console.log("🚀 ~ handleRowAction ~ rowData:", rowData);
     switch (actionType) {
-      case "view":
-        navigate(`customer-management/details/${rowData.id}`);
+      case "edit": {
+        const emp = adminEmployees.find((e) => String(e.id) === String(rowData.id));
+        setEditEmployee(emp ?? null);
+        setAddModalOpen(true);
         break;
-      case "edit":
-        // Navigate to edit customer page or open edit modal
-        console.log("Editing customer:", rowData.name);
-        break;
+      }
       case "delete":
-        // Show confirmation dialog and delete customer
-        console.log("Deleting customer:", rowData.name);
-        break;
-      case "toggle-status":
-        // Toggle customer status
-        console.log("Toggling status for customer:", rowData.name);
+        setEmployeeToDeleteId(rowData.id);
+        setDeleteModalOpen(true);
         break;
       default:
         break;
     }
   };
+  if (isLoading) return <Delay />;
+
   return (
-    <Layout
-      content={
-        isLoading ? (
-          <Delay />
-        ) : (
-          <div className="!space-y-11">
+    <div className="!space-y-11">
             <Box className="flex items-center gap-x-5 justify-between">
               <Box className="flex items-center gap-x-5">
                 <Typography color="blue.50">
@@ -233,52 +160,34 @@ export default function CustomerManagement() {
                   className="w-fit"
                 />
                 <FiltersButton text="Zone" />
+                <FiltersButton
+                  text="Add Employee"
+                  onClick={() => {
+                    setEditEmployee(null);
+                    setAddModalOpen(true);
+                  }}
+                  Icon={<TbPlus size="20px" />}
+                  variant="blue"
+                />
               </Box>
             </Box>
 
-            <div className="grid grid-cols-4 gap-7 font-Inter">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-7 font-Inter">
               <div className="rounded-lg !px-3.5 !py-5 bg-purple50">
                 <h6 className="font-Inter font-semibold text-lg uppercase">
-                  Total customers
+                  Total employees
                 </h6>
                 <p className="font-Inter font-medium text-[22px] !pt-10">
-                  {data?.data?.TotalCustomer}
-                </p>
-              </div>
-
-              <div className="rounded-lg !px-3.5 !py-5 bg-red50">
-                <h6 className="font-Inter font-semibold text-lg uppercase">
-                  new customers
-                </h6>
-                <p className="font-Inter font-medium text-[22px] !pt-10">
-                  {data?.data?.NewCustomers}
-                </p>
-              </div>
-
-              <div className="rounded-lg !px-3.5 !py-5 bg-green50">
-                <h6 className="font-Inter font-semibold text-lg uppercase">
-                  Frequent customers
-                </h6>
-                <p className="font-Inter font-medium text-[22px] !pt-10">
-                  {data?.data?.RepeatedCustomers}
-                </p>
-              </div>
-
-              <div className="rounded-lg !px-3.5 !py-5 bg-green200">
-                <h6 className="font-Inter font-semibold text-lg uppercase">
-                  Top performing customers
-                </h6>
-                <p className="font-Inter font-medium text-[22px] !pt-10">
-                  {data?.data?.topPerformingCustomers || 0}
+                  {adminEmployees.length}
                 </p>
               </div>
             </div>
 
             <div className="w-full overflow-auto">
               <DataTable
-                data={customersData}
-                columns={customerColumns}
-                searchPlaceholder="Search by customer ID, name, email..."
+                data={employeesData}
+                columns={employeeColumns}
+                searchPlaceholder="Search by ID, name, email..."
                 onSearch={handleSearchChange}
                 onFilter={handleFilter}
                 onDateRangeChange={handleDateChange}
@@ -287,9 +196,27 @@ export default function CustomerManagement() {
                 height={600}
               />
             </div>
+
+            <AddEmployeeModal
+              key={editEmployee ? `edit-${editEmployee.id}` : "add"}
+              open={addModalOpen}
+              onClose={() => {
+                setAddModalOpen(false);
+                setEditEmployee(null);
+              }}
+              onSuccess={() => refetch()}
+              employee={editEmployee}
+            />
+            <DeleteEmployeeModal
+              open={deleteModalOpen}
+              employeeId={employeeToDeleteId}
+              onClose={() => {
+                setDeleteModalOpen(false);
+                setEmployeeToDeleteId(null);
+              }}
+              onSuccess={() => refetch()}
+            />
           </div>
-        )
-      }
-    />
   );
 }
+

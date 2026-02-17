@@ -71,6 +71,11 @@ export const sidebarList = [
     size: "23px",
     children: [
       {
+        label: "Service Dashboard",
+        path: "/services-management/dashboard",
+        size: "22px",
+      },
+      {
         label: "Services",
         path: "/services-management/services",
         size: "22px",
@@ -165,6 +170,11 @@ export const sidebarList = [
         path: "/policies-management/no-show-policy",
         size: "24px",
       },
+      {
+        label: "Reschedule Policy",
+        path: "/policies-management/reschedule-policy",
+        size: "24px",
+      },
     ],
   },
   {
@@ -253,13 +263,16 @@ export const getInitialSubmenuOpen = () => {
     if (stored) return JSON.parse(stored);
   } catch (e) { }
 
+  const pathname =
+    typeof window !== "undefined" ? window.location.pathname : "";
   const init = {};
   sidebarList.forEach((item) => {
-    if (
-      item.children &&
-      item.children.some((c) => location.pathname === c.path)
-    ) {
-      init[item.label] = true;
+    if (item.children) {
+      const isUnderParent =
+        pathname === item.path ||
+        (item.path && pathname.startsWith(item.path + "/"));
+      const matchesChild = item.children.some((c) => pathname === c.path);
+      if (isUnderParent || matchesChild) init[item.label] = true;
     }
   });
   return init;

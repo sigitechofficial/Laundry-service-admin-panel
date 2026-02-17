@@ -1,6 +1,5 @@
 import { useState, useRef } from "react";
 import { Box, Button, IconButton, Typography } from "@mui/material";
-import Layout from "../../components/shared/Layout";
 import { BsCardList, TbPlus } from "../../shared/icons/index";
 import Search from "../../components/ui/Search";
 import FiltersButton from "../../components/ui/FiltersButton";
@@ -907,13 +906,10 @@ export default function ZoneManagement() {
     setMap(mapInstance);
   };
 
+  if (isLoading) return <Delay />;
+
   return (
-    <Layout
-      content={
-        isLoading ? (
-          <Delay />
-        ) : (
-          <div className="!space-y-11">
+    <div className="!space-y-11">
             <ModalComponent
               open={add.open}
               title="ADD ZONE"
@@ -1374,9 +1370,6 @@ export default function ZoneManagement() {
               />
             </div>
           </div>
-        )
-      }
-    />
   );
 }
 

@@ -14,6 +14,9 @@ export const CategoriesPage = lazy(() =>
 export const PreferencesPage = lazy(() =>
   import("../pages/services-management/PreferencesPage")
 );
+export const ServiceDashboardPage = lazy(() =>
+  import("../pages/services-management/ServiceDashboardPage")
+);
 export const ConfigureServicesPage = lazy(() =>
   import("../pages/services-management/ConfigureServicesPage")
 );
@@ -46,6 +49,14 @@ export const EmployeeManagement = lazy(() =>
   import("../pages/employee-management/EmployeeManagement")
 );
 
+export const EmployeeDetails = lazy(() =>
+  import("../pages/employee-management/employee-details/EmployeeDetails")
+);
+
+export const EditEmployee = lazy(() =>
+  import("../pages/employee-management/edit-employee/EditEmployee")
+);
+
 export const ShopManagement = lazy(() =>
   import("../pages/shop-management/ShopManagement")
 );
@@ -64,9 +75,8 @@ export const ShopEmployeesPage = lazy(() =>
 export const ShopDetails = lazy(() =>
   import("../pages/shop-management/ShopDetail")
 );
-
-export const ShopEmployee = lazy(() =>
-  import("../pages/shop-management/ShopEmployee")
+export const ShopManagementLayout = lazy(() =>
+  import("../pages/shop-management/ShopManagementLayout")
 );
 
 export const Configurations = lazy(() =>
@@ -128,6 +138,10 @@ export const OverallPolicies = lazy(() =>
 
 export const NoShowPolicy = lazy(() =>
   import("../pages/policies-management/NoShowPolicy")
+);
+
+export const ReschedulePolicy = lazy(() =>
+  import("../pages/policies-management/ReschedulePolicy")
 );
 
 export const LoginPage = lazy(() => import("../pages/auth/LoginPage"));

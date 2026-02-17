@@ -13,7 +13,7 @@ import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
 import ModalComponent from "../../components/shared/Modal";
 import InputFieldModal from "../../components/ui/InputFieldModal";
-import BlogEditor from "../../components/ui/BlogEditor";
+import RichTextEditor from "../../components/ui/RichTextEditor";
 import ImageUpload from "../../components/ui/ImageUpload";
 import { TbSparkles } from "../../shared/icons/index";
 import { generateWithGemini } from "../../utilities/geminiApi";
@@ -179,12 +179,13 @@ export default function AddBlogModal({ open, onClose, onSave, isLoading = false,
           render={({ field: { onChange, value } }) => (
             <Box>
               <Box sx={{ position: "relative", width: "100%" }}>
-                <BlogEditor
+                <RichTextEditor
                   title="Description"
                   placeholder="Enter blog description"
                   value={value || ""}
                   onChange={(html) => onChange(html)}
                   minHeight={140}
+                  emitAsEvent={false}
                 />
                 <IconButton
                   ref={aiButtonRef}

@@ -1,5 +1,4 @@
 import { Box, Typography } from "@mui/material";
-import Layout from "../../components/shared/Layout";
 import { TbDeviceIpadHorizontalCog } from "../../shared/icons/index";
 import ConfigureService from "./ConfigureService";
 import { useState } from "react";
@@ -12,9 +11,7 @@ export default function ConfigureServicesPage() {
   };
 
   return (
-    <Layout
-      content={
-        <div className="!space-y-11">
+    <div className="!space-y-11">
           <Box className="flex items-center gap-x-5 justify-between">
             <Box className="flex items-center gap-x-5">
               <Typography color="blue.50">
@@ -35,8 +32,6 @@ export default function ConfigureServicesPage() {
             <ConfigureService triggerConfigure={triggerConfigure} />
           </Box>
         </div>
-      }
-    />
   );
 }
 

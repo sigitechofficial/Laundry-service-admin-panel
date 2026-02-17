@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import { Box, Typography, Divider } from "@mui/material";
-import Layout from "../../components/shared/Layout";
 import { BsCardList, TbPlus, TbCalendar, TbTrash } from "../../shared/icons/index";
 import DataTable from "../../components/ui/DataTable";
 import ModalComponent from "../../components/shared/Modal";
@@ -78,14 +77,13 @@ export default function CancellationPolicy() {
       expiryDate: null,
       isActive: true,
       isDefault: true,
-      prePickupAbsoluteCurrency: "USD",
+      currency: "USD", // Single general currency for entire policy
       prePickupFeeType: "absolute", // New field: "absolute" or "percentage"
       prePickupFeeValue: "", // New field: stores the value
       prePickupAbsoluteAmount: "",
       prePickupPercentage: "",
       prePickupFreeChargeWindowMinutes: "",
       prePickupFirstCancellationLeniency: true,
-      unprocessedAbsoluteCurrency: "USD",
       unprocessedFeeType: "absolute", // New field: "absolute" or "percentage"
       unprocessedFeeValue: "", // New field: stores the value
       unprocessedAbsoluteAmount: "",
@@ -634,14 +632,13 @@ export default function CancellationPolicy() {
       expiryDate: null,
       isActive: true,
       isDefault: true,
-      prePickupAbsoluteCurrency: "USD",
+      currency: "USD",
       prePickupFeeType: "absolute",
       prePickupFeeValue: "",
       prePickupAbsoluteAmount: "",
       prePickupPercentage: "",
       prePickupFreeChargeWindowMinutes: "",
       prePickupFirstCancellationLeniency: true,
-      unprocessedAbsoluteCurrency: "USD",
       unprocessedFeeType: "absolute",
       unprocessedFeeValue: "",
       unprocessedAbsoluteAmount: "",
@@ -676,14 +673,13 @@ export default function CancellationPolicy() {
       expiryDate: policy.expiry_date ? dayjs(policy.expiry_date) : null,
       isActive: true,
       isDefault: true,
-      prePickupAbsoluteCurrency: config.prePickupAbsoluteCurrency || "USD",
+      currency: config.prePickupAbsoluteCurrency || config.unprocessedAbsoluteCurrency || "USD",
       prePickupFeeType: feeType,
       prePickupFeeValue: feeValue,
       prePickupAbsoluteAmount: config.prePickupAbsoluteAmount?.toString() || "",
       prePickupPercentage: config.prePickupPercentage?.toString() || "",
       prePickupFreeChargeWindowMinutes: config.prePickupFreeChargeWindowMinutes?.toString() || "",
       prePickupFirstCancellationLeniency: config.prePickupFirstCancellationLeniency ?? true,
-      unprocessedAbsoluteCurrency: config.unprocessedAbsoluteCurrency || "USD",
       // Determine fee type based on existing data (prefer percentage if both exist)
       unprocessedFeeType: (() => {
         const hasPercentage = config.unprocessedPercentage && parseFloat(config.unprocessedPercentage) > 0;
@@ -761,12 +757,12 @@ export default function CancellationPolicy() {
         expiry_date: data.expiryDate ? data.expiryDate.format("YYYY-MM-DD") : null,
         isActive: true,
         isDefault: true,
-        prePickupAbsoluteCurrency: data.prePickupAbsoluteCurrency,
+        prePickupAbsoluteCurrency: data.currency,
         prePickupAbsoluteAmount: prePickupAbsoluteAmount,
         prePickupPercentage: prePickupPercentage,
         prePickupFreeChargeWindowMinutes: data.prePickupFreeChargeWindowMinutes ? parseInt(data.prePickupFreeChargeWindowMinutes) : 0,
         prePickupFirstCancellationLeniency: data.prePickupFirstCancellationLeniency,
-        unprocessedAbsoluteCurrency: data.unprocessedAbsoluteCurrency,
+        unprocessedAbsoluteCurrency: data.currency,
         unprocessedAbsoluteAmount: unprocessedAbsoluteAmount,
         unprocessedPercentage: unprocessedPercentage,
         unprocessedAfterPickupMinutes: data.unprocessedAfterPickupMinutes ? parseInt(data.unprocessedAfterPickupMinutes) : 0,
@@ -965,9 +961,7 @@ export default function CancellationPolicy() {
   ];
 
   return (
-    <Layout
-      content={
-        <Box>
+    <Box>
           {/* Header Section */}
           <Box className="flex items-center gap-x-5 justify-between" sx={{ mb: "44px" }}>
             <Box className="flex items-center gap-x-5">
@@ -1097,6 +1091,21 @@ export default function CancellationPolicy() {
                             </Typography>
                           )}
                         </Box>
+                      )}
+                    />
+                    <Controller
+                      name="currency"
+                      control={control}
+                      render={({ field: { onChange, value } }) => (
+                        <SelectField
+                          title="Currency"
+                          value={value}
+                          onChange={(e) => onChange(e.target.value)}
+                          options={currencyOptions}
+                          placeholder="Select currency"
+                          fullWidth
+                          tooltipText="Currency for all cancellation charges (Pre-Pickup and Unprocessed). Select once to apply across the policy."
+                        />
                       )}
                     />
                     <Box className="grid grid-cols-2 gap-4">
@@ -1232,22 +1241,6 @@ export default function CancellationPolicy() {
                   <Box className="flex flex-col gap-4">
                     <Box className="grid grid-cols-2 gap-4">
                       <Controller
-                        name="prePickupAbsoluteCurrency"
-                        control={control}
-                        render={({ field: { onChange, value } }) => (
-                          <SelectField
-                            title="Currency"
-                            value={value}
-                            onChange={(e) => onChange(e.target.value)}
-                            options={currencyOptions}
-                            placeholder="Select currency"
-                            fullWidth
-                            tooltipText="Currency code for pre-pickup cancellation charges (e.g., USD, EUR, GBP)."
-                          />
-                        )}
-                      />
-
-                      <Controller
                         name="prePickupFeeType"
                         control={control}
                         render={({ field: { onChange, value } }) => (
@@ -1273,26 +1266,25 @@ export default function CancellationPolicy() {
                           />
                         )}
                       />
+                      <Controller
+                        name="prePickupFeeValue"
+                        control={control}
+                        render={({ field: { onChange, value } }) => (
+                          <InputFieldModal
+                            title={prePickupFeeType === "absolute" ? "Absolute Amount" : "Percentage (%)"}
+                            placeholder={prePickupFeeType === "absolute" ? "Enter amount" : "Enter percentage"}
+                            type="number"
+                            value={value || ""}
+                            onChange={(e) => onChange(e.target.value)}
+                            tooltipText={
+                              prePickupFeeType === "absolute"
+                                ? "Fixed cancellation fee amount for pre-pickup cancellations. This is a flat fee charged when a customer cancels before pickup."
+                                : "Percentage-based cancellation fee for pre-pickup cancellations (e.g., 5.00 for 5% of order value)."
+                            }
+                          />
+                        )}
+                      />
                     </Box>
-
-                    <Controller
-                      name="prePickupFeeValue"
-                      control={control}
-                      render={({ field: { onChange, value } }) => (
-                        <InputFieldModal
-                          title={prePickupFeeType === "absolute" ? "Absolute Amount" : "Percentage (%)"}
-                          placeholder={prePickupFeeType === "absolute" ? "Enter amount" : "Enter percentage"}
-                          type="number"
-                          value={value || ""}
-                          onChange={(e) => onChange(e.target.value)}
-                          tooltipText={
-                            prePickupFeeType === "absolute"
-                              ? "Fixed cancellation fee amount for pre-pickup cancellations. This is a flat fee charged when a customer cancels before pickup."
-                              : "Percentage-based cancellation fee for pre-pickup cancellations (e.g., 5.00 for 5% of order value)."
-                          }
-                        />
-                      )}
-                    />
 
                     <Controller
                       name="prePickupFreeChargeWindowMinutes"
@@ -1341,22 +1333,6 @@ export default function CancellationPolicy() {
                   <Box className="flex flex-col gap-4">
                     <Box className="grid grid-cols-2 gap-4">
                       <Controller
-                        name="unprocessedAbsoluteCurrency"
-                        control={control}
-                        render={({ field: { onChange, value } }) => (
-                          <SelectField
-                            title="Currency"
-                            value={value}
-                            onChange={(e) => onChange(e.target.value)}
-                            options={currencyOptions}
-                            placeholder="Select currency"
-                            fullWidth
-                            tooltipText="Currency code for unprocessed order cancellation charges (e.g., USD, EUR, GBP)."
-                          />
-                        )}
-                      />
-
-                      <Controller
                         name="unprocessedFeeType"
                         control={control}
                         render={({ field: { onChange, value } }) => (
@@ -1382,44 +1358,40 @@ export default function CancellationPolicy() {
                           />
                         )}
                       />
-                    </Box>
-
-                    <Controller
-                      name="unprocessedFeeValue"
-                      control={control}
-                      render={({ field: { onChange, value } }) => (
-                        <InputFieldModal
-                          title={unprocessedFeeType === "absolute" ? "Absolute Amount" : "Percentage (%)"}
-                          placeholder={unprocessedFeeType === "absolute" ? "Enter amount" : "Enter percentage"}
-                          type="number"
-                          value={value || ""}
-                          onChange={(e) => onChange(e.target.value)}
-                          tooltipText={
-                            unprocessedFeeType === "absolute"
-                              ? "Fixed cancellation fee amount for unprocessed order cancellations. This is a flat fee charged when a customer cancels an unprocessed order."
-                              : "Percentage-based cancellation fee for unprocessed orders (e.g., 5.00 for 5% of order value)."
-                          }
-                        />
-                      )}
-                    />
-
-                    <Box className="grid grid-cols-2 gap-4">
-
                       <Controller
-                        name="unprocessedAfterPickupMinutes"
+                        name="unprocessedFeeValue"
                         control={control}
                         render={({ field: { onChange, value } }) => (
                           <InputFieldModal
-                            title="After Pickup (Minutes)"
-                            placeholder="Enter minutes"
+                            title={unprocessedFeeType === "absolute" ? "Absolute Amount" : "Percentage (%)"}
+                            placeholder={unprocessedFeeType === "absolute" ? "Enter amount" : "Enter percentage"}
                             type="number"
                             value={value || ""}
                             onChange={(e) => onChange(e.target.value)}
-                            tooltipText="Time window in minutes after pickup where cancellations are allowed. Cancellations after this window may have different charges or restrictions."
+                            tooltipText={
+                              unprocessedFeeType === "absolute"
+                                ? "Fixed cancellation fee amount for unprocessed order cancellations. This is a flat fee charged when a customer cancels an unprocessed order."
+                                : "Percentage-based cancellation fee for unprocessed orders (e.g., 5.00 for 5% of order value)."
+                            }
                           />
                         )}
                       />
                     </Box>
+
+                    <Controller
+                      name="unprocessedAfterPickupMinutes"
+                      control={control}
+                      render={({ field: { onChange, value } }) => (
+                        <InputFieldModal
+                          title="After Pickup (Minutes)"
+                          placeholder="Enter minutes"
+                          type="number"
+                          value={value || ""}
+                          onChange={(e) => onChange(e.target.value)}
+                          tooltipText="Time window in minutes after pickup where cancellations are allowed. Cancellations after this window may have different charges or restrictions."
+                        />
+                      )}
+                    />
 
                     <Controller
                       name="unprocessedOrderValuePercentage"
@@ -1712,8 +1684,6 @@ export default function CancellationPolicy() {
             </Box>
           </ModalComponent>
         </Box>
-      }
-    />
   );
 }
 

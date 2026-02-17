@@ -10,13 +10,12 @@ import {
   TableRow,
   Paper,
 } from "@mui/material";
-import Layout from "../../../components/shared/Layout";
 import { useGetOrderForEditQuery, useGetAllServicesQuery, useEditOrderMutation, useGetPreferencesQuery } from "../../../store/services/api";
 import baseQueryWithReauth from "../../../store/services/baseQueryWithReauth";
 import useToaster from "../../../components/ui/Toaster";
 import { Delay } from "../../../components/shared/Loaders";
 import dayjs from "dayjs";
-import { TbCalendar } from "../../../shared/icons/index";
+import { TbCalendar, IoChevronBackOutline } from "../../../shared/icons/index";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
@@ -66,14 +65,14 @@ export default function EditOrder() {
     if (orderData) {
       // Parse order time from createdAt
       const orderDateTime = orderData.createdAt ? dayjs(orderData.createdAt) : null;
-      
+
       // Parse pickup time
       let pickupTime = null;
       if (orderData.collectionTimeFrom) {
         const [hours, minutes] = orderData.collectionTimeFrom.split(':');
         pickupTime = dayjs().hour(parseInt(hours)).minute(parseInt(minutes)).second(0);
       }
-      
+
       // Parse delivery time
       let deliveryTime = null;
       if (orderData.deliveryTimeFrom) {
@@ -104,13 +103,13 @@ export default function EditOrder() {
     try {
       // Debug: Log current serviceItems state
       console.log('Current serviceItems before building payload:', JSON.parse(JSON.stringify(serviceItems)));
-      
+
       // Format dates and times
       const collectionDate = formData.pickupDate
         ? formData.pickupDate.format("YYYY-MM-DD")
         : orderData?.collectionDate
-        ? dayjs(orderData.collectionDate).format("YYYY-MM-DD")
-        : null;
+          ? dayjs(orderData.collectionDate).format("YYYY-MM-DD")
+          : null;
 
       const collectionTimeFrom = formData.pickupTime
         ? formData.pickupTime.format("HH:mm:ss")
@@ -121,8 +120,8 @@ export default function EditOrder() {
       const deliveryDate = formData.deliveryDate
         ? formData.deliveryDate.format("YYYY-MM-DD")
         : orderData?.deliveryDate
-        ? dayjs(orderData.deliveryDate).format("YYYY-MM-DD")
-        : null;
+          ? dayjs(orderData.deliveryDate).format("YYYY-MM-DD")
+          : null;
 
       const deliveryTimeFrom = formData.deliveryTime
         ? formData.deliveryTime.format("HH:mm:ss")
@@ -134,15 +133,15 @@ export default function EditOrder() {
       // NOTE: We don't need to validate against service preferences here because
       // AddItemModal already ensures only configured preferences can be selected
       const preferencesArray = [];
-      
+
       console.log('🔨 EditOrder: Building preferencesArray from serviceItems...');
       console.log('🔨 EditOrder: serviceItems structure:', JSON.parse(JSON.stringify(serviceItems)));
-      
+
       Object.entries(serviceItems).forEach(([serviceId, serviceData]) => {
         const parsedServiceId = parseInt(serviceId);
-        
+
         console.log(`🔨 EditOrder: Processing service ${parsedServiceId} with ${serviceData.items.length} items`);
-        
+
         // Get preferences from items
         serviceData.items.forEach((item, itemIndex) => {
           console.log(`🔨 EditOrder: Processing item ${itemIndex} (id: ${item.id}):`, item);
@@ -151,16 +150,16 @@ export default function EditOrder() {
           console.log(`🔨 EditOrder: Item has preferenceIds?`, !!item.preferences?.preferenceIds);
           console.log(`🔨 EditOrder: preferenceIds is array?`, Array.isArray(item.preferences?.preferenceIds));
           console.log(`🔨 EditOrder: preferenceIds length:`, item.preferences?.preferenceIds?.length || 0);
-          
+
           // Check if item has preferences with preferenceIds array
           if (item.preferences && item.preferences.preferenceIds && Array.isArray(item.preferences.preferenceIds) && item.preferences.preferenceIds.length > 0) {
             console.log(`✅ EditOrder: Item ${item.id} has ${item.preferences.preferenceIds.length} preference IDs`);
-            
+
             // Add each preference with its IDs
             // All preferences here are already validated in AddItemModal to be configured for the service
             item.preferences.preferenceIds.forEach((prefId, prefIndex) => {
               console.log(`🔨 EditOrder: Processing preference ${prefIndex}:`, prefId);
-              
+
               // Only validate if preferenceTypeId and preferenceValueId exist
               if (prefId.preferenceTypeId && prefId.preferenceValueId) {
                 const preferenceEntry = {
@@ -168,7 +167,7 @@ export default function EditOrder() {
                   preferenceValueId: prefId.preferenceValueId,
                   serviceId: parsedServiceId,
                 };
-                
+
                 // Include categoryId and subCategoryId if available
                 if (item.categoryId) {
                   preferenceEntry.categoryId = item.categoryId;
@@ -176,7 +175,7 @@ export default function EditOrder() {
                 if (item.subCategoryId) {
                   preferenceEntry.subCategoryId = item.subCategoryId;
                 }
-                
+
                 console.log(`✅ EditOrder: Adding preference entry to array:`, preferenceEntry);
                 preferencesArray.push(preferenceEntry);
               } else {
@@ -194,7 +193,7 @@ export default function EditOrder() {
           }
         });
       });
-      
+
       // Debug: log the preferencesArray
       console.log('📦 EditOrder: Final preferencesArray:', preferencesArray);
       console.log('📦 EditOrder: preferencesArray length:', preferencesArray.length);
@@ -228,40 +227,40 @@ export default function EditOrder() {
         addressId: "",
         pickUpAddress: orderData?.pickupAddress
           ? {
-              title: orderData.pickupAddress.title || "Home",
-              hotelName: null,
-              apartmentNumber: null,
-              floor: null,
-              streetAddress: orderData.pickupAddress.streetAddress || "",
-              district: orderData.pickupAddress.district || "",
-              city: orderData.pickupAddress.city || orderData.pickupAddress.district || "",
-              province: orderData.pickupAddress.province || "",
-              country: orderData.pickupAddress.country || "",
-              postalCode: orderData.pickupAddress.postalCode || "",
-              lat: orderData.pickupAddress.lat || null,
-              lng: orderData.pickupAddress.lng || null,
-              radius: orderData.pickupAddress.radius || null,
-              addressType: "pickUp",
-              save: true,
-            }
+            title: orderData.pickupAddress.title || "Home",
+            hotelName: null,
+            apartmentNumber: null,
+            floor: null,
+            streetAddress: orderData.pickupAddress.streetAddress || "",
+            district: orderData.pickupAddress.district || "",
+            city: orderData.pickupAddress.city || orderData.pickupAddress.district || "",
+            province: orderData.pickupAddress.province || "",
+            country: orderData.pickupAddress.country || "",
+            postalCode: orderData.pickupAddress.postalCode || "",
+            lat: orderData.pickupAddress.lat || null,
+            lng: orderData.pickupAddress.lng || null,
+            radius: orderData.pickupAddress.radius || null,
+            addressType: "pickUp",
+            save: true,
+          }
           : null,
         dropOffAddress: orderData?.dropOffAddress
           ? {
-              title: orderData.dropOffAddress.title || "Home",
-              hotelName: null,
-              apartmentNumber: null,
-              floor: null,
-              streetAddress: orderData.dropOffAddress.streetAddress || "",
-              district: orderData.dropOffAddress.district || "",
-              city: orderData.dropOffAddress.city || orderData.dropOffAddress.district || "",
-              province: orderData.dropOffAddress.province || "",
-              country: orderData.dropOffAddress.country || "",
-              postalCode: orderData.dropOffAddress.postalCode || "",
-              lat: orderData.dropOffAddress.lat || null,
-              lng: orderData.dropOffAddress.lng || null,
-              radius: orderData.dropOffAddress.radius || null,
-              addressType: "dropOff",
-            }
+            title: orderData.dropOffAddress.title || "Home",
+            hotelName: null,
+            apartmentNumber: null,
+            floor: null,
+            streetAddress: orderData.dropOffAddress.streetAddress || "",
+            district: orderData.dropOffAddress.district || "",
+            city: orderData.dropOffAddress.city || orderData.dropOffAddress.district || "",
+            province: orderData.dropOffAddress.province || "",
+            country: orderData.dropOffAddress.country || "",
+            postalCode: orderData.dropOffAddress.postalCode || "",
+            lat: orderData.dropOffAddress.lat || null,
+            lng: orderData.dropOffAddress.lng || null,
+            radius: orderData.dropOffAddress.radius || null,
+            addressType: "dropOff",
+          }
           : null,
         addNewAddress: false,
         addNewDropOffAddress: false,
@@ -276,9 +275,9 @@ export default function EditOrder() {
       console.log('📤 EditOrder: Sending API request with body:', JSON.stringify(body, null, 2));
       console.log('📤 EditOrder: preferencesArray in request:', body.preferencesArray);
       console.log('📤 EditOrder: preferencesArray length:', body.preferencesArray.length);
-      
+
       const response = await editOrder({ orderId: id, body }).unwrap();
-      
+
       console.log('📥 EditOrder: API Response received:', response);
 
       if (response?.status === "1") {
@@ -312,12 +311,12 @@ export default function EditOrder() {
     console.log('📥 EditOrder: handleAddItems called with item:', item);
     console.log('📥 EditOrder: Item preferences:', item.preferences);
     console.log('📥 EditOrder: Item preferenceIds:', item.preferences?.preferenceIds);
-    
+
     // item should contain: serviceId, categoryId, subCategoryId, name, price, preferences
     const { serviceId, categoryId, categoryName, subCategoryId, name, price, preferences } = item;
-    
+
     const now = Date.now();
-    
+
     // Check if this is a duplicate addition (same subCategoryId within 1 second)
     if (
       lastAddedItemRef.current.subCategoryId === subCategoryId &&
@@ -325,16 +324,16 @@ export default function EditOrder() {
     ) {
       return; // Prevent duplicate addition
     }
-    
+
     // Update the ref to track this addition
     lastAddedItemRef.current = {
       subCategoryId: subCategoryId,
       timestamp: now,
     };
-    
+
     setServiceItems((prev) => {
       const newState = { ...prev };
-      
+
       // Find the service name if serviceId exists
       let serviceName = "";
       if (orderData?.customerSelectedServices) {
@@ -348,7 +347,7 @@ export default function EditOrder() {
         const service = allServices.find((s) => s.id === serviceId);
         serviceName = service?.name || "Other";
       }
-      
+
       // If service doesn't exist in state, create it
       if (!newState[serviceId]) {
         newState[serviceId] = {
@@ -356,16 +355,16 @@ export default function EditOrder() {
           items: [],
         };
       }
-      
+
       // Double-check: Don't add if item with same subCategoryId already exists in this service
       const existingItem = newState[serviceId].items.find(
         (existing) => existing.subCategoryId === subCategoryId && existing.id?.startsWith('new-')
       );
-      
+
       if (existingItem) {
         return newState; // Item already exists, don't add duplicate
       }
-      
+
       // Add the new item
       const newItem = {
         id: `new-${now}-${Math.random()}`, // Unique ID for new items
@@ -376,17 +375,17 @@ export default function EditOrder() {
         subCategoryId: subCategoryId,
         preferences: preferences || { preferenceIds: [] },
       };
-      
+
       // Debug: Log the item being added
       console.log('✅ EditOrder: Adding new item to serviceItems:', newItem);
       console.log('✅ EditOrder: New item preferences structure:', newItem.preferences);
       console.log('✅ EditOrder: New item preferenceIds:', newItem.preferences?.preferenceIds);
       console.log('✅ EditOrder: New item preferenceIds length:', newItem.preferences?.preferenceIds?.length || 0);
-      
+
       newState[serviceId].items.push(newItem);
-      
+
       console.log('📊 EditOrder: Updated serviceItems state:', JSON.parse(JSON.stringify(newState)));
-      
+
       return newState;
     });
   };
@@ -395,12 +394,12 @@ export default function EditOrder() {
   useEffect(() => {
     if (orderData?.customerSelectedServices && !isInitialized.current) {
       const items = {};
-      
+
       // Create a map of preferences by serviceId and categoryId/subCategoryId for quick lookup
       // Also create a reverse map by serviceId only as fallback
       const preferencesMap = {};
       const preferencesByServiceMap = {};
-      
+
       if (orderData.preferencesArray && Array.isArray(orderData.preferencesArray)) {
         orderData.preferencesArray.forEach((pref) => {
           // Map by serviceId + categoryId + subCategoryId (if available)
@@ -414,7 +413,7 @@ export default function EditOrder() {
               preferenceValueId: pref.preferenceValueId,
             });
           }
-          
+
           // Also map by serviceId only as fallback
           if (!preferencesByServiceMap[pref.serviceId]) {
             preferencesByServiceMap[pref.serviceId] = [];
@@ -425,7 +424,7 @@ export default function EditOrder() {
           });
         });
       }
-      
+
       orderData.customerSelectedServices.forEach((service) => {
         const serviceName = service.service?.name || "Other";
         const serviceId = service.serviceId;
@@ -435,7 +434,7 @@ export default function EditOrder() {
             items: [],
           };
         }
-        
+
         // Find preferences for this service item
         // First try to match by serviceId + categoryId + subCategoryId
         let itemPreferences = [];
@@ -443,12 +442,12 @@ export default function EditOrder() {
           const prefKey = `${serviceId}-${service.categoryId || ''}-${service.subCategoryId || ''}`;
           itemPreferences = preferencesMap[prefKey] || [];
         }
-        
+
         // If no preferences found, try to get by serviceId only (fallback)
         if (itemPreferences.length === 0 && preferencesByServiceMap[serviceId]) {
           itemPreferences = preferencesByServiceMap[serviceId];
         }
-        
+
         items[serviceId].items.push({
           id: service.id,
           itemName: service.category?.name || service.service?.name || "Item",
@@ -502,7 +501,7 @@ export default function EditOrder() {
         console.log('🔍 Debug: Building preferencesArray...');
         const preferencesArray = [];
         const serviceIds = Object.keys(serviceItems).map(id => parseInt(id));
-        
+
         Object.entries(serviceItems).forEach(([serviceId, serviceData]) => {
           const parsedServiceId = parseInt(serviceId);
           serviceData.items.forEach((item) => {
@@ -535,573 +534,573 @@ export default function EditOrder() {
         });
       },
     };
-    
+
     console.log('🛠️ Debug: EditOrder debug functions available. Use window.debugEditOrder in console.');
   }, [serviceItems]);
 
   return (
-    <Layout
-      content={
-        <LocalizationProvider dateAdapter={AdapterDayjs}>
-          {isLoading ? (
-            <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
-              <Delay />
+    <LocalizationProvider dateAdapter={AdapterDayjs}>
+      {isLoading ? (
+        <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
+          <Delay />
+        </Box>
+      ) : orderData ? (
+        <Box sx={{ p: 3 }}>
+              {/* Back button and Edit order heading in one row */}
+              <Box className="flex items-center gap-x-2 mb-6 p-8">
+            <button
+              type="button"
+              onClick={() => navigate(-1)}
+              aria-label="Go back"
+              className="flex items-center justify-center p-1 rounded-lg hover:bg-grey50 transition-colors"
+            >
+              <IoChevronBackOutline size={24} />
+            </button>
+            <Typography
+              variant="h6"
+              sx={{
+                fontFamily: "Switzer, sans-serif",
+                fontSize: "1.25rem",
+                fontWeight: 600,
+                color: "#101828",
+              }}
+            >
+              Edit order
+            </Typography>
+          </Box>
+
+          {/* Order Information Fields */}
+          <Box
+            sx={{
+              display: "grid",
+              gridTemplateColumns: "repeat(3, 1fr)",
+              gap: 2,
+              mb: 3,
+            }}
+          >
+            {/* Order Number */}
+            <Box>
+              <Typography
+                variant="body2"
+                fontFamily="Switzer"
+                sx={{ mb: 0.5, fontSize: "14px", color: "#374151" }}
+              >
+                Order Number
+              </Typography>
+              <InputFieldBordered
+                value={formData.orderNumber}
+                onChange={(e) => handleInputChange("orderNumber", e.target.value)}
+                placeholder="Order Number"
+              />
             </Box>
-          ) : orderData ? (
-            <Box sx={{ p: 4 }}>
-              {/* Invoice To Section */}
-              <Box sx={{ mb: 4 }}>
+
+            {/* Order Date */}
+            <Box>
+              <Typography
+                variant="body2"
+                fontFamily="Switzer"
+                sx={{ mb: 0.5, fontSize: "14px", color: "#374151" }}
+              >
+                Order date
+              </Typography>
+              <DatePicker
+                value={formData.orderDate}
+                onChange={(newValue) => handleInputChange("orderDate", newValue)}
+                slotProps={{
+                  textField: {
+                    placeholder: "Select date",
+                    sx: {
+                      "& .MuiOutlinedInput-root": {
+                        height: "52px",
+                        borderRadius: "8px",
+                        border: "1px solid rgba(0, 0, 0, 0.2)",
+                        fontFamily: "Switzer",
+                        "& fieldset": {
+                          border: "none",
+                        },
+                      },
+                    },
+                  },
+                }}
+                slots={{
+                  openPickerIcon: () => <TbCalendar size={20} style={{ color: "#6B7280" }} />,
+                }}
+              />
+            </Box>
+
+            {/* Order Time */}
+            <Box>
+              <Typography
+                variant="body2"
+                fontFamily="Switzer"
+                sx={{ mb: 0.5, fontSize: "14px", color: "#374151" }}
+              >
+                Order time
+              </Typography>
+              <TimePicker
+                value={formData.orderTime}
+                onChange={(newValue) => handleInputChange("orderTime", newValue)}
+                slotProps={{
+                  textField: {
+                    placeholder: "Select time",
+                    sx: {
+                      "& .MuiOutlinedInput-root": {
+                        height: "52px",
+                        borderRadius: "8px",
+                        border: "1px solid rgba(0, 0, 0, 0.2)",
+                        fontFamily: "Switzer",
+                        "& fieldset": {
+                          border: "none",
+                        },
+                      },
+                    },
+                  },
+                }}
+              />
+            </Box>
+
+            {/* Pickup Date */}
+            <Box>
+              <Typography
+                variant="body2"
+                fontFamily="Switzer"
+                sx={{ mb: 0.5, fontSize: "14px", color: "#374151" }}
+              >
+                Pickup Date
+              </Typography>
+              <DatePicker
+                value={formData.pickupDate}
+                onChange={(newValue) => handleInputChange("pickupDate", newValue)}
+                slotProps={{
+                  textField: {
+                    placeholder: "Select date",
+                    sx: {
+                      "& .MuiOutlinedInput-root": {
+                        height: "52px",
+                        borderRadius: "8px",
+                        border: "1px solid rgba(0, 0, 0, 0.2)",
+                        fontFamily: "Switzer",
+                        "& fieldset": {
+                          border: "none",
+                        },
+                      },
+                    },
+                  },
+                }}
+                slots={{
+                  openPickerIcon: () => <TbCalendar size={20} style={{ color: "#6B7280" }} />,
+                }}
+              />
+            </Box>
+
+            {/* Pickup Time */}
+            <Box>
+              <Typography
+                variant="body2"
+                fontFamily="Switzer"
+                sx={{ mb: 0.5, fontSize: "14px", color: "#374151" }}
+              >
+                Pickup Time
+              </Typography>
+              <TimePicker
+                value={formData.pickupTime}
+                onChange={(newValue) => handleInputChange("pickupTime", newValue)}
+                slotProps={{
+                  textField: {
+                    placeholder: "Select time",
+                    sx: {
+                      "& .MuiOutlinedInput-root": {
+                        height: "52px",
+                        borderRadius: "8px",
+                        border: "1px solid rgba(0, 0, 0, 0.2)",
+                        fontFamily: "Switzer",
+                        "& fieldset": {
+                          border: "none",
+                        },
+                      },
+                    },
+                  },
+                }}
+              />
+            </Box>
+
+            {/* Delivery Date */}
+            <Box>
+              <Typography
+                variant="body2"
+                fontFamily="Switzer"
+                sx={{ mb: 0.5, fontSize: "14px", color: "#374151" }}
+              >
+                Delivery Date
+              </Typography>
+              <DatePicker
+                value={formData.deliveryDate}
+                onChange={(newValue) => handleInputChange("deliveryDate", newValue)}
+                slotProps={{
+                  textField: {
+                    placeholder: "Select date",
+                    sx: {
+                      "& .MuiOutlinedInput-root": {
+                        height: "52px",
+                        borderRadius: "8px",
+                        border: "1px solid rgba(0, 0, 0, 0.2)",
+                        fontFamily: "Switzer",
+                        "& fieldset": {
+                          border: "none",
+                        },
+                      },
+                    },
+                  },
+                }}
+                slots={{
+                  openPickerIcon: () => <TbCalendar size={20} style={{ color: "#6B7280" }} />,
+                }}
+              />
+            </Box>
+
+            {/* Delivery Time */}
+            <Box>
+              <Typography
+                variant="body2"
+                fontFamily="Switzer"
+                sx={{ mb: 0.5, fontSize: "14px", color: "#374151" }}
+              >
+                Delivery Time
+              </Typography>
+              <TimePicker
+                value={formData.deliveryTime}
+                onChange={(newValue) => handleInputChange("deliveryTime", newValue)}
+                slotProps={{
+                  textField: {
+                    placeholder: "Select time",
+                    sx: {
+                      "& .MuiOutlinedInput-root": {
+                        height: "52px",
+                        borderRadius: "8px",
+                        border: "1px solid rgba(0, 0, 0, 0.2)",
+                        fontFamily: "Switzer",
+                        "& fieldset": {
+                          border: "none",
+                        },
+                      },
+                    },
+                  },
+                }}
+              />
+            </Box>
+          </Box>
+
+          {/* Service Tables */}
+          {Object.entries(groupedServices).map(([serviceName, serviceData]) => {
+            const serviceId = serviceData.serviceId;
+            const services = serviceData.items;
+            return (
+              <Box key={serviceName} sx={{ mb: 3 }}>
                 <Typography
                   variant="h6"
                   fontWeight="bold"
                   fontFamily="Switzer"
-                  sx={{ mb: 1, fontSize: "16px", color: "#000000" }}
+                  sx={{ mb: 1.5, fontSize: "16px", color: "#000000" }}
                 >
-                  Invoice To
+                  {serviceName}
                 </Typography>
-                <Typography
-                  variant="body1"
-                  fontFamily="Switzer"
-                  sx={{ fontSize: "14px", color: "#000000" }}
+                <TableContainer
+                  component={Paper}
+                  sx={{
+                    boxShadow: "none",
+                    border: "1px solid #E5E7EB",
+                    borderRadius: "8px",
+                  }}
                 >
-                  {formatAddress(orderData.pickupAddress || orderData.dropOffAddress)}
-                </Typography>
-              </Box>
-
-              {/* Order Information Fields */}
-              <Box
-                sx={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(3, 1fr)",
-                  gap: 3,
-                  mb: 4,
-                }}
-              >
-                {/* Order Number */}
-                <Box>
-                  <Typography
-                    variant="body2"
-                    fontFamily="Switzer"
-                    sx={{ mb: 1, fontSize: "14px", color: "#374151" }}
-                  >
-                    Order Number
-                  </Typography>
-                  <InputFieldBordered
-                    value={formData.orderNumber}
-                    onChange={(e) => handleInputChange("orderNumber", e.target.value)}
-                    placeholder="Order Number"
-                  />
-                </Box>
-
-                {/* Order Date */}
-                <Box>
-                  <Typography
-                    variant="body2"
-                    fontFamily="Switzer"
-                    sx={{ mb: 1, fontSize: "14px", color: "#374151" }}
-                  >
-                    Order date
-                  </Typography>
-                  <DatePicker
-                    value={formData.orderDate}
-                    onChange={(newValue) => handleInputChange("orderDate", newValue)}
-                    slotProps={{
-                      textField: {
-                        placeholder: "Select date",
-                        sx: {
-                          "& .MuiOutlinedInput-root": {
-                            height: "52px",
-                            borderRadius: "8px",
-                            border: "1px solid rgba(0, 0, 0, 0.2)",
+                  <Table>
+                    <TableHead>
+                      <TableRow sx={{ bgcolor: "#F9FAFB" }}>
+                        <TableCell
+                          sx={{
                             fontFamily: "Switzer",
-                            "& fieldset": {
-                              border: "none",
-                            },
-                          },
-                        },
-                      },
-                    }}
-                    slots={{
-                      openPickerIcon: () => <TbCalendar size={20} style={{ color: "#6B7280" }} />,
-                    }}
-                  />
-                </Box>
-
-                {/* Order Time */}
-                <Box>
-                  <Typography
-                    variant="body2"
-                    fontFamily="Switzer"
-                    sx={{ mb: 1, fontSize: "14px", color: "#374151" }}
-                  >
-                    Order time
-                  </Typography>
-                  <TimePicker
-                    value={formData.orderTime}
-                    onChange={(newValue) => handleInputChange("orderTime", newValue)}
-                    slotProps={{
-                      textField: {
-                        placeholder: "Select time",
-                        sx: {
-                          "& .MuiOutlinedInput-root": {
-                            height: "52px",
-                            borderRadius: "8px",
-                            border: "1px solid rgba(0, 0, 0, 0.2)",
+                            fontWeight: 600,
+                            fontSize: "14px",
+                            color: "#374151",
+                            borderBottom: "1px solid #E5E7EB",
+                          }}
+                        >
+                          Item
+                        </TableCell>
+                        <TableCell
+                          sx={{
                             fontFamily: "Switzer",
-                            "& fieldset": {
-                              border: "none",
-                            },
-                          },
-                        },
-                      },
-                    }}
-                  />
-                </Box>
-
-                {/* Pickup Date */}
-                <Box>
-                  <Typography
-                    variant="body2"
-                    fontFamily="Switzer"
-                    sx={{ mb: 1, fontSize: "14px", color: "#374151" }}
-                  >
-                    Pickup Date
-                  </Typography>
-                  <DatePicker
-                    value={formData.pickupDate}
-                    onChange={(newValue) => handleInputChange("pickupDate", newValue)}
-                    slotProps={{
-                      textField: {
-                        placeholder: "Select date",
-                        sx: {
-                          "& .MuiOutlinedInput-root": {
-                            height: "52px",
-                            borderRadius: "8px",
-                            border: "1px solid rgba(0, 0, 0, 0.2)",
+                            fontWeight: 600,
+                            fontSize: "14px",
+                            color: "#374151",
+                            borderBottom: "1px solid #E5E7EB",
+                          }}
+                        >
+                          Quantity
+                        </TableCell>
+                        <TableCell
+                          sx={{
                             fontFamily: "Switzer",
-                            "& fieldset": {
-                              border: "none",
-                            },
-                          },
-                        },
-                      },
-                    }}
-                    slots={{
-                      openPickerIcon: () => <TbCalendar size={20} style={{ color: "#6B7280" }} />,
-                    }}
-                  />
-                </Box>
-
-                {/* Pickup Time */}
-                <Box>
-                  <Typography
-                    variant="body2"
-                    fontFamily="Switzer"
-                    sx={{ mb: 1, fontSize: "14px", color: "#374151" }}
-                  >
-                    Pickup Time
-                  </Typography>
-                  <TimePicker
-                    value={formData.pickupTime}
-                    onChange={(newValue) => handleInputChange("pickupTime", newValue)}
-                    slotProps={{
-                      textField: {
-                        placeholder: "Select time",
-                        sx: {
-                          "& .MuiOutlinedInput-root": {
-                            height: "52px",
-                            borderRadius: "8px",
-                            border: "1px solid rgba(0, 0, 0, 0.2)",
+                            fontWeight: 600,
+                            fontSize: "14px",
+                            color: "#374151",
+                            borderBottom: "1px solid #E5E7EB",
+                          }}
+                        >
+                          Unit Price
+                        </TableCell>
+                        <TableCell
+                          sx={{
                             fontFamily: "Switzer",
-                            "& fieldset": {
-                              border: "none",
-                            },
-                          },
-                        },
-                      },
-                    }}
-                  />
-                </Box>
+                            fontWeight: 600,
+                            fontSize: "14px",
+                            color: "#374151",
+                            borderBottom: "1px solid #E5E7EB",
+                          }}
+                        >
+                          Amount
+                        </TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {services.length > 0 ? (
+                        services.map((item, index) => {
+                          const amount = item.quantity * item.unitPrice;
 
-                {/* Delivery Date */}
-                <Box>
-                  <Typography
-                    variant="body2"
-                    fontFamily="Switzer"
-                    sx={{ mb: 1, fontSize: "14px", color: "#374151" }}
-                  >
-                    Delivery Date
-                  </Typography>
-                  <DatePicker
-                    value={formData.deliveryDate}
-                    onChange={(newValue) => handleInputChange("deliveryDate", newValue)}
-                    slotProps={{
-                      textField: {
-                        placeholder: "Select date",
-                        sx: {
-                          "& .MuiOutlinedInput-root": {
-                            height: "52px",
-                            borderRadius: "8px",
-                            border: "1px solid rgba(0, 0, 0, 0.2)",
-                            fontFamily: "Switzer",
-                            "& fieldset": {
-                              border: "none",
-                            },
-                          },
-                        },
-                      },
-                    }}
-                    slots={{
-                      openPickerIcon: () => <TbCalendar size={20} style={{ color: "#6B7280" }} />,
-                    }}
-                  />
-                </Box>
-
-                {/* Delivery Time */}
-                <Box>
-                  <Typography
-                    variant="body2"
-                    fontFamily="Switzer"
-                    sx={{ mb: 1, fontSize: "14px", color: "#374151" }}
-                  >
-                    Delivery Time
-                  </Typography>
-                  <TimePicker
-                    value={formData.deliveryTime}
-                    onChange={(newValue) => handleInputChange("deliveryTime", newValue)}
-                    slotProps={{
-                      textField: {
-                        placeholder: "Select time",
-                        sx: {
-                          "& .MuiOutlinedInput-root": {
-                            height: "52px",
-                            borderRadius: "8px",
-                            border: "1px solid rgba(0, 0, 0, 0.2)",
-                            fontFamily: "Switzer",
-                            "& fieldset": {
-                              border: "none",
-                            },
-                          },
-                        },
-                      },
-                    }}
-                  />
-                </Box>
-              </Box>
-
-            {/* Service Tables */}
-            {Object.entries(groupedServices).map(([serviceName, serviceData]) => {
-              const serviceId = serviceData.serviceId;
-              const services = serviceData.items;
-              return (
-                <Box key={serviceName} sx={{ mb: 4 }}>
-                  <Typography
-                    variant="h6"
-                    fontWeight="bold"
-                    fontFamily="Switzer"
-                    sx={{ mb: 2, fontSize: "16px", color: "#000000" }}
-                  >
-                    {serviceName}
-                  </Typography>
-                  <TableContainer
-                    component={Paper}
-                    sx={{
-                      boxShadow: "none",
-                      border: "1px solid #E5E7EB",
-                      borderRadius: "8px",
-                    }}
-                  >
-                    <Table>
-                      <TableHead>
-                        <TableRow sx={{ bgcolor: "#F9FAFB" }}>
+                          return (
+                            <TableRow key={item.id || index}>
+                              <TableCell
+                                sx={{
+                                  fontFamily: "Switzer",
+                                  fontSize: "14px",
+                                  color: "#000000",
+                                  borderBottom: "1px solid #E5E7EB",
+                                  width: "30%",
+                                }}
+                              >
+                                <InputFieldBordered
+                                  value={item.itemName}
+                                  onChange={(e) => {
+                                    setServiceItems((prev) => {
+                                      const newState = { ...prev };
+                                      const serviceData = newState[serviceId];
+                                      if (serviceData) {
+                                        const itemIndex = serviceData.items.findIndex(
+                                          (i) => i.id === item.id
+                                        );
+                                        if (itemIndex !== -1) {
+                                          serviceData.items[itemIndex].itemName = e.target.value;
+                                        }
+                                      }
+                                      return newState;
+                                    });
+                                  }}
+                                  placeholder="Item name"
+                                />
+                              </TableCell>
+                              <TableCell
+                                sx={{
+                                  fontFamily: "Switzer",
+                                  fontSize: "14px",
+                                  color: "#000000",
+                                  borderBottom: "1px solid #E5E7EB",
+                                  width: "20%",
+                                }}
+                              >
+                                <InputFieldBordered
+                                  type="number"
+                                  value={item.quantity}
+                                  onChange={(e) => {
+                                    const newQuantity = parseInt(e.target.value) || 0;
+                                    setServiceItems((prev) => {
+                                      const newState = { ...prev };
+                                      const serviceData = newState[serviceId];
+                                      if (serviceData) {
+                                        const itemIndex = serviceData.items.findIndex(
+                                          (i) => i.id === item.id
+                                        );
+                                        if (itemIndex !== -1) {
+                                          serviceData.items[itemIndex].quantity = newQuantity;
+                                        }
+                                      }
+                                      return newState;
+                                    });
+                                  }}
+                                  placeholder="Quantity"
+                                />
+                              </TableCell>
+                              <TableCell
+                                sx={{
+                                  fontFamily: "Switzer",
+                                  fontSize: "14px",
+                                  color: "#000000",
+                                  borderBottom: "1px solid #E5E7EB",
+                                  width: "25%",
+                                }}
+                              >
+                                <InputFieldBordered
+                                  type="number"
+                                  value={item.unitPrice > 0 ? item.unitPrice.toFixed(2) : ""}
+                                  onChange={(e) => {
+                                    const newPrice = parseFloat(e.target.value) || 0;
+                                    setServiceItems((prev) => {
+                                      const newState = { ...prev };
+                                      const serviceData = newState[serviceId];
+                                      if (serviceData) {
+                                        const itemIndex = serviceData.items.findIndex(
+                                          (i) => i.id === item.id
+                                        );
+                                        if (itemIndex !== -1) {
+                                          serviceData.items[itemIndex].unitPrice = newPrice;
+                                        }
+                                      }
+                                      return newState;
+                                    });
+                                  }}
+                                  placeholder="Unit Price"
+                                />
+                              </TableCell>
+                              <TableCell
+                                sx={{
+                                  fontFamily: "Switzer",
+                                  fontSize: "14px",
+                                  color: "#000000",
+                                  borderBottom: "1px solid #E5E7EB",
+                                  fontWeight: 600,
+                                  width: "25%",
+                                }}
+                              >
+                                ${amount.toFixed(2)}
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })
+                      ) : (
+                        <TableRow>
                           <TableCell
+                            colSpan={4}
                             sx={{
                               fontFamily: "Switzer",
-                              fontWeight: 600,
                               fontSize: "14px",
-                              color: "#374151",
-                              borderBottom: "1px solid #E5E7EB",
+                              color: "#6B7280",
+                              textAlign: "center",
+                              py: 3,
                             }}
                           >
-                            Item
-                          </TableCell>
-                          <TableCell
-                            sx={{
-                              fontFamily: "Switzer",
-                              fontWeight: 600,
-                              fontSize: "14px",
-                              color: "#374151",
-                              borderBottom: "1px solid #E5E7EB",
-                            }}
-                          >
-                            Quantity
-                          </TableCell>
-                          <TableCell
-                            sx={{
-                              fontFamily: "Switzer",
-                              fontWeight: 600,
-                              fontSize: "14px",
-                              color: "#374151",
-                              borderBottom: "1px solid #E5E7EB",
-                            }}
-                          >
-                            Unit Price
-                          </TableCell>
-                          <TableCell
-                            sx={{
-                              fontFamily: "Switzer",
-                              fontWeight: 600,
-                              fontSize: "14px",
-                              color: "#374151",
-                              borderBottom: "1px solid #E5E7EB",
-                            }}
-                          >
-                            Amount
+                            No items available for this service
                           </TableCell>
                         </TableRow>
-                      </TableHead>
-                      <TableBody>
-                        {services.length > 0 ? (
-                          services.map((item, index) => {
-                            const amount = item.quantity * item.unitPrice;
-
-                            return (
-                              <TableRow key={item.id || index}>
-                                <TableCell
-                                  sx={{
-                                    fontFamily: "Switzer",
-                                    fontSize: "14px",
-                                    color: "#000000",
-                                    borderBottom: "1px solid #E5E7EB",
-                                    width: "30%",
-                                  }}
-                                >
-                                  <InputFieldBordered
-                                    value={item.itemName}
-                                    onChange={(e) => {
-                                      setServiceItems((prev) => {
-                                        const newState = { ...prev };
-                                        const serviceData = newState[serviceId];
-                                        if (serviceData) {
-                                          const itemIndex = serviceData.items.findIndex(
-                                            (i) => i.id === item.id
-                                          );
-                                          if (itemIndex !== -1) {
-                                            serviceData.items[itemIndex].itemName = e.target.value;
-                                          }
-                                        }
-                                        return newState;
-                                      });
-                                    }}
-                                    placeholder="Item name"
-                                  />
-                                </TableCell>
-                                <TableCell
-                                  sx={{
-                                    fontFamily: "Switzer",
-                                    fontSize: "14px",
-                                    color: "#000000",
-                                    borderBottom: "1px solid #E5E7EB",
-                                    width: "20%",
-                                  }}
-                                >
-                                  <InputFieldBordered
-                                    type="number"
-                                    value={item.quantity}
-                                    onChange={(e) => {
-                                      const newQuantity = parseInt(e.target.value) || 0;
-                                      setServiceItems((prev) => {
-                                        const newState = { ...prev };
-                                        const serviceData = newState[serviceId];
-                                        if (serviceData) {
-                                          const itemIndex = serviceData.items.findIndex(
-                                            (i) => i.id === item.id
-                                          );
-                                          if (itemIndex !== -1) {
-                                            serviceData.items[itemIndex].quantity = newQuantity;
-                                          }
-                                        }
-                                        return newState;
-                                      });
-                                    }}
-                                    placeholder="Quantity"
-                                  />
-                                </TableCell>
-                                <TableCell
-                                  sx={{
-                                    fontFamily: "Switzer",
-                                    fontSize: "14px",
-                                    color: "#000000",
-                                    borderBottom: "1px solid #E5E7EB",
-                                    width: "25%",
-                                  }}
-                                >
-                                  <InputFieldBordered
-                                    type="number"
-                                    value={item.unitPrice > 0 ? item.unitPrice.toFixed(2) : ""}
-                                    onChange={(e) => {
-                                      const newPrice = parseFloat(e.target.value) || 0;
-                                      setServiceItems((prev) => {
-                                        const newState = { ...prev };
-                                        const serviceData = newState[serviceId];
-                                        if (serviceData) {
-                                          const itemIndex = serviceData.items.findIndex(
-                                            (i) => i.id === item.id
-                                          );
-                                          if (itemIndex !== -1) {
-                                            serviceData.items[itemIndex].unitPrice = newPrice;
-                                          }
-                                        }
-                                        return newState;
-                                      });
-                                    }}
-                                    placeholder="Unit Price"
-                                  />
-                                </TableCell>
-                                <TableCell
-                                  sx={{
-                                    fontFamily: "Switzer",
-                                    fontSize: "14px",
-                                    color: "#000000",
-                                    borderBottom: "1px solid #E5E7EB",
-                                    fontWeight: 600,
-                                    width: "25%",
-                                  }}
-                                >
-                                  ${amount.toFixed(2)}
-                                </TableCell>
-                              </TableRow>
-                            );
-                          })
-                        ) : (
-                          <TableRow>
-                            <TableCell
-                              colSpan={4}
-                              sx={{
-                                fontFamily: "Switzer",
-                                fontSize: "14px",
-                                color: "#6B7280",
-                                textAlign: "center",
-                                py: 3,
-                              }}
-                            >
-                              No items available for this service
-                            </TableCell>
-                          </TableRow>
-                        )}
-                      </TableBody>
-                    </Table>
-                  </TableContainer>
-                </Box>
-              );
-            })}
-
-              {/* Debug Panel - Show current state */}
-              {process.env.NODE_ENV === 'development' && (
-                <Box
-                  sx={{
-                    mb: 3,
-                    p: 2,
-                    bgcolor: "#F9FAFB",
-                    borderRadius: "8px",
-                    border: "1px solid #E5E7EB",
-                  }}
-                >
-                  <Typography variant="body2" fontFamily="Switzer" sx={{ mb: 1, fontWeight: 600 }}>
-                    🐛 Debug Info:
-                  </Typography>
-                  <Typography variant="caption" fontFamily="Switzer" sx={{ display: "block", mb: 0.5 }}>
-                    Services: {Object.keys(serviceItems).length}
-                  </Typography>
-                  <Typography variant="caption" fontFamily="Switzer" sx={{ display: "block", mb: 0.5 }}>
-                    Total Items: {Object.values(serviceItems).reduce((sum, s) => sum + s.items.length, 0)}
-                  </Typography>
-                  <Typography variant="caption" fontFamily="Switzer" sx={{ display: "block", mb: 0.5 }}>
-                    Items with Preferences: {Object.values(serviceItems).reduce((sum, s) => 
-                      sum + s.items.filter(i => i.preferences?.preferenceIds?.length > 0).length, 0
-                    )}
-                  </Typography>
-                  <Typography variant="caption" fontFamily="Switzer" sx={{ display: "block", color: "#EF4444" }}>
-                    {Object.values(serviceItems).reduce((sum, s) => 
-                      sum + s.items.filter(i => !i.preferences?.preferenceIds?.length).length, 0
-                    ) > 0 && "⚠️ Some items have no preferences!"}
-                  </Typography>
-                </Box>
-              )}
-
-              {/* Add Item Button */}
-              <Box
-                sx={{
-                  display: "flex",
-                  justifyContent: "flex-end",
-                  mt: 4,
-                  mb: 3,
-                }}
-              >
-                <Box
-                  component="button"
-                  onClick={handleOpenAddItemModal}
-                  sx={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 1,
-                    px: 3,
-                    py: 1.5,
-                    borderRadius: "8px",
-                    border: "1px solid #55ACEE",
-                    bgcolor: "white",
-                    color: "#55ACEE",
-                    fontFamily: "Switzer",
-                    fontSize: "14px",
-                    fontWeight: 500,
-                    cursor: "pointer",
-                    "&:hover": {
-                      bgcolor: "#F0F9FF",
-                    },
-                  }}
-                >
-                  <TbPlus size={18} />
-                  Add Item
-                </Box>
+                      )}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
               </Box>
+            );
+          })}
 
-              {/* Action Buttons */}
-              <Box
-                sx={{
-                  display: "flex",
-                  justifyContent: "flex-end",
-                  gap: 2,
-                  mt: 4,
-                  pt: 3,
-                  borderTop: "1px solid #E5E7EB",
-                }}
-              >
-                <ButtonWhite onClick={handleCancel} disabled={isSaving}>
-                  Cancel
-                </ButtonWhite>
-                <ButtonBlue onClick={handleSave} disabled={isSaving}>
-                  {isSaving ? "Saving..." : "Save"}
-                </ButtonBlue>
-              </Box>
-            </Box>
-          ) : (
-            <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
-              <Typography variant="body1" fontFamily="Switzer">
-                No order data available
+          {/* Debug Panel - Show current state */}
+          {process.env.NODE_ENV === 'development' && (
+            <Box
+              sx={{
+                mb: 3,
+                p: 2,
+                bgcolor: "#F9FAFB",
+                borderRadius: "8px",
+                border: "1px solid #E5E7EB",
+              }}
+            >
+              <Typography variant="body2" fontFamily="Switzer" sx={{ mb: 1, fontWeight: 600 }}>
+                🐛 Debug Info:
+              </Typography>
+              <Typography variant="caption" fontFamily="Switzer" sx={{ display: "block", mb: 0.5 }}>
+                Services: {Object.keys(serviceItems).length}
+              </Typography>
+              <Typography variant="caption" fontFamily="Switzer" sx={{ display: "block", mb: 0.5 }}>
+                Total Items: {Object.values(serviceItems).reduce((sum, s) => sum + s.items.length, 0)}
+              </Typography>
+              <Typography variant="caption" fontFamily="Switzer" sx={{ display: "block", mb: 0.5 }}>
+                Items with Preferences: {Object.values(serviceItems).reduce((sum, s) =>
+                  sum + s.items.filter(i => i.preferences?.preferenceIds?.length > 0).length, 0
+                )}
+              </Typography>
+              <Typography variant="caption" fontFamily="Switzer" sx={{ display: "block", color: "#EF4444" }}>
+                {Object.values(serviceItems).reduce((sum, s) =>
+                  sum + s.items.filter(i => !i.preferences?.preferenceIds?.length).length, 0
+                ) > 0 && "⚠️ Some items have no preferences!"}
               </Typography>
             </Box>
           )}
 
-          {/* Add Item Modal */}
-          <AddItemModal
-            open={addItemModal.open}
-            onClose={handleCloseAddItemModal}
-            onAddItems={handleAddItems}
-            orderData={orderData}
-          />
-        </LocalizationProvider>
-      }
-    />
+          {/* Add Item Button */}
+          <Box
+            sx={{
+              display: "flex",
+              justifyContent: "flex-end",
+              mt: 4,
+              mb: 3,
+            }}
+          >
+            <Box
+              component="button"
+              onClick={handleOpenAddItemModal}
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                gap: 1,
+                px: 3,
+                py: 1.5,
+                borderRadius: "8px",
+                border: "1px solid #55ACEE",
+                bgcolor: "white",
+                color: "#55ACEE",
+                fontFamily: "Switzer",
+                fontSize: "14px",
+                fontWeight: 500,
+                cursor: "pointer",
+                "&:hover": {
+                  bgcolor: "#F0F9FF",
+                },
+              }}
+            >
+              <TbPlus size={18} />
+              Add Item
+            </Box>
+          </Box>
+
+          {/* Action Buttons */}
+          <Box
+            sx={{
+              display: "flex",
+              justifyContent: "flex-end",
+              gap: 2,
+              mt: 4,
+              pt: 3,
+              borderTop: "1px solid #E5E7EB",
+            }}
+          >
+            <ButtonWhite onClick={handleCancel} disabled={isSaving}>
+              Cancel
+            </ButtonWhite>
+            <ButtonBlue onClick={handleSave} disabled={isSaving}>
+              {isSaving ? "Saving..." : "Save"}
+            </ButtonBlue>
+          </Box>
+        </Box>
+      ) : (
+        <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
+          <Typography variant="body1" fontFamily="Switzer">
+            No order data available
+          </Typography>
+        </Box>
+      )}
+
+      {/* Add Item Modal */}
+      <AddItemModal
+        open={addItemModal.open}
+        onClose={handleCloseAddItemModal}
+        onAddItems={handleAddItems}
+        orderData={orderData}
+      />
+    </LocalizationProvider>
   );
 }
 

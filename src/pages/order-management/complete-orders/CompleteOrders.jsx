@@ -1,5 +1,4 @@
 import { Box, Typography } from "@mui/material";
-import Layout from "../../../components/shared/Layout";
 import { BsCardList } from "../../../shared/icons/index";
 import { Delay } from "../../../components/shared/Loaders";
 import StatCard from "../../../components/ui/StatCard";
@@ -13,14 +12,17 @@ import {
   useGetOrdersCountQuery,
 } from "../../../store/services/api";
 import { dateTimeFormat } from "../../../shared/constants";
+import OrderDetailsModal from "../order-modals/OrderDetailsModal";
+import DeleteOrderModal from "../order-modals/DeleteOrderModal";
 
 export default function CompleteOrders() {
   const navigate = useNavigate();
-  const { data, isLoading } = useGetAllCompleteOrdersQuery();
-  const { data: OrderCounts } = useGetOrdersCountQuery();
+  const { data, isLoading, refetch } = useGetAllCompleteOrdersQuery();
+  const { data: OrderCounts, refetch: refetchCounts } = useGetOrdersCountQuery();
   const [dateRange, setDateRange] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
-  const [modalData, setModalData] = useState({ open: false, data: "" });
+  const [modalData, setModalData] = useState({ open: false, orderId: null });
+  const [deleteModal, setDeleteModal] = useState({ open: false, orderId: null });
 
   const handleSearchChange = (searchTerm) => {
     setSearchTerm(searchTerm);
@@ -55,20 +57,22 @@ export default function CompleteOrders() {
   const handleRowAction = (actionType, rowData) => {
     switch (actionType) {
       case "view":
-        navigate(`/customer-management/${rowData.id}`);
+        setModalData({ open: true, orderId: rowData.id });
         break;
       case "edit":
-        console.log("Editing customer:", rowData.name);
+        navigate(`/orders/edit/${rowData.id}`);
         break;
       case "delete":
-        console.log("Deleting customer:", rowData.name);
-        break;
-      case "toggle-status":
-        console.log("Toggling status for customer:", rowData.name);
+        setDeleteModal({ open: true, orderId: rowData.id });
         break;
       default:
         break;
     }
+  };
+
+  const handleDeleteSuccess = () => {
+    refetch();
+    refetchCounts();
   };
 
   const customersData = data?.data?.allCompletedOrders?.map(
@@ -174,20 +178,18 @@ export default function CompleteOrders() {
       sortable: false,
       renderCell: (row) => (
         <ActionButtons
-          onView={() => setModalData({ open: true, data: row })}
-          showEdit={false}
-          onDelete={() => alert("Delete clicked")}
+          onView={() => setModalData({ open: true, orderId: row.id })}
+          onEdit={() => navigate(`/orders/edit/${row.id}`)}
+          onDelete={() => setDeleteModal({ open: true, orderId: row.id })}
         />
       ),
     },
   ];
+  if (isLoading) return <Delay />;
+
   return (
-    <Layout
-      content={
-        isLoading ? (
-          <Delay />
-        ) : (
-          <div className="!space-y-11">
+    <>
+    <div className="!space-y-11">
             <Box className="flex items-center gap-x-5 justify-between">
               <Box className="flex items-center gap-x-5">
                 <Typography color="blue.50">
@@ -228,8 +230,17 @@ export default function CompleteOrders() {
               />
             </div>
           </div>
-        )
-      }
-    />
+      <OrderDetailsModal
+        open={modalData.open}
+        orderId={modalData.orderId}
+        onClose={() => setModalData({ open: false, orderId: null })}
+      />
+      <DeleteOrderModal
+        open={deleteModal.open}
+        orderId={deleteModal.orderId}
+        onClose={() => setDeleteModal({ open: false, orderId: null })}
+        onSuccess={handleDeleteSuccess}
+      />
+    </>
   );
 }

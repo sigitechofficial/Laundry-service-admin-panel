@@ -1,5 +1,4 @@
 import { Box, Typography } from "@mui/material";
-import Layout from "../../components/shared/Layout";
 import { PiHeadsetBold } from "../../shared/icons/index";
 import ServicesCard from "./ServicesCard";
 import { useState } from "react";
@@ -12,9 +11,7 @@ export default function ServicesPage() {
   };
 
   return (
-    <Layout
-      content={
-        <div className="!space-y-11">
+    <div className="!space-y-11">
           <Box className="flex items-center gap-x-5 justify-between">
             <Box className="flex items-center gap-x-5">
               <Typography color="blue.50">
@@ -35,8 +32,6 @@ export default function ServicesPage() {
             <ServicesCard triggerAdd={triggerAdd} />
           </Box>
         </div>
-      }
-    />
   );
 }
 

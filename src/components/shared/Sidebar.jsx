@@ -76,7 +76,17 @@ function Sidebar() {
 
   const isParentActive = (item) => {
     if (!item.children) return false;
+    if (location.pathname === item.path) return true;
+    if (item.path && location.pathname.startsWith(item.path + "/")) return true;
     return item.children.some((child) => location.pathname === child.path);
+  };
+
+  // Item (with or without children) is active when path matches or is a nested route under it
+  const isItemActive = (item) => {
+    if (location.pathname === item.path) return true;
+    if (item.path && item.path !== "/" && location.pathname.startsWith(item.path + "/"))
+      return true;
+    return isParentActive(item);
   };
 
   const handleNavigation = (path) => {
@@ -159,11 +169,16 @@ function Sidebar() {
 
   useEffect(() => {
     sidebarList.forEach((item) => {
-      if (
-        item.children &&
-        item.children.some((child) => location.pathname === child.path)
-      ) {
-        setSubmenuOpen((prev) => ({ ...prev, [item.label]: true }));
+      if (item.children) {
+        const isUnderParent =
+          location.pathname === item.path ||
+          (item.path && location.pathname.startsWith(item.path + "/"));
+        const matchesChild = item.children.some(
+          (child) => location.pathname === child.path
+        );
+        if (isUnderParent || matchesChild) {
+          setSubmenuOpen((prev) => ({ ...prev, [item.label]: true }));
+        }
       }
     });
 
@@ -248,9 +263,7 @@ function Sidebar() {
                   }
                   onMouseEnter={(e) => handleHoverIn(e, item)}
                   onMouseLeave={(e) => handleHoverOut(e)}
-                  selected={
-                    location.pathname === item.path || isParentActive(item)
-                  }
+                  selected={isItemActive(item)}
                   sx={{
                     transition: "none !important",
                     color: "#8F95B2",

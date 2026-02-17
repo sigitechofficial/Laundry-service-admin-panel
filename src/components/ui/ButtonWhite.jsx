@@ -1,28 +1,41 @@
 import { Button } from "@mui/material";
 import React from "react";
 
-export default function ButtonWhite({ onClick, disabled, text, width, children }) {
+const sizeStyles = {
+  small: { height: "36px", fontSize: "14px", padding: "6px 16px" },
+  medium: { height: "40px", fontSize: "14px", padding: "8px 16px" },
+  large: { height: "52px", fontSize: "20px", padding: "10px 16px" },
+};
+
+export default function ButtonWhite({
+  onClick,
+  disabled,
+  text,
+  width,
+  children,
+  size = "large",
+}) {
   return (
     <Button
       onClick={onClick}
       variant="outlined"
       sx={{
-        height: "52px",
+        height: sizeStyles[size].height,
         borderRadius: "8px",
         border: "1px solid #2B2D42",
-        color: "#55ACEE !important",
+        color: "#2B2D42 !important",
         bgcolor: "white",
         fontFamily: "Switzer",
         fontWeight: 500,
-        fontSize: "20px",
+        fontSize: sizeStyles[size].fontSize,
         textTransform: "none",
-        padding: "10px 16px",
+        padding: sizeStyles[size].padding,
         width: width,
         minWidth: "80px",
         "&:hover": {
           bgcolor: "#F9FAFB",
           border: "1px solid #2B2D42",
-          color: "#55ACEE !important",
+          color: "#2B2D42 !important",
         },
       }}
       disabled={disabled}

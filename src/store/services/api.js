@@ -258,6 +258,37 @@ export const api = createApi({
         method: "GET",
       }),
     }),
+
+    getShopDetails: builder.query({
+      query: (id) => ({
+        url: `admin/singleShopData/${id}`,
+        method: "GET",
+      }),
+    }),
+
+    addShop: builder.mutation({
+      query: (body) => ({
+        url: "admin/addLaundryShop",
+        method: "POST",
+        body,
+      }),
+    }),
+
+    editShop: builder.mutation({
+      query: ({ id, body }) => ({
+        url: `admin/updateLaundryShop/${id}`,
+        method: "PATCH",
+        body,
+      }),
+    }),
+
+    deleteShop: builder.mutation({
+      query: (id) => ({
+        url: `admin/deleteLaundryShop/${id}`,
+        method: "DELETE",
+      }),
+    }),
+
     getAllZones: builder.query({
       query: () => ({
         url: "admin/getZones",
@@ -424,10 +455,62 @@ export const api = createApi({
       }),
     }),
 
+    deleteOrder: builder.mutation({
+      query: (id) => ({
+        url: `admin/deleteOrder/${id}`,
+        method: "DELETE",
+      }),
+    }),
+
     getAllEmployeesWithShopInfo: builder.query({
       query: () => ({
         url: "admin/getAllEmployeesWithShopInfo",
         method: "GET",
+      }),
+    }),
+
+    getAdminEmployees: builder.query({
+      query: () => ({
+        url: "admin/getAdminEmployess",
+        method: "GET",
+      }),
+    }),
+
+    getAllRoles: builder.query({
+      query: () => ({
+        url: "admin/getAllRoles",
+        method: "GET",
+      }),
+    }),
+
+    addAdminEmployee: builder.mutation({
+      query: (body) => ({
+        url: "admin/adinEmployeeAdd",
+        method: "POST",
+        body,
+      }),
+    }),
+
+    updateAdminEmployee: builder.mutation({
+      query: (body) => ({
+        url: "admin/updateEmployee",
+        method: "PATCH",
+        body,
+      }),
+    }),
+
+    updateAdminEmployeeStatus: builder.mutation({
+      query: (body) => ({
+        url: "admin/updateEmployeeStatus",
+        method: "PATCH",
+        body,
+      }),
+    }),
+
+    deleteAdminEmployee: builder.mutation({
+      query: (id) => ({
+        url: `admin/deleteEmployee/${id}`,
+        method: "DELETE",
       }),
     }),
 
@@ -559,6 +642,53 @@ export const api = createApi({
       }),
     }),
 
+    addReschedulePolicy: builder.mutation({
+      query: (body) => ({
+        url: "admin/addReschedulePolicy",
+        method: "POST",
+        body,
+      }),
+    }),
+
+    getReschedulePolicies: builder.query({
+      query: (params = {}) => {
+        const { isActive, isDefault, page, limit } = params;
+        const queryParams = new URLSearchParams();
+        if (isActive !== undefined && isActive !== null && isActive !== "") {
+          queryParams.append("isActive", isActive);
+        }
+        if (isDefault !== undefined && isDefault !== null && isDefault !== "") {
+          queryParams.append("isDefault", isDefault);
+        }
+        if (page !== undefined && page !== null && page !== "") {
+          queryParams.append("page", page);
+        }
+        if (limit !== undefined && limit !== null && limit !== "") {
+          queryParams.append("limit", limit);
+        }
+        const queryString = queryParams.toString();
+        const url = queryString
+          ? `admin/getReschedulePolicies?${queryString}`
+          : "admin/getReschedulePolicies";
+        return { url, method: "GET" };
+      },
+    }),
+
+    updateReschedulePolicy: builder.mutation({
+      query: ({ id, body }) => ({
+        url: `admin/updateReschedulePolicy/${id}`,
+        method: "PUT",
+        body,
+      }),
+    }),
+
+    deleteReschedulePolicy: builder.mutation({
+      query: (id) => ({
+        url: `admin/deleteReschedulePolicy/${id}`,
+        method: "DELETE",
+      }),
+    }),
+
     getAllFAQs: builder.query({
       query: () => ({
         url: "admin/getAllFAQs",
@@ -656,7 +786,17 @@ export const {
   useGetAllCompleteOrdersQuery,
   useGetOnHoldBookingsQuery,
   useGetShopsDataQuery,
+  useGetShopDetailsQuery,
+  useAddShopMutation,
+  useEditShopMutation,
+  useDeleteShopMutation,
   useGetAllEmployeesWithShopInfoQuery,
+  useGetAdminEmployeesQuery,
+  useGetAllRolesQuery,
+  useAddAdminEmployeeMutation,
+  useUpdateAdminEmployeeMutation,
+  useUpdateAdminEmployeeStatusMutation,
+  useDeleteAdminEmployeeMutation,
   useGetAllZonesQuery,
   useGetAllCountriesQuery,
   useGetCitiesByCountryIdQuery,
@@ -678,6 +818,7 @@ export const {
   useGetOrderForEditQuery,
   useGetOrderItemsSheetQuery,
   useEditOrderMutation,
+  useDeleteOrderMutation,
   useAddCancellationPolicyMutation,
   useGetCancellationPoliciesQuery,
   useUpdateCancellationPolicyMutation,
@@ -689,6 +830,10 @@ export const {
   useGetNoShowPoliciesQuery,
   useUpdateNoShowPolicyMutation,
   useDeleteNoShowPolicyMutation,
+  useAddReschedulePolicyMutation,
+  useGetReschedulePoliciesQuery,
+  useUpdateReschedulePolicyMutation,
+  useDeleteReschedulePolicyMutation,
   useGetAllFAQsQuery,
   useCreateFAQMutation,
   useUpdateFAQMutation,

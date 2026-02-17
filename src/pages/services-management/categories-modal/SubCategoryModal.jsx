@@ -4,7 +4,7 @@ import { useForm, Controller } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import ModalComponent from "../../../components/shared/Modal";
 import InputFieldModal from "../../../components/ui/InputFieldModal";
-import TextareaField from "../../../components/ui/TextArea";
+import RichTextEditor from "../../../components/ui/RichTextEditor";
 import useToaster from "../../../components/ui/Toaster";
 import {
   useAddSubCategoryMutation,
@@ -197,12 +197,11 @@ export default function SubCategoryModal({
           control={control}
           render={({ field: { onChange, value } }) => (
             <Box>
-              <TextareaField
+              <RichTextEditor
                 title="Description"
-                name="description"
-                placeholder="Enter description"
                 value={value}
                 onChange={(e) => onChange(e.target.value)}
+                placeholder="Enter description"
               />
               {errors.description && (
                 <Typography

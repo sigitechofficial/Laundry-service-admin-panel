@@ -1,5 +1,4 @@
 import { Box, Typography } from "@mui/material";
-import Layout from "../../components/shared/Layout";
 import { BsCardList } from "../../shared/icons/index";
 import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
@@ -127,20 +126,14 @@ export default function ShopEmployeesPage() {
 
   if (employeesLoading) {
     return (
-      <Layout
-        content={
-          <div className="w-full flex items-center justify-center py-20">
-            <Delay />
-          </div>
-        }
-      />
+      <div className="w-full flex items-center justify-center py-20">
+        <Delay />
+      </div>
     );
   }
 
   return (
-    <Layout
-      content={
-        <div className="!space-y-11">
+    <div className="!space-y-11">
           <Box className="flex items-center gap-x-5 justify-between">
             <Box className="flex items-center gap-x-5">
               <Typography color="blue.50">
@@ -249,8 +242,6 @@ export default function ShopEmployeesPage() {
             )}
           </Box>
         </div>
-      }
-    />
   );
 }
 

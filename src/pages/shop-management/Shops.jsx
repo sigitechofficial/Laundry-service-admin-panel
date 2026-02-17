@@ -1,96 +1,181 @@
-import { useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import DataTable from "../../components/ui/DataTable";
 import ActionButtons from "../../components/ui/ActionButtons";
 import StatusPill from "../../components/ui/StatusPill";
 import ChangeStatus from "../../components/ui/Switch";
 import { Delay } from "../../components/shared/Loaders";
-import shopsFallback from "../../data/shops.json";
 import { useState } from "react";
-import InputFieldModal from "../../components/ui/InputFieldModal";
 import InputFieldBordered from "../../components/ui/InputFieldBordered";
-import { Box, Typography } from "@mui/material";
+import { Box } from "@mui/material";
 import ModalComponent from "../../components/shared/Modal";
+import StatCard from "../../components/ui/StatCard";
+import {
+  useGetShopsDataQuery,
+  useEditShopMutation,
+  useDeleteShopMutation,
+} from "../../store/services/api";
+import useToaster from "../../components/ui/Toaster";
+import DeleteShopModal from "./DeleteShopModal";
 
 export default function Shops() {
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editData, setEditData] = useState(null);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [shopToDelete, setShopToDelete] = useState(null);
   const navigate = useNavigate();
-  const customers = useSelector((state) => state.apiData.customers);
-  const sourceData =
-    customers && customers.length > 0 ? customers : shopsFallback;
-  const customersData = sourceData.map((item, index) => {
-    const isShop =
-      item && item.name && typeof item.totalRevenue !== "undefined";
+  const { success, error } = useToaster();
+
+  const { data: shopsResponse, isLoading, refetch } = useGetShopsDataQuery();
+  const [editShop, { isLoading: isEditing }] = useEditShopMutation();
+
+  const shops = shopsResponse?.data?.AllShopsData || [];
+  const topPerformingShops = shopsResponse?.data?.topPerformingShops || [];
+
+  const shopsData = shops.map((item, index) => {
+    const addr = item?.addressDb;
+    const biz = item?.businessInfo;
+    const addressParts = [
+      addr?.streetAddress,
+      addr?.district,
+      addr?.province,
+      addr?.city?.name,
+      addr?.country?.name,
+    ].filter(Boolean);
+    const address = addressParts.join(", ") || "-";
+    const status = !!addr?.zone?.status;
     return {
       id: item.id,
       sl: index + 1,
       customerId: item.id,
-      name: isShop
-        ? item.name
-        : `${item?.firstName || ""} ${item?.lastName || ""}`,
-      email: item?.email || "",
-      phoneNumber: item?.phone || item?.phoneNum || "",
-      amountSpent: isShop ? item.totalRevenue : item?.totalAmountSpent,
-      lastOrderDate: item?.lastOrderDate || item?.lastBookingDate,
-      totalOrders: item?.totalOrders || item?.bookingCount,
-      address: item?.address || "",
-      createdAt: item?.createdAt,
-      updatedAt: item?.updatedAt,
-      status: !!item?.status,
-      changeStatus: !!item?.status,
+      name: item?.shopName ?? item?.name ?? "",
+      email: biz?.email ?? item?.email ?? "",
+      phoneNumber: biz?.phoneNum ?? item?.phone ?? item?.phoneNum ?? "",
+      amountSpent: addr?.TotalRevenue ?? item?.totalRevenue ?? 0,
+      totalOrders: addr?.TotalBookingCount ?? item?.totalOrders ?? 0,
+      pendingOrders: addr?.PendingBookingCount ?? 0,
+      lastOrderDate: item?.lastOrderDate ?? "-",
+      address,
+      zone: addr?.zone?.name ?? "-",
+      city: addr?.city?.name ?? "-",
+      country: addr?.country?.name ?? "-",
+      status,
+      changeStatus: status,
     };
   });
+
+  const handleSaveEdit = async () => {
+    if (!editData?.id) return;
+    try {
+      const res = await editShop({
+        id: editData.id,
+        body: {
+          shopName: editData.name,
+          email: editData.email,
+          phone: editData.phone,
+          address: editData.address,
+        },
+      }).unwrap();
+
+      if (res?.status === "1") {
+        success(res?.message ?? "Shop updated successfully");
+        setEditModalOpen(false);
+        setEditData(null);
+        refetch();
+      } else {
+        error(res?.message ?? "Failed to update shop");
+      }
+    } catch (err) {
+      const msg =
+        err?.data?.message ?? err?.data?.error ?? err?.message ?? "Failed to update shop";
+      error(msg);
+    }
+  };
+
+  const handleDeleteClick = (row) => {
+    setShopToDelete(row);
+    setDeleteModalOpen(true);
+  };
+
+  const handleDeleteSuccess = () => {
+    setDeleteModalOpen(false);
+    setShopToDelete(null);
+    refetch();
+  };
 
   const customerColumns = [
     {
       field: "sl",
       headerName: "SL",
-      flex: 0.15,
-      minWidth: 100,
+      flex: 0.08,
+      minWidth: 60,
     },
     {
       field: "customerId",
       headerName: "ID",
-      flex: 0.12,
-      minWidth: 170,
+      flex: 0.08,
+      minWidth: 80,
     },
     {
       field: "name",
-      headerName: "Name",
-      flex: 0.18,
-      minWidth: 150,
+      headerName: "Shop Name",
+      flex: 0.14,
+      minWidth: 140,
     },
     {
       field: "email",
       headerName: "Email",
-      flex: 0.18,
-      minWidth: 150,
+      flex: 0.14,
+      minWidth: 160,
     },
     {
       field: "phoneNumber",
-      headerName: "Phone Number",
-      flex: 0.15,
-      minWidth: 180,
+      headerName: "Phone",
+      flex: 0.12,
+      minWidth: 120,
+    },
+    {
+      field: "address",
+      headerName: "Address",
+      flex: 0.18,
+      minWidth: 200,
+    },
+    {
+      field: "zone",
+      headerName: "Zone",
+      flex: 0.1,
+      minWidth: 100,
+    },
+    {
+      field: "city",
+      headerName: "City",
+      flex: 0.1,
+      minWidth: 100,
+    },
+    {
+      field: "country",
+      headerName: "Country",
+      flex: 0.1,
+      minWidth: 120,
     },
     {
       field: "totalOrders",
-      headerName: "Total Orders",
+      headerName: "Total Bookings",
       flex: 0.1,
-      minWidth: 170,
+      minWidth: 120,
       type: "number",
     },
     {
-      field: "lastOrderDate",
-      headerName: "Last Order Date",
-      flex: 0.12,
-      minWidth: 190,
+      field: "pendingOrders",
+      headerName: "Pending",
+      flex: 0.08,
+      minWidth: 90,
+      type: "number",
     },
     {
       field: "amountSpent",
-      headerName: "Total Amount",
-      flex: 0.12,
-      minWidth: 220,
+      headerName: "Total Revenue",
+      flex: 0.1,
+      minWidth: 120,
     },
     {
       field: "status",
@@ -122,7 +207,6 @@ export default function Shops() {
         <ActionButtons
           onView={() => navigate(`/shop-management/details/${row?.id}`)}
           onEdit={() => {
-            // open edit modal with prefilled data from row
             setEditData({
               id: row.id,
               name: row.name,
@@ -132,39 +216,55 @@ export default function Shops() {
             });
             setEditModalOpen(true);
           }}
-          onDelete={() => alert("Delete clicked")}
+          onDelete={() => handleDeleteClick(row)}
         />
       ),
       sortable: false,
     },
   ];
 
-  if (!customersData || customersData.length === 0) {
+  if (isLoading) {
     return <Delay />;
   }
 
+  const statCardColors = ["bg-purple50", "bg-red50", "bg-green50", "bg-green200", "bg-yellow50"];
+
   return (
     <div className="w-full !space-y-11 !mt-0">
+      <div className="grid sm:grid-cols-2 md:grid-cols-4 gap-7 font-Inter">
+        {topPerformingShops.slice(0, 4).map((shop, index) => (
+          <StatCard
+            key={shop?.id ?? index}
+            title={shop?.shopName ?? "—"}
+            value={`${shop?.orderCount ?? 0} orders`}
+            bgColor={statCardColors[index % statCardColors.length]}
+          />
+        ))}
+      </div>
       <DataTable
-        data={customersData}
+        data={shopsData}
         columns={customerColumns}
-        searchPlaceholder="Search by ID, name, email..."
+        searchPlaceholder="Search by shop name, email, address..."
         height={600}
       />
       <ModalComponent
         open={editModalOpen}
         title={editData ? "Edit Shop" : "Edit"}
-        onClose={() => setEditModalOpen(false)}
+        onClose={() => {
+          setEditModalOpen(false);
+          setEditData(null);
+        }}
         secondaryAction={{
           label: "Cancel",
-          onClick: () => setEditModalOpen(false),
+          onClick: () => {
+            setEditModalOpen(false);
+            setEditData(null);
+          },
         }}
         primaryAction={{
           label: "Save",
-          onClick: () => {
-            console.log("Save edit:", editData);
-            setEditModalOpen(false);
-          },
+          onClick: handleSaveEdit,
+          isLoading: isEditing,
         }}
       >
         {editData && (
@@ -200,6 +300,16 @@ export default function Shops() {
           </div>
         )}
       </ModalComponent>
+
+      <DeleteShopModal
+        open={deleteModalOpen}
+        shopData={shopToDelete}
+        onClose={() => {
+          setDeleteModalOpen(false);
+          setShopToDelete(null);
+        }}
+        onShopDeleted={handleDeleteSuccess}
+      />
     </div>
   );
 }

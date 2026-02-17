@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { Box, Typography, Tabs, Tab } from "@mui/material";
 import { useNavigate, useLocation } from "react-router-dom";
-import Layout from "../../components/shared/Layout";
 import { BsCardList } from "../../shared/icons/index";
 import DataTable from "../../components/ui/DataTable";
 import StatCard from "../../components/ui/StatCard";
@@ -16,6 +15,7 @@ import { TbFileDownload } from "../../shared/icons/index";
 import ButtonBlueLight from "../../components/ui/ButtonBlueLight";
 import CancellationPolicyContent from "./CancellationPolicyContent";
 import NoShowPolicyContent from "./NoShowPolicyContent";
+import ReschedulePolicyContent from "./ReschedulePolicyContent";
 
 export default function PoliciesManagement() {
   const navigate = useNavigate();
@@ -33,6 +33,8 @@ export default function PoliciesManagement() {
       setActiveTab(1);
     } else if (location.pathname.includes("no-show-policy")) {
       setActiveTab(2);
+    } else if (location.pathname.includes("reschedule-policy")) {
+      setActiveTab(3);
     } else {
       setActiveTab(0);
     }
@@ -161,13 +163,10 @@ export default function PoliciesManagement() {
     label: city.name,
   })) || [];
 
+  if (isLoading) return <Delay />;
+
   return (
-    <Layout
-      content={
-        isLoading ? (
-          <Delay />
-        ) : (
-          <Box>
+    <Box>
             {/* Header Section */}
             <Box className="flex items-center gap-x-5 justify-between" sx={{ mb: "44px" }}>
               <Box className="flex items-center gap-x-5">
@@ -258,6 +257,7 @@ export default function PoliciesManagement() {
                   <Tab label="Overall" />
                   <Tab label="Cancellation" />
                   <Tab label="No Show" />
+                  <Tab label="Reschedule" />
                 </Tabs>
               </Box>
             </Box>
@@ -359,13 +359,12 @@ export default function PoliciesManagement() {
               </>
             ) : activeTab === 1 ? (
               <CancellationPolicyContent />
-            ) : (
+            ) : activeTab === 2 ? (
               <NoShowPolicyContent />
+            ) : (
+              <ReschedulePolicyContent />
             )}
           </Box>
-        )
-      }
-    />
   );
 }
 

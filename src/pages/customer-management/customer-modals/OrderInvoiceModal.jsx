@@ -1,6 +1,22 @@
 import { Box, Typography, Divider } from "@mui/material";
 import ModalComponent from "../../../components/shared/Modal";
 
+function InvoiceRow({ label, value, wrap }) {
+  return (
+    <Box sx={{ display: "flex", flexDirection: "column", gap: 0.25 }}>
+      <Typography variant="caption" color="text.secondary" fontWeight={600}>
+        {label}
+      </Typography>
+      <Typography
+        variant="body2"
+        sx={wrap ? { wordBreak: "break-word" } : undefined}
+      >
+        {value || "—"}
+      </Typography>
+    </Box>
+  );
+}
+
 export default function OrderInvoiceModal({ open, data, setModalData }) {
   const handleClose = () => {
     setModalData({
@@ -13,32 +29,34 @@ export default function OrderInvoiceModal({ open, data, setModalData }) {
     window.print();
   };
 
-  // Use actual data if available, otherwise use mock data
-  const orderData = data?.data;
+  // Use passed order data (from ShopDetail / order list); support both { data: payload } and { data: { data: payload } }
+  const orderData = data?.data?.data ?? data?.data;
+  const businessData = data?.data?.business;
+  const num = (v) => (v != null && v !== "" ? Number(v) : 0);
   const invoiceData = {
-    invoiceNo: orderData?.invoiceNo || "1235258952",
+    invoiceNo: orderData?.invoiceNo ?? "—",
     customer: {
-      name: orderData?.customer?.name || "John Smith",
-      customerId: orderData?.customer?.id || "003256",
-      address: orderData?.customer?.address || "First Str, 28-32 Chicago, USA",
-      email: orderData?.customer?.email || "@gmail.com",
-      phone: orderData?.customer?.phone || "+92455655",
-      date: orderData?.orderDate || "02/06/2025",
-      driverInstruction: orderData?.driverInstruction || "collect",
+      name: orderData?.customer?.name ?? "—",
+      customerId: orderData?.customer?.id ?? "—",
+      address: orderData?.customer?.address ?? "—",
+      email: orderData?.customer?.email ?? "—",
+      phone: orderData?.customer?.phone ?? "—",
+      date: orderData?.customer?.date ?? orderData?.orderDate ?? "—",
+      driverInstruction: orderData?.customer?.driverInstruction ?? "—",
     },
     delivery: {
-      address: orderData?.deliveryAddress || "First Str, 28-32 Chicago, USA",
-      pickupDate: orderData?.pickupDate || "02/06/2025",
-      deliveryDate: orderData?.deliveryDate || "02/06/2025",
-      driverInstruction: orderData?.deliveryInstruction || "collect",
+      address: orderData?.deliveryAddress ?? "—",
+      pickupDate: orderData?.pickupDate ?? "—",
+      deliveryDate: orderData?.deliveryDate ?? "—",
+      driverInstruction: orderData?.deliveryInstruction ?? "—",
     },
     charges: {
-      minimumOrderFee: orderData?.charges?.minimumOrderFee || 35.0,
-      serviceFee: orderData?.charges?.serviceFee || 1.25,
-      driverTip: orderData?.charges?.driverTip || 2.0,
-      total: orderData?.charges?.total || 38.25,
+      minimumOrderFee: num(orderData?.charges?.minimumOrderFee),
+      serviceFee: num(orderData?.charges?.serviceFee),
+      driverTip: num(orderData?.charges?.driverTip),
+      total: num(orderData?.charges?.total),
     },
-    driverNote: orderData?.driverNote || "",
+    driverNote: orderData?.driverNote ?? "",
   };
 
   return (
@@ -70,29 +88,26 @@ export default function OrderInvoiceModal({ open, data, setModalData }) {
         {/* Header Section */}
         <Box className="flex justify-between items-start mb-6">
           <Box className="flex items-center gap-4">
-            {/* Company Logo Placeholder */}
-            <Box className="size-28 bg-gray-200 rounded-lg flex items-center justify-center">
-              <Typography variant="h6" color="gray.500" fontFamily="Switzer">
-                LOGO
-              </Typography>
-            </Box>
             <Box>
               <Typography
-                variant="h4"
-                fontSize={"32px"}
-                fontWeight="700"
-                fontFamily="SF Pro"
+                variant="h5"
+                sx={{
+                  fontSize: "1.5rem",
+                  fontWeight: 700,
+                  fontFamily: "Switzer, sans-serif",
+                  letterSpacing: "-0.02em",
+                }}
               >
                 Customer Invoice
               </Typography>
-              <Typography variant="body2" fontFamily="SF Pro">
-                Business address
+              <Typography variant="body2" sx={{ mt: 0.5, color: "text.secondary" }}>
+                {businessData?.address ?? "—"}
               </Typography>
-              <Typography variant="body2" fontFamily="SF Pro">
-                Phone Number
+              <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                {businessData?.phone ?? "—"}
               </Typography>
-              <Typography variant="body2" fontFamily="SF Pro">
-                Email
+              <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                {businessData?.email ?? "—"}
               </Typography>
             </Box>
           </Box>
@@ -108,96 +123,92 @@ export default function OrderInvoiceModal({ open, data, setModalData }) {
 
         <Divider sx={{ my: 3 }} />
 
-        {/* Customer & Delivery Information */}
-
-        <Box className="flex gap-x-20 w-full">
-          <Typography
-            variant="h6"
-            fontWeight="bold"
-            fontFamily="Switzer"
-            className="whitespace-nowrap"
-            wra
+        {/* Customer & Delivery Information - two equal columns */}
+        <Box
+          sx={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            gap: 3,
+            width: "100%",
+            "& > *": { minWidth: 0 },
+          }}
+        >
+          {/* Bill To */}
+          <Box
+            sx={{
+              pr: 2,
+              borderRight: "1px solid",
+              borderColor: "divider",
+            }}
           >
-            Bill To:
-          </Typography>
-
-          <Box className="grid grid-cols-2 gap-8 w-full font-SF">
-            <Box>
-              <Box className="space-y-1">
-                <Typography variant="body1" fontWeight={600}>
-                  {invoiceData.customer.name}
-                </Typography>
-
-                <Typography variant="body2">
-                  <span className="font-semibold">Customer ID:</span>{" "}
-                  {invoiceData.customer.customerId}
-                </Typography>
-
-                <Typography variant="body2">
-                  <span className="font-semibold">Address:</span>{" "}
-                  {invoiceData.customer.address}
-                </Typography>
-
-                <Typography variant="body2">
-                  <span className="font-semibold">Email:</span>{" "}
-                  {invoiceData.customer.email}
-                </Typography>
-
-                <Typography variant="body2">
-                  <span className="font-semibold">Phone Number:</span>{" "}
-                  {invoiceData.customer.phone}
-                </Typography>
-
-                <Typography variant="body2">
-                  <span className="font-semibold">Date:</span>{" "}
-                  {invoiceData.customer.date}
-                </Typography>
-
-                <Typography variant="body2">
-                  <span className="font-semibold">Driver Instruction:</span>{" "}
-                  {invoiceData.customer.driverInstruction}
-                </Typography>
-              </Box>
-            </Box>
-
-            {/* Deliver To Section */}
-            <Box>
-              <Typography variant="h6" fontWeight="bold" className="mb-3">
-                Deliver to:
+            <Typography
+              variant="subtitle1"
+              fontWeight={700}
+              fontFamily="Switzer"
+              sx={{ mb: 1.5 }}
+            >
+              Bill To
+            </Typography>
+            <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+              <Typography variant="body1" fontWeight={600}>
+                {invoiceData.customer.name}
               </Typography>
-
-              <Box className="space-y-1">
-                <Typography variant="body2">
-                  {invoiceData.delivery.address}
-                </Typography>
-
-                <Typography variant="body2">
-                  <span className="font-semibold">Pickup Date:</span>{" "}
-                  {invoiceData.delivery.pickupDate}
-                </Typography>
-
-                <Typography variant="body2">
-                  <span className="font-semibold">Delivery Date:</span>{" "}
-                  {invoiceData.delivery.deliveryDate}
-                </Typography>
-
-                <Typography variant="body2">
-                  <span className="font-semibold">Driver Instruction:</span>{" "}
-                  {invoiceData.delivery.driverInstruction}
-                </Typography>
-              </Box>
+              <InvoiceRow label="Customer ID" value={String(invoiceData.customer.customerId)} />
+              <InvoiceRow label="Address" value={invoiceData.customer.address} wrap />
+              <InvoiceRow label="Email" value={invoiceData.customer.email} />
+              <InvoiceRow label="Phone" value={invoiceData.customer.phone} />
+              <InvoiceRow label="Date" value={invoiceData.customer.date} />
+              <InvoiceRow label="Driver instruction" value={invoiceData.customer.driverInstruction} wrap />
             </Box>
+          </Box>
 
-            <Box className="mt-6 col-span-2">
-              <Box className="min-h-[46px] border border-gray-200 rounded-lg p-3 mt-2 bg-gray-50 flex items-center !px-4 font-SF">
-                <span className="text-grey40">Driver note : </span>
-                <Typography variant="body2" fontFamily="Switzer">
-                  {invoiceData.driverNote || ""}
-                </Typography>
-              </Box>
+          {/* Deliver To */}
+          <Box sx={{ pl: 1 }}>
+            <Typography
+              variant="subtitle1"
+              fontWeight={700}
+              fontFamily="Switzer"
+              sx={{ mb: 1.5 }}
+            >
+              Deliver to
+            </Typography>
+            <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+              <Typography variant="body2" sx={{ wordBreak: "break-word" }}>
+                {invoiceData.delivery.address}
+              </Typography>
+              <InvoiceRow label="Pickup date" value={invoiceData.delivery.pickupDate} />
+              <InvoiceRow label="Delivery date" value={invoiceData.delivery.deliveryDate} />
+              <InvoiceRow label="Driver instruction" value={invoiceData.delivery.driverInstruction} wrap />
             </Box>
+          </Box>
+        </Box>
 
-            <Box className="mt-8 col-span-2">
+        {/* Driver note - full width */}
+        <Box sx={{ mt: 3 }}>
+          <Box
+            sx={{
+              minHeight: 46,
+              border: "1px solid",
+              borderColor: "divider",
+              borderRadius: 1,
+              p: 1.5,
+              bgcolor: "grey.50",
+              display: "flex",
+              alignItems: "center",
+              gap: 1,
+            }}
+          >
+            <Typography variant="body2" color="text.secondary" fontWeight={600}>
+              Driver note
+            </Typography>
+            <Typography variant="body2" fontFamily="Switzer" sx={{ wordBreak: "break-word" }}>
+              {invoiceData.driverNote || "—"}
+            </Typography>
+          </Box>
+        </Box>
+
+        {/* Charges table - full width */}
+        <Box sx={{ mt: 3 }}>
               <Box className="border border-gray-300">
                 <Box className="flex items-center border-b border-gray-300">
                   <Box className="flex-1 !py-1 !px-2">
@@ -233,7 +244,7 @@ export default function OrderInvoiceModal({ open, data, setModalData }) {
                   </Box>
                   <Box className="w-32 !py-1 !px-2 border-l border-gray-300 text-right">
                     <Typography variant="body2" fontFamily="SF Pro">
-                      ${invoiceData?.charges?.driverTip?.toFixed(2)}
+                      ${(invoiceData.charges.driverTip ?? 0).toFixed(2)}
                     </Typography>
                   </Box>
                 </Box>
@@ -247,13 +258,11 @@ export default function OrderInvoiceModal({ open, data, setModalData }) {
                   </Box>
                   <Box className="w-32 !py-1 !px-2 border-l border-gray-300 text-right">
                     <Typography variant="h6" fontWeight="bold">
-                      ${invoiceData?.charges?.total?.toFixed(2)}
+                      ${(invoiceData.charges.total ?? 0).toFixed(2)}
                     </Typography>
                   </Box>
                 </Box>
               </Box>
-            </Box>
-          </Box>
         </Box>
       </Box>
     </ModalComponent>

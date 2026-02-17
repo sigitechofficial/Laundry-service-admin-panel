@@ -1,5 +1,4 @@
 import { Box, Typography } from "@mui/material";
-import Layout from "../../components/shared/Layout";
 import { BsCardList } from "../../shared/icons/index";
 import { useGetAllCustomersQuery } from "../../store/services/api";
 import { Delay } from "../../components/shared/Loaders";
@@ -11,13 +10,10 @@ export default function Configurations() {
   const { isLoading } = useGetAllCustomersQuery();
   const [modal, setModal] = useState({ open: "", type: "", data: "" });
 
+  if (isLoading) return <Delay />;
+
   return (
-    <Layout
-      content={
-        isLoading ? (
-          <Delay />
-        ) : (
-          <div className="!space-y-11">
+    <div className="!space-y-11">
             <Box className="flex items-center gap-x-5 justify-between">
               <Box className="flex items-center gap-x-5">
                 <Typography color="blue.50">
@@ -70,8 +66,5 @@ export default function Configurations() {
               type={modal.type}
             />
           </div>
-        )
-      }
-    />
   );
 }

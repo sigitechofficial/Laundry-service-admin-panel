@@ -1,5 +1,4 @@
 import { Box, Typography } from "@mui/material";
-import Layout from "../../components/shared/Layout";
 import { BsCardList, TbPlus } from "../../shared/icons/index";
 import NoShowPolicyContent from "./NoShowPolicyContent";
 import ButtonBlueLight from "../../components/ui/ButtonBlueLight";
@@ -9,9 +8,7 @@ export default function NoShowPolicy() {
   const addButtonHandlerRef = useRef(null);
 
   return (
-    <Layout
-      content={
-        <Box>
+    <Box>
           {/* Header Section */}
           <Box className="flex items-center gap-x-5 justify-between" sx={{ mb: "44px" }}>
             <Box className="flex items-center gap-x-5">
@@ -40,7 +37,5 @@ export default function NoShowPolicy() {
 
           <NoShowPolicyContent onAddButtonRef={addButtonHandlerRef} />
         </Box>
-      }
-    />
   );
 }

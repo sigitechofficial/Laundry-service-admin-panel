@@ -498,9 +498,7 @@ export default function CountriesAndCities() {
   const totalCities = citiesData.length;
 
   return (
-    <Layout
-      content={
-        <Box>
+    <Box>
           {/* Header Section with Title and Buttons */}
           <Box className="flex items-center gap-x-5 justify-between" sx={{ mb: "44px" }}>
             <Box className="flex items-center gap-x-5">
@@ -951,8 +949,6 @@ export default function CountriesAndCities() {
             </Typography>
           </ModalComponent>
         </Box>
-      }
-    />
   );
 }
 
