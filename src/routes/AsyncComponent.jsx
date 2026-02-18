@@ -107,6 +107,13 @@ export const EditOrder = lazy(() =>
 );
 
 export const Reports = lazy(() => import("../pages/reports/Reports"));
+export const ReportsLayout = lazy(() => import("../pages/reports/ReportsLayout"));
+export const TopServicesReport = lazy(() => import("../pages/reports/TopServicesReport"));
+export const HourlyReport = lazy(() => import("../pages/reports/HourlyReport"));
+export const OnHoldReport = lazy(() => import("../pages/reports/OnHoldReport"));
+export const ServiceDemandReport = lazy(() => import("../pages/reports/ServiceDemandReport"));
+export const TopPerformingShopsReport = lazy(() => import("../pages/reports/TopPerformingShopsReport"));
+export const DailyEarningReport = lazy(() => import("../pages/reports/DailyEarningReport"));
 
 export const Blogs = lazy(() => import("../pages/blogs/Blogs"));
 

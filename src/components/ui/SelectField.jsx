@@ -69,6 +69,11 @@ export default function SelectField({
         disabled={disabled}
         IconComponent={CustomDropdownIcon}
         inputProps={{ "aria-label": placeholder || "Select field" }}
+        MenuProps={{
+          PaperProps: {
+            sx: { maxHeight: 320 },
+          },
+        }}
         sx={{
           width: width || "100%",
           height: height,

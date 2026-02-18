@@ -17,7 +17,6 @@ import {
   EmployeeDetails,
   EditEmployee,
   Configurations,
-  Reports,
   Blogs,
   FAQ,
   EditCustomer,
@@ -118,11 +117,6 @@ export const privateRoutes = [
     path: "/configurations",
     element: Configurations,
     resourceKey: "configurations_Page",
-  },
-  {
-    path: "/reports",
-    element: Reports,
-    resourceKey: "reports_Page",
   },
   {
     path: "/blogs",

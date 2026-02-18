@@ -11,6 +11,7 @@ import {
   AddShopPage,
   ShopEmployeesPage,
   ShopDetails,
+  ReportsLayout,
 } from "./AsyncComponent";
 
 export default function PrivateRoutes() {
@@ -31,6 +32,7 @@ export default function PrivateRoutes() {
                 <Route path="employees" element={<ShopEmployeesPage />} />
                 <Route path="details/:id" element={<ShopDetails />} />
               </Route>
+              <Route path="/reports/*" element={<ReportsLayout />} />
             </Route>
           </Routes>
         </Suspense>

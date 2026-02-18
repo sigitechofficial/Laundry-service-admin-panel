@@ -284,7 +284,7 @@ export const api = createApi({
 
     deleteShop: builder.mutation({
       query: (id) => ({
-        url: `admin/deleteLaundryShop/${id}`,
+        url: `admin/deleteShop/${id}`,
         method: "DELETE",
       }),
     }),

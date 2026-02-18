@@ -1,5 +1,6 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import { useLoadScript, Autocomplete } from "@react-google-maps/api";
 import InputFieldBordered from "../../components/ui/InputFieldBordered";
 import SelectField from "../../components/ui/SelectField";
 import { Select, MenuItem, FormControl, Typography, Checkbox, ListItemText } from "@mui/material";
@@ -12,6 +13,7 @@ import {
 } from "../../store/services/api";
 import { useSelector } from "react-redux";
 import useToaster from "../../components/ui/Toaster";
+import { googleApiKey } from "../../utilities/URL";
 
 export default function ShopProfile() {
   const navigate = useNavigate();
@@ -37,6 +39,8 @@ export default function ShopProfile() {
     zone: "",
   });
 
+  const addressAutocompleteRef = useRef(null);
+
   // Fetch services, countries, zones
   const { isLoading: servicesLoading } = useGetAllServicesQuery();
   const { data: countriesData } = useGetAllCountriesQuery();
@@ -46,9 +50,26 @@ export default function ShopProfile() {
   });
   const [addShop, { isLoading: isAdding }] = useAddShopMutation();
 
+  const { isLoaded: isGoogleMapsLoaded } = useLoadScript({
+    googleMapsApiKey: googleApiKey,
+    libraries: ["places"],
+  });
+
+  const handleAddressPlaceChanged = () => {
+    if (addressAutocompleteRef.current) {
+      const place = addressAutocompleteRef.current.getPlace();
+      if (place?.formatted_address) {
+        setFormData((s) => ({ ...s, address: place.formatted_address }));
+      }
+    }
+  };
+
   const services = useSelector((state) => state.apiData.services);
   const countries = countriesData?.data ?? [];
-  const zones = zonesResponse?.data ?? [];
+  const zonesRaw = Array.isArray(zonesResponse?.data)
+    ? zonesResponse.data
+    : (zonesResponse?.data?.zones ?? zonesResponse?.zones ?? []);
+  const zones = Array.isArray(zonesRaw) ? zonesRaw : [];
   const cities = citiesData?.data ?? [];
 
   const serviceOptions =
@@ -67,12 +88,10 @@ export default function ShopProfile() {
     label: c.name ?? String(c.id),
   }));
 
-  const zoneOptions = Array.isArray(zones)
-    ? zones.map((z) => ({
-        value: z.id ?? z.zoneId,
-        label: z.name ?? z.zoneName ?? String(z.id ?? z.zoneId),
-      }))
-    : [];
+  const zoneOptions = zones.map((z) => ({
+    value: String(z.id ?? z.zoneId ?? ""),
+    label: z.name ?? z.zoneName ?? String(z.id ?? z.zoneId ?? ""),
+  })).filter((opt) => opt.value !== "");
   const handleChange = (field) => (e) => {
     const value = e?.target?.value ?? e;
     setFormData((s) => {
@@ -224,13 +243,38 @@ export default function ShopProfile() {
             disabled={!formData.countryId}
           />
 
-          <InputFieldBordered
-            title="Address"
-            placeholder="Address..."
-            name="address"
-            value={formData.address}
-            onChange={handleChange("address")}
-          />
+          <div className="w-full">
+            <Typography variant="body2" sx={{ mb: "8px", color: "black", fontFamily: "Switzer" }}>
+              Address
+            </Typography>
+            <div className="relative w-full">
+              {isGoogleMapsLoaded ? (
+                <Autocomplete
+                  onLoad={(autocomplete) => {
+                    addressAutocompleteRef.current = autocomplete;
+                  }}
+                  onPlaceChanged={handleAddressPlaceChanged}
+                >
+                  <input
+                    placeholder="Start typing to search address..."
+                    name="address"
+                    value={formData.address}
+                    onChange={(e) => setFormData((s) => ({ ...s, address: e.target.value }))}
+                    className="w-full h-[52px] outline-none bg-none border border-[#00000033] rounded-lg !px-4 font-[Switzer] !font-normal !text-base pr-10"
+                  />
+                </Autocomplete>
+              ) : (
+                <input
+                  placeholder="Loading address search..."
+                  name="address"
+                  value={formData.address}
+                  onChange={(e) => setFormData((s) => ({ ...s, address: e.target.value }))}
+                  className="w-full h-[52px] outline-none bg-none border border-[#00000033] rounded-lg !px-4 font-[Switzer] !font-normal !text-base pr-10"
+                  disabled
+                />
+              )}
+            </div>
+          </div>
 
           <InputFieldBordered
             title="No. of Employee"
