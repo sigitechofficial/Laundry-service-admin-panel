@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Box, Button, IconButton, Typography } from "@mui/material";
 import { BsCardList, TbPlus } from "../../shared/icons/index";
 import Search from "../../components/ui/Search";
@@ -12,10 +12,14 @@ import ModalComponent from "../../components/shared/Modal";
 import { useNavigate } from "react-router-dom";
 import {
   useGetAllZonesQuery,
+  useLazyGetZoneByIdQuery,
   useGetAllCountriesQuery,
   useGetCitiesByCountryIdQuery,
+  useGetAllCitiesQuery,
   useGetUnitsDistanceAndCurrencyQuery,
+  useGetActivePoliciesQuery,
   useAddZoneByPostcodesMutation,
+  useEditZoneByPostcodesMutation,
 } from "../../store/services/api";
 import { useSelector } from "react-redux";
 import { Delay } from "../../components/shared/Loaders";
@@ -81,16 +85,26 @@ export default function ZoneManagement() {
     zoneMinimumAmount: "",
     zoneCommission: "",
     zoneCurrency: "",
+    currencyUnitId: "",
     paymentMethod: "",
     deliveryCharges: "",
     ExDeliveryCharges: " ",
     zoneAdminId: "",
+    cancellationPolicyId: "",
+    noShowPolicyId: "",
+    reschedulePolicyId: "",
+    distanceUnitId: "",
   });
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [editingZoneId, setEditingZoneId] = useState(null);
   console.log("🚀 ~ ZoneManagement ~ add:", add);
   const { success, error: showError } = useToaster();
   const { isLoading, refetch: refetchZones } = useGetAllZonesQuery();
   const { isLoading: _countriesLoading } = useGetAllCountriesQuery();
+  const { data: allCitiesData } = useGetAllCitiesQuery();
   const [addZoneByPostcodes, { isLoading: isAddingZone }] = useAddZoneByPostcodesMutation();
+  const [editZoneByPostcodes, { isLoading: isEditingZone }] = useEditZoneByPostcodesMutation();
+  const [fetchZoneById] = useLazyGetZoneByIdQuery();
   const zones = useSelector((state) => state?.apiData?.zones);
   const countries = useSelector((state) => state?.apiData?.countries);
   const cities = useSelector((state) => state?.apiData?.cities);
@@ -106,6 +120,11 @@ export default function ZoneManagement() {
 
   const currencies = currenciesData?.data || units?.currency || [];
   const paymentMethods = paymentMethodsData?.data || units?.paymentMethod || [];
+  const allCities = Array.isArray(allCitiesData?.data)
+    ? allCitiesData.data
+    : Array.isArray(allCitiesData?.data?.cities)
+      ? allCitiesData.data.cities
+      : [];
 
   // Fetch cities when a country is selected
   const { isLoading: _citiesLoading } = useGetCitiesByCountryIdQuery(
@@ -114,6 +133,63 @@ export default function ZoneManagement() {
       skip: !add.countryId, // Skip the query if no country is selected
     }
   );
+
+  // Fetch active policies when Add Zone modal is open
+  const { data: activePoliciesData } = useGetActivePoliciesQuery(undefined, {
+    skip: !add.open,
+  });
+  const policiesData = activePoliciesData?.data || {};
+  const cancellationPolicyOptions = policiesData.activeCancellationPolicy
+    ? (Array.isArray(policiesData.activeCancellationPolicy)
+        ? policiesData.activeCancellationPolicy
+        : [policiesData.activeCancellationPolicy]
+      ).map((p) => ({ value: String(p.id), label: p.name }))
+    : [];
+  const reschedulePolicyOptions = policiesData.activeReschedulePolicy
+    ? (Array.isArray(policiesData.activeReschedulePolicy)
+        ? policiesData.activeReschedulePolicy
+        : [policiesData.activeReschedulePolicy]
+      ).map((p) => ({ value: String(p.id), label: p.name }))
+    : [];
+  const noShowPolicyOptions = policiesData.activeNoShowPolicy
+    ? (Array.isArray(policiesData.activeNoShowPolicy)
+        ? policiesData.activeNoShowPolicy
+        : [policiesData.activeNoShowPolicy]
+      ).map((p) => ({ value: String(p.id), label: p.name }))
+    : [];
+
+  // When Add Zone modal opens and active policies load, select the first policy for each type
+  useEffect(() => {
+    if (!add.open || !activePoliciesData?.data) return;
+    const data = activePoliciesData.data;
+    const cancel = data.activeCancellationPolicy;
+    const reschedule = data.activeReschedulePolicy;
+    const noShow = data.activeNoShowPolicy;
+    const cancelId = cancel ? String(Array.isArray(cancel) ? cancel[0].id : cancel.id) : null;
+    const rescheduleId = reschedule ? String(Array.isArray(reschedule) ? reschedule[0].id : reschedule.id) : null;
+    const noShowId = noShow ? String(Array.isArray(noShow) ? noShow[0].id : noShow.id) : null;
+    setAdd((prev) => ({
+      ...prev,
+      ...(cancelId && !prev.cancellationPolicyId && { cancellationPolicyId: cancelId }),
+      ...(rescheduleId && !prev.reschedulePolicyId && { reschedulePolicyId: rescheduleId }),
+      ...(noShowId && !prev.noShowPolicyId && { noShowPolicyId: noShowId }),
+    }));
+  }, [add.open, activePoliciesData]);
+
+  // In edit mode, if city is known but country isn't, derive country from full city list
+  useEffect(() => {
+    if (!add.open || !isEditMode || add.countryId || !add.cityId) return;
+    const matchedCity = Array.isArray(allCities)
+      ? allCities.find((city) => String(city.id) === String(add.cityId))
+      : null;
+    const derivedCountryId = matchedCity?.countryId || matchedCity?.country?.id;
+    if (derivedCountryId) {
+      setAdd((prev) => ({
+        ...prev,
+        countryId: String(derivedCountryId),
+      }));
+    }
+  }, [add.open, isEditMode, add.cityId, add.countryId, allCities]);
 
   console.log("🚀 ~ ZoneManagement ~ countries:", countries);
   console.log("🚀 ~ ZoneManagement ~ cities:", cities);
@@ -142,8 +218,299 @@ export default function ZoneManagement() {
       status: zone.status,
       createdAt: zone.createdAt,
       updatedAt: zone.updatedAt,
+      rawZone: zone,
     };
   });
+
+  const extractZonePostcodes = (zone) => {
+    const postcodeRegex = /\b[A-Z]{1,2}\d[A-Z\d]?\s?\d[A-Z]{2}\b/i;
+    const collectFromUnknownShape = (value, keyHint = "", acc = []) => {
+      if (value == null) return acc;
+
+      if (typeof value === "string") {
+        const trimmed = value.trim();
+        if (!trimmed) return acc;
+
+        // Handle JSON-stringified arrays
+        if (
+          (trimmed.startsWith("[") && trimmed.endsWith("]")) ||
+          (trimmed.startsWith("{") && trimmed.endsWith("}"))
+        ) {
+          try {
+            const parsed = JSON.parse(trimmed);
+            return collectFromUnknownShape(parsed, keyHint, acc);
+          } catch {
+            // ignore JSON parse errors and continue with plain text parsing
+          }
+        }
+
+        trimmed
+          .split(/[\n,;]+/)
+          .map((token) => token.trim())
+          .filter(Boolean)
+          .forEach((token) => {
+            if (/(post|postal|zip)/i.test(keyHint) || postcodeRegex.test(token)) {
+              acc.push(token);
+            }
+          });
+
+        return acc;
+      }
+
+      if (Array.isArray(value)) {
+        value.forEach((item) => collectFromUnknownShape(item, keyHint, acc));
+        return acc;
+      }
+
+      if (typeof value === "object") {
+        Object.entries(value).forEach(([key, nested]) =>
+          collectFromUnknownShape(nested, key, acc)
+        );
+      }
+
+      return acc;
+    };
+
+    const rawCandidates = [
+      zone?.postcodes,
+      zone?.postCodes,
+      zone?.postalCodes,
+      zone?.zonePostcodes,
+      zone?.zonePostCodes,
+      zone?.zone_postcodes,
+      zone?.postcodeList,
+      zone?.postcode,
+    ];
+
+    const firstNonEmpty = rawCandidates.find((value) => {
+      if (Array.isArray(value)) return value.length > 0;
+      if (typeof value === "string") return value.trim().length > 0;
+      return false;
+    });
+
+    let parsed = [];
+    if (Array.isArray(firstNonEmpty)) {
+      parsed = firstNonEmpty
+        .map((item) => {
+          if (typeof item === "string") return item;
+          if (item && typeof item === "object") {
+            return (
+              item.postcode ||
+              item.postCode ||
+              item.postalCode ||
+                item.zipCode ||
+                item.zip ||
+              item.code ||
+              item.name ||
+              ""
+            );
+          }
+          return "";
+        })
+        .filter(Boolean);
+    } else if (typeof firstNonEmpty === "string") {
+      const raw = firstNonEmpty.trim();
+      if (raw.startsWith("[") && raw.endsWith("]")) {
+        try {
+          const jsonArray = JSON.parse(raw);
+          parsed = Array.isArray(jsonArray)
+            ? jsonArray.map((code) => String(code).trim()).filter(Boolean)
+            : [];
+        } catch {
+          parsed = raw
+            .split(/[\n,;]+/)
+            .map((code) => code.trim())
+            .filter(Boolean);
+        }
+      } else {
+        parsed = raw
+          .split(/[\n,;]+/)
+          .map((code) => code.trim())
+          .filter(Boolean);
+      }
+    }
+
+    if (parsed.length === 0) {
+      parsed = collectFromUnknownShape(zone);
+    }
+
+    // Normalize + dedupe while preserving order
+    const unique = [];
+    const seen = new Set();
+    parsed.forEach((code) => {
+      const normalized = String(code).trim();
+      if (!normalized) return;
+      const key = normalized.toLowerCase();
+      if (seen.has(key)) return;
+      seen.add(key);
+      unique.push(normalized);
+    });
+
+    return unique;
+  };
+
+  const extractRingCoordinates = (zone) => {
+    const ring = zone?.coordinates?.coordinates?.[0];
+    return Array.isArray(ring) ? ring : [];
+  };
+
+  const getPostcodesFromCoordinates = async (ringCoordinates) => {
+    if (!Array.isArray(ringCoordinates) || ringCoordinates.length === 0) return [];
+
+    // Sample points from polygon so we don't over-call reverse geocoding API
+    const sampleStep = Math.max(1, Math.floor(ringCoordinates.length / 8));
+    const sampled = ringCoordinates
+      .filter((_, index) => index % sampleStep === 0)
+      .slice(0, 10);
+
+    const results = [];
+    const extractPostcodeFromPostcodesIo = (payload) => {
+      const result = payload?.result;
+      if (Array.isArray(result)) {
+        return result?.[0]?.postcode || "";
+      }
+      if (result && typeof result === "object") {
+        return result?.postcode || "";
+      }
+      return "";
+    };
+
+    for (const point of sampled) {
+      const [lng, lat] = point || [];
+      if (typeof lng !== "number" || typeof lat !== "number") continue;
+      try {
+        const response = await fetch(
+          `https://api.postcodes.io/postcodes?lon=${lng}&lat=${lat}`
+        );
+        if (!response.ok) continue;
+        const data = await response.json();
+        const postcode = extractPostcodeFromPostcodesIo(data);
+        if (postcode) results.push(postcode);
+      } catch {
+        // Skip failed reverse geocode points
+      }
+    }
+
+    // If postcodes.io doesn't return codes, fallback to Google reverse geocoding
+    if (results.length === 0 && googleApiKey) {
+      for (const point of sampled.slice(0, 5)) {
+        const [lng, lat] = point || [];
+        if (typeof lng !== "number" || typeof lat !== "number") continue;
+        try {
+          const geoUrl = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${googleApiKey}`;
+          const response = await fetch(geoUrl);
+          if (!response.ok) continue;
+          const data = await response.json();
+          const postcodeComponent = data?.results
+            ?.flatMap((result) => result?.address_components || [])
+            ?.find((component) => component?.types?.includes("postal_code"));
+          const postcode =
+            postcodeComponent?.long_name || postcodeComponent?.short_name || "";
+          if (postcode) results.push(postcode);
+        } catch {
+          // Continue to next sampled point
+        }
+      }
+    }
+
+    // Deduplicate while preserving order
+    const unique = [];
+    const seen = new Set();
+    results.forEach((postcode) => {
+      const normalized = String(postcode).trim();
+      if (!normalized) return;
+      const key = normalized.toLowerCase();
+      if (seen.has(key)) return;
+      seen.add(key);
+      unique.push(normalized);
+    });
+    return unique;
+  };
+
+  const handleEditZone = async (row) => {
+    try {
+      const rowZone = row?.rawZone || row || {};
+      const zoneId = rowZone.id || row?.id || null;
+
+      setIsEditMode(true);
+      setEditingZoneId(zoneId);
+      // Open modal first, then hydrate edit values
+      setAdd((prev) => ({ ...prev, open: true }));
+
+      // Explicitly fetch zone details from /admin/getZoneById/:id for edit prefill
+      let zone = rowZone;
+      if (zoneId) {
+        try {
+          const zoneResponse = await fetchZoneById(zoneId, true).unwrap();
+          zone = zoneResponse?.data || rowZone;
+        } catch (error) {
+          console.error("Failed to fetch zone by id for edit:", error);
+        }
+      }
+
+      const selectedCurrency = Array.isArray(currencies)
+        ? currencies.find((currency) => String(currency.id) === String(zone.currencyUnitId))
+        : null;
+
+      const derivedCityId = zone.cityId || zone?.city?.id || "";
+      const cityFromAllCities = Array.isArray(allCities)
+        ? allCities.find((city) => String(city.id) === String(derivedCityId))
+        : null;
+      const derivedCountryId =
+        zone.countryId ||
+        zone?.city?.countryId ||
+        zone?.city?.country?.id ||
+        cityFromAllCities?.countryId ||
+        cityFromAllCities?.country?.id ||
+        "";
+
+      setAdd((prev) => ({
+        ...prev,
+        countryId: derivedCountryId ? String(derivedCountryId) : "",
+        cityId: derivedCityId ? String(derivedCityId) : "",
+        coordinates: "",
+        zoneName: zone.name || "",
+        serviceCharge: zone.serviceCharge ?? "",
+        zoneMinimumAmount: zone.zoneMinimumAmount ?? "",
+        zoneCommission: zone.zoneAdminComission ?? "",
+        zoneCurrency: selectedCurrency?.name || "",
+        currencyUnitId: zone.currencyUnitId ? String(zone.currencyUnitId) : "",
+        paymentMethod: "",
+        deliveryCharges: zone.serviceCharge ?? "",
+        ExDeliveryCharges: "",
+        zoneAdminId: zone.zoneAdminId ? String(zone.zoneAdminId) : "",
+        cancellationPolicyId: zone.cancellationPolicyId
+          ? String(zone.cancellationPolicyId)
+          : "",
+        noShowPolicyId: zone.noShowPolicyId ? String(zone.noShowPolicyId) : "",
+        reschedulePolicyId: zone.reschedulePolicyId
+          ? String(zone.reschedulePolicyId)
+          : "",
+        distanceUnitId: zone.distanceUnitId ? String(zone.distanceUnitId) : "2",
+      }));
+
+      // 1) try direct postcodes from zone detail response
+      let postcodes = extractZonePostcodes(zone);
+      // 2) if not present, derive postcodes from polygon coordinates
+      if (postcodes.length === 0) {
+        const ringCoordinates = extractRingCoordinates(zone);
+        postcodes = await getPostcodesFromCoordinates(ringCoordinates);
+      }
+      setAddedPostcodes(postcodes.map((postcode) => ({ postcode })));
+      if (postcodes.length === 0) {
+        showError("No postcode found from this zone's coordinates.");
+      }
+
+      setPostalCodeHighlight(null);
+      setPostalCodeMarkers([]);
+      setMultiplePostcodeHighlights([]);
+      setNewPostcodeInput("");
+      setShowPostcodeInput(false);
+    } catch (error) {
+      console.error("Error opening edit modal:", error);
+      showError("Failed to open edit modal.");
+    }
+  };
 
   // Column configuration for zone table
   const zoneColumns = [
@@ -242,9 +609,9 @@ export default function ZoneManagement() {
       align: "center",
       renderCell: (params) => (
         <ActionButtons
-          onView={() => navigate(`/zone-management/details/${params?.row?.id}`)}
-          onEdit={() => alert(`Edit ${params.row.zoneName}`)}
-          onDelete={() => alert(`Delete ${params.row.zoneName}`)}
+          showView={false}
+          onEdit={() => handleEditZone(params)}
+          onDelete={() => alert(`Delete ${params.zoneName}`)}
         />
       ),
     },
@@ -253,6 +620,8 @@ export default function ZoneManagement() {
   // Modal handlers
   const handleToggle = () => {
     if (add.open) {
+      setIsEditMode(false);
+      setEditingZoneId(null);
       // Reset form when closing
       setAdd({
         open: false,
@@ -265,9 +634,15 @@ export default function ZoneManagement() {
         cityId: "",
         zoneCommission: "",
         zoneCurrency: "",
+        currencyUnitId: "",
         paymentMethod: "",
         deliveryCharges: "",
         ExDeliveryCharges: "",
+        zoneAdminId: "",
+        cancellationPolicyId: "",
+        noShowPolicyId: "",
+        reschedulePolicyId: "",
+        distanceUnitId: "",
       });
       // Clear coordinates and reset map
       setCoordinates([]);
@@ -283,7 +658,14 @@ export default function ZoneManagement() {
       }
     } else {
       // Just open the modal for add
-      setAdd((prev) => ({ ...prev, open: true }));
+      setIsEditMode(false);
+      setEditingZoneId(null);
+      setAdd((prev) => ({
+        ...prev,
+        open: true,
+        distanceUnitId: "2",
+        currencyUnitId: "",
+      }));
     }
   };
 
@@ -311,25 +693,38 @@ export default function ZoneManagement() {
         : null;
       const currencyUnitId = selectedCurrency ? selectedCurrency.id : null;
 
-      // Get distanceUnitId - using default value of 2 as per API example
-      const distanceUnitId = 2;
+      // Keep existing distance unit in edit mode; default to 2 for new zones
+      const distanceUnitId = parseInt(add.distanceUnitId) || 2;
 
       const zoneData = {
         name: add.zoneName,
         postcodes: postcodes,
         cityId: parseInt(add.cityId) || 1,
         zoneMinimumAmount: parseFloat(add.zoneMinimumAmount) || 0,
-        currencyUnitId: currencyUnitId || 1,
+        currencyUnitId: currencyUnitId || parseInt(add.currencyUnitId) || 1,
         distanceUnitId: distanceUnitId,
         serviceCharge: parseFloat(add.deliveryCharges) || 0,
         zoneAdminComission: parseFloat(add.zoneCommission) || 0,
         zoneAdminId: add.zoneAdminId && add.zoneAdminId.trim() !== "" ? parseInt(add.zoneAdminId) : null,
         status: true, // Default to active
+        ...(add.cancellationPolicyId && { cancellationPolicyId: parseInt(add.cancellationPolicyId) }),
+        ...(add.noShowPolicyId && { noShowPolicyId: parseInt(add.noShowPolicyId) }),
+        ...(add.reschedulePolicyId && { reschedulePolicyId: parseInt(add.reschedulePolicyId) }),
       };
 
       console.log("Zone data being sent:", zoneData);
-      const result = await addZoneByPostcodes(zoneData).unwrap();
-      console.log("Zone added successfully:", result);
+      if (isEditMode && editingZoneId) {
+        const result = await editZoneByPostcodes({
+          id: editingZoneId,
+          body: zoneData,
+        }).unwrap();
+        console.log("Zone updated successfully:", result);
+        success("Zone updated successfully!");
+      } else {
+        const result = await addZoneByPostcodes(zoneData).unwrap();
+        console.log("Zone added successfully:", result);
+        success("Zone added successfully!");
+      }
 
       // Reset state
       setAddedPostcodes([]);
@@ -337,7 +732,6 @@ export default function ZoneManagement() {
       setPostalCodeMarkers([]);
       setCoordinates([]);
       handleToggle();
-      success("Zone added successfully!");
 
       // Refetch zones to show the updated list
       refetchZones();
@@ -383,7 +777,7 @@ export default function ZoneManagement() {
   const handelCountryChange = (e) => {
     const selectedCountryId = e.target.value;
     const selectedCountry = Array.isArray(countries)
-      ? countries.find((country) => country.id === selectedCountryId)
+      ? countries.find((country) => String(country.id) === String(selectedCountryId))
       : null;
 
     console.log("Country selected:", {
@@ -403,7 +797,7 @@ export default function ZoneManagement() {
   const handleCityChange = (e) => {
     const selectedCityId = e.target.value;
     const selectedCity = Array.isArray(cities)
-      ? cities.find((city) => city.id === selectedCityId)
+      ? cities.find((city) => String(city.id) === String(selectedCityId))
       : null;
 
     console.log("City selected:", {
@@ -425,8 +819,7 @@ export default function ZoneManagement() {
         navigate(`/zone-management/details/${rowData.id}`);
         break;
       case "edit":
-        // Navigate to edit zone page or open edit modal
-        console.log("Editing zone:", rowData.zoneName);
+        handleEditZone(rowData);
         break;
       case "delete":
         // Show confirmation dialog and delete zone
@@ -912,13 +1305,13 @@ export default function ZoneManagement() {
     <div className="!space-y-11">
             <ModalComponent
               open={add.open}
-              title="ADD ZONE"
+              title={isEditMode ? "EDIT ZONE" : "ADD ZONE"}
               onClose={handleToggle}
               secondaryAction={{ label: "Cancel", onClick: handleToggle }}
               primaryAction={{
-                label: "Add Zone",
+                label: isEditMode ? "Update Zone" : "Add Zone",
                 onClick: handleAddZone,
-                isLoading: isAddingZone,
+                isLoading: isAddingZone || isEditingZone,
               }}
             >
               <Box className="flex flex-col gap-5">
@@ -934,7 +1327,7 @@ export default function ZoneManagement() {
                     options={
                       Array.isArray(countries)
                         ? countries.map((country) => ({
-                          value: country.id,
+                          value: String(country.id),
                           label: country.name,
                         }))
                         : []
@@ -956,7 +1349,7 @@ export default function ZoneManagement() {
                     options={
                       Array.isArray(cities)
                         ? cities.map((city) => ({
-                          value: city.id,
+                          value: String(city.id),
                           label: city.name,
                         }))
                         : []
@@ -1220,9 +1613,16 @@ export default function ZoneManagement() {
                     title=""
                     value={add.zoneCurrency || ""}
                     onChange={(e) => {
+                      const selectedName = e.target.value;
+                      const selectedCurrencyId = Array.isArray(currencies)
+                        ? currencies.find((currency) => currency.name === selectedName)?.id
+                        : "";
                       setAdd((prev) => ({
                         ...prev,
-                        zoneCurrency: e.target.value,
+                        zoneCurrency: selectedName,
+                        currencyUnitId: selectedCurrencyId
+                          ? String(selectedCurrencyId)
+                          : prev.currencyUnitId,
                       }));
                     }}
                     options={
@@ -1275,6 +1675,58 @@ export default function ZoneManagement() {
                     value={add.deliveryCharges}
                     onChange={handleChange}
                     placeholder="Enter delivery charges"
+                  />
+                </Box>
+
+                <Box className="flex flex-col gap-y-3">
+                  <label htmlFor="cancellationPolicyId" className="text-grey40">
+                    Cancellation Policy
+                  </label>
+                  <SelectField
+                    title=""
+                    value={add.cancellationPolicyId || ""}
+                    onChange={(e) =>
+                      setAdd((prev) => ({ ...prev, cancellationPolicyId: e.target.value }))
+                    }
+                    options={cancellationPolicyOptions}
+                    placeholder="Select cancellation policy"
+                    fullWidth
+                    bgcolor={"grey.200"}
+                    disabled={!isEditMode}
+                  />
+                </Box>
+                <Box className="flex flex-col gap-y-3">
+                  <label htmlFor="reschedulePolicyId" className="text-grey40">
+                    Reschedule Policy
+                  </label>
+                  <SelectField
+                    title=""
+                    value={add.reschedulePolicyId || ""}
+                    onChange={(e) =>
+                      setAdd((prev) => ({ ...prev, reschedulePolicyId: e.target.value }))
+                    }
+                    options={reschedulePolicyOptions}
+                    placeholder="Select reschedule policy"
+                    fullWidth
+                    bgcolor={"grey.200"}
+                    disabled={!isEditMode}
+                  />
+                </Box>
+                <Box className="flex flex-col gap-y-3">
+                  <label htmlFor="noShowPolicyId" className="text-grey40">
+                    No Show Policy
+                  </label>
+                  <SelectField
+                    title=""
+                    value={add.noShowPolicyId || ""}
+                    onChange={(e) =>
+                      setAdd((prev) => ({ ...prev, noShowPolicyId: e.target.value }))
+                    }
+                    options={noShowPolicyOptions}
+                    placeholder="Select no show policy"
+                    fullWidth
+                    bgcolor={"grey.200"}
+                    disabled={!isEditMode}
                   />
                 </Box>
 

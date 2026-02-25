@@ -9,7 +9,9 @@ import SelectField from "../../../components/ui/SelectField";
 import useToaster from "../../../components/ui/Toaster";
 import {
   useAddAdminEmployeeMutation,
+  useAddAgentEmployeeMutation,
   useUpdateAdminEmployeeMutation,
+  useUpdateAgentEmployeeMutation,
   useGetAllCountriesQuery,
   useGetCitiesByCountryIdQuery,
   useGetAllRolesQuery,
@@ -36,6 +38,11 @@ const addEmployeeSchema = yup.object().shape({
     then: (s) => s.required("City is required"),
     otherwise: (s) => s.optional(),
   }),
+  agentId: yup.mixed().when("$forShopEmployees", {
+    is: true,
+    then: (s) => s.required("Shop is required"),
+    otherwise: (s) => s.optional(),
+  }),
 });
 
 const emptyDefaults = {
@@ -47,28 +54,43 @@ const emptyDefaults = {
   roleId: "",
   countryId: "",
   cityId: "",
+  agentId: "",
 };
 
-function getDefaultsFromEmployee(emp) {
-  if (!emp) return emptyDefaults;
+function getDefaultsFromEmployee(emp, forShopEmployees) {
+  if (!emp) return { ...emptyDefaults, ...(forShopEmployees ? { agentId: "" } : {}) };
+  const roleId = emp.roleId ?? emp.role?.id ?? "";
+  const countryId = emp.countryId ?? emp.country?.id ?? "";
+  const cityId = emp.cityId ?? emp.city?.id ?? "";
+  const agentId = emp.agentId ?? emp.shopId ?? emp.shopInfo?.id ?? "";
   return {
     firstName: emp.firstName ?? "",
     lastName: emp.lastName ?? "",
     email: emp.email ?? "",
     password: "",
     phoneNum: emp.phoneNum ?? "",
-    roleId: emp.roleId ?? "",
-    countryId: emp.countryId ?? "",
-    cityId: emp.cityId ?? "",
+    roleId: roleId !== undefined && roleId !== null ? roleId : "",
+    countryId: countryId !== undefined && countryId !== null ? countryId : "",
+    cityId: cityId !== undefined && cityId !== null ? cityId : "",
+    ...(forShopEmployees ? { agentId: agentId !== undefined && agentId !== null ? agentId : "" } : {}),
   };
 }
 
-export default function AddEmployeeModal({ open, onClose, onSuccess, employee: initialEmployee }) {
+export default function AddEmployeeModal({
+  open,
+  onClose,
+  onSuccess,
+  employee: initialEmployee,
+  forShopEmployees = false,
+  shopOptions = [],
+}) {
   const isEdit = Boolean(initialEmployee);
   const { success, error } = useToaster();
   const [addEmployee, { isLoading: isAdding }] = useAddAdminEmployeeMutation();
+  const [addAgentEmployee, { isLoading: isAddingAgent }] = useAddAgentEmployeeMutation();
   const [updateEmployee, { isLoading: isUpdating }] = useUpdateAdminEmployeeMutation();
-  const isLoading = isAdding || isUpdating;
+  const [updateAgentEmployee, { isLoading: isUpdatingAgent }] = useUpdateAgentEmployeeMutation();
+  const isLoading = isAdding || isAddingAgent || isUpdating || isUpdatingAgent;
   const { data: countriesRes } = useGetAllCountriesQuery(undefined, { skip: !open });
   const countries = countriesRes?.data?.countries ?? countriesRes?.data ?? [];
   const countryOptions = useMemo(() => {
@@ -84,8 +106,8 @@ export default function AddEmployeeModal({ open, onClose, onSuccess, employee: i
   }, [roles]);
 
   const formDefaultValues = useMemo(
-    () => getDefaultsFromEmployee(initialEmployee),
-    [initialEmployee]
+    () => getDefaultsFromEmployee(initialEmployee, forShopEmployees),
+    [initialEmployee, forShopEmployees]
   );
 
   const {
@@ -98,14 +120,15 @@ export default function AddEmployeeModal({ open, onClose, onSuccess, employee: i
   } = useForm({
     resolver: yupResolver(addEmployeeSchema),
     defaultValues: formDefaultValues,
-    context: { isEdit },
+    context: { isEdit, forShopEmployees },
   });
 
   useEffect(() => {
     if (open) {
-      reset(formDefaultValues);
+      const values = getDefaultsFromEmployee(initialEmployee, forShopEmployees);
+      reset(values);
     }
-  }, [open, formDefaultValues, reset]);
+  }, [open, initialEmployee, forShopEmployees, reset]);
 
   const countryId = watch("countryId");
   const { data: citiesRes } = useGetCitiesByCountryIdQuery(countryId, {
@@ -123,7 +146,25 @@ export default function AddEmployeeModal({ open, onClose, onSuccess, employee: i
   };
 
   const onSubmit = async (data) => {
-    if (isEdit) {
+    if (isEdit && forShopEmployees) {
+      const body = {
+        employeeId: initialEmployee.id,
+        firstName: data.firstName,
+        lastName: data.lastName,
+        email: data.email,
+        phoneNum: data.phoneNum,
+        roleId: Number(data.roleId),
+        agentId: data.agentId ? Number(data.agentId) : undefined,
+      };
+      const res = await updateAgentEmployee(body);
+      if (res?.data?.status === "1") {
+        success(res?.data?.message ?? "Employee updated successfully.");
+        handleClose();
+        onSuccess?.();
+      } else {
+        error(res?.error?.data?.message ?? res?.data?.message ?? "Failed to update employee.");
+      }
+    } else if (isEdit) {
       const body = {
         employeeId: initialEmployee.id,
         firstName: data.firstName,
@@ -139,6 +180,26 @@ export default function AddEmployeeModal({ open, onClose, onSuccess, employee: i
         onSuccess?.();
       } else {
         error(res?.error?.data?.message ?? res?.data?.message ?? "Failed to update employee.");
+      }
+    } else if (forShopEmployees) {
+      const body = {
+        firstName: data.firstName,
+        lastName: data.lastName,
+        email: data.email,
+        password: data.password,
+        phoneNum: data.phoneNum,
+        roleId: Number(data.roleId),
+        countryId: Number(data.countryId),
+        cityId: Number(data.cityId),
+        agentId: Number(data.agentId),
+      };
+      const res = await addAgentEmployee(body);
+      if (res?.data?.status === "1") {
+        success(res?.data?.message ?? "Employee added successfully.");
+        handleClose();
+        onSuccess?.();
+      } else {
+        error(res?.error?.data?.message ?? res?.data?.message ?? "Failed to add employee.");
       }
     } else {
       const body = {
@@ -240,6 +301,26 @@ export default function AddEmployeeModal({ open, onClose, onSuccess, employee: i
         />
         {errors.roleId && (
           <p className="text-red-500 text-sm mt-0.5">{errors.roleId.message}</p>
+        )}
+        {forShopEmployees && (
+          <>
+            <Controller
+              name="agentId"
+              control={control}
+              render={({ field }) => (
+                <SelectField
+                  title="Shop"
+                  value={field.value}
+                  onChange={field.onChange}
+                  options={shopOptions}
+                  placeholder="Select shop"
+                />
+              )}
+            />
+            {errors.agentId && (
+              <p className="text-red-500 text-sm mt-0.5">{errors.agentId.message}</p>
+            )}
+          </>
         )}
         {!isEdit && (
           <>

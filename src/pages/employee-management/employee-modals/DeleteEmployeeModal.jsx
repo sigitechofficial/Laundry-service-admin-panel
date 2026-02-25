@@ -1,10 +1,21 @@
 import { Box, Typography } from "@mui/material";
 import ModalComponent from "../../../components/shared/Modal";
-import { useDeleteAdminEmployeeMutation } from "../../../store/services/api";
+import {
+  useDeleteAdminEmployeeMutation,
+  useDeleteAgentEmployeeMutation,
+} from "../../../store/services/api";
 import useToaster from "../../../components/ui/Toaster";
 
-export default function DeleteEmployeeModal({ open, employeeId, onClose, onSuccess }) {
-  const [deleteEmployee, { isLoading }] = useDeleteAdminEmployeeMutation();
+export default function DeleteEmployeeModal({
+  open,
+  employeeId,
+  onClose,
+  onSuccess,
+  forShopEmployees = false,
+}) {
+  const [deleteEmployee, { isLoading: isDeletingAdmin }] = useDeleteAdminEmployeeMutation();
+  const [deleteAgentEmployee, { isLoading: isDeletingAgent }] = useDeleteAgentEmployeeMutation();
+  const isLoading = isDeletingAdmin || isDeletingAgent;
   const { success, error } = useToaster();
 
   const handleClose = () => {
@@ -12,7 +23,9 @@ export default function DeleteEmployeeModal({ open, employeeId, onClose, onSucce
   };
 
   const handleDelete = async () => {
-    const res = await deleteEmployee(employeeId);
+    if (employeeId == null) return;
+    const deleteFn = forShopEmployees ? deleteAgentEmployee : deleteEmployee;
+    const res = await deleteFn(employeeId);
 
     if (res?.data?.status === "1") {
       handleClose();
@@ -35,7 +48,7 @@ export default function DeleteEmployeeModal({ open, employeeId, onClose, onSucce
       primaryAction={{
         label: "Delete",
         onClick: handleDelete,
-        isLoading: isLoading,
+        isLoading,
       }}
     >
       <Box className="!space-y-4">

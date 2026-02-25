@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Box, Typography, Divider } from "@mui/material";
-import { TbPlus, TbCalendar, TbTrash } from "../../shared/icons/index";
+import { TbTrash } from "../../shared/icons/index";
 import StyledCheckbox from "../../components/ui/StyledCheckbox";
 import LabelWithTooltip from "../../components/ui/LabelWithTooltip";
 import DataTable from "../../components/ui/DataTable";
@@ -16,10 +16,6 @@ import {
   useDeleteReschedulePolicyMutation,
 } from "../../store/services/api";
 import { Delay } from "../../components/shared/Loaders";
-import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
-import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
-import { DatePicker } from "@mui/x-date-pickers/DatePicker";
-import dayjs from "dayjs";
 
 export default function ReschedulePolicyContent({ onAddButtonRef }) {
   const { success, error: showError } = useToaster();
@@ -60,35 +56,35 @@ export default function ReschedulePolicyContent({ onAddButtonRef }) {
   const pagination = policiesResponse?.data?.pagination || {};
   const totalPages = pagination.pages || 1;
 
+  const rescheduleFormDefaults = {
+    name: "",
+    description: "",
+    isActive: true,
+    isDefault: false,
+    atPickupAbsoluteCurrency: "USD",
+    atPickupAbsoluteAmount: "",
+    atPickupPercentage: "",
+    atPickupCourtesyCount: 1,
+    atPickupCourtesyCountEnabled: true,
+    atDeliveryAbsoluteCurrency: "USD",
+    atDeliveryAbsoluteAmount: "",
+    atDeliveryPercentage: "",
+    atDeliveryCourtesyCount: 1,
+    atDeliveryCourtesyCountEnabled: true,
+    courtesyWindowDays: 30,
+    courtesyCapAmount: 15,
+    courtesyCount: 1,
+    customerLeniencyEnabled: true,
+  };
+
   const {
     control,
     handleSubmit,
     reset,
-    watch,
     formState: { errors },
   } = useForm({
-    defaultValues: {
-      name: "",
-      description: "",
-      createdDate: dayjs(),
-      expiryDate: null,
-      isActive: true,
-      isDefault: true,
-      enableForPickup: true,
-      enableForDelivery: true,
-      useUnifiedFee: true,
-      feeType: "absolute",
-      currency: "USD",
-      pickupRescheduleFee: "",
-      deliveryRescheduleFee: "",
-      percentageFee: "",
-      cutoffHoursBeforePickup: "",
-      maxRescheduleCount: "",
-    },
+    defaultValues: rescheduleFormDefaults,
   });
-
-  const useUnifiedFee = watch("useUnifiedFee");
-  const feeType = watch("feeType");
 
   const columns = [
     {
@@ -216,49 +212,103 @@ export default function ReschedulePolicyContent({ onAddButtonRef }) {
     },
     {
       field: "pickupRescheduleFee",
-      headerName: "Pickup Fee",
+      headerName: "Pickup Amount",
       flex: 0.08,
       minWidth: 100,
       sortable: true,
       renderCell: (row) => (
         <Typography sx={{ fontWeight: 500, fontSize: "13px" }}>
-          {row.currency} {row.pickupRescheduleFee || "0.00"}
+          {row.currency} {row.pickupRescheduleFee ?? "—"}
+        </Typography>
+      ),
+    },
+    {
+      field: "atPickupPercentage",
+      headerName: "Pickup %",
+      flex: 0.06,
+      minWidth: 80,
+      sortable: true,
+      renderCell: (row) => (
+        <Typography sx={{ fontWeight: 500, fontSize: "13px" }}>
+          {row.atPickupPercentage !== "" && row.atPickupPercentage != null ? `${row.atPickupPercentage}%` : "—"}
         </Typography>
       ),
     },
     {
       field: "deliveryRescheduleFee",
-      headerName: "Delivery Fee",
+      headerName: "Delivery Amount",
       flex: 0.08,
       minWidth: 100,
       sortable: true,
       renderCell: (row) => (
         <Typography sx={{ fontWeight: 500, fontSize: "13px" }}>
-          {row.currency} {row.deliveryRescheduleFee || "0.00"}
+          {row.currency} {row.deliveryRescheduleFee ?? "—"}
         </Typography>
       ),
     },
     {
-      field: "cutoffHoursBeforePickup",
-      headerName: "Cutoff (Hours)",
-      flex: 0.08,
-      minWidth: 100,
+      field: "atDeliveryPercentage",
+      headerName: "Delivery %",
+      flex: 0.06,
+      minWidth: 80,
       sortable: true,
       renderCell: (row) => (
         <Typography sx={{ fontWeight: 500, fontSize: "13px" }}>
-          {row.cutoffHoursBeforePickup || "0"} hrs
+          {row.atDeliveryPercentage !== "" && row.atDeliveryPercentage != null ? `${row.atDeliveryPercentage}%` : "—"}
         </Typography>
       ),
     },
     {
-      field: "maxRescheduleCount",
-      headerName: "Max Reschedules",
+      field: "courtesyWindowDays",
+      headerName: "Courtesy Window (days)",
       flex: 0.1,
       minWidth: 120,
       sortable: true,
       renderCell: (row) => (
         <Typography sx={{ fontWeight: 500, fontSize: "13px" }}>
-          {row.maxRescheduleCount || "0"}
+          {row.courtesyWindowDays ?? "—"}
+        </Typography>
+      ),
+    },
+    {
+      field: "courtesyCapAmount",
+      headerName: "Courtesy Cap",
+      flex: 0.08,
+      minWidth: 100,
+      sortable: true,
+      renderCell: (row) => (
+        <Typography sx={{ fontWeight: 500, fontSize: "13px" }}>
+          {row.courtesyCapAmount ?? "—"}
+        </Typography>
+      ),
+    },
+    {
+      field: "courtesyCount",
+      headerName: "Courtesy Count",
+      flex: 0.08,
+      minWidth: 110,
+      sortable: true,
+      renderCell: (row) => (
+        <Typography sx={{ fontWeight: 500, fontSize: "13px" }}>
+          {row.courtesyCount ?? row.maxRescheduleCount ?? "0"}
+        </Typography>
+      ),
+    },
+    {
+      field: "customerLeniencyEnabled",
+      headerName: "Leniency",
+      flex: 0.06,
+      minWidth: 80,
+      sortable: true,
+      renderCell: (row) => (
+        <Typography
+          sx={{
+            color: row.customerLeniencyEnabled ? "success.main" : "text.secondary",
+            fontWeight: 500,
+            fontSize: "13px",
+          }}
+        >
+          {row.customerLeniencyEnabled ? "Yes" : "No"}
         </Typography>
       ),
     },
@@ -320,7 +370,21 @@ export default function ReschedulePolicyContent({ onAddButtonRef }) {
 
   const policiesData =
     policies?.map((policy, index) => {
-      const config = policy.reschedulePolicyConfig || {};
+      const config = policy.rescheduleConfig || policy.reschedulePolicyConfig || policy;
+      const currency =
+        config.atPickupAbsoluteCurrency ||
+        config.atDeliveryAbsoluteCurrency ||
+        config.currency ||
+        "USD";
+      const pickupFee =
+        config.atPickupAbsoluteAmount ?? config.pickupRescheduleFee ?? 0;
+      const deliveryFee =
+        config.atDeliveryAbsoluteAmount ?? config.deliveryRescheduleFee ?? 0;
+      const feeType =
+        config.atPickupPercentage != null && config.atPickupPercentage !== "" ||
+        config.atDeliveryPercentage != null && config.atDeliveryPercentage !== ""
+          ? "percentage"
+          : "absolute";
       return {
         id: policy.id,
         sl: (pagination.page - 1) * (pagination.limit || limit) + index + 1,
@@ -328,14 +392,21 @@ export default function ReschedulePolicyContent({ onAddButtonRef }) {
         description: policy.description,
         isActive: policy.isActive,
         isDefault: policy.isDefault,
-        enableForPickup: config.enableForPickup ?? false,
-        enableForDelivery: config.enableForDelivery ?? false,
-        feeType: config.feeType || "N/A",
-        currency: config.currency || "USD",
-        pickupRescheduleFee: config.pickupRescheduleFee || "0.00",
-        deliveryRescheduleFee: config.deliveryRescheduleFee || "0.00",
-        cutoffHoursBeforePickup: config.cutoffHoursBeforePickup || 0,
-        maxRescheduleCount: config.maxRescheduleCount || 0,
+        enableForPickup: config.atPickupCourtesyCountEnabled ?? false,
+        enableForDelivery: config.atDeliveryCourtesyCountEnabled ?? false,
+        feeType,
+        currency,
+        pickupRescheduleFee: pickupFee,
+        deliveryRescheduleFee: deliveryFee,
+        atPickupAbsoluteAmount: config.atPickupAbsoluteAmount ?? "",
+        atPickupPercentage: config.atPickupPercentage ?? "",
+        atDeliveryAbsoluteAmount: config.atDeliveryAbsoluteAmount ?? "",
+        atDeliveryPercentage: config.atDeliveryPercentage ?? "",
+        courtesyWindowDays: config.courtesyWindowDays ?? 0,
+        courtesyCapAmount: config.courtesyCapAmount ?? "",
+        courtesyCount: config.courtesyCount ?? 0,
+        customerLeniencyEnabled: config.customerLeniencyEnabled ?? false,
+        maxRescheduleCount: config.courtesyCount ?? 0,
         createdAt: policy.createdAt
           ? new Date(policy.createdAt).toLocaleDateString()
           : "N/A",
@@ -355,24 +426,7 @@ export default function ReschedulePolicyContent({ onAddButtonRef }) {
 
   const handleAdd = () => {
     setEditingPolicy(null);
-    reset({
-      name: "",
-      description: "",
-      createdDate: dayjs(),
-      expiryDate: null,
-      isActive: true,
-      isDefault: true,
-      enableForPickup: true,
-      enableForDelivery: true,
-      useUnifiedFee: true,
-      feeType: "absolute",
-      currency: "USD",
-      pickupRescheduleFee: "",
-      deliveryRescheduleFee: "",
-      percentageFee: "",
-      cutoffHoursBeforePickup: "",
-      maxRescheduleCount: "",
-    });
+    reset(rescheduleFormDefaults);
     setModalOpen(true);
   };
 
@@ -385,25 +439,32 @@ export default function ReschedulePolicyContent({ onAddButtonRef }) {
   const handleEdit = (row) => {
     const policy = row._rawPolicy || policies.find((p) => p.id === row.id) || row;
     setEditingPolicy(policy);
-    const config = policy.reschedulePolicyConfig || policy;
+    const config = policy.rescheduleConfig || policy.reschedulePolicyConfig || policy;
     reset({
       name: policy.name || "",
       description: policy.description || "",
-      createdDate: policy.createdAt ? dayjs(policy.createdAt) : dayjs(),
-      expiryDate: policy.expiry_date ? dayjs(policy.expiry_date) : null,
-      isActive: true,
-      isDefault: true,
-      enableForPickup: config.enableForPickup ?? true,
-      enableForDelivery: config.enableForDelivery ?? true,
-      useUnifiedFee: config.useUnifiedFee ?? true,
-      feeType: config.feeType || "absolute",
-      currency: config.currency || "USD",
-      pickupRescheduleFee: config.pickupRescheduleFee?.toString() || "",
-      deliveryRescheduleFee: config.deliveryRescheduleFee?.toString() || "",
-      percentageFee: config.percentageFee?.toString() || "",
-      cutoffHoursBeforePickup:
-        config.cutoffHoursBeforePickup?.toString() || "",
-      maxRescheduleCount: config.maxRescheduleCount?.toString() || "",
+      isActive: policy.isActive ?? true,
+      isDefault: policy.isDefault ?? false,
+      atPickupAbsoluteCurrency:
+        config.atPickupAbsoluteCurrency || "USD",
+      atPickupAbsoluteAmount:
+        config.atPickupAbsoluteAmount != null ? String(config.atPickupAbsoluteAmount) : "",
+      atPickupPercentage:
+        config.atPickupPercentage != null ? String(config.atPickupPercentage) : "",
+      atPickupCourtesyCount: config.atPickupCourtesyCount ?? 1,
+      atPickupCourtesyCountEnabled: config.atPickupCourtesyCountEnabled ?? true,
+      atDeliveryAbsoluteCurrency:
+        config.atDeliveryAbsoluteCurrency || "USD",
+      atDeliveryAbsoluteAmount:
+        config.atDeliveryAbsoluteAmount != null ? String(config.atDeliveryAbsoluteAmount) : "",
+      atDeliveryPercentage:
+        config.atDeliveryPercentage != null ? String(config.atDeliveryPercentage) : "",
+      atDeliveryCourtesyCount: config.atDeliveryCourtesyCount ?? 1,
+      atDeliveryCourtesyCountEnabled: config.atDeliveryCourtesyCountEnabled ?? true,
+      courtesyWindowDays: config.courtesyWindowDays ?? 30,
+      courtesyCapAmount: config.courtesyCapAmount ?? 15,
+      courtesyCount: config.courtesyCount ?? 1,
+      customerLeniencyEnabled: config.customerLeniencyEnabled ?? true,
     });
     setModalOpen(true);
   };
@@ -443,29 +504,34 @@ export default function ReschedulePolicyContent({ onAddButtonRef }) {
       const payload = {
         name: data.name,
         description: data.description,
-        expiry_date: data.expiryDate
-          ? data.expiryDate.format("YYYY-MM-DD")
-          : null,
-        isActive: true,
-        isDefault: true,
-        enableForPickup: data.enableForPickup,
-        enableForDelivery: data.enableForDelivery,
-        useUnifiedFee: data.useUnifiedFee,
-        feeType: data.feeType,
-        currency: data.currency,
-        pickupRescheduleFee: data.pickupRescheduleFee
-          ? parseFloat(data.pickupRescheduleFee)
-          : 0,
-        deliveryRescheduleFee: data.deliveryRescheduleFee
-          ? parseFloat(data.deliveryRescheduleFee)
-          : 0,
-        percentageFee: data.percentageFee ? parseFloat(data.percentageFee) : 0,
-        cutoffHoursBeforePickup: data.cutoffHoursBeforePickup
-          ? parseInt(data.cutoffHoursBeforePickup)
-          : 0,
-        maxRescheduleCount: data.maxRescheduleCount
-          ? parseInt(data.maxRescheduleCount)
-          : 1,
+        isActive: !!data.isActive,
+        isDefault: !!data.isDefault,
+        atPickupAbsoluteCurrency: data.atPickupAbsoluteCurrency || "USD",
+        atPickupAbsoluteAmount:
+          data.atPickupAbsoluteAmount !== ""
+            ? parseFloat(data.atPickupAbsoluteAmount)
+            : null,
+        atPickupPercentage:
+          data.atPickupPercentage !== ""
+            ? parseFloat(data.atPickupPercentage)
+            : null,
+        atPickupCourtesyCount: Number(data.atPickupCourtesyCount) || 1,
+        atPickupCourtesyCountEnabled: !!data.atPickupCourtesyCountEnabled,
+        atDeliveryAbsoluteCurrency: data.atDeliveryAbsoluteCurrency || "USD",
+        atDeliveryAbsoluteAmount:
+          data.atDeliveryAbsoluteAmount !== ""
+            ? parseFloat(data.atDeliveryAbsoluteAmount)
+            : null,
+        atDeliveryPercentage:
+          data.atDeliveryPercentage !== ""
+            ? parseFloat(data.atDeliveryPercentage)
+            : null,
+        atDeliveryCourtesyCount: Number(data.atDeliveryCourtesyCount) || 1,
+        atDeliveryCourtesyCountEnabled: !!data.atDeliveryCourtesyCountEnabled,
+        courtesyWindowDays: Number(data.courtesyWindowDays) || 30,
+        courtesyCapAmount: Number(data.courtesyCapAmount) || 15.0,
+        courtesyCount: Number(data.courtesyCount) || 1,
+        customerLeniencyEnabled: !!data.customerLeniencyEnabled,
       };
 
       if (editingPolicy) {
@@ -532,9 +598,9 @@ export default function ReschedulePolicyContent({ onAddButtonRef }) {
 
       <ModalComponent
         open={modalOpen}
-        title={editingPolicy ? "EDIT RESCHEDULE POLICY" : "RESCHEDULE POLICY"}
+        title={editingPolicy ? "EDIT RESCHEDULE POLICY" : "ADD RESCHEDULE POLICY"}
         onClose={handleClose}
-        width={800}
+        width={900}
         primaryAction={{
           label: "Save",
           onClick: handleSubmit(onSubmit),
@@ -545,329 +611,286 @@ export default function ReschedulePolicyContent({ onAddButtonRef }) {
           onClick: handleClose,
         }}
       >
-        <LocalizationProvider dateAdapter={AdapterDayjs}>
-          <Box className="flex flex-col gap-6">
-            <Box>
-              <Typography
-                variant="h6"
-                sx={{ mb: 1, fontFamily: "Switzer", fontWeight: 600 }}
-              >
-                Basic Information
-              </Typography>
-              <Typography
-                variant="body2"
-                sx={{ mb: 2, color: "grey.80", fontFamily: "Switzer", fontSize: "12px" }}
-              >
-                Configure the fundamental settings for this reschedule policy.
-              </Typography>
-              <Box className="flex flex-col gap-4">
-                <Controller
-                  name="name"
-                  control={control}
-                  rules={{ required: "Policy name is required" }}
-                  render={({ field: { onChange, value } }) => (
-                    <InputFieldModal
-                      title="Policy Name*"
-                      placeholder="Enter policy name"
-                      value={value || ""}
-                      onChange={(e) => onChange(e.target.value)}
-                      error={errors.name?.message}
-                    />
-                  )}
-                />
-                <Controller
-                  name="description"
-                  control={control}
-                  rules={{ required: "Description is required" }}
-                  render={({ field: { onChange, value } }) => (
-                    <InputFieldModal
-                      title="Description*"
-                      placeholder="Enter description"
-                      value={value || ""}
-                      onChange={(e) => onChange(e.target.value)}
-                      error={errors.description?.message}
-                    />
-                  )}
-                />
-                <Box className="grid grid-cols-2 gap-4">
-                  <Controller
-                    name="createdDate"
-                    control={control}
-                    render={({ field: { value } }) => (
-                      <Box sx={{ width: "100%" }}>
-                        <Typography variant="body2" sx={{ color: "#374151", mb: "8px" }}>
-                          Created Date
-                        </Typography>
-                        <DatePicker
-                          value={value || dayjs()}
-                          disabled
-                          slotProps={{
-                            textField: {
-                              fullWidth: true,
-                              sx: {
-                                width: "100%",
-                                "& .MuiOutlinedInput-root": {
-                                  height: "52px",
-                                  borderRadius: "8px",
-                                  backgroundColor: "#F4F7FF !important",
-                                },
-                              },
-                            },
-                          }}
-                          slots={{
-                            openPickerIcon: () => (
-                              <TbCalendar size={20} style={{ color: "#6B7280" }} />
-                            ),
-                          }}
-                        />
-                      </Box>
-                    )}
+        <Box className="flex flex-col gap-6 max-h-[70vh] overflow-y-auto pr-1">
+          {/* Basic Information */}
+          <Box>
+            <Typography variant="h6" sx={{ mb: 1, fontFamily: "Switzer", fontWeight: 600 }}>
+              Basic Information
+            </Typography>
+            <Typography variant="body2" sx={{ mb: 2, color: "grey.80", fontFamily: "Switzer", fontSize: "12px" }}>
+              Name, description and status for this reschedule policy.
+            </Typography>
+            <Box className="flex flex-col gap-4">
+              <Controller
+                name="name"
+                control={control}
+                rules={{ required: "Policy name is required" }}
+                render={({ field: { onChange, value } }) => (
+                  <InputFieldModal
+                    title="Policy Name*"
+                    placeholder="e.g. Default Reschedule Policy"
+                    value={value || ""}
+                    onChange={(e) => onChange(e.target.value)}
+                    error={errors.name?.message}
                   />
-                  <Controller
-                    name="expiryDate"
-                    control={control}
-                    render={({ field: { onChange, value } }) => (
-                      <Box sx={{ width: "100%" }}>
-                        <Typography variant="body2" sx={{ color: "#374151", mb: "8px" }}>
-                          Expiry Date
-                        </Typography>
-                        <DatePicker
-                          value={value}
-                          onChange={(newValue) => onChange(newValue)}
-                          slotProps={{
-                            textField: {
-                              placeholder: "Select expiry date",
-                              fullWidth: true,
-                              sx: {
-                                width: "100%",
-                                "& .MuiOutlinedInput-root": {
-                                  height: "52px",
-                                  borderRadius: "8px",
-                                  backgroundColor: "#F4F7FF !important",
-                                },
-                              },
-                            },
-                          }}
-                          slots={{
-                            openPickerIcon: () => (
-                              <TbCalendar size={20} style={{ color: "#6B7280" }} />
-                            ),
-                          }}
-                        />
-                      </Box>
-                    )}
+                )}
+              />
+              <Controller
+                name="description"
+                control={control}
+                rules={{ required: "Description is required" }}
+                render={({ field: { onChange, value } }) => (
+                  <InputFieldModal
+                    title="Description*"
+                    placeholder="e.g. Standard reschedule policy for customers"
+                    value={value || ""}
+                    onChange={(e) => onChange(e.target.value)}
+                    error={errors.description?.message}
                   />
-                </Box>
-              </Box>
-            </Box>
-
-            <Divider />
-
-            <Box>
-              <Typography
-                variant="h6"
-                sx={{ mb: 1, fontFamily: "Switzer", fontWeight: 600 }}
-              >
-                Enablement Settings
-              </Typography>
-              <Box className="flex flex-col gap-4">
+                )}
+              />
+              <Box className="grid grid-cols-2 gap-4">
                 <Controller
-                  name="enableForPickup"
+                  name="isActive"
                   control={control}
                   render={({ field: { onChange, value } }) => (
                     <Box className="flex items-center gap-2">
-                      <StyledCheckbox
-                        checked={value}
-                        onChange={(e) => onChange(e.target.checked)}
-                      />
-                      <LabelWithTooltip
-                        label="Enable For Pickup"
-                        tooltipText="Enable reschedule policy for pickup orders."
-                      />
+                      <StyledCheckbox checked={!!value} onChange={(e) => onChange(e.target.checked)} />
+                      <LabelWithTooltip label="Active" tooltipText="Policy is active and applicable." />
                     </Box>
                   )}
                 />
                 <Controller
-                  name="enableForDelivery"
+                  name="isDefault"
                   control={control}
                   render={({ field: { onChange, value } }) => (
                     <Box className="flex items-center gap-2">
-                      <StyledCheckbox
-                        checked={value}
-                        onChange={(e) => onChange(e.target.checked)}
-                      />
-                      <LabelWithTooltip
-                        label="Enable For Delivery"
-                        tooltipText="Enable reschedule policy for delivery orders."
-                      />
+                      <StyledCheckbox checked={!!value} onChange={(e) => onChange(e.target.checked)} />
+                      <LabelWithTooltip label="Default policy" tooltipText="Use as default reschedule policy." />
                     </Box>
-                  )}
-                />
-                <Controller
-                  name="useUnifiedFee"
-                  control={control}
-                  render={({ field: { onChange, value } }) => (
-                    <Box className="flex items-center gap-2">
-                      <StyledCheckbox
-                        checked={value}
-                        onChange={(e) => onChange(e.target.checked)}
-                      />
-                      <LabelWithTooltip
-                        label="Use Unified Fee"
-                        tooltipText="Use the same fee for both pickup and delivery reschedules."
-                      />
-                    </Box>
-                  )}
-                />
-              </Box>
-            </Box>
-
-            <Divider />
-
-            <Box>
-              <Typography
-                variant="h6"
-                sx={{ mb: 1, fontFamily: "Switzer", fontWeight: 600 }}
-              >
-                Fee Configuration
-              </Typography>
-              <Box className="flex flex-col gap-4">
-                <Controller
-                  name="feeType"
-                  control={control}
-                  render={({ field: { onChange, value } }) => (
-                    <SelectField
-                      title="Fee Type"
-                      value={value}
-                      onChange={(e) => onChange(e.target.value)}
-                      options={[
-                        { value: "absolute", label: "Absolute" },
-                        { value: "percentage", label: "Percentage" },
-                      ]}
-                      placeholder="Select Fee Type"
-                      fullWidth
-                    />
-                  )}
-                />
-                <Controller
-                  name="currency"
-                  control={control}
-                  render={({ field: { onChange, value } }) => (
-                    <SelectField
-                      title="Currency"
-                      value={value}
-                      onChange={(e) => onChange(e.target.value)}
-                      options={currencyOptions}
-                      placeholder="Select Currency"
-                      fullWidth
-                    />
-                  )}
-                />
-                {!useUnifiedFee && (
-                  <>
-                    <Controller
-                      name="pickupRescheduleFee"
-                      control={control}
-                      render={({ field: { onChange, value } }) => (
-                        <InputFieldModal
-                          title="Pickup Reschedule Fee"
-                          placeholder="Enter pickup reschedule fee"
-                          type="number"
-                          value={value || ""}
-                          onChange={(e) => onChange(e.target.value)}
-                        />
-                      )}
-                    />
-                    <Controller
-                      name="deliveryRescheduleFee"
-                      control={control}
-                      render={({ field: { onChange, value } }) => (
-                        <InputFieldModal
-                          title="Delivery Reschedule Fee"
-                          placeholder="Enter delivery reschedule fee"
-                          type="number"
-                          value={value || ""}
-                          onChange={(e) => onChange(e.target.value)}
-                        />
-                      )}
-                    />
-                  </>
-                )}
-                {useUnifiedFee && (
-                  <Controller
-                    name="pickupRescheduleFee"
-                    control={control}
-                    render={({ field: { onChange, value } }) => (
-                      <InputFieldModal
-                        title="Reschedule Fee"
-                        placeholder="Enter reschedule fee"
-                        type="number"
-                        value={value || ""}
-                        onChange={(e) => onChange(e.target.value)}
-                      />
-                    )}
-                  />
-                )}
-                {feeType === "percentage" && (
-                  <Controller
-                    name="percentageFee"
-                    control={control}
-                    render={({ field: { onChange, value } }) => (
-                      <InputFieldModal
-                        title="Percentage Fee (%)"
-                        placeholder="Enter percentage fee"
-                        type="number"
-                        value={value || ""}
-                        onChange={(e) => onChange(e.target.value)}
-                      />
-                    )}
-                  />
-                )}
-              </Box>
-            </Box>
-
-            <Divider />
-
-            <Box>
-              <Typography
-                variant="h6"
-                sx={{ mb: 1, fontFamily: "Switzer", fontWeight: 600 }}
-              >
-                Reschedule Settings
-              </Typography>
-              <Box className="flex flex-col gap-4">
-                <Controller
-                  name="cutoffHoursBeforePickup"
-                  control={control}
-                  render={({ field: { onChange, value } }) => (
-                    <InputFieldModal
-                      title="Cutoff Hours Before Pickup"
-                      placeholder="Enter cutoff hours (reschedule free within this window)"
-                      type="number"
-                      value={value || ""}
-                      onChange={(e) => onChange(e.target.value)}
-                      tooltipText="Hours before pickup within which customer can reschedule without fee."
-                    />
-                  )}
-                />
-                <Controller
-                  name="maxRescheduleCount"
-                  control={control}
-                  render={({ field: { onChange, value } }) => (
-                    <InputFieldModal
-                      title="Max Reschedule Count"
-                      placeholder="Enter max reschedules per order"
-                      type="number"
-                      value={value || ""}
-                      onChange={(e) => onChange(e.target.value)}
-                      tooltipText="Maximum number of times a customer can reschedule a single order."
-                    />
                   )}
                 />
               </Box>
             </Box>
           </Box>
-        </LocalizationProvider>
+
+          <Divider />
+
+          {/* At Pickup */}
+          <Box>
+            <Typography variant="h6" sx={{ mb: 1, fontFamily: "Switzer", fontWeight: 600 }}>
+              At Pickup
+            </Typography>
+            <Typography variant="body2" sx={{ mb: 2, color: "grey.80", fontFamily: "Switzer", fontSize: "12px" }}>
+              Fees and courtesy settings when rescheduling at pickup.
+            </Typography>
+            <Box className="grid grid-cols-2 gap-4">
+              <Controller
+                name="atPickupAbsoluteCurrency"
+                control={control}
+                render={({ field: { onChange, value } }) => (
+                  <SelectField
+                    title="Currency"
+                    value={value}
+                    onChange={(e) => onChange(e.target.value)}
+                    options={currencyOptions}
+                    placeholder="Select currency"
+                    fullWidth
+                  />
+                )}
+              />
+              <Controller
+                name="atPickupAbsoluteAmount"
+                control={control}
+                render={({ field: { onChange, value } }) => (
+                  <InputFieldModal
+                    title="Absolute amount"
+                    placeholder="Leave empty for none"
+                    type="number"
+                    value={value || ""}
+                    onChange={(e) => onChange(e.target.value)}
+                  />
+                )}
+              />
+              <Controller
+                name="atPickupPercentage"
+                control={control}
+                render={({ field: { onChange, value } }) => (
+                  <InputFieldModal
+                    title="Percentage (%)"
+                    placeholder="Leave empty for none"
+                    type="number"
+                    value={value || ""}
+                    onChange={(e) => onChange(e.target.value)}
+                  />
+                )}
+              />
+              <Controller
+                name="atPickupCourtesyCount"
+                control={control}
+                render={({ field: { onChange, value } }) => (
+                  <InputFieldModal
+                    title="Courtesy count"
+                    placeholder="e.g. 1"
+                    type="number"
+                    value={value ?? ""}
+                    onChange={(e) => onChange(e.target.value)}
+                  />
+                )}
+              />
+              <Controller
+                name="atPickupCourtesyCountEnabled"
+                control={control}
+                render={({ field: { onChange, value } }) => (
+                  <Box className="flex items-center gap-2">
+                    <StyledCheckbox checked={!!value} onChange={(e) => onChange(e.target.checked)} />
+                    <LabelWithTooltip label="Courtesy count enabled" tooltipText="Allow free reschedules up to courtesy count at pickup." />
+                  </Box>
+                )}
+              />
+            </Box>
+          </Box>
+
+          <Divider />
+
+          {/* At Delivery */}
+          <Box>
+            <Typography variant="h6" sx={{ mb: 1, fontFamily: "Switzer", fontWeight: 600 }}>
+              At Delivery
+            </Typography>
+            <Typography variant="body2" sx={{ mb: 2, color: "grey.80", fontFamily: "Switzer", fontSize: "12px" }}>
+              Fees and courtesy settings when rescheduling at delivery.
+            </Typography>
+            <Box className="grid grid-cols-2 gap-4">
+              <Controller
+                name="atDeliveryAbsoluteCurrency"
+                control={control}
+                render={({ field: { onChange, value } }) => (
+                  <SelectField
+                    title="Currency"
+                    value={value}
+                    onChange={(e) => onChange(e.target.value)}
+                    options={currencyOptions}
+                    placeholder="Select currency"
+                    fullWidth
+                  />
+                )}
+              />
+              <Controller
+                name="atDeliveryAbsoluteAmount"
+                control={control}
+                render={({ field: { onChange, value } }) => (
+                  <InputFieldModal
+                    title="Absolute amount"
+                    placeholder="Leave empty for none"
+                    type="number"
+                    value={value || ""}
+                    onChange={(e) => onChange(e.target.value)}
+                  />
+                )}
+              />
+              <Controller
+                name="atDeliveryPercentage"
+                control={control}
+                render={({ field: { onChange, value } }) => (
+                  <InputFieldModal
+                    title="Percentage (%)"
+                    placeholder="Leave empty for none"
+                    type="number"
+                    value={value || ""}
+                    onChange={(e) => onChange(e.target.value)}
+                  />
+                )}
+              />
+              <Controller
+                name="atDeliveryCourtesyCount"
+                control={control}
+                render={({ field: { onChange, value } }) => (
+                  <InputFieldModal
+                    title="Courtesy count"
+                    placeholder="e.g. 1"
+                    type="number"
+                    value={value ?? ""}
+                    onChange={(e) => onChange(e.target.value)}
+                  />
+                )}
+              />
+              <Controller
+                name="atDeliveryCourtesyCountEnabled"
+                control={control}
+                render={({ field: { onChange, value } }) => (
+                  <Box className="flex items-center gap-2">
+                    <StyledCheckbox checked={!!value} onChange={(e) => onChange(e.target.checked)} />
+                    <LabelWithTooltip label="Courtesy count enabled" tooltipText="Allow free reschedules up to courtesy count at delivery." />
+                  </Box>
+                )}
+              />
+            </Box>
+          </Box>
+
+          <Divider />
+
+          {/* Courtesy & Leniency */}
+          <Box>
+            <Typography variant="h6" sx={{ mb: 1, fontFamily: "Switzer", fontWeight: 600 }}>
+              Courtesy & Leniency
+            </Typography>
+            <Typography variant="body2" sx={{ mb: 2, color: "grey.80", fontFamily: "Switzer", fontSize: "12px" }}>
+              Global courtesy window and customer leniency.
+            </Typography>
+            <Box className="grid grid-cols-2 gap-4">
+              <Controller
+                name="courtesyWindowDays"
+                control={control}
+                render={({ field: { onChange, value } }) => (
+                  <InputFieldModal
+                    title="Courtesy window (days)"
+                    placeholder="e.g. 30"
+                    type="number"
+                    value={value ?? ""}
+                    onChange={(e) => onChange(e.target.value)}
+                  />
+                )}
+              />
+              <Controller
+                name="courtesyCapAmount"
+                control={control}
+                render={({ field: { onChange, value } }) => (
+                  <InputFieldModal
+                    title="Courtesy cap amount"
+                    placeholder="e.g. 15.00"
+                    type="number"
+                    value={value ?? ""}
+                    onChange={(e) => onChange(e.target.value)}
+                  />
+                )}
+              />
+              <Controller
+                name="courtesyCount"
+                control={control}
+                render={({ field: { onChange, value } }) => (
+                  <InputFieldModal
+                    title="Courtesy count"
+                    placeholder="e.g. 1"
+                    type="number"
+                    value={value ?? ""}
+                    onChange={(e) => onChange(e.target.value)}
+                  />
+                )}
+              />
+              <Controller
+                name="customerLeniencyEnabled"
+                control={control}
+                render={({ field: { onChange, value } }) => (
+                  <Box className="flex items-center gap-2">
+                    <StyledCheckbox checked={!!value} onChange={(e) => onChange(e.target.checked)} />
+                    <LabelWithTooltip label="Customer leniency enabled" tooltipText="Apply leniency rules for reschedule." />
+                  </Box>
+                )}
+              />
+            </Box>
+          </Box>
+        </Box>
       </ModalComponent>
 
       <ModalComponent

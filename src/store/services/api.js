@@ -274,6 +274,35 @@ export const api = createApi({
       }),
     }),
 
+    // Agent registration flow (sequence: 1 register, 2 address, 3 business info)
+    registerAgent: builder.mutation({
+      query: (body) => ({
+        url: "admin/registerAgent",
+        method: "POST",
+        body,
+      }),
+    }),
+    addAgentAddress: builder.mutation({
+      query: ({ userId, body }) => ({
+        url: `admin/addAgentAddress/${userId}`,
+        method: "POST",
+        body,
+      }),
+    }),
+    addAgentBusinessInfo: builder.mutation({
+      query: ({ userId, body }) => ({
+        url: `admin/addAgentBusinessInfo/${userId}`,
+        method: "POST",
+        body,
+      }),
+    }),
+    getBusinessInformation: builder.query({
+      query: (userId) => ({
+        url: `agent/getBussinessInforMation/${userId}`,
+        method: "GET",
+      }),
+    }),
+
     editShop: builder.mutation({
       query: ({ id, body }) => ({
         url: `admin/updateLaundryShop/${id}`,
@@ -292,6 +321,13 @@ export const api = createApi({
     getAllZones: builder.query({
       query: () => ({
         url: "admin/getZones",
+        method: "GET",
+        credentials: "include",
+      }),
+    }),
+    getZoneById: builder.query({
+      query: (id) => ({
+        url: `admin/getZoneById/${id}`,
         method: "GET",
         credentials: "include",
       }),
@@ -380,6 +416,14 @@ export const api = createApi({
       }),
     }),
 
+    getActivePolicies: builder.query({
+      query: () => ({
+        url: "admin/getActivePolicies",
+        method: "GET",
+        credentials: "include",
+      }),
+    }),
+
     addZone: builder.mutation({
       query: (body) => ({
         url: "admin/addZone",
@@ -392,6 +436,14 @@ export const api = createApi({
       query: (body) => ({
         url: "admin/addZoneByPostcodes",
         method: "POST",
+        body,
+      }),
+    }),
+
+    editZoneByPostcodes: builder.mutation({
+      query: ({ id, body }) => ({
+        url: `admin/editZoneByPostcodes/${id}`,
+        method: "PUT",
         body,
       }),
     }),
@@ -488,6 +540,29 @@ export const api = createApi({
         url: "admin/adinEmployeeAdd",
         method: "POST",
         body,
+      }),
+    }),
+
+    addAgentEmployee: builder.mutation({
+      query: (body) => ({
+        url: "admin/addAgentEmployee",
+        method: "POST",
+        body,
+      }),
+    }),
+
+    updateAgentEmployee: builder.mutation({
+      query: (body) => ({
+        url: "admin/updateAgentEmployee",
+        method: "PATCH",
+        body,
+      }),
+    }),
+
+    deleteAgentEmployee: builder.mutation({
+      query: (id) => ({
+        url: `admin/deleteAgentEmployee/${id}`,
+        method: "DELETE",
       }),
     }),
 
@@ -674,10 +749,17 @@ export const api = createApi({
       },
     }),
 
+    getReschedulePolicyById: builder.query({
+      query: (id) => ({
+        url: `admin/getReschedulePolicy/${id}`,
+        method: "GET",
+      }),
+    }),
+
     updateReschedulePolicy: builder.mutation({
       query: ({ id, body }) => ({
         url: `admin/updateReschedulePolicy/${id}`,
-        method: "PUT",
+        method: "PATCH",
         body,
       }),
     }),
@@ -788,16 +870,24 @@ export const {
   useGetShopsDataQuery,
   useGetShopDetailsQuery,
   useAddShopMutation,
+  useRegisterAgentMutation,
+  useAddAgentAddressMutation,
+  useAddAgentBusinessInfoMutation,
+  useGetBusinessInformationQuery,
   useEditShopMutation,
   useDeleteShopMutation,
   useGetAllEmployeesWithShopInfoQuery,
   useGetAdminEmployeesQuery,
   useGetAllRolesQuery,
   useAddAdminEmployeeMutation,
+  useAddAgentEmployeeMutation,
+  useUpdateAgentEmployeeMutation,
+  useDeleteAgentEmployeeMutation,
   useUpdateAdminEmployeeMutation,
   useUpdateAdminEmployeeStatusMutation,
   useDeleteAdminEmployeeMutation,
   useGetAllZonesQuery,
+  useLazyGetZoneByIdQuery,
   useGetAllCountriesQuery,
   useGetCitiesByCountryIdQuery,
   useGetAllCitiesQuery,
@@ -808,8 +898,10 @@ export const {
   useEditCityMutation,
   useDeleteCityMutation,
   useGetUnitsDistanceAndCurrencyQuery,
+  useGetActivePoliciesQuery,
   useAddZoneMutation,
   useAddZoneByPostcodesMutation,
+  useEditZoneByPostcodesMutation,
   useUpdateDriverMutation,
   useAddDriverByLaundryShopMutation,
   useGetAllDriverMiniDetailsQuery,
@@ -832,6 +924,7 @@ export const {
   useDeleteNoShowPolicyMutation,
   useAddReschedulePolicyMutation,
   useGetReschedulePoliciesQuery,
+  useGetReschedulePolicyByIdQuery,
   useUpdateReschedulePolicyMutation,
   useDeleteReschedulePolicyMutation,
   useGetAllFAQsQuery,

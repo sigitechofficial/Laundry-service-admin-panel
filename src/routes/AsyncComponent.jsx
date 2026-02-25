@@ -147,6 +147,10 @@ export const NoShowPolicy = lazy(() =>
   import("../pages/policies-management/NoShowPolicy")
 );
 
+export const NoShowPolicyTestCases = lazy(() =>
+  import("../pages/policies-management/NoShowPolicyTestCases")
+);
+
 export const ReschedulePolicy = lazy(() =>
   import("../pages/policies-management/ReschedulePolicy")
 );

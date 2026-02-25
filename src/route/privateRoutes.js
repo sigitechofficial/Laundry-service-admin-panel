@@ -33,6 +33,7 @@ import {
   CancellationPolicy,
   OverallPolicies,
   NoShowPolicy,
+  NoShowPolicyTestCases,
   ReschedulePolicy
 } from "../routes/AsyncComponent";
 
@@ -192,6 +193,11 @@ export const privateRoutes = [
     path: "/policies-management/no-show-policy",
     element: NoShowPolicy,
     resourceKey: "no_show_policy_page",
+  },
+  {
+    path: "/policies-management/no-show-policy/test-cases",
+    element: NoShowPolicyTestCases,
+    resourceKey: "no_show_policy_test_cases_page",
   },
   {
     path: "/policies-management/reschedule-policy",

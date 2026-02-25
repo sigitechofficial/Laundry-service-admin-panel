@@ -8,6 +8,8 @@ import DataTable from "../../components/ui/DataTable";
 import StatCard from "../../components/ui/StatCard";
 import StatusPill from "../../components/ui/StatusPill";
 import ActionButtons from "../../components/ui/ActionButtons";
+import AddEmployeeModal from "../employee-management/employee-modals/AddEmployeeModal";
+import DeleteEmployeeModal from "../employee-management/employee-modals/DeleteEmployeeModal";
 import {
   useGetShopsDataQuery,
   useGetAllEmployeesWithShopInfoQuery,
@@ -17,8 +19,12 @@ import { Delay } from "../../components/shared/Loaders";
 export default function ShopEmployeesPage() {
   const navigate = useNavigate();
   const [selectedShop, setSelectedShop] = useState("");
+  const [addEmployeeModalOpen, setAddEmployeeModalOpen] = useState(false);
+  const [employeeToEdit, setEmployeeToEdit] = useState(null);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [employeeIdToDelete, setEmployeeIdToDelete] = useState(null);
 
-  const { data: employeesResponse, isLoading: employeesLoading } =
+  const { data: employeesResponse, isLoading: employeesLoading, refetch: refetchEmployees } =
     useGetAllEmployeesWithShopInfoQuery();
   const employees = employeesResponse?.data?.employees || [];
 
@@ -102,8 +108,15 @@ export default function ShopEmployeesPage() {
       renderCell: (row) => (
         <ActionButtons
           showView={false}
-          onEdit={() => navigate(`/shop-management/employees/${row?.id}/edit`)}
-          onDelete={() => {}}
+          onEdit={() => {
+            const fullEmployee = employees.find((e) => e.id === row?.id);
+            setEmployeeToEdit(fullEmployee ?? null);
+            setAddEmployeeModalOpen(true);
+          }}
+          onDelete={() => {
+            setEmployeeIdToDelete(row?.id ?? null);
+            setDeleteModalOpen(true);
+          }}
         />
       ),
     },
@@ -138,7 +151,10 @@ export default function ShopEmployeesPage() {
           />
           <FiltersButton
             text="Add Employee"
-            onClick={() => {}}
+            onClick={() => {
+              setEmployeeToEdit(null);
+              setAddEmployeeModalOpen(true);
+            }}
             Icon={<TbPlus size="20px" />}
             variant="blue"
           />
@@ -164,6 +180,36 @@ export default function ShopEmployeesPage() {
           height={600}
         />
       </div>
+
+      <AddEmployeeModal
+        open={addEmployeeModalOpen}
+        onClose={() => {
+          setAddEmployeeModalOpen(false);
+          setEmployeeToEdit(null);
+        }}
+        onSuccess={() => {
+          refetchEmployees();
+          setEmployeeToEdit(null);
+        }}
+        employee={employeeToEdit}
+        forShopEmployees
+        shopOptions={shopOptions}
+      />
+
+      <DeleteEmployeeModal
+        open={deleteModalOpen}
+        employeeId={employeeIdToDelete}
+        onClose={() => {
+          setDeleteModalOpen(false);
+          setEmployeeIdToDelete(null);
+        }}
+        onSuccess={() => {
+          refetchEmployees();
+          setDeleteModalOpen(false);
+          setEmployeeIdToDelete(null);
+        }}
+        forShopEmployees
+      />
     </div>
   );
 }

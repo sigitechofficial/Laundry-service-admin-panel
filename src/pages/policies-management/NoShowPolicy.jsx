@@ -3,9 +3,11 @@ import { BsCardList, TbPlus } from "../../shared/icons/index";
 import NoShowPolicyContent from "./NoShowPolicyContent";
 import ButtonBlueLight from "../../components/ui/ButtonBlueLight";
 import { useRef } from "react";
+import { useNavigate } from "react-router-dom";
 
 export default function NoShowPolicy() {
   const addButtonHandlerRef = useRef(null);
+  const navigate = useNavigate();
 
   return (
     <Box>
@@ -19,20 +21,31 @@ export default function NoShowPolicy() {
                 No Show Policy
               </Typography>
             </Box>
-            <ButtonBlueLight
-              variant="outlined"
-              bgColor="blue.200"
-              color="white"
-              radius="8px"
-              startIcon={<TbPlus size={"24px"} />}
-              onClick={() => {
-                if (addButtonHandlerRef.current) {
-                  addButtonHandlerRef.current();
-                }
-              }}
-            >
-              Add No Show Policy
-            </ButtonBlueLight>
+            <Box className="flex items-center gap-3">
+              <ButtonBlueLight
+                variant="outlined"
+                bgColor="#10b981"
+                color="white"
+                radius="8px"
+                onClick={() => navigate("/policies-management/no-show-policy/test-cases")}
+              >
+                Test Cases
+              </ButtonBlueLight>
+              <ButtonBlueLight
+                variant="outlined"
+                bgColor="blue.200"
+                color="white"
+                radius="8px"
+                startIcon={<TbPlus size={"24px"} />}
+                onClick={() => {
+                  if (addButtonHandlerRef.current) {
+                    addButtonHandlerRef.current();
+                  }
+                }}
+              >
+                Add No Show Policy
+              </ButtonBlueLight>
+            </Box>
           </Box>
 
           <NoShowPolicyContent onAddButtonRef={addButtonHandlerRef} />

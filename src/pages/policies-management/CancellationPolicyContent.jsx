@@ -943,6 +943,7 @@ export default function CancellationPolicyContent() {
       const payload = {
         name: data.name,
         description: data.description,
+        created_date: data.createdDate ? data.createdDate.format("YYYY-MM-DD") : dayjs().format("YYYY-MM-DD"),
         expiry_date: data.expiryDate ? data.expiryDate.format("YYYY-MM-DD") : null,
         isActive: true,
         isDefault: true,
@@ -1150,7 +1151,7 @@ export default function CancellationPolicyContent() {
                   <Controller
                     name="createdDate"
                     control={control}
-                    render={({ field: { value } }) => (
+                    render={({ field: { onChange, value } }) => (
                       <Box sx={{ width: "100%" }}>
                         <Box sx={{ display: "flex", alignItems: "center", gap: "4px", mb: "8px" }}>
                           <Typography variant="body2" sx={{ color: "#374151" }}>
@@ -1159,7 +1160,7 @@ export default function CancellationPolicyContent() {
                         </Box>
                         <DatePicker
                           value={value || dayjs()}
-                          disabled
+                          onChange={(newValue) => onChange(newValue)}
                           slotProps={{
                             textField: {
                               placeholder: "Created date",
@@ -1183,21 +1184,11 @@ export default function CancellationPolicyContent() {
                                   "&.Mui-focused fieldset": {
                                     border: "none !important",
                                   },
-                                  "&.Mui-disabled": {
-                                    backgroundColor: "#F3F4F6 !important",
-                                    border: "none !important",
-                                    boxShadow: "none !important",
-                                  },
                                 },
                                 "& .MuiPickersInputBase-root": {
                                   backgroundColor: "#F4F7FF !important",
                                   border: "none !important",
                                   boxShadow: "none !important",
-                                  "&.Mui-disabled": {
-                                    backgroundColor: "#F3F4F6 !important",
-                                    border: "none !important",
-                                    boxShadow: "none !important",
-                                  },
                                 },
                                 "& .MuiInputBase-input": {
                                   fontFamily: "Switzer",
