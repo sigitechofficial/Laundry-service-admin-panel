@@ -4,7 +4,7 @@
 
 The Cancellation Policy system manages how customers can cancel their bookings and what charges (if any) apply based on various conditions. This document provides comprehensive information for implementing cancellation checks and booking management on the customer side.
 
-## Table of Contents
+## Table of Contentssss
 
 <!-- 1. [API Endpoints](#api-endpoints) -->
 
@@ -164,7 +164,6 @@ To determine which cancellation charges apply, check the order status:
 1. **Pre-Pickup**: Order not yet picked up
    - Use `prePickup*` fields
 2. **Unprocessed**: Order picked up but not yet processed
-
    - Use `unprocessed*` fields
    - Only if `allowCancelUnprocessed` is `true`
 
@@ -445,7 +444,7 @@ async function getActiveCancellationPolicy() {
           "Content-Type": "application/json",
           // Add authentication headers as needed
         },
-      }
+      },
     );
 
     const data = await response.json();
@@ -547,7 +546,7 @@ async function processCancellation(orderId, customerId) {
 async function confirmCancellationWithCharge(
   orderId,
   customerId,
-  paymentMethodId
+  paymentMethodId,
 ) {
   const order = await getOrder(orderId);
   const policy = await getActiveCancellationPolicy();
@@ -597,7 +596,6 @@ async function confirmCancellationWithCharge(
 2. **Policy Expiry**: Always check `expiry_date` before applying a policy. Expired policies should not be used.
 
 3. **Charge Calculation Priority**:
-
    - First check free cancellation window
    - Then check first cancellation leniency
    - Then check courtesy window
