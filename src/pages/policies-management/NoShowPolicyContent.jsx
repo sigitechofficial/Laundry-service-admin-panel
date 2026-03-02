@@ -64,8 +64,8 @@ export default function NoShowPolicyContent({ onAddButtonRef }) {
     defaultValues: {
       name: "",
       description: "",
-      createdDate: dayjs(),
-      expiryDate: null,
+      effectiveFrom: dayjs(),
+      effectiveTo: null,
       isActive: true,
       isDefault: true,
       enableForPickup: true,
@@ -658,8 +658,8 @@ export default function NoShowPolicyContent({ onAddButtonRef }) {
     reset({
       name: "",
       description: "",
-      createdDate: dayjs(),
-      expiryDate: null,
+      effectiveFrom: dayjs(),
+      effectiveTo: null,
       isActive: true,
       isDefault: true,
       enableForPickup: true,
@@ -707,10 +707,14 @@ export default function NoShowPolicyContent({ onAddButtonRef }) {
     reset({
       name: policy.name || "",
       description: policy.description || "",
-      createdDate: policy.createdAt ? dayjs(policy.createdAt) : dayjs(),
-      expiryDate: policy.expiry_date ? dayjs(policy.expiry_date) : null,
-      isActive: true,
-      isDefault: true,
+      effectiveFrom: policy.effectiveFrom
+        ? dayjs(policy.effectiveFrom)
+        : (policy.createdAt ? dayjs(policy.createdAt) : dayjs()),
+      effectiveTo: policy.effectiveTo
+        ? dayjs(policy.effectiveTo)
+        : (policy.expiry_date ? dayjs(policy.expiry_date) : null),
+      isActive: policy.isActive ?? true,
+      isDefault: policy.isDefault ?? true,
       enableForPickup: config.enableForPickup ?? true,
       enableForDelivery: config.enableForDelivery ?? true,
       useUnifiedFee: config.useUnifiedFee ?? true,
@@ -771,12 +775,20 @@ export default function NoShowPolicyContent({ onAddButtonRef }) {
 
   const onSubmit = async (data) => {
     try {
+      const effectiveFromUtc = data.effectiveFrom
+        ? dayjs(data.effectiveFrom).toDate().toISOString()
+        : dayjs().toDate().toISOString();
+      const effectiveToUtc = data.effectiveTo
+        ? dayjs(data.effectiveTo).toDate().toISOString()
+        : null;
+
       const payload = {
         name: data.name,
         description: data.description,
-        expiry_date: data.expiryDate ? data.expiryDate.format("YYYY-MM-DD") : null,
-        isActive: true,
-        isDefault: true,
+        effectiveFrom: effectiveFromUtc,
+        effectiveTo: effectiveToUtc,
+        isActive: !!data.isActive,
+        isDefault: !!data.isDefault,
         enableForPickup: data.enableForPickup,
         enableForDelivery: data.enableForDelivery,
         useUnifiedFee: data.useUnifiedFee,
@@ -922,21 +934,20 @@ export default function NoShowPolicyContent({ onAddButtonRef }) {
               />
               <Box className="grid grid-cols-2 gap-4">
                 <Controller
-                  name="createdDate"
+                  name="effectiveFrom"
                   control={control}
                   render={({ field: { value } }) => (
                     <Box sx={{ width: "100%" }}>
                       <Box sx={{ display: "flex", alignItems: "center", gap: "4px", mb: "8px" }}>
                         <Typography variant="body2" sx={{ color: "#374151" }}>
-                          Created Date
+                          Effective From
                         </Typography>
                       </Box>
                       <DatePicker
                         value={value || dayjs()}
-                        disabled
                         slotProps={{
                           textField: {
-                            placeholder: "Created date",
+                            placeholder: "Select effective from",
                             fullWidth: true,
                             sx: {
                               width: "100%",
@@ -990,13 +1001,13 @@ export default function NoShowPolicyContent({ onAddButtonRef }) {
                   )}
                 />
                 <Controller
-                  name="expiryDate"
+                  name="effectiveTo"
                   control={control}
                   render={({ field: { onChange, value } }) => (
                     <Box sx={{ width: "100%" }}>
                       <Box sx={{ display: "flex", alignItems: "center", gap: "4px", mb: "8px" }}>
                         <Typography variant="body2" sx={{ color: "#374151" }}>
-                          Expiry Date
+                          Effective To
                         </Typography>
                       </Box>
                       <DatePicker
@@ -1004,7 +1015,7 @@ export default function NoShowPolicyContent({ onAddButtonRef }) {
                         onChange={(newValue) => onChange(newValue)}
                         slotProps={{
                           textField: {
-                            placeholder: "Select expiry date",
+                            placeholder: "Select effective to",
                             fullWidth: true,
                             sx: {
                               width: "100%",

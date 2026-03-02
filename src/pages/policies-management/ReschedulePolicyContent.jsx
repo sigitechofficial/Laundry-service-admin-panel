@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Box, Typography, Divider } from "@mui/material";
-import { TbTrash } from "../../shared/icons/index";
+import { TbCalendar, TbTrash } from "../../shared/icons/index";
 import StyledCheckbox from "../../components/ui/StyledCheckbox";
 import LabelWithTooltip from "../../components/ui/LabelWithTooltip";
 import DataTable from "../../components/ui/DataTable";
@@ -16,6 +16,10 @@ import {
   useDeleteReschedulePolicyMutation,
 } from "../../store/services/api";
 import { Delay } from "../../components/shared/Loaders";
+import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
+import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
+import { DatePicker } from "@mui/x-date-pickers/DatePicker";
+import dayjs from "dayjs";
 
 export default function ReschedulePolicyContent({ onAddButtonRef }) {
   const { success, error: showError } = useToaster();
@@ -59,14 +63,15 @@ export default function ReschedulePolicyContent({ onAddButtonRef }) {
   const rescheduleFormDefaults = {
     name: "",
     description: "",
+    effectiveFrom: dayjs(),
+    effectiveTo: null,
     isActive: true,
     isDefault: false,
-    atPickupAbsoluteCurrency: "USD",
+    currency: "USD",
     atPickupAbsoluteAmount: "",
     atPickupPercentage: "",
     atPickupCourtesyCount: 1,
     atPickupCourtesyCountEnabled: true,
-    atDeliveryAbsoluteCurrency: "USD",
     atDeliveryAbsoluteAmount: "",
     atDeliveryPercentage: "",
     atDeliveryCourtesyCount: 1,
@@ -440,21 +445,29 @@ export default function ReschedulePolicyContent({ onAddButtonRef }) {
     const policy = row._rawPolicy || policies.find((p) => p.id === row.id) || row;
     setEditingPolicy(policy);
     const config = policy.rescheduleConfig || policy.reschedulePolicyConfig || policy;
+    const selectedCurrency =
+      config.atPickupAbsoluteCurrency ||
+      config.atDeliveryAbsoluteCurrency ||
+      config.currency ||
+      "USD";
     reset({
       name: policy.name || "",
       description: policy.description || "",
+      effectiveFrom: policy.effectiveFrom
+        ? dayjs(policy.effectiveFrom)
+        : (policy.createdAt ? dayjs(policy.createdAt) : dayjs()),
+      effectiveTo: policy.effectiveTo
+        ? dayjs(policy.effectiveTo)
+        : (policy.expiry_date ? dayjs(policy.expiry_date) : null),
       isActive: policy.isActive ?? true,
       isDefault: policy.isDefault ?? false,
-      atPickupAbsoluteCurrency:
-        config.atPickupAbsoluteCurrency || "USD",
+      currency: selectedCurrency,
       atPickupAbsoluteAmount:
         config.atPickupAbsoluteAmount != null ? String(config.atPickupAbsoluteAmount) : "",
       atPickupPercentage:
         config.atPickupPercentage != null ? String(config.atPickupPercentage) : "",
       atPickupCourtesyCount: config.atPickupCourtesyCount ?? 1,
       atPickupCourtesyCountEnabled: config.atPickupCourtesyCountEnabled ?? true,
-      atDeliveryAbsoluteCurrency:
-        config.atDeliveryAbsoluteCurrency || "USD",
       atDeliveryAbsoluteAmount:
         config.atDeliveryAbsoluteAmount != null ? String(config.atDeliveryAbsoluteAmount) : "",
       atDeliveryPercentage:
@@ -501,12 +514,21 @@ export default function ReschedulePolicyContent({ onAddButtonRef }) {
 
   const onSubmit = async (data) => {
     try {
+      const selectedCurrency = data.currency || "USD";
+      const effectiveFromUtc = data.effectiveFrom
+        ? dayjs(data.effectiveFrom).toDate().toISOString()
+        : dayjs().toDate().toISOString();
+      const effectiveToUtc = data.effectiveTo
+        ? dayjs(data.effectiveTo).toDate().toISOString()
+        : null;
       const payload = {
         name: data.name,
         description: data.description,
+        effectiveFrom: effectiveFromUtc,
+        effectiveTo: effectiveToUtc,
         isActive: !!data.isActive,
         isDefault: !!data.isDefault,
-        atPickupAbsoluteCurrency: data.atPickupAbsoluteCurrency || "USD",
+        atPickupAbsoluteCurrency: selectedCurrency,
         atPickupAbsoluteAmount:
           data.atPickupAbsoluteAmount !== ""
             ? parseFloat(data.atPickupAbsoluteAmount)
@@ -517,7 +539,7 @@ export default function ReschedulePolicyContent({ onAddButtonRef }) {
             : null,
         atPickupCourtesyCount: Number(data.atPickupCourtesyCount) || 1,
         atPickupCourtesyCountEnabled: !!data.atPickupCourtesyCountEnabled,
-        atDeliveryAbsoluteCurrency: data.atDeliveryAbsoluteCurrency || "USD",
+        atDeliveryAbsoluteCurrency: selectedCurrency,
         atDeliveryAbsoluteAmount:
           data.atDeliveryAbsoluteAmount !== ""
             ? parseFloat(data.atDeliveryAbsoluteAmount)
@@ -611,6 +633,7 @@ export default function ReschedulePolicyContent({ onAddButtonRef }) {
           onClick: handleClose,
         }}
       >
+        <LocalizationProvider dateAdapter={AdapterDayjs}>
         <Box className="flex flex-col gap-6 max-h-[70vh] overflow-y-auto pr-1">
           {/* Basic Information */}
           <Box>
@@ -649,6 +672,104 @@ export default function ReschedulePolicyContent({ onAddButtonRef }) {
                   />
                 )}
               />
+              <Controller
+                name="currency"
+                control={control}
+                render={({ field: { onChange, value } }) => (
+                  <SelectField
+                    title="Currency"
+                    value={value}
+                    onChange={(e) => onChange(e.target.value)}
+                    options={currencyOptions}
+                    placeholder="Select currency"
+                    fullWidth
+                  />
+                )}
+              />
+              <Box className="grid grid-cols-2 gap-4">
+                <Controller
+                  name="effectiveFrom"
+                  control={control}
+                  render={({ field: { onChange, value } }) => (
+                    <Box sx={{ width: "100%" }}>
+                      <Box sx={{ display: "flex", alignItems: "center", gap: "4px", mb: "8px" }}>
+                        <Typography variant="body2" sx={{ color: "#374151" }}>
+                          Effective From
+                        </Typography>
+                      </Box>
+                      <DatePicker
+                        value={value || dayjs()}
+                        onChange={(newValue) => onChange(newValue)}
+                        slotProps={{
+                          textField: {
+                            placeholder: "Select effective from",
+                            fullWidth: true,
+                            sx: {
+                              width: "100%",
+                              "& .MuiOutlinedInput-root": {
+                                height: "52px",
+                                borderRadius: "8px",
+                                backgroundColor: "#F4F7FF !important",
+                                fontFamily: "Switzer",
+                                border: "none !important",
+                                boxShadow: "none !important",
+                                "& fieldset": {
+                                  border: "none !important",
+                                  display: "none",
+                                },
+                              },
+                            },
+                          },
+                        }}
+                        slots={{
+                          openPickerIcon: () => <TbCalendar size={20} style={{ color: "#6B7280" }} />,
+                        }}
+                      />
+                    </Box>
+                  )}
+                />
+                <Controller
+                  name="effectiveTo"
+                  control={control}
+                  render={({ field: { onChange, value } }) => (
+                    <Box sx={{ width: "100%" }}>
+                      <Box sx={{ display: "flex", alignItems: "center", gap: "4px", mb: "8px" }}>
+                        <Typography variant="body2" sx={{ color: "#374151" }}>
+                          Effective To
+                        </Typography>
+                      </Box>
+                      <DatePicker
+                        value={value}
+                        onChange={(newValue) => onChange(newValue)}
+                        slotProps={{
+                          textField: {
+                            placeholder: "Select effective to",
+                            fullWidth: true,
+                            sx: {
+                              width: "100%",
+                              "& .MuiOutlinedInput-root": {
+                                height: "52px",
+                                borderRadius: "8px",
+                                backgroundColor: "#F4F7FF !important",
+                                fontFamily: "Switzer",
+                                border: "none !important",
+                                boxShadow: "none !important",
+                                "& fieldset": {
+                                  border: "none !important",
+                                  display: "none",
+                                },
+                              },
+                            },
+                          },
+                        }}
+                        slots={{
+                          openPickerIcon: () => <TbCalendar size={20} style={{ color: "#6B7280" }} />,
+                        }}
+                      />
+                    </Box>
+                  )}
+                />
+              </Box>
               <Box className="grid grid-cols-2 gap-4">
                 <Controller
                   name="isActive"
@@ -685,20 +806,6 @@ export default function ReschedulePolicyContent({ onAddButtonRef }) {
               Fees and courtesy settings when rescheduling at pickup.
             </Typography>
             <Box className="grid grid-cols-2 gap-4">
-              <Controller
-                name="atPickupAbsoluteCurrency"
-                control={control}
-                render={({ field: { onChange, value } }) => (
-                  <SelectField
-                    title="Currency"
-                    value={value}
-                    onChange={(e) => onChange(e.target.value)}
-                    options={currencyOptions}
-                    placeholder="Select currency"
-                    fullWidth
-                  />
-                )}
-              />
               <Controller
                 name="atPickupAbsoluteAmount"
                 control={control}
@@ -762,20 +869,6 @@ export default function ReschedulePolicyContent({ onAddButtonRef }) {
               Fees and courtesy settings when rescheduling at delivery.
             </Typography>
             <Box className="grid grid-cols-2 gap-4">
-              <Controller
-                name="atDeliveryAbsoluteCurrency"
-                control={control}
-                render={({ field: { onChange, value } }) => (
-                  <SelectField
-                    title="Currency"
-                    value={value}
-                    onChange={(e) => onChange(e.target.value)}
-                    options={currencyOptions}
-                    placeholder="Select currency"
-                    fullWidth
-                  />
-                )}
-              />
               <Controller
                 name="atDeliveryAbsoluteAmount"
                 control={control}
@@ -891,6 +984,7 @@ export default function ReschedulePolicyContent({ onAddButtonRef }) {
             </Box>
           </Box>
         </Box>
+        </LocalizationProvider>
       </ModalComponent>
 
       <ModalComponent

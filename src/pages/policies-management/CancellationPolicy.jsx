@@ -73,8 +73,8 @@ export default function CancellationPolicy() {
     defaultValues: {
       name: "",
       description: "",
-      createdDate: dayjs(),
-      expiryDate: null,
+      effectiveFrom: dayjs(),
+      effectiveTo: null,
       isActive: true,
       isDefault: true,
       currency: "USD", // Single general currency for entire policy
@@ -628,8 +628,8 @@ export default function CancellationPolicy() {
     reset({
       name: nextVersionName,
       description: "",
-      createdDate: dayjs(),
-      expiryDate: null,
+      effectiveFrom: dayjs(),
+      effectiveTo: null,
       isActive: true,
       isDefault: true,
       currency: "USD",
@@ -669,10 +669,14 @@ export default function CancellationPolicy() {
     reset({
       name: policy.name || "",
       description: policy.description || "",
-      createdDate: policy.createdAt ? dayjs(policy.createdAt) : dayjs(),
-      expiryDate: policy.expiry_date ? dayjs(policy.expiry_date) : null,
-      isActive: true,
-      isDefault: true,
+      effectiveFrom: policy.effectiveFrom
+        ? dayjs(policy.effectiveFrom)
+        : (policy.createdAt ? dayjs(policy.createdAt) : dayjs()),
+      effectiveTo: policy.effectiveTo
+        ? dayjs(policy.effectiveTo)
+        : (policy.expiry_date ? dayjs(policy.expiry_date) : null),
+      isActive: policy.isActive ?? true,
+      isDefault: policy.isDefault ?? true,
       currency: config.prePickupAbsoluteCurrency || config.unprocessedAbsoluteCurrency || "USD",
       prePickupFeeType: feeType,
       prePickupFeeValue: feeValue,
@@ -735,6 +739,13 @@ export default function CancellationPolicy() {
 
   const onSubmit = async (data) => {
     try {
+      const effectiveFromUtc = data.effectiveFrom
+        ? dayjs(data.effectiveFrom).toDate().toISOString()
+        : dayjs().toDate().toISOString();
+      const effectiveToUtc = data.effectiveTo
+        ? dayjs(data.effectiveTo).toDate().toISOString()
+        : null;
+
       // Determine which field to set based on fee type
       const prePickupAbsoluteAmount = data.prePickupFeeType === "absolute" && data.prePickupFeeValue
         ? parseFloat(data.prePickupFeeValue)
@@ -754,10 +765,10 @@ export default function CancellationPolicy() {
       const payload = {
         name: data.name,
         description: data.description,
-        created_date: data.createdDate ? data.createdDate.format("YYYY-MM-DD") : dayjs().format("YYYY-MM-DD"),
-        expiry_date: data.expiryDate ? data.expiryDate.format("YYYY-MM-DD") : null,
-        isActive: true,
-        isDefault: true,
+        effectiveFrom: effectiveFromUtc,
+        effectiveTo: effectiveToUtc,
+        isActive: !!data.isActive,
+        isDefault: !!data.isDefault,
         prePickupAbsoluteCurrency: data.currency,
         prePickupAbsoluteAmount: prePickupAbsoluteAmount,
         prePickupPercentage: prePickupPercentage,
@@ -1111,13 +1122,13 @@ export default function CancellationPolicy() {
                     />
                     <Box className="grid grid-cols-2 gap-4">
                       <Controller
-                        name="createdDate"
+                        name="effectiveFrom"
                         control={control}
                         render={({ field: { onChange, value } }) => (
                           <Box sx={{ width: "100%" }}>
                             <Box sx={{ display: "flex", alignItems: "center", gap: "4px", mb: "8px" }}>
                               <Typography variant="body2" sx={{ color: "#374151" }}>
-                                Created Date
+                                Effective From
                               </Typography>
                             </Box>
                             <DatePicker
@@ -1125,7 +1136,7 @@ export default function CancellationPolicy() {
                               onChange={(newValue) => onChange(newValue)}
                               slotProps={{
                                 textField: {
-                                  placeholder: "Created date",
+                                  placeholder: "Select effective from",
                                   fullWidth: true,
                                   sx: {
                                     width: "100%",
@@ -1169,13 +1180,13 @@ export default function CancellationPolicy() {
                         )}
                       />
                       <Controller
-                        name="expiryDate"
+                        name="effectiveTo"
                         control={control}
                         render={({ field: { onChange, value } }) => (
                           <Box sx={{ width: "100%" }}>
                             <Box sx={{ display: "flex", alignItems: "center", gap: "4px", mb: "8px" }}>
                               <Typography variant="body2" sx={{ color: "#374151" }}>
-                                Expiry Date
+                                Effective To
                               </Typography>
                             </Box>
                             <DatePicker
@@ -1183,7 +1194,7 @@ export default function CancellationPolicy() {
                               onChange={(newValue) => onChange(newValue)}
                               slotProps={{
                                 textField: {
-                                  placeholder: "Select expiry date",
+                                  placeholder: "Select effective to",
                                   fullWidth: true,
                                   sx: {
                                     width: "100%",
@@ -1211,6 +1222,38 @@ export default function CancellationPolicy() {
                               slots={{
                                 openPickerIcon: () => <TbCalendar size={20} style={{ color: "#6B7280" }} />,
                               }}
+                            />
+                          </Box>
+                        )}
+                      />
+                      <Controller
+                        name="isActive"
+                        control={control}
+                        render={({ field: { onChange, value } }) => (
+                          <Box className="flex items-center gap-2">
+                            <StyledCheckbox
+                              checked={!!value}
+                              onChange={(e) => onChange(e.target.checked)}
+                            />
+                            <LabelWithTooltip
+                              label="Active"
+                              tooltipText="Set whether this policy is active."
+                            />
+                          </Box>
+                        )}
+                      />
+                      <Controller
+                        name="isDefault"
+                        control={control}
+                        render={({ field: { onChange, value } }) => (
+                          <Box className="flex items-center gap-2">
+                            <StyledCheckbox
+                              checked={!!value}
+                              onChange={(e) => onChange(e.target.checked)}
+                            />
+                            <LabelWithTooltip
+                              label="Default policy"
+                              tooltipText="Set whether this is the default cancellation policy."
                             />
                           </Box>
                         )}
