@@ -4,7 +4,7 @@
 
 The Cancellation Policy system manages how customers can cancel their bookings and what charges (if any) apply based on various conditions. This document provides comprehensive information for implementing cancellation checks and booking management on the customer side.
 
-## Table of Contentssss
+## Table of Content
 
 <!-- 1. [API Endpoints](#api-endpoints) -->
 
