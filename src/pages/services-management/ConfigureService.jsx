@@ -4,9 +4,13 @@ import SelectField from "../../components/ui/SelectField";
 import { Box, Typography } from "@mui/material";
 import { useSelector } from "react-redux";
 import ConfigureModal from "./configure-modal/ConfigureModal";
+import { useGetAllServicesQuery } from "../../store/services/api";
 
 export default function ConfigureService({ triggerConfigure }) {
-  const services = useSelector((state) => state.apiData.services);
+  const servicesFromStore = useSelector((state) => state.apiData.services);
+  const { data: servicesResponse, isLoading: isServicesLoading } =
+    useGetAllServicesQuery();
+  const services = servicesResponse?.data?.services || servicesFromStore || [];
 
   const SERVICE_OPTIONS = services?.map((service) => ({
     label: service.name,
@@ -55,9 +59,10 @@ export default function ConfigureService({ triggerConfigure }) {
         value={selectedService.value}
         onChange={handleServiceChange}
         options={SERVICE_OPTIONS}
-        placeholder="Select service"
+        placeholder={isServicesLoading ? "Loading services..." : "Select service"}
         fullWidth
         bgcolor={"white"}
+        disabled={isServicesLoading || !SERVICE_OPTIONS?.length}
       />
 
       <ConfigureServiceOptions serviceId={selectedService.value} />

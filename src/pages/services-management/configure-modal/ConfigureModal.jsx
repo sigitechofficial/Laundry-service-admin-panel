@@ -12,14 +12,19 @@ import {
   useUnAssignServiceFromPreferencesMutation,
   useGetCategoriesQuery,
   useGetPreferencesQuery,
+  useGetAllServicesQuery,
 } from "../../../store/services/api";
 import ButtonBlue from "../../../components/ui/ButtonBlue";
 
 export default function ConfigureModal({ open, onClose, selectedServiceId }) {
   const { success, error } = useToaster();
-  const services = useSelector((state) => state.apiData.services);
+  const servicesFromRedux = useSelector((state) => state.apiData.services);
   const categoriesFromRedux = useSelector((state) => state.apiData.categories);
   const preferencesFromRedux = useSelector((state) => state.apiData.preferences);
+  const { data: servicesResponse } = useGetAllServicesQuery(undefined, {
+    skip: !open,
+  });
+  const services = servicesResponse?.data?.services || servicesFromRedux || [];
 
   // Fetch categories and preferences when modal opens
   const { data: categoriesResponse, isLoading: isLoadingCategories } = useGetCategoriesQuery(undefined, {
