@@ -28,15 +28,15 @@ const addEmployeeSchema = yup.object().shape({
   }),
   phoneNum: yup.string().required("Phone is required"),
   roleId: yup.mixed().required("Role is required"),
-  countryId: yup.mixed().when("$isEdit", {
-    is: false,
-    then: (s) => s.required("Country is required"),
-    otherwise: (s) => s.optional(),
+  countryId: yup.mixed().when("$forShopEmployees", {
+    is: true,
+    then: (s) => s.optional(),
+    otherwise: (s) => s.required("Country is required"),
   }),
-  cityId: yup.mixed().when("$isEdit", {
-    is: false,
-    then: (s) => s.required("City is required"),
-    otherwise: (s) => s.optional(),
+  cityId: yup.mixed().when("$forShopEmployees", {
+    is: true,
+    then: (s) => s.optional(),
+    otherwise: (s) => s.required("City is required"),
   }),
   agentId: yup.mixed().when("$forShopEmployees", {
     is: true,
@@ -63,16 +63,20 @@ function getDefaultsFromEmployee(emp, forShopEmployees) {
   const countryId = emp.countryId ?? emp.country?.id ?? "";
   const cityId = emp.cityId ?? emp.city?.id ?? "";
   const agentId = emp.agentId ?? emp.shopId ?? emp.shopInfo?.id ?? "";
+
+  const normalizeValue = (value) =>
+    value !== undefined && value !== null && value !== "" ? String(value) : "";
+
   return {
     firstName: emp.firstName ?? "",
     lastName: emp.lastName ?? "",
     email: emp.email ?? "",
     password: "",
     phoneNum: emp.phoneNum ?? "",
-    roleId: roleId !== undefined && roleId !== null ? roleId : "",
-    countryId: countryId !== undefined && countryId !== null ? countryId : "",
-    cityId: cityId !== undefined && cityId !== null ? cityId : "",
-    ...(forShopEmployees ? { agentId: agentId !== undefined && agentId !== null ? agentId : "" } : {}),
+    roleId: normalizeValue(roleId),
+    countryId: normalizeValue(countryId),
+    cityId: normalizeValue(cityId),
+    ...(forShopEmployees ? { agentId: normalizeValue(agentId) } : {}),
   };
 }
 
@@ -95,14 +99,17 @@ export default function AddEmployeeModal({
   const countries = countriesRes?.data?.countries ?? countriesRes?.data ?? [];
   const countryOptions = useMemo(() => {
     const list = Array.isArray(countries) ? countries : [];
-    return list.map((c) => ({ value: c.id, label: c.name ?? c.countryName ?? String(c.id) }));
+    return list.map((c) => ({
+      value: String(c.id),
+      label: c.name ?? c.countryName ?? String(c.id),
+    }));
   }, [countries]);
 
   const { data: rolesRes } = useGetAllRolesQuery(undefined, { skip: !open });
   const roles = rolesRes?.data ?? [];
   const roleOptions = useMemo(() => {
     const list = Array.isArray(roles) ? roles : [];
-    return list.map((r) => ({ value: r.id, label: r.name ?? String(r.id) }));
+    return list.map((r) => ({ value: String(r.id), label: r.name ?? String(r.id) }));
   }, [roles]);
 
   const formDefaultValues = useMemo(
@@ -137,7 +144,10 @@ export default function AddEmployeeModal({
   const cities = citiesRes?.data?.cities ?? citiesRes?.data ?? [];
   const cityOptions = useMemo(() => {
     const list = Array.isArray(cities) ? cities : [];
-    return list.map((c) => ({ value: c.id, label: c.name ?? c.cityName ?? String(c.id) }));
+    return list.map((c) => ({
+      value: String(c.id),
+      label: c.name ?? c.cityName ?? String(c.id),
+    }));
   }, [cities]);
 
   const handleClose = () => {
@@ -172,6 +182,8 @@ export default function AddEmployeeModal({
         email: data.email,
         phoneNum: data.phoneNum,
         roleId: Number(data.roleId),
+        countryId: data.countryId ? Number(data.countryId) : undefined,
+        cityId: data.cityId ? Number(data.cityId) : undefined,
       };
       const res = await updateEmployee(body);
       if (res?.data?.status === "1") {
@@ -322,7 +334,7 @@ export default function AddEmployeeModal({
             )}
           </>
         )}
-        {!isEdit && (
+        {!forShopEmployees && (
           <>
             <Controller
               name="countryId"

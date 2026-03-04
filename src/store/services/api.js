@@ -535,6 +535,29 @@ export const api = createApi({
       }),
     }),
 
+    getFeatures: builder.query({
+      query: () => ({
+        url: "admin/getFeatures",
+        method: "GET",
+      }),
+    }),
+
+    addFeature: builder.mutation({
+      query: (body) => ({
+        url: "admin/addfeatures",
+        method: "POST",
+        body,
+      }),
+    }),
+
+    addLaundryRole: builder.mutation({
+      query: (body) => ({
+        url: "admin/AddLaundryRoles",
+        method: "POST",
+        body,
+      }),
+    }),
+
     addAdminEmployee: builder.mutation({
       query: (body) => ({
         url: "admin/adinEmployeeAdd",
@@ -584,7 +607,7 @@ export const api = createApi({
 
     deleteAdminEmployee: builder.mutation({
       query: (id) => ({
-        url: `admin/deleteEmployee/${id}`,
+        url: `admin/deleteAdminEmployee/${id}`,
         method: "DELETE",
       }),
     }),
@@ -879,6 +902,9 @@ export const {
   useGetAllEmployeesWithShopInfoQuery,
   useGetAdminEmployeesQuery,
   useGetAllRolesQuery,
+  useGetFeaturesQuery,
+  useAddFeatureMutation,
+  useAddLaundryRoleMutation,
   useAddAdminEmployeeMutation,
   useAddAgentEmployeeMutation,
   useUpdateAgentEmployeeMutation,

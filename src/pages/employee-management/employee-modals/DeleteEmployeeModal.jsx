@@ -23,9 +23,18 @@ export default function DeleteEmployeeModal({
   };
 
   const handleDelete = async () => {
-    if (employeeId == null) return;
+    const resolvedId =
+      typeof employeeId === "object"
+        ? employeeId?.id ?? employeeId?.employeeId
+        : employeeId;
+
+    if (resolvedId == null || resolvedId === "") {
+      error("Employee id is missing. Please close and try again.");
+      return;
+    }
+
     const deleteFn = forShopEmployees ? deleteAgentEmployee : deleteEmployee;
-    const res = await deleteFn(employeeId);
+    const res = await deleteFn(resolvedId);
 
     if (res?.data?.status === "1") {
       handleClose();

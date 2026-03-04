@@ -1,4 +1,4 @@
-import { memo, useEffect, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { useSelector, useDispatch, shallowEqual } from "react-redux";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
@@ -23,9 +23,12 @@ import {
   TbMenu2,
   TbChevronRight,
   TbChevronLeft,
+  FiSearch,
+  TbX,
 } from "../../shared/icons/index";
 import { breakPoints, sidebarHide } from "../../shared/constants";
 import { toggleSidebar } from "../../store/slices/uiSlice";
+import { clearSearch, setSearchValue } from "../../store/slices/searchSlice";
 import useToaster from "../ui/Toaster";
 import { useGetOrdersCountQuery } from "../../store/services/api";
 
@@ -35,6 +38,7 @@ function Sidebar() {
   const location = useLocation();
   const { success } = useToaster();
   const open = useSelector((state) => state.ui.sidebarOpen, shallowEqual);
+  const searchValue = useSelector((state) => state.search?.searchValue ?? "");
   const [submenuOpen, setSubmenuOpen] = useState(getInitialSubmenuOpen);
   const [hoverItem, setHoverItem] = useState({
     position: null,
@@ -73,6 +77,34 @@ function Sidebar() {
   };
 
   const handleToggleSidebar = () => dispatch(toggleSidebar());
+  const searchQuery = String(searchValue || "").trim().toLowerCase();
+  const isSearching = Boolean(searchQuery);
+
+  const filteredSidebarList = useMemo(() => {
+    if (!isSearching) return sidebarList;
+
+    return sidebarList
+      .map((item) => {
+        const labelMatch = item.label.toLowerCase().includes(searchQuery);
+        const children = Array.isArray(item.children) ? item.children : [];
+        const matchedChildren = children.filter((child) =>
+          child.label.toLowerCase().includes(searchQuery)
+        );
+
+        if (labelMatch) return { ...item, children };
+        if (matchedChildren.length) return { ...item, children: matchedChildren };
+        return null;
+      })
+      .filter(Boolean);
+  }, [isSearching, searchQuery]);
+
+  const handleSearchChange = (event) => {
+    dispatch(setSearchValue(event.target.value));
+  };
+
+  const handleClearSidebarSearch = () => {
+    dispatch(clearSearch());
+  };
 
   const isParentActive = (item) => {
     if (!item.children) return false;
@@ -252,8 +284,34 @@ function Sidebar() {
             </Box>
           )}
 
+          {open && (
+            <Box
+              display="flex"
+              alignItems="center"
+              px={"12px"}
+              mb={"10px"}
+              height={"44px"}
+              borderRadius={"8px"}
+              bgcolor="#E5E7EB"
+            >
+              <FiSearch size="20px" />
+              <input
+                className="w-full h-full !pl-3 outline-none bg-transparent"
+                type="search"
+                placeholder="Search tabs..."
+                value={searchValue}
+                onChange={handleSearchChange}
+              />
+              {searchValue && (
+                <IconButton onClick={handleClearSidebarSearch} size="small">
+                  <TbX size={"16px"} />
+                </IconButton>
+              )}
+            </Box>
+          )}
+
           <List>
-            {sidebarList.map((item) => (
+            {filteredSidebarList.map((item) => (
               <div key={item.label}>
                 <ListItemButton
                   onClick={() =>
@@ -330,7 +388,7 @@ function Sidebar() {
 
                 {item.children && (
                   <Collapse
-                    in={submenuOpen[item.label] && open}
+                    in={open && (isSearching || submenuOpen[item.label])}
                     timeout="auto"
                     unmountOnExit
                   >

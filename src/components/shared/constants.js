@@ -190,6 +190,12 @@ export const sidebarList = [
     size: "24px",
   },
   {
+    label: "Role and Permission",
+    Icon: IconFingerHold,
+    path: "/role-permission",
+    size: "24px",
+  },
+  {
     label: "Configuration",
     Icon: TbDeviceIpadHorizontalCog,
     path: "/configurations",

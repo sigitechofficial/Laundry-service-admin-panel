@@ -62,13 +62,19 @@ export default function EmployeeManagement() {
         <ActionButtons
           showView={false}
           onEdit={() => {
-            const rowId = params?.row?.id;
-            const emp = adminEmployees.find((e) => String(e.id) === String(rowId));
+            const row = params?.row ?? params;
+            const rowId = row?.id ?? row?.employeeId ?? params?.id;
+            const emp = adminEmployees.find(
+              (e) =>
+                String(e.id) === String(rowId) ||
+                String(e.employeeId) === String(rowId)
+            );
             setEditEmployee(emp ?? null);
             setAddModalOpen(true);
           }}
           onDelete={() => {
-            setEmployeeToDeleteId(params?.row?.id);
+            const resolvedId = params?.row?.id ?? params?.row?.employeeId ?? params?.id ?? null;
+            setEmployeeToDeleteId(resolvedId);
             setDeleteModalOpen(true);
           }}
         />
@@ -111,13 +117,18 @@ export default function EmployeeManagement() {
   const handleRowAction = (actionType, rowData) => {
     switch (actionType) {
       case "edit": {
-        const emp = adminEmployees.find((e) => String(e.id) === String(rowData.id));
+        const rowId = rowData?.id ?? rowData?.employeeId ?? null;
+        const emp = adminEmployees.find(
+          (e) =>
+            String(e.id) === String(rowId) ||
+            String(e.employeeId) === String(rowId)
+        );
         setEditEmployee(emp ?? null);
         setAddModalOpen(true);
         break;
       }
       case "delete":
-        setEmployeeToDeleteId(rowData.id);
+        setEmployeeToDeleteId(rowData?.id ?? rowData?.employeeId ?? null);
         setDeleteModalOpen(true);
         break;
       default:
