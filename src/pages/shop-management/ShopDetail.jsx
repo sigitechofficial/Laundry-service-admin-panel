@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Box,
   Typography,
@@ -74,10 +74,16 @@ export default function ShopDetails() {
   });
   const [settingsForm, setSettingsForm] = useState({
     shopName: "",
+    status: "active",
     email: "",
     phone: "",
-    address: "",
+    whatsapp: "",
     website: "",
+    addressLine1: "",
+    addressLine2: "",
+    city: "",
+    country: "",
+    postcode: "",
     description: "",
   });
   const [deliverySettings, setDeliverySettings] = useState({
@@ -89,6 +95,33 @@ export default function ShopDetails() {
   const [adminNotes, setAdminNotes] = useState(
     "Long-standing partner. Environmental health cert follow-up required."
   );
+  const [openingHours, setOpeningHours] = useState([
+    { day: "Monday", enabled: true, start: "08:00", end: "18:00" },
+    { day: "Tuesday", enabled: true, start: "08:00", end: "18:00" },
+    { day: "Wednesday", enabled: true, start: "08:00", end: "18:00" },
+    { day: "Thursday", enabled: true, start: "08:00", end: "18:00" },
+    { day: "Friday", enabled: true, start: "08:00", end: "18:00" },
+    { day: "Saturday", enabled: true, start: "09:00", end: "15:00" },
+    { day: "Sunday", enabled: false, start: "09:00", end: "15:00" },
+  ]);
+  const [serviceRows, setServiceRows] = useState([
+    { name: "Wash & Fold", turnaround: "24h", fee: "2.50", status: "active" },
+    { name: "Dry Cleaning", turnaround: "48h", fee: "4.00", status: "active" },
+  ]);
+  const [financeSettings, setFinanceSettings] = useState({
+    commissionRate: "12",
+    payoutSchedule: "weekly",
+    minOrderValue: "15.00",
+    cancellationFee: "3.00",
+  });
+  const [isSavePanelFixed, setIsSavePanelFixed] = useState(false);
+  const [savePanelMetrics, setSavePanelMetrics] = useState({
+    width: 320,
+    height: 0,
+    left: 0,
+  });
+  const savePanelSlotRef = useRef(null);
+  const savePanelRef = useRef(null);
 
   const { data: shopResponse, isLoading, refetch } = useGetShopDetailsQuery(id, {
     skip: !id,
@@ -254,10 +287,16 @@ export default function ShopDetails() {
     if (!shop) return;
     setSettingsForm({
       shopName: shop?.shopName || shop?.name || "",
+      status: shop?.status === false ? "inactive" : "active",
       email: biz?.email || shop?.email || "",
       phone: biz?.phoneNum || shop?.phone || shop?.phoneNum || "",
-      address: fullAddress || "",
+      whatsapp: biz?.phoneNum || shop?.phone || shop?.phoneNum || "",
       website: biz?.website || "",
+      addressLine1: addr?.streetAddress || "",
+      addressLine2: addr?.district || "",
+      city: addr?.city?.name || "",
+      country: addr?.country?.name || "",
+      postcode: addr?.postalCode || "",
       description: shop?.description || "",
     });
     setDeliverySettings((prev) => ({
@@ -271,13 +310,44 @@ export default function ShopDetails() {
       shop?.adminNotes ||
         "Long-standing partner. Environmental health cert follow-up required."
     );
-  }, [biz?.email, biz?.phoneNum, biz?.website, fullAddress, shop]);
+    setServiceRows(
+      shopServices.length
+        ? shopServices.map((s) => ({
+            name: s?.name || "Service",
+            turnaround: s?.timeRequired === "—" ? "24h" : `${s?.timeRequired}h`,
+            fee: s?.price == null ? "0.00" : String(s?.price),
+            status: "active",
+          }))
+        : [
+            { name: "Wash & Fold", turnaround: "24h", fee: "2.50", status: "active" },
+            { name: "Dry Cleaning", turnaround: "48h", fee: "4.00", status: "active" },
+          ]
+    );
+    setFinanceSettings((prev) => ({
+      ...prev,
+      minOrderValue: String(shop?.minOrderValue ?? prev.minOrderValue),
+      commissionRate: String(shop?.commissionRate ?? prev.commissionRate),
+    }));
+  }, [addr?.city?.name, addr?.country?.name, addr?.district, addr?.postalCode, addr?.streetAddress, biz?.email, biz?.phoneNum, biz?.website, shop, shopServices]);
 
   const handleSettingsChange = (key) => (event) => {
     setSettingsForm((prev) => ({ ...prev, [key]: event.target.value }));
   };
   const handleDeliverySettingsChange = (key) => (event) => {
     setDeliverySettings((prev) => ({ ...prev, [key]: event.target.value }));
+  };
+  const handleOpeningHourChange = (index, key, value) => {
+    setOpeningHours((prev) =>
+      prev.map((row, i) => (i === index ? { ...row, [key]: value } : row))
+    );
+  };
+  const handleServiceRowChange = (index, key, value) => {
+    setServiceRows((prev) =>
+      prev.map((row, i) => (i === index ? { ...row, [key]: value } : row))
+    );
+  };
+  const handleFinanceSettingsChange = (key) => (event) => {
+    setFinanceSettings((prev) => ({ ...prev, [key]: event.target.value }));
   };
 
   const handleSaveSettings = async () => {
@@ -289,10 +359,22 @@ export default function ShopDetails() {
           shopName: settingsForm.shopName,
           email: settingsForm.email,
           phone: settingsForm.phone,
-          address: settingsForm.address,
+          address: [
+            settingsForm.addressLine1,
+            settingsForm.addressLine2,
+            settingsForm.city,
+            settingsForm.country,
+            settingsForm.postcode,
+          ]
+            .filter(Boolean)
+            .join(", "),
           website: settingsForm.website,
           description: settingsForm.description,
           adminNotes,
+          collectionMethod: deliverySettings.collectionMethod,
+          deliveryMethod: deliverySettings.deliveryMethod,
+          leadTimeHours: Number(deliverySettings.leadTimeHours) || 0,
+          maxActiveOrders: Number(deliverySettings.maxActiveOrders) || 0,
         },
       }).unwrap();
       refetch();
@@ -305,10 +387,16 @@ export default function ShopDetails() {
     if (!shop) return;
     setSettingsForm({
       shopName: shop?.shopName || shop?.name || "",
+      status: shop?.status === false ? "inactive" : "active",
       email: biz?.email || shop?.email || "",
       phone: biz?.phoneNum || shop?.phone || shop?.phoneNum || "",
-      address: fullAddress || "",
+      whatsapp: biz?.phoneNum || shop?.phone || shop?.phoneNum || "",
       website: biz?.website || "",
+      addressLine1: addr?.streetAddress || "",
+      addressLine2: addr?.district || "",
+      city: addr?.city?.name || "",
+      country: addr?.country?.name || "",
+      postcode: addr?.postalCode || "",
       description: shop?.description || "",
     });
     setDeliverySettings({
@@ -325,11 +413,98 @@ export default function ShopDetails() {
       emailNotifications: true,
       smsAlerts: false,
     });
+    setOpeningHours([
+      { day: "Monday", enabled: true, start: "08:00", end: "18:00" },
+      { day: "Tuesday", enabled: true, start: "08:00", end: "18:00" },
+      { day: "Wednesday", enabled: true, start: "08:00", end: "18:00" },
+      { day: "Thursday", enabled: true, start: "08:00", end: "18:00" },
+      { day: "Friday", enabled: true, start: "08:00", end: "18:00" },
+      { day: "Saturday", enabled: true, start: "09:00", end: "15:00" },
+      { day: "Sunday", enabled: false, start: "09:00", end: "15:00" },
+    ]);
+    setServiceRows(
+      shopServices.length
+        ? shopServices.map((s) => ({
+            name: s?.name || "Service",
+            turnaround: s?.timeRequired === "—" ? "24h" : `${s?.timeRequired}h`,
+            fee: s?.price == null ? "0.00" : String(s?.price),
+            status: "active",
+          }))
+        : [
+            { name: "Wash & Fold", turnaround: "24h", fee: "2.50", status: "active" },
+            { name: "Dry Cleaning", turnaround: "48h", fee: "4.00", status: "active" },
+          ]
+    );
+    setFinanceSettings({
+      commissionRate: String(shop?.commissionRate ?? 12),
+      payoutSchedule: "weekly",
+      minOrderValue: String(shop?.minOrderValue ?? "15.00"),
+      cancellationFee: "3.00",
+    });
     setAdminNotes(
       shop?.adminNotes ||
         "Long-standing partner. Environmental health cert follow-up required."
     );
   };
+
+  useEffect(() => {
+    if (activeTab !== "settings") {
+      setIsSavePanelFixed(false);
+      return;
+    }
+
+    const STICKY_BOTTOM_OFFSET = 24;
+    const TOGGLE_HYSTERESIS = 14;
+    let rafId = null;
+    let ticking = false;
+
+    const updateSavePanelPosition = () => {
+      if (!savePanelSlotRef.current) return;
+
+      const slotRect = savePanelSlotRef.current.getBoundingClientRect();
+      const panelHeight = Math.round(savePanelRef.current?.offsetHeight || 0);
+      const panelWidth = Math.round(savePanelSlotRef.current?.offsetWidth || 320);
+      const panelLeft = Math.round(slotRect.left);
+      const viewportBottomTarget = window.innerHeight - panelHeight - STICKY_BOTTOM_OFFSET;
+
+      setSavePanelMetrics((prev) => {
+        if (
+          prev.width === panelWidth &&
+          prev.height === panelHeight &&
+          prev.left === panelLeft
+        ) {
+          return prev;
+        }
+        return { width: panelWidth, height: panelHeight, left: panelLeft };
+      });
+
+      setIsSavePanelFixed((prev) => {
+        const shouldFix = prev
+          ? slotRect.top > viewportBottomTarget - TOGGLE_HYSTERESIS
+          : slotRect.top > viewportBottomTarget + TOGGLE_HYSTERESIS;
+        return prev === shouldFix ? prev : shouldFix;
+      });
+    };
+
+    const scheduleUpdate = () => {
+      if (ticking) return;
+      ticking = true;
+      rafId = window.requestAnimationFrame(() => {
+        updateSavePanelPosition();
+        ticking = false;
+      });
+    };
+
+    updateSavePanelPosition();
+    window.addEventListener("scroll", scheduleUpdate, { passive: true });
+    window.addEventListener("resize", scheduleUpdate);
+
+    return () => {
+      if (rafId) window.cancelAnimationFrame(rafId);
+      window.removeEventListener("scroll", scheduleUpdate);
+      window.removeEventListener("resize", scheduleUpdate);
+    };
+  }, [activeTab]);
 
   if (isLoading) return <Delay />;
 
@@ -975,30 +1150,207 @@ export default function ShopDetails() {
 
         {activeTab === "settings" && (
           <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", lg: "1fr 320px" }, gap: 2.5 }}>
-            <Paper sx={CARD_SX}>
-              <Box
-                sx={{
-                  px: 2.5,
-                  py: 1.8,
-                  borderBottom: "1px solid #F1F5F9",
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                }}
-              >
-                <Typography sx={{ fontSize: 14, fontWeight: 600, color: "#0F172A" }}>
-                  Shop Profile
-                </Typography>
-              </Box>
-              <Box sx={{ p: 2.5, display: "grid", gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" }, gap: 2 }}>
-                <TextField label="Shop Name *" value={settingsForm.shopName} onChange={handleSettingsChange("shopName")} fullWidth size="small" />
-                <TextField label="Email Address *" value={settingsForm.email} onChange={handleSettingsChange("email")} fullWidth size="small" />
-                <TextField label="Phone Number *" value={settingsForm.phone} onChange={handleSettingsChange("phone")} fullWidth size="small" />
-                <TextField label="Website" value={settingsForm.website} onChange={handleSettingsChange("website")} fullWidth size="small" />
-                <TextField label="Address *" value={settingsForm.address} onChange={handleSettingsChange("address")} fullWidth size="small" sx={{ gridColumn: { xs: "span 1", md: "span 2" } }} />
-                <TextField label="Description" value={settingsForm.description} onChange={handleSettingsChange("description")} fullWidth multiline minRows={4} sx={{ gridColumn: { xs: "span 1", md: "span 2" } }} />
-              </Box>
-            </Paper>
+            <Box sx={{ display: "flex", flexDirection: "column", rowGap: 2 }}>
+              <Paper sx={CARD_SX}>
+                <Box sx={{ px: 2.5, py: 1.8, borderBottom: "1px solid #F1F5F9" }}>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                    <Box sx={{ width: 8, height: 8, borderRadius: "50%", bgcolor: "#00028B" }} />
+                    <Typography sx={{ fontSize: 12, fontWeight: 700, color: "#64748B", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                      Profile
+                    </Typography>
+                  </Box>
+                </Box>
+                <Box sx={{ p: 2.5, display: "grid", gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" }, gap: 2 }}>
+                  <TextField label="Shop Name *" value={settingsForm.shopName} onChange={handleSettingsChange("shopName")} fullWidth size="small" />
+                  <TextField select label="Status" value={settingsForm.status} onChange={handleSettingsChange("status")} fullWidth size="small">
+                    <MenuItem value="active">Active</MenuItem>
+                    <MenuItem value="inactive">Inactive</MenuItem>
+                  </TextField>
+                  <TextField label="Website" value={settingsForm.website} onChange={handleSettingsChange("website")} fullWidth size="small" sx={{ gridColumn: { xs: "span 1", md: "span 2" } }} />
+                  <TextField label="Description" value={settingsForm.description} onChange={handleSettingsChange("description")} fullWidth multiline minRows={3} sx={{ gridColumn: { xs: "span 1", md: "span 2" } }} />
+                </Box>
+              </Paper>
+
+              <Paper sx={CARD_SX}>
+                <Box sx={{ px: 2.5, py: 1.8, borderBottom: "1px solid #F1F5F9" }}>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                    <Box sx={{ width: 8, height: 8, borderRadius: "50%", bgcolor: "#60A5FA" }} />
+                    <Typography sx={{ fontSize: 12, fontWeight: 700, color: "#64748B", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                      Contact Information
+                    </Typography>
+                  </Box>
+                </Box>
+                <Box sx={{ p: 2.5, display: "grid", gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" }, gap: 2 }}>
+                  <TextField label="Email Address *" value={settingsForm.email} onChange={handleSettingsChange("email")} fullWidth size="small" />
+                  <TextField label="Phone Number *" value={settingsForm.phone} onChange={handleSettingsChange("phone")} fullWidth size="small" />
+                  <TextField label="WhatsApp" value={settingsForm.whatsapp} onChange={handleSettingsChange("whatsapp")} fullWidth size="small" sx={{ gridColumn: { xs: "span 1", md: "span 2" } }} />
+                </Box>
+              </Paper>
+
+              <Paper sx={CARD_SX}>
+                <Box sx={{ px: 2.5, py: 1.8, borderBottom: "1px solid #F1F5F9" }}>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                    <Box sx={{ width: 8, height: 8, borderRadius: "50%", bgcolor: "#00028B" }} />
+                    <Typography sx={{ fontSize: 12, fontWeight: 700, color: "#64748B", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                      Address & Location
+                    </Typography>
+                  </Box>
+                </Box>
+                <Box sx={{ p: 2.5, display: "grid", gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" }, gap: 2 }}>
+                  <TextField label="Address Line 1 *" value={settingsForm.addressLine1} onChange={handleSettingsChange("addressLine1")} fullWidth size="small" sx={{ gridColumn: { xs: "span 1", md: "span 2" } }} />
+                  <TextField label="Address Line 2" value={settingsForm.addressLine2} onChange={handleSettingsChange("addressLine2")} fullWidth size="small" sx={{ gridColumn: { xs: "span 1", md: "span 2" } }} />
+                  <TextField label="City" value={settingsForm.city} onChange={handleSettingsChange("city")} fullWidth size="small" />
+                  <TextField label="Country" value={settingsForm.country} onChange={handleSettingsChange("country")} fullWidth size="small" />
+                  <TextField label="Postcode" value={settingsForm.postcode} onChange={handleSettingsChange("postcode")} fullWidth size="small" />
+                </Box>
+              </Paper>
+
+              <Paper sx={CARD_SX}>
+                <Box sx={{ px: 2.5, py: 1.8, borderBottom: "1px solid #F1F5F9" }}>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                    <Box sx={{ width: 8, height: 8, borderRadius: "50%", bgcolor: "#F59E0B" }} />
+                    <Typography sx={{ fontSize: 12, fontWeight: 700, color: "#64748B", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                      Opening Hours
+                    </Typography>
+                  </Box>
+                </Box>
+                <Box sx={{ p: 2.5, display: "flex", flexDirection: "column", rowGap: 1.3 }}>
+                  {openingHours.map((row, index) => (
+                    <Box key={row.day} sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "140px 70px 1fr" }, gap: 1.5, alignItems: "center" }}>
+                      <Typography sx={{ fontSize: 12, color: "#475569" }}>{row.day}</Typography>
+                      <Switch
+                        checked={row.enabled}
+                        onChange={(e) => handleOpeningHourChange(index, "enabled", e.target.checked)}
+                        sx={{
+                          "& .MuiSwitch-switchBase.Mui-checked": { color: "#1D4ED8" },
+                          "& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track": { backgroundColor: "#1D4ED8" },
+                        }}
+                      />
+                      {row.enabled ? (
+                        <Box sx={{ display: "grid", gridTemplateColumns: "1fr 24px 1fr", gap: 1, alignItems: "center" }}>
+                          <TextField type="time" size="small" value={row.start} onChange={(e) => handleOpeningHourChange(index, "start", e.target.value)} />
+                          <Typography sx={{ textAlign: "center", color: "#94A3B8", fontSize: 12 }}>to</Typography>
+                          <TextField type="time" size="small" value={row.end} onChange={(e) => handleOpeningHourChange(index, "end", e.target.value)} />
+                        </Box>
+                      ) : (
+                        <Typography sx={{ fontSize: 12, color: "#EF4444" }}>Closed</Typography>
+                      )}
+                    </Box>
+                  ))}
+                </Box>
+              </Paper>
+
+              <Paper sx={CARD_SX}>
+                <Box sx={{ px: 2.5, py: 1.8, borderBottom: "1px solid #F1F5F9" }}>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                    <Box sx={{ width: 8, height: 8, borderRadius: "50%", bgcolor: "#10B981" }} />
+                    <Typography sx={{ fontSize: 12, fontWeight: 700, color: "#64748B", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                      Services & Pricing
+                    </Typography>
+                  </Box>
+                </Box>
+                <Box sx={{ p: 2.5, display: "flex", flexDirection: "column", rowGap: 1.2 }}>
+                  {serviceRows.map((row, idx) => (
+                    <Box key={`${row.name}-${idx}`} sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "1.2fr 120px 120px 120px 40px" }, gap: 1 }}>
+                      <TextField size="small" value={row.name} onChange={(e) => handleServiceRowChange(idx, "name", e.target.value)} />
+                      <TextField size="small" value={row.turnaround} onChange={(e) => handleServiceRowChange(idx, "turnaround", e.target.value)} />
+                      <TextField size="small" value={row.fee} onChange={(e) => handleServiceRowChange(idx, "fee", e.target.value)} />
+                      <TextField select size="small" value={row.status} onChange={(e) => handleServiceRowChange(idx, "status", e.target.value)}>
+                        <MenuItem value="active">Active</MenuItem>
+                        <MenuItem value="inactive">Inactive</MenuItem>
+                      </TextField>
+                      <Button
+                        variant="text"
+                        size="small"
+                        onClick={() => setServiceRows((prev) => prev.filter((_, i) => i !== idx))}
+                        sx={{ minWidth: 0, color: "#DC2626" }}
+                      >
+                        x
+                      </Button>
+                    </Box>
+                  ))}
+                  <Button
+                    variant="text"
+                    onClick={() =>
+                      setServiceRows((prev) => [
+                        ...prev,
+                        { name: "New Service", turnaround: "24h", fee: "0.00", status: "active" },
+                      ])
+                    }
+                    sx={{ justifyContent: "flex-start", textTransform: "none", color: "#00028B", px: 0.5 }}
+                  >
+                    + Add Service Row
+                  </Button>
+                </Box>
+              </Paper>
+
+              <Paper sx={CARD_SX}>
+                <Box sx={{ px: 2.5, py: 1.8, borderBottom: "1px solid #F1F5F9" }}>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                    <Box sx={{ width: 8, height: 8, borderRadius: "50%", bgcolor: "#A78BFA" }} />
+                    <Typography sx={{ fontSize: 12, fontWeight: 700, color: "#64748B", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                      Finance & Commission
+                    </Typography>
+                  </Box>
+                </Box>
+                <Box sx={{ p: 2.5, display: "grid", gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" }, gap: 2 }}>
+                  <TextField size="small" label="Commission Rate (%)" value={financeSettings.commissionRate} onChange={handleFinanceSettingsChange("commissionRate")} />
+                  <TextField select size="small" label="Payout Schedule" value={financeSettings.payoutSchedule} onChange={handleFinanceSettingsChange("payoutSchedule")}>
+                    <MenuItem value="weekly">Weekly</MenuItem>
+                    <MenuItem value="biweekly">Biweekly</MenuItem>
+                    <MenuItem value="monthly">Monthly</MenuItem>
+                  </TextField>
+                  <TextField size="small" label="Minimum Order Value" value={financeSettings.minOrderValue} onChange={handleFinanceSettingsChange("minOrderValue")} />
+                  <TextField size="small" label="Cancellation Fee" value={financeSettings.cancellationFee} onChange={handleFinanceSettingsChange("cancellationFee")} />
+                </Box>
+              </Paper>
+
+              <Paper sx={CARD_SX}>
+                <Box sx={{ px: 2.5, py: 1.8, borderBottom: "1px solid #F1F5F9" }}>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                    <Box sx={{ width: 8, height: 8, borderRadius: "50%", bgcolor: "#94A3B8" }} />
+                    <Typography sx={{ fontSize: 12, fontWeight: 700, color: "#64748B", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                      Media Assets
+                    </Typography>
+                  </Box>
+                </Box>
+                <Box sx={{ p: 2.5, display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(3,1fr)" }, gap: 1.2 }}>
+                  {["Shopfront", "Interior", "Equipment"].map((label) => (
+                    <Box key={label} sx={{ border: "1px dashed #CBD5E1", borderRadius: "10px", py: 2.4, px: 1.2, textAlign: "center", bgcolor: "#F8FAFC" }}>
+                      <Typography sx={{ fontSize: 12, color: "#475569", mb: 0.4 }}>{label}</Typography>
+                      <Typography sx={{ fontSize: 11, color: "#94A3B8" }}>Add Photo</Typography>
+                    </Box>
+                  ))}
+                </Box>
+              </Paper>
+
+              <Paper sx={{ ...CARD_SX, borderColor: "#FECACA" }}>
+                <Box sx={{ px: 2.5, py: 1.8, borderBottom: "1px solid #FEE2E2" }}>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                    <Box sx={{ width: 8, height: 8, borderRadius: "50%", bgcolor: "#DC2626" }} />
+                    <Typography sx={{ fontSize: 12, fontWeight: 700, color: "#B91C1C", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                      Danger Zone
+                    </Typography>
+                  </Box>
+                </Box>
+                <Box sx={{ p: 2.5, display: "flex", flexDirection: "column", rowGap: 1.2 }}>
+                  <Box sx={{ p: 1.5, border: "1px solid #FECACA", bgcolor: "#FEF2F2", borderRadius: "10px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 1.2 }}>
+                    <Box>
+                      <Typography sx={{ fontSize: 12, fontWeight: 600, color: "#991B1B" }}>Suspend Shop</Typography>
+                      <Typography sx={{ fontSize: 11, color: "#B91C1C" }}>Temporarily disables new orders.</Typography>
+                    </Box>
+                    <Button variant="outlined" size="small" sx={{ textTransform: "none", color: "#B91C1C", borderColor: "#FCA5A5" }}>Suspend</Button>
+                  </Box>
+                  <Box sx={{ p: 1.5, border: "1px solid #FECACA", bgcolor: "#FEF2F2", borderRadius: "10px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 1.2 }}>
+                    <Box>
+                      <Typography sx={{ fontSize: 12, fontWeight: 600, color: "#991B1B" }}>Delete Shop</Typography>
+                      <Typography sx={{ fontSize: 11, color: "#B91C1C" }}>Permanently removes this shop.</Typography>
+                    </Box>
+                    <Button variant="outlined" size="small" sx={{ textTransform: "none", color: "#B91C1C", borderColor: "#FCA5A5" }}>Delete</Button>
+                  </Box>
+                </Box>
+              </Paper>
+            </Box>
 
             <Box sx={{ display: "flex", flexDirection: "column", rowGap: 2 }}>
               <Paper sx={CARD_SX}>
@@ -1114,28 +1466,44 @@ export default function ShopDetails() {
                 </Box>
               </Paper>
 
-              <Paper sx={{ ...CARD_SX, borderColor: "#C7D2FE" }}>
-                <Box sx={{ p: 2, display: "flex", flexDirection: "column", rowGap: 1 }}>
-                  <Typography sx={{ fontSize: 11, color: "#64748B" }}>Ready to save your changes?</Typography>
-                  <Button
-                    variant="contained"
-                    size="small"
-                    onClick={handleSaveSettings}
-                    disabled={isSavingSettings}
-                    sx={{ textTransform: "none", bgcolor: "#00028B", "&:hover": { bgcolor: "#00016F" } }}
-                  >
-                    {isSavingSettings ? "Saving..." : "Save All Changes"}
-                  </Button>
-                  <Button
-                    variant="outlined"
-                    size="small"
-                    onClick={handleDiscardSettings}
-                    sx={{ textTransform: "none", borderColor: "#E2E8F0", color: "#475569" }}
-                  >
-                    Discard
-                  </Button>
-                </Box>
-              </Paper>
+              <Box ref={savePanelSlotRef}>
+                {isSavePanelFixed && savePanelMetrics.height > 0 && (
+                  <Box sx={{ height: `${savePanelMetrics.height}px` }} />
+                )}
+                <Paper
+                  ref={savePanelRef}
+                  sx={{
+                    ...CARD_SX,
+                    borderColor: "#C7D2FE",
+                    position: isSavePanelFixed ? "fixed" : "static",
+                    left: isSavePanelFixed ? `${savePanelMetrics.left}px` : "auto",
+                    bottom: isSavePanelFixed ? 24 : "auto",
+                    width: isSavePanelFixed ? `${savePanelMetrics.width}px` : "100%",
+                    zIndex: isSavePanelFixed ? 1200 : 1,
+                  }}
+                >
+                  <Box sx={{ p: 2, display: "flex", flexDirection: "column", rowGap: 1 }}>
+                    <Typography sx={{ fontSize: 11, color: "#64748B" }}>Ready to save your changes?</Typography>
+                    <Button
+                      variant="contained"
+                      size="small"
+                      onClick={handleSaveSettings}
+                      disabled={isSavingSettings}
+                      sx={{ textTransform: "none", bgcolor: "#00028B", "&:hover": { bgcolor: "#00016F" } }}
+                    >
+                      {isSavingSettings ? "Saving..." : "Save All Changes"}
+                    </Button>
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      onClick={handleDiscardSettings}
+                      sx={{ textTransform: "none", borderColor: "#E2E8F0", color: "#475569" }}
+                    >
+                      Discard
+                    </Button>
+                  </Box>
+                </Paper>
+              </Box>
             </Box>
           </Box>
         )}
