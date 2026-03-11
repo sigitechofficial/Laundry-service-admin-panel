@@ -27,6 +27,7 @@ import {
   CancelledOrders,
   OnHoldOrders,
   EditOrder,
+  OrderDetails,
   CountriesAndCities,
   CountriesPage,
   CitiesPage,
@@ -164,6 +165,11 @@ export const privateRoutes = [
     path: "/orders/edit/:id",
     element: EditOrder,
     resourceKey: "order_edit_Page",
+  },
+  {
+    path: "/orders/details/:id",
+    element: OrderDetails,
+    resourceKey: "order_details_Page",
   },
   {
     path: "/countries-cities",

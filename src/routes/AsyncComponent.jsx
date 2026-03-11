@@ -108,6 +108,9 @@ export const OnHoldOrders = lazy(() =>
 export const EditOrder = lazy(() =>
   import("../pages/order-management/edit-order/EditOrder")
 );
+export const OrderDetails = lazy(() =>
+  import("../pages/order-management/order-details/OrderDetailsPage")
+);
 
 export const Reports = lazy(() => import("../pages/reports/Reports"));
 export const ReportsLayout = lazy(() => import("../pages/reports/ReportsLayout"));

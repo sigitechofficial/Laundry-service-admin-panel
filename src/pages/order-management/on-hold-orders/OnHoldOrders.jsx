@@ -12,7 +12,6 @@ import {
   useGetOrdersCountQuery,
 } from "../../../store/services/api";
 import { dateTimeFormat } from "../../../shared/constants";
-import OrderDetailsModal from "../order-modals/OrderDetailsModal";
 import DeleteOrderModal from "../order-modals/DeleteOrderModal";
 
 export default function OnHoldOrders() {
@@ -21,7 +20,6 @@ export default function OnHoldOrders() {
   const { data: OrderCounts, refetch: refetchCounts } = useGetOrdersCountQuery();
   const [dateRange, setDateRange] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
-  const [modalData, setModalData] = useState({ open: false, orderId: null });
   const [deleteModal, setDeleteModal] = useState({ open: false, orderId: null });
 
   const handleSearchChange = (searchTerm) => {
@@ -57,7 +55,7 @@ export default function OnHoldOrders() {
   const handleRowAction = (actionType, rowData) => {
     switch (actionType) {
       case "view":
-        setModalData({ open: true, orderId: rowData.id });
+        navigate(`/orders/details/${rowData.id}`);
         break;
       case "edit":
         navigate(`/orders/edit/${rowData.id}`);
@@ -178,7 +176,7 @@ export default function OnHoldOrders() {
       sortable: false,
       renderCell: (row) => (
         <ActionButtons
-          onView={() => setModalData({ open: true, orderId: row.id })}
+          onView={() => navigate(`/orders/details/${row.id}`)}
           onEdit={() => navigate(`/orders/edit/${row.id}`)}
           onDelete={() => setDeleteModal({ open: true, orderId: row.id })}
         />
@@ -230,11 +228,6 @@ export default function OnHoldOrders() {
               />
             </div>
           </div>
-      <OrderDetailsModal
-        open={modalData.open}
-        orderId={modalData.orderId}
-        onClose={() => setModalData({ open: false, orderId: null })}
-      />
       <DeleteOrderModal
         open={deleteModal.open}
         orderId={deleteModal.orderId}

@@ -9,6 +9,9 @@ import {
   TableHead,
   TableRow,
   Paper,
+  Switch,
+  Select,
+  MenuItem,
 } from "@mui/material";
 import { useGetOrderForEditQuery, useGetAllServicesQuery, useEditOrderMutation, useGetPreferencesQuery } from "../../../store/services/api";
 import baseQueryWithReauth from "../../../store/services/baseQueryWithReauth";
@@ -50,10 +53,34 @@ export default function EditOrder() {
     pickupTime: null,
     deliveryDate: null,
     deliveryTime: null,
+    shopName: "",
+    driverInstruction: "",
+    addressLine1: "",
+    addressLine2: "",
+    city: "",
+    postCode: "",
+    country: "",
+    deliveryFee: "0.00",
+    driverTip: "0.00",
+    minimumOrderFee: "0.00",
+    serviceCharge: "0.00",
   });
 
   const [addItemModal, setAddItemModal] = useState({
     open: false,
+  });
+
+  const [settings, setSettings] = useState({
+    notifyCustomer: true,
+    notifyDriver: true,
+    priorityOrder: false,
+  });
+  const [dropdowns, setDropdowns] = useState({
+    status: "Completed",
+    frequency: "Just Once",
+    collectionMethod: "Collect from me in person",
+    collectionDriver: "Unassigned",
+    deliveryDriver: "Unassigned",
   });
 
   // State to manage items for each service (including newly added ones)
@@ -88,6 +115,33 @@ export default function EditOrder() {
         pickupTime: pickupTime,
         deliveryDate: orderData.deliveryDate ? dayjs(orderData.deliveryDate) : null,
         deliveryTime: deliveryTime,
+        shopName: orderData?.laundryShop?.name || "",
+        driverInstruction: orderData?.driverInstruction || "",
+        addressLine1: orderData?.dropOffAddress?.streetAddress || "",
+        addressLine2: orderData?.dropOffAddress?.district || "",
+        city: orderData?.dropOffAddress?.city || "",
+        postCode: orderData?.dropOffAddress?.postalCode || "",
+        country: orderData?.dropOffAddress?.country || "",
+        deliveryFee: "0.00",
+        driverTip: "0.00",
+        minimumOrderFee: "0.00",
+        serviceCharge: "0.00",
+      });
+
+      const collectionDriverName = orderData?.driver
+        ? `${orderData.driver.firstName} ${orderData.driver.lastName}`.trim()
+        : "Unassigned";
+      const deliveryDriverName = orderData?.deliveryDriver
+        ? `${orderData.deliveryDriver.firstName} ${orderData.deliveryDriver.lastName}`.trim()
+        : collectionDriverName;
+
+      setDropdowns({
+        status: orderData?.bookingStatus?.title || "Completed",
+        frequency: orderData?.frequency || "Just Once",
+        collectionMethod:
+          orderData?.driverInstructionOptions || "Collect from me in person",
+        collectionDriver: collectionDriverName || "Unassigned",
+        deliveryDriver: deliveryDriverName || "Unassigned",
       });
     }
   }, [orderData]);
@@ -220,10 +274,11 @@ export default function EditOrder() {
         deliveryDate: deliveryDate,
         deliveryTimeFrom: deliveryTimeFrom,
         deliveryTimeTo: deliveryTimeTo,
-        driverInstruction: orderData?.driverInstruction || "",
-        driverInstructionOptions: orderData?.driverInstructionOptions || "Collect from me in person",
+        driverInstruction: formData.driverInstruction || "",
+        driverInstructionOptions:
+          dropdowns.collectionMethod || "Collect from me in person",
         driverInstructionOptions1: orderData?.driverInstructionOptions1 || "Deliver to me in person",
-        frequency: orderData?.frequency || "Just Once",
+        frequency: dropdowns.frequency || "Just Once",
         addressId: "",
         pickUpAddress: orderData?.pickupAddress
           ? {
@@ -250,12 +305,12 @@ export default function EditOrder() {
             hotelName: null,
             apartmentNumber: null,
             floor: null,
-            streetAddress: orderData.dropOffAddress.streetAddress || "",
-            district: orderData.dropOffAddress.district || "",
-            city: orderData.dropOffAddress.city || orderData.dropOffAddress.district || "",
+            streetAddress: formData.addressLine1 || orderData.dropOffAddress.streetAddress || "",
+            district: formData.addressLine2 || orderData.dropOffAddress.district || "",
+            city: formData.city || orderData.dropOffAddress.city || orderData.dropOffAddress.district || "",
             province: orderData.dropOffAddress.province || "",
-            country: orderData.dropOffAddress.country || "",
-            postalCode: orderData.dropOffAddress.postalCode || "",
+            country: formData.country || orderData.dropOffAddress.country || "",
+            postalCode: formData.postCode || orderData.dropOffAddress.postalCode || "",
             lat: orderData.dropOffAddress.lat || null,
             lng: orderData.dropOffAddress.lng || null,
             radius: orderData.dropOffAddress.radius || null,
@@ -478,6 +533,16 @@ export default function EditOrder() {
     groupedServices[serviceName].items.push(...serviceData.items);
   });
 
+  const subtotal = Object.values(serviceItems).reduce(
+    (sum, serviceData) =>
+      sum +
+      serviceData.items.reduce(
+        (itemSum, item) => itemSum + (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0),
+        0
+      ),
+    0
+  );
+
   // Format address
   const formatAddress = (address) => {
     if (!address) return "N/A";
@@ -538,6 +603,84 @@ export default function EditOrder() {
     console.log('🛠️ Debug: EditOrder debug functions available. Use window.debugEditOrder in console.');
   }, [serviceItems]);
 
+  const SECTION_CARD_SX = {
+    borderRadius: "12px",
+    border: "1px solid #E5E7EB",
+    boxShadow: "0 1px 4px 0 rgb(0 0 0 / 0.06), 0 4px 16px -4px rgb(0 0 0 / 0.04)",
+    overflow: "hidden",
+    bgcolor: "#fff",
+  };
+
+  const SECTION_HEADER_SX = {
+    px: 2.5,
+    py: 1.75,
+    borderBottom: "1px solid #F1F5F9",
+    bgcolor: "#FFFFFF",
+  };
+
+  const FIELD_LABEL_SX = {
+    mb: 0.75,
+    fontSize: "11px",
+    fontWeight: 700,
+    color: "#64748B",
+    letterSpacing: "0.08em",
+    textTransform: "uppercase",
+  };
+
+  const DATE_TIME_FIELD_SX = {
+    "& .MuiOutlinedInput-root": {
+      height: "48px",
+      borderRadius: "8px",
+      border: "1px solid #E2E8F0",
+      fontFamily: "Switzer",
+      bgcolor: "#fff",
+      "& fieldset": {
+        border: "none",
+      },
+    },
+  };
+  const SELECT_FIELD_SX = {
+    width: "100%",
+    height: "48px",
+    borderRadius: "8px",
+    border: "1px solid #E2E8F0",
+    bgcolor: "#fff",
+    fontFamily: "Switzer",
+    fontSize: "14px",
+    "& .MuiSelect-select": {
+      py: "12px",
+      px: "14px",
+      display: "flex",
+      alignItems: "center",
+    },
+    "& .MuiOutlinedInput-notchedOutline": {
+      border: "none",
+    },
+  };
+  const statusOptions = ["Pending", "Completed", "Cancelled", "On Hold"];
+  const frequencyOptions = [
+    "Just Once",
+    "Every week",
+    "Every two weeks",
+    "Every four weeks",
+  ];
+  const collectionMethodOptions = [
+    "Collect from me in person",
+    "Leave at door",
+    "Collect from reception",
+  ];
+  const driverOptions = Array.from(
+    new Set([
+      "Unassigned",
+      orderData?.driver
+        ? `${orderData.driver.firstName} ${orderData.driver.lastName}`.trim()
+        : "",
+      orderData?.deliveryDriver
+        ? `${orderData.deliveryDriver.firstName} ${orderData.deliveryDriver.lastName}`.trim()
+        : "",
+    ].filter(Boolean))
+  );
+
   return (
     <LocalizationProvider dateAdapter={AdapterDayjs}>
       {isLoading ? (
@@ -545,544 +688,532 @@ export default function EditOrder() {
           <Delay />
         </Box>
       ) : orderData ? (
-        <Box sx={{ p: 3 }}>
-              {/* Back button and Edit order heading in one row */}
-              <Box className="flex items-center gap-x-2 mb-6 p-8">
-            <button
-              type="button"
-              onClick={() => navigate(-1)}
-              aria-label="Go back"
-              className="flex items-center justify-center p-1 rounded-lg hover:bg-grey50 transition-colors"
-            >
-              <IoChevronBackOutline size={24} />
-            </button>
-            <Typography
-              variant="h6"
-              sx={{
-                fontFamily: "Switzer, sans-serif",
-                fontSize: "1.25rem",
-                fontWeight: 600,
-                color: "#101828",
-              }}
-            >
-              Edit order
-            </Typography>
-          </Box>
+        <Box sx={{ width: "100%", display: "flex", flexDirection: "column", rowGap: 2.5 }}>
+          <Paper sx={{ ...SECTION_CARD_SX, px: 2.5, py: 1.75 }}>
+            <Box className="flex items-center justify-between gap-3 flex-wrap">
+              <Box className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => navigate(-1)}
+                  aria-label="Go back"
+                  className="flex items-center justify-center p-1 rounded-lg hover:bg-grey50 transition-colors"
+                >
+                  <IoChevronBackOutline size={22} />
+                </button>
+                <Box>
+                  <Typography sx={{ fontSize: 18, fontWeight: 700, color: "#0F172A" }}>
+                    Edit Order
+                  </Typography>
+                  <Typography sx={{ fontSize: 12, color: "#64748B" }}>
+                    #{orderData.orderTrackId || orderData.id}
+                  </Typography>
+                </Box>
+              </Box>
+              <Box className="flex items-center gap-2">
+                <ButtonWhite onClick={handleCancel} disabled={isSaving}>
+                  Cancel
+                </ButtonWhite>
+                <ButtonBlue onClick={handleSave} disabled={isSaving}>
+                  {isSaving ? "Saving..." : "Save Changes"}
+                </ButtonBlue>
+              </Box>
+            </Box>
+          </Paper>
 
-          {/* Order Information Fields */}
           <Box
             sx={{
               display: "grid",
-              gridTemplateColumns: "repeat(3, 1fr)",
-              gap: 2,
-              mb: 3,
+              gridTemplateColumns: { xs: "1fr", xl: "1fr 320px" },
+              gap: 2.5,
             }}
           >
-            {/* Order Number */}
-            <Box>
-              <Typography
-                variant="body2"
-                fontFamily="Switzer"
-                sx={{ mb: 0.5, fontSize: "14px", color: "#374151" }}
-              >
-                Order Number
-              </Typography>
-              <InputFieldBordered
-                value={formData.orderNumber}
-                onChange={(e) => handleInputChange("orderNumber", e.target.value)}
-                placeholder="Order Number"
-              />
-            </Box>
+            <Box sx={{ display: "flex", flexDirection: "column", rowGap: 2.5 }}>
+              <Paper sx={SECTION_CARD_SX}>
+                <Box sx={SECTION_HEADER_SX} className="flex items-center gap-2">
+                  <Box sx={{ width: 6, height: 6, borderRadius: "50%", bgcolor: "#60A5FA" }} />
+                  <Typography sx={{ fontSize: 11, fontWeight: 700, color: "#64748B", letterSpacing: "0.08em", textTransform: "uppercase" }}>
+                    Order Details
+                  </Typography>
+                </Box>
+                <Box sx={{ p: 2.5, display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(2, 1fr)" }, gap: 2 }}>
+                  <Box>
+                    <Typography sx={FIELD_LABEL_SX}>Order ID</Typography>
+                    <InputFieldBordered value={formData.orderNumber} disabled />
+                  </Box>
+                  <Box>
+                    <Typography sx={FIELD_LABEL_SX}>Status</Typography>
+                    <Select
+                      value={dropdowns.status}
+                      onChange={(e) =>
+                        setDropdowns((prev) => ({ ...prev, status: e.target.value }))
+                      }
+                      size="small"
+                      sx={SELECT_FIELD_SX}
+                    >
+                      {statusOptions.map((option) => (
+                        <MenuItem key={option} value={option}>
+                          {option}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </Box>
+                  <Box>
+                    <Typography sx={FIELD_LABEL_SX}>Order Frequency</Typography>
+                    <Select
+                      value={dropdowns.frequency}
+                      onChange={(e) =>
+                        setDropdowns((prev) => ({ ...prev, frequency: e.target.value }))
+                      }
+                      size="small"
+                      sx={SELECT_FIELD_SX}
+                    >
+                      {frequencyOptions.map((option) => (
+                        <MenuItem key={option} value={option}>
+                          {option}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </Box>
+                  <Box>
+                    <Typography sx={FIELD_LABEL_SX}>Shop Name</Typography>
+                    <InputFieldBordered
+                      value={formData.shopName}
+                      onChange={(e) => handleInputChange("shopName", e.target.value)}
+                      placeholder="Assign a shop..."
+                    />
+                  </Box>
+                  <Box>
+                    <Typography sx={FIELD_LABEL_SX}>Collection Method</Typography>
+                    <Select
+                      value={dropdowns.collectionMethod}
+                      onChange={(e) =>
+                        setDropdowns((prev) => ({
+                          ...prev,
+                          collectionMethod: e.target.value,
+                        }))
+                      }
+                      size="small"
+                      sx={SELECT_FIELD_SX}
+                    >
+                      {collectionMethodOptions.map((option) => (
+                        <MenuItem key={option} value={option}>
+                          {option}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </Box>
+                  <Box>
+                    <Typography sx={FIELD_LABEL_SX}>Driver Instruction</Typography>
+                    <InputFieldBordered
+                      value={formData.driverInstruction}
+                      onChange={(e) => handleInputChange("driverInstruction", e.target.value)}
+                      placeholder="N/A"
+                    />
+                  </Box>
+                </Box>
+              </Paper>
 
-            {/* Order Date */}
-            <Box>
-              <Typography
-                variant="body2"
-                fontFamily="Switzer"
-                sx={{ mb: 0.5, fontSize: "14px", color: "#374151" }}
-              >
-                Order date
-              </Typography>
-              <DatePicker
-                value={formData.orderDate}
-                onChange={(newValue) => handleInputChange("orderDate", newValue)}
-                slotProps={{
-                  textField: {
-                    placeholder: "Select date",
-                    sx: {
-                      "& .MuiOutlinedInput-root": {
-                        height: "52px",
-                        borderRadius: "8px",
-                        border: "1px solid rgba(0, 0, 0, 0.2)",
-                        fontFamily: "Switzer",
-                        "& fieldset": {
-                          border: "none",
-                        },
-                      },
-                    },
-                  },
-                }}
-                slots={{
-                  openPickerIcon: () => <TbCalendar size={20} style={{ color: "#6B7280" }} />,
-                }}
-              />
-            </Box>
+              <Paper sx={SECTION_CARD_SX}>
+                <Box sx={SECTION_HEADER_SX} className="flex items-center justify-between">
+                  <Box className="flex items-center gap-2">
+                    <Box sx={{ width: 6, height: 6, borderRadius: "50%", bgcolor: "#FBBF24" }} />
+                    <Typography sx={{ fontSize: 11, fontWeight: 700, color: "#64748B", letterSpacing: "0.08em", textTransform: "uppercase" }}>
+                      Schedule
+                    </Typography>
+                  </Box>
+                  <Typography sx={{ fontSize: 11, color: "#64748B", fontStyle: "italic" }}>
+                    Times are in local timezone
+                  </Typography>
+                </Box>
+                <Box sx={{ p: 2.5, display: "grid", gridTemplateColumns: { xs: "1fr", md: "120px 1fr 1fr" }, gap: 1.5, alignItems: "center" }}>
+                  <Typography sx={{ ...FIELD_LABEL_SX, mb: 0, color: "#2563EB" }}>Collection</Typography>
+                  <DatePicker
+                    value={formData.pickupDate}
+                    onChange={(newValue) => handleInputChange("pickupDate", newValue)}
+                    slotProps={{ textField: { placeholder: "Select date", sx: DATE_TIME_FIELD_SX } }}
+                    slots={{ openPickerIcon: () => <TbCalendar size={18} style={{ color: "#6B7280" }} /> }}
+                  />
+                  <TimePicker
+                    value={formData.pickupTime}
+                    onChange={(newValue) => handleInputChange("pickupTime", newValue)}
+                    slotProps={{ textField: { placeholder: "Select time", sx: DATE_TIME_FIELD_SX } }}
+                  />
+                  <Typography sx={{ ...FIELD_LABEL_SX, mb: 0, color: "#059669" }}>Delivery</Typography>
+                  <DatePicker
+                    value={formData.deliveryDate}
+                    onChange={(newValue) => handleInputChange("deliveryDate", newValue)}
+                    slotProps={{ textField: { placeholder: "Select date", sx: DATE_TIME_FIELD_SX } }}
+                    slots={{ openPickerIcon: () => <TbCalendar size={18} style={{ color: "#6B7280" }} /> }}
+                  />
+                  <TimePicker
+                    value={formData.deliveryTime}
+                    onChange={(newValue) => handleInputChange("deliveryTime", newValue)}
+                    slotProps={{ textField: { placeholder: "Select time", sx: DATE_TIME_FIELD_SX } }}
+                  />
+                </Box>
+              </Paper>
 
-            {/* Order Time */}
-            <Box>
-              <Typography
-                variant="body2"
-                fontFamily="Switzer"
-                sx={{ mb: 0.5, fontSize: "14px", color: "#374151" }}
-              >
-                Order time
-              </Typography>
-              <TimePicker
-                value={formData.orderTime}
-                onChange={(newValue) => handleInputChange("orderTime", newValue)}
-                slotProps={{
-                  textField: {
-                    placeholder: "Select time",
-                    sx: {
-                      "& .MuiOutlinedInput-root": {
-                        height: "52px",
-                        borderRadius: "8px",
-                        border: "1px solid rgba(0, 0, 0, 0.2)",
-                        fontFamily: "Switzer",
-                        "& fieldset": {
-                          border: "none",
-                        },
-                      },
-                    },
-                  },
-                }}
-              />
-            </Box>
+              <Paper sx={SECTION_CARD_SX}>
+                <Box sx={SECTION_HEADER_SX} className="flex items-center justify-between">
+                  <Box className="flex items-center gap-2">
+                    <Box sx={{ width: 6, height: 6, borderRadius: "50%", bgcolor: "#A3E635" }} />
+                    <Typography sx={{ fontSize: 11, fontWeight: 700, color: "#64748B", letterSpacing: "0.08em", textTransform: "uppercase" }}>
+                      Order Items
+                    </Typography>
+                  </Box>
+                  <Typography sx={{ fontSize: 11, fontWeight: 700, color: "#15803D", bgcolor: "#ECFDF3", border: "1px solid #86EFAC", borderRadius: "6px", px: 1.2, py: 0.4 }}>
+                    {Object.values(serviceItems).reduce((sum, serviceData) => sum + serviceData.items.length, 0)} items
+                  </Typography>
+                </Box>
 
-            {/* Pickup Date */}
-            <Box>
-              <Typography
-                variant="body2"
-                fontFamily="Switzer"
-                sx={{ mb: 0.5, fontSize: "14px", color: "#374151" }}
-              >
-                Pickup Date
-              </Typography>
-              <DatePicker
-                value={formData.pickupDate}
-                onChange={(newValue) => handleInputChange("pickupDate", newValue)}
-                slotProps={{
-                  textField: {
-                    placeholder: "Select date",
-                    sx: {
-                      "& .MuiOutlinedInput-root": {
-                        height: "52px",
-                        borderRadius: "8px",
-                        border: "1px solid rgba(0, 0, 0, 0.2)",
-                        fontFamily: "Switzer",
-                        "& fieldset": {
-                          border: "none",
-                        },
-                      },
-                    },
-                  },
-                }}
-                slots={{
-                  openPickerIcon: () => <TbCalendar size={20} style={{ color: "#6B7280" }} />,
-                }}
-              />
-            </Box>
-
-            {/* Pickup Time */}
-            <Box>
-              <Typography
-                variant="body2"
-                fontFamily="Switzer"
-                sx={{ mb: 0.5, fontSize: "14px", color: "#374151" }}
-              >
-                Pickup Time
-              </Typography>
-              <TimePicker
-                value={formData.pickupTime}
-                onChange={(newValue) => handleInputChange("pickupTime", newValue)}
-                slotProps={{
-                  textField: {
-                    placeholder: "Select time",
-                    sx: {
-                      "& .MuiOutlinedInput-root": {
-                        height: "52px",
-                        borderRadius: "8px",
-                        border: "1px solid rgba(0, 0, 0, 0.2)",
-                        fontFamily: "Switzer",
-                        "& fieldset": {
-                          border: "none",
-                        },
-                      },
-                    },
-                  },
-                }}
-              />
-            </Box>
-
-            {/* Delivery Date */}
-            <Box>
-              <Typography
-                variant="body2"
-                fontFamily="Switzer"
-                sx={{ mb: 0.5, fontSize: "14px", color: "#374151" }}
-              >
-                Delivery Date
-              </Typography>
-              <DatePicker
-                value={formData.deliveryDate}
-                onChange={(newValue) => handleInputChange("deliveryDate", newValue)}
-                slotProps={{
-                  textField: {
-                    placeholder: "Select date",
-                    sx: {
-                      "& .MuiOutlinedInput-root": {
-                        height: "52px",
-                        borderRadius: "8px",
-                        border: "1px solid rgba(0, 0, 0, 0.2)",
-                        fontFamily: "Switzer",
-                        "& fieldset": {
-                          border: "none",
-                        },
-                      },
-                    },
-                  },
-                }}
-                slots={{
-                  openPickerIcon: () => <TbCalendar size={20} style={{ color: "#6B7280" }} />,
-                }}
-              />
-            </Box>
-
-            {/* Delivery Time */}
-            <Box>
-              <Typography
-                variant="body2"
-                fontFamily="Switzer"
-                sx={{ mb: 0.5, fontSize: "14px", color: "#374151" }}
-              >
-                Delivery Time
-              </Typography>
-              <TimePicker
-                value={formData.deliveryTime}
-                onChange={(newValue) => handleInputChange("deliveryTime", newValue)}
-                slotProps={{
-                  textField: {
-                    placeholder: "Select time",
-                    sx: {
-                      "& .MuiOutlinedInput-root": {
-                        height: "52px",
-                        borderRadius: "8px",
-                        border: "1px solid rgba(0, 0, 0, 0.2)",
-                        fontFamily: "Switzer",
-                        "& fieldset": {
-                          border: "none",
-                        },
-                      },
-                    },
-                  },
-                }}
-              />
-            </Box>
-          </Box>
-
-          {/* Service Tables */}
-          {Object.entries(groupedServices).map(([serviceName, serviceData]) => {
-            const serviceId = serviceData.serviceId;
-            const services = serviceData.items;
-            return (
-              <Box key={serviceName} sx={{ mb: 3 }}>
-                <Typography
-                  variant="h6"
-                  fontWeight="bold"
-                  fontFamily="Switzer"
-                  sx={{ mb: 1.5, fontSize: "16px", color: "#000000" }}
-                >
-                  {serviceName}
-                </Typography>
-                <TableContainer
-                  component={Paper}
-                  sx={{
-                    boxShadow: "none",
-                    border: "1px solid #E5E7EB",
-                    borderRadius: "8px",
-                  }}
-                >
-                  <Table>
-                    <TableHead>
-                      <TableRow sx={{ bgcolor: "#F9FAFB" }}>
-                        <TableCell
-                          sx={{
-                            fontFamily: "Switzer",
-                            fontWeight: 600,
-                            fontSize: "14px",
-                            color: "#374151",
-                            borderBottom: "1px solid #E5E7EB",
-                          }}
-                        >
-                          Item
-                        </TableCell>
-                        <TableCell
-                          sx={{
-                            fontFamily: "Switzer",
-                            fontWeight: 600,
-                            fontSize: "14px",
-                            color: "#374151",
-                            borderBottom: "1px solid #E5E7EB",
-                          }}
-                        >
-                          Quantity
-                        </TableCell>
-                        <TableCell
-                          sx={{
-                            fontFamily: "Switzer",
-                            fontWeight: 600,
-                            fontSize: "14px",
-                            color: "#374151",
-                            borderBottom: "1px solid #E5E7EB",
-                          }}
-                        >
-                          Unit Price
-                        </TableCell>
-                        <TableCell
-                          sx={{
-                            fontFamily: "Switzer",
-                            fontWeight: 600,
-                            fontSize: "14px",
-                            color: "#374151",
-                            borderBottom: "1px solid #E5E7EB",
-                          }}
-                        >
-                          Amount
-                        </TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {services.length > 0 ? (
-                        services.map((item, index) => {
-                          const amount = item.quantity * item.unitPrice;
-
-                          return (
-                            <TableRow key={item.id || index}>
-                              <TableCell
-                                sx={{
-                                  fontFamily: "Switzer",
-                                  fontSize: "14px",
-                                  color: "#000000",
-                                  borderBottom: "1px solid #E5E7EB",
-                                  width: "30%",
-                                }}
-                              >
-                                <InputFieldBordered
-                                  value={item.itemName}
-                                  onChange={(e) => {
-                                    setServiceItems((prev) => {
-                                      const newState = { ...prev };
-                                      const serviceData = newState[serviceId];
-                                      if (serviceData) {
-                                        const itemIndex = serviceData.items.findIndex(
-                                          (i) => i.id === item.id
-                                        );
-                                        if (itemIndex !== -1) {
-                                          serviceData.items[itemIndex].itemName = e.target.value;
-                                        }
-                                      }
-                                      return newState;
-                                    });
-                                  }}
-                                  placeholder="Item name"
-                                />
-                              </TableCell>
-                              <TableCell
-                                sx={{
-                                  fontFamily: "Switzer",
-                                  fontSize: "14px",
-                                  color: "#000000",
-                                  borderBottom: "1px solid #E5E7EB",
-                                  width: "20%",
-                                }}
-                              >
-                                <InputFieldBordered
-                                  type="number"
-                                  value={item.quantity}
-                                  onChange={(e) => {
-                                    const newQuantity = parseInt(e.target.value) || 0;
-                                    setServiceItems((prev) => {
-                                      const newState = { ...prev };
-                                      const serviceData = newState[serviceId];
-                                      if (serviceData) {
-                                        const itemIndex = serviceData.items.findIndex(
-                                          (i) => i.id === item.id
-                                        );
-                                        if (itemIndex !== -1) {
-                                          serviceData.items[itemIndex].quantity = newQuantity;
-                                        }
-                                      }
-                                      return newState;
-                                    });
-                                  }}
-                                  placeholder="Quantity"
-                                />
-                              </TableCell>
-                              <TableCell
-                                sx={{
-                                  fontFamily: "Switzer",
-                                  fontSize: "14px",
-                                  color: "#000000",
-                                  borderBottom: "1px solid #E5E7EB",
-                                  width: "25%",
-                                }}
-                              >
-                                <InputFieldBordered
-                                  type="number"
-                                  value={item.unitPrice > 0 ? item.unitPrice.toFixed(2) : ""}
-                                  onChange={(e) => {
-                                    const newPrice = parseFloat(e.target.value) || 0;
-                                    setServiceItems((prev) => {
-                                      const newState = { ...prev };
-                                      const serviceData = newState[serviceId];
-                                      if (serviceData) {
-                                        const itemIndex = serviceData.items.findIndex(
-                                          (i) => i.id === item.id
-                                        );
-                                        if (itemIndex !== -1) {
-                                          serviceData.items[itemIndex].unitPrice = newPrice;
-                                        }
-                                      }
-                                      return newState;
-                                    });
-                                  }}
-                                  placeholder="Unit Price"
-                                />
-                              </TableCell>
-                              <TableCell
-                                sx={{
-                                  fontFamily: "Switzer",
-                                  fontSize: "14px",
-                                  color: "#000000",
-                                  borderBottom: "1px solid #E5E7EB",
-                                  fontWeight: 600,
-                                  width: "25%",
-                                }}
-                              >
-                                ${amount.toFixed(2)}
+                {Object.entries(groupedServices).map(([serviceName, serviceData]) => {
+                  const serviceId = serviceData.serviceId;
+                  const services = serviceData.items;
+                  return (
+                    <Box key={serviceName} sx={{ borderTop: "1px solid #F1F5F9" }}>
+                      <Box sx={{ px: 2.5, py: 1.3 }}>
+                        <Typography sx={{ fontWeight: 700, fontSize: 12, color: "#334155" }}>{serviceName}</Typography>
+                      </Box>
+                      <Table>
+                        <TableHead>
+                          <TableRow sx={{ bgcolor: "#F8FAFC" }}>
+                            <TableCell sx={{ fontFamily: "Switzer", fontWeight: 700, fontSize: "11px", color: "#64748B", textTransform: "uppercase", letterSpacing: "0.06em", borderBottom: "1px solid #E5E7EB" }}>Item Name</TableCell>
+                            <TableCell sx={{ fontFamily: "Switzer", fontWeight: 700, fontSize: "11px", color: "#64748B", textTransform: "uppercase", letterSpacing: "0.06em", borderBottom: "1px solid #E5E7EB" }}>Category</TableCell>
+                            <TableCell sx={{ fontFamily: "Switzer", fontWeight: 700, fontSize: "11px", color: "#64748B", textTransform: "uppercase", letterSpacing: "0.06em", borderBottom: "1px solid #E5E7EB" }}>Price ($)</TableCell>
+                            <TableCell sx={{ fontFamily: "Switzer", fontWeight: 700, fontSize: "11px", color: "#64748B", textTransform: "uppercase", letterSpacing: "0.06em", borderBottom: "1px solid #E5E7EB" }}>Qty</TableCell>
+                            <TableCell sx={{ fontFamily: "Switzer", fontWeight: 700, fontSize: "11px", color: "#64748B", textTransform: "uppercase", letterSpacing: "0.06em", borderBottom: "1px solid #E5E7EB" }}>Amount</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {services.length > 0 ? (
+                            services.map((item, index) => {
+                              const amount = item.quantity * item.unitPrice;
+                              return (
+                                <TableRow key={item.id || index}>
+                                  <TableCell sx={{ borderBottom: "1px solid #E5E7EB", width: "28%" }}>
+                                    <InputFieldBordered
+                                      value={item.itemName}
+                                      onChange={(e) => {
+                                        setServiceItems((prev) => {
+                                          const newState = { ...prev };
+                                          const currentServiceData = newState[serviceId];
+                                          if (currentServiceData) {
+                                            const itemIndex = currentServiceData.items.findIndex((i) => i.id === item.id);
+                                            if (itemIndex !== -1) currentServiceData.items[itemIndex].itemName = e.target.value;
+                                          }
+                                          return newState;
+                                        });
+                                      }}
+                                      placeholder="Item name"
+                                    />
+                                  </TableCell>
+                                  <TableCell sx={{ borderBottom: "1px solid #E5E7EB", color: "#334155", fontSize: 13 }}>
+                                    {serviceName}
+                                  </TableCell>
+                                  <TableCell sx={{ borderBottom: "1px solid #E5E7EB", width: "18%" }}>
+                                    <InputFieldBordered
+                                      type="number"
+                                      value={item.unitPrice > 0 ? item.unitPrice.toFixed(2) : ""}
+                                      onChange={(e) => {
+                                        const newPrice = parseFloat(e.target.value) || 0;
+                                        setServiceItems((prev) => {
+                                          const newState = { ...prev };
+                                          const currentServiceData = newState[serviceId];
+                                          if (currentServiceData) {
+                                            const itemIndex = currentServiceData.items.findIndex((i) => i.id === item.id);
+                                            if (itemIndex !== -1) currentServiceData.items[itemIndex].unitPrice = newPrice;
+                                          }
+                                          return newState;
+                                        });
+                                      }}
+                                      placeholder="0.00"
+                                    />
+                                  </TableCell>
+                                  <TableCell sx={{ borderBottom: "1px solid #E5E7EB", width: "14%" }}>
+                                    <InputFieldBordered
+                                      type="number"
+                                      value={item.quantity}
+                                      onChange={(e) => {
+                                        const newQuantity = parseInt(e.target.value) || 0;
+                                        setServiceItems((prev) => {
+                                          const newState = { ...prev };
+                                          const currentServiceData = newState[serviceId];
+                                          if (currentServiceData) {
+                                            const itemIndex = currentServiceData.items.findIndex((i) => i.id === item.id);
+                                            if (itemIndex !== -1) currentServiceData.items[itemIndex].quantity = newQuantity;
+                                          }
+                                          return newState;
+                                        });
+                                      }}
+                                      placeholder="0"
+                                    />
+                                  </TableCell>
+                                  <TableCell sx={{ borderBottom: "1px solid #E5E7EB", fontWeight: 600, color: "#334155" }}>
+                                    ${amount.toFixed(2)}
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            })
+                          ) : (
+                            <TableRow>
+                              <TableCell colSpan={5} sx={{ fontSize: "14px", color: "#6B7280", textAlign: "center", py: 3 }}>
+                                No items available for this service
                               </TableCell>
                             </TableRow>
-                          );
-                        })
-                      ) : (
-                        <TableRow>
-                          <TableCell
-                            colSpan={4}
-                            sx={{
-                              fontFamily: "Switzer",
-                              fontSize: "14px",
-                              color: "#6B7280",
-                              textAlign: "center",
-                              py: 3,
-                            }}
-                          >
-                            No items available for this service
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              </Box>
-            );
-          })}
+                          )}
+                        </TableBody>
+                      </Table>
+                    </Box>
+                  );
+                })}
 
-          {/* Debug Panel - Show current state */}
-          {process.env.NODE_ENV === 'development' && (
-            <Box
-              sx={{
-                mb: 3,
-                p: 2,
-                bgcolor: "#F9FAFB",
-                borderRadius: "8px",
-                border: "1px solid #E5E7EB",
-              }}
-            >
-              <Typography variant="body2" fontFamily="Switzer" sx={{ mb: 1, fontWeight: 600 }}>
-                🐛 Debug Info:
-              </Typography>
-              <Typography variant="caption" fontFamily="Switzer" sx={{ display: "block", mb: 0.5 }}>
-                Services: {Object.keys(serviceItems).length}
-              </Typography>
-              <Typography variant="caption" fontFamily="Switzer" sx={{ display: "block", mb: 0.5 }}>
-                Total Items: {Object.values(serviceItems).reduce((sum, s) => sum + s.items.length, 0)}
-              </Typography>
-              <Typography variant="caption" fontFamily="Switzer" sx={{ display: "block", mb: 0.5 }}>
-                Items with Preferences: {Object.values(serviceItems).reduce((sum, s) =>
-                  sum + s.items.filter(i => i.preferences?.preferenceIds?.length > 0).length, 0
-                )}
-              </Typography>
-              <Typography variant="caption" fontFamily="Switzer" sx={{ display: "block", color: "#EF4444" }}>
-                {Object.values(serviceItems).reduce((sum, s) =>
-                  sum + s.items.filter(i => !i.preferences?.preferenceIds?.length).length, 0
-                ) > 0 && "⚠️ Some items have no preferences!"}
-              </Typography>
+                <Box sx={{ p: 2.5, borderTop: "1px solid #F1F5F9" }}>
+                  <Box
+                    component="button"
+                    onClick={handleOpenAddItemModal}
+                    sx={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 1,
+                      px: 2.4,
+                      py: 1.1,
+                      borderRadius: "8px",
+                      border: "1px solid #93C5FD",
+                      bgcolor: "white",
+                      color: "#2563EB",
+                      fontFamily: "Switzer",
+                      fontSize: "13px",
+                      fontWeight: 600,
+                      cursor: "pointer",
+                      "&:hover": { bgcolor: "#EFF6FF" },
+                    }}
+                  >
+                    <TbPlus size={16} />
+                    Add Item
+                  </Box>
+
+                  <Box sx={{ mt: 2.5, pt: 2, borderTop: "1px solid #E5E7EB" }}>
+                    <Box className="flex justify-between py-0.5">
+                      <Typography sx={{ color: "#64748B", fontSize: 14 }}>Subtotal</Typography>
+                      <Typography sx={{ color: "#0F172A", fontWeight: 600, fontSize: 14 }}>${subtotal.toFixed(2)}</Typography>
+                    </Box>
+                    <Box className="flex justify-between py-0.5">
+                      <Typography sx={{ color: "#64748B", fontSize: 14 }}>Delivery Fee</Typography>
+                      <Typography sx={{ color: "#0F172A", fontWeight: 600, fontSize: 14 }}>$0.00</Typography>
+                    </Box>
+                    <Box className="flex justify-between py-0.5">
+                      <Typography sx={{ color: "#64748B", fontSize: 14 }}>Driver Tip</Typography>
+                      <Typography sx={{ color: "#0F172A", fontWeight: 600, fontSize: 14 }}>$0.00</Typography>
+                    </Box>
+                    <Box className="flex justify-between pt-2 mt-2" sx={{ borderTop: "1px solid #E5E7EB" }}>
+                      <Typography sx={{ color: "#0F172A", fontWeight: 700, fontSize: 18 }}>Total</Typography>
+                      <Typography sx={{ color: "#16A34A", fontWeight: 700, fontSize: 24 }}>${subtotal.toFixed(2)}</Typography>
+                    </Box>
+                  </Box>
+                </Box>
+              </Paper>
+
+              <Paper sx={SECTION_CARD_SX}>
+                <Box sx={SECTION_HEADER_SX} className="flex items-center gap-2">
+                  <Box sx={{ width: 6, height: 6, borderRadius: "50%", bgcolor: "#60A5FA" }} />
+                  <Typography sx={{ fontSize: 11, fontWeight: 700, color: "#64748B", letterSpacing: "0.08em", textTransform: "uppercase" }}>
+                    Delivery Address
+                  </Typography>
+                </Box>
+                <Box sx={{ p: 2.5, display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(2, 1fr)" }, gap: 2 }}>
+                  <Box>
+                    <Typography sx={FIELD_LABEL_SX}>Address Line 1</Typography>
+                    <InputFieldBordered
+                      value={formData.addressLine1}
+                      onChange={(e) => handleInputChange("addressLine1", e.target.value)}
+                    />
+                  </Box>
+                  <Box>
+                    <Typography sx={FIELD_LABEL_SX}>Address Line 2</Typography>
+                    <InputFieldBordered
+                      value={formData.addressLine2}
+                      onChange={(e) => handleInputChange("addressLine2", e.target.value)}
+                    />
+                  </Box>
+                  <Box>
+                    <Typography sx={FIELD_LABEL_SX}>City</Typography>
+                    <InputFieldBordered
+                      value={formData.city}
+                      onChange={(e) => handleInputChange("city", e.target.value)}
+                    />
+                  </Box>
+                  <Box>
+                    <Typography sx={FIELD_LABEL_SX}>Postcode</Typography>
+                    <InputFieldBordered
+                      value={formData.postCode}
+                      onChange={(e) => handleInputChange("postCode", e.target.value)}
+                    />
+                  </Box>
+                  <Box>
+                    <Typography sx={FIELD_LABEL_SX}>Country</Typography>
+                    <InputFieldBordered
+                      value={formData.country}
+                      onChange={(e) => handleInputChange("country", e.target.value)}
+                    />
+                  </Box>
+                </Box>
+              </Paper>
             </Box>
-          )}
 
-          {/* Add Item Button */}
-          <Box
-            sx={{
-              display: "flex",
-              justifyContent: "flex-end",
-              mt: 4,
-              mb: 3,
-            }}
-          >
-            <Box
-              component="button"
-              onClick={handleOpenAddItemModal}
-              sx={{
-                display: "flex",
-                alignItems: "center",
-                gap: 1,
-                px: 3,
-                py: 1.5,
-                borderRadius: "8px",
-                border: "1px solid #55ACEE",
-                bgcolor: "white",
-                color: "#55ACEE",
-                fontFamily: "Switzer",
-                fontSize: "14px",
-                fontWeight: 500,
-                cursor: "pointer",
-                "&:hover": {
-                  bgcolor: "#F0F9FF",
-                },
-              }}
-            >
-              <TbPlus size={18} />
-              Add Item
+            <Box sx={{ display: "flex", flexDirection: "column", rowGap: 2.5 }}>
+              <Paper sx={SECTION_CARD_SX}>
+                <Box sx={SECTION_HEADER_SX} className="flex items-center gap-2">
+                  <Box sx={{ width: 6, height: 6, borderRadius: "50%", bgcolor: "#94A3B8" }} />
+                  <Typography sx={{ fontSize: 11, fontWeight: 700, color: "#64748B", letterSpacing: "0.08em", textTransform: "uppercase" }}>
+                    Assign Drivers
+                  </Typography>
+                </Box>
+                <Box sx={{ p: 2.5, display: "flex", flexDirection: "column", gap: 2 }}>
+                  <Box>
+                    <Typography sx={{ ...FIELD_LABEL_SX, mb: 0.4, color: "#2563EB" }}>Collection Driver</Typography>
+                    <Select
+                      value={dropdowns.collectionDriver}
+                      onChange={(e) =>
+                        setDropdowns((prev) => ({
+                          ...prev,
+                          collectionDriver: e.target.value,
+                        }))
+                      }
+                      size="small"
+                      sx={SELECT_FIELD_SX}
+                    >
+                      {driverOptions.map((option) => (
+                        <MenuItem key={option} value={option}>
+                          {option}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </Box>
+                  <Box>
+                    <Typography sx={{ ...FIELD_LABEL_SX, mb: 0.4, color: "#059669" }}>Delivery Driver</Typography>
+                    <Select
+                      value={dropdowns.deliveryDriver}
+                      onChange={(e) =>
+                        setDropdowns((prev) => ({
+                          ...prev,
+                          deliveryDriver: e.target.value,
+                        }))
+                      }
+                      size="small"
+                      sx={SELECT_FIELD_SX}
+                    >
+                      {driverOptions.map((option) => (
+                        <MenuItem key={option} value={option}>
+                          {option}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </Box>
+                </Box>
+              </Paper>
+
+              <Paper sx={SECTION_CARD_SX}>
+                <Box sx={SECTION_HEADER_SX} className="flex items-center gap-2">
+                  <Box sx={{ width: 6, height: 6, borderRadius: "50%", bgcolor: "#F59E0B" }} />
+                  <Typography sx={{ fontSize: 11, fontWeight: 700, color: "#64748B", letterSpacing: "0.08em", textTransform: "uppercase" }}>
+                    Fees & Charges
+                  </Typography>
+                </Box>
+                <Box sx={{ p: 2.5, display: "flex", flexDirection: "column", gap: 1.5 }}>
+                  <Box>
+                    <Typography sx={FIELD_LABEL_SX}>Delivery Fee ($)</Typography>
+                    <InputFieldBordered
+                      value={formData.deliveryFee}
+                      onChange={(e) => handleInputChange("deliveryFee", e.target.value)}
+                    />
+                  </Box>
+                  <Box>
+                    <Typography sx={FIELD_LABEL_SX}>Driver Tip ($)</Typography>
+                    <InputFieldBordered
+                      value={formData.driverTip}
+                      onChange={(e) => handleInputChange("driverTip", e.target.value)}
+                    />
+                  </Box>
+                  <Box>
+                    <Typography sx={FIELD_LABEL_SX}>Minimum Order Fee ($)</Typography>
+                    <InputFieldBordered
+                      value={formData.minimumOrderFee}
+                      onChange={(e) => handleInputChange("minimumOrderFee", e.target.value)}
+                    />
+                  </Box>
+                  <Box>
+                    <Typography sx={FIELD_LABEL_SX}>Service Charge ($)</Typography>
+                    <InputFieldBordered
+                      value={formData.serviceCharge}
+                      onChange={(e) => handleInputChange("serviceCharge", e.target.value)}
+                    />
+                  </Box>
+                </Box>
+              </Paper>
+
+              <Paper sx={SECTION_CARD_SX}>
+                <Box sx={SECTION_HEADER_SX} className="flex items-center gap-2">
+                  <Box sx={{ width: 6, height: 6, borderRadius: "50%", bgcolor: "#94A3B8" }} />
+                  <Typography sx={{ fontSize: 11, fontWeight: 700, color: "#64748B", letterSpacing: "0.08em", textTransform: "uppercase" }}>
+                    Settings
+                  </Typography>
+                </Box>
+                <Box sx={{ p: 2.5, display: "flex", flexDirection: "column", gap: 1.2 }}>
+                  <Box className="flex items-center justify-between">
+                    <Box>
+                      <Typography sx={{ fontSize: 13, fontWeight: 600, color: "#0F172A" }}>Notify Customer</Typography>
+                      <Typography sx={{ fontSize: 11, color: "#94A3B8" }}>Send update SMS/email</Typography>
+                    </Box>
+                    <Switch checked={settings.notifyCustomer} onChange={(e) => setSettings((prev) => ({ ...prev, notifyCustomer: e.target.checked }))} />
+                  </Box>
+                  <Box className="flex items-center justify-between">
+                    <Box>
+                      <Typography sx={{ fontSize: 13, fontWeight: 600, color: "#0F172A" }}>Notify Driver</Typography>
+                      <Typography sx={{ fontSize: 11, color: "#94A3B8" }}>Push notification to driver app</Typography>
+                    </Box>
+                    <Switch checked={settings.notifyDriver} onChange={(e) => setSettings((prev) => ({ ...prev, notifyDriver: e.target.checked }))} />
+                  </Box>
+                  <Box className="flex items-center justify-between">
+                    <Box>
+                      <Typography sx={{ fontSize: 13, fontWeight: 600, color: "#0F172A" }}>Priority Order</Typography>
+                      <Typography sx={{ fontSize: 11, color: "#94A3B8" }}>Flag as high priority</Typography>
+                    </Box>
+                    <Switch checked={settings.priorityOrder} onChange={(e) => setSettings((prev) => ({ ...prev, priorityOrder: e.target.checked }))} />
+                  </Box>
+                </Box>
+              </Paper>
+
+              <Paper sx={SECTION_CARD_SX}>
+                <Box sx={SECTION_HEADER_SX} className="flex items-center gap-2">
+                  <Box sx={{ width: 6, height: 6, borderRadius: "50%", bgcolor: "#94A3B8" }} />
+                  <Typography sx={{ fontSize: 11, fontWeight: 700, color: "#64748B", letterSpacing: "0.08em", textTransform: "uppercase" }}>
+                    Admin Notes
+                  </Typography>
+                </Box>
+                <Box sx={{ p: 2.5 }}>
+                  <Typography sx={{ fontSize: 13, color: "#334155", lineHeight: 1.45 }}>
+                    {orderData?.driverInstruction || "No admin notes added for this order."}
+                  </Typography>
+                </Box>
+              </Paper>
+
+              <Paper sx={SECTION_CARD_SX}>
+                <Box sx={SECTION_HEADER_SX} className="flex items-center gap-2">
+                  <Box sx={{ width: 6, height: 6, borderRadius: "50%", bgcolor: "#EF4444" }} />
+                  <Typography sx={{ fontSize: 11, fontWeight: 700, color: "#EF4444", letterSpacing: "0.08em", textTransform: "uppercase" }}>
+                    Danger Zone
+                  </Typography>
+                </Box>
+                <Box sx={{ p: 2.5, display: "flex", flexDirection: "column", gap: 1.1 }}>
+                  <Box component="button" sx={{ borderRadius: "8px", border: "1px solid #FECACA", py: 1, fontSize: 12, fontWeight: 700, textTransform: "uppercase", color: "#DC2626", bgcolor: "#fff", cursor: "pointer" }}>
+                    Cancel Order
+                  </Box>
+                  <Box component="button" sx={{ borderRadius: "8px", border: "1px solid #FCA5A5", py: 1, fontSize: 12, fontWeight: 700, textTransform: "uppercase", color: "#B91C1C", bgcolor: "#fff", cursor: "pointer" }}>
+                    Delete Order
+                  </Box>
+                </Box>
+              </Paper>
             </Box>
-          </Box>
-
-          {/* Action Buttons */}
-          <Box
-            sx={{
-              display: "flex",
-              justifyContent: "flex-end",
-              gap: 2,
-              mt: 4,
-              pt: 3,
-              borderTop: "1px solid #E5E7EB",
-            }}
-          >
-            <ButtonWhite onClick={handleCancel} disabled={isSaving}>
-              Cancel
-            </ButtonWhite>
-            <ButtonBlue onClick={handleSave} disabled={isSaving}>
-              {isSaving ? "Saving..." : "Save"}
-            </ButtonBlue>
           </Box>
         </Box>
       ) : (

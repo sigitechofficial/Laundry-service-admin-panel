@@ -8,6 +8,7 @@ import { useSelector } from "react-redux";
 import {
   useAddServiceWithPreferencesMutation,
   useAddServiceWithCategoriesMutation,
+  useUnAssignServiceFromCategoriesMutation,
   useGetServiceWitPreferencesQuery,
   useUnAssignServiceFromPreferencesMutation,
   useGetCategoriesQuery,
@@ -52,6 +53,8 @@ export default function ConfigureModal({ open, onClose, selectedServiceId }) {
     useAddServiceWithPreferencesMutation();
   const [addServiceWithCategories, { isLoading: categoriesLoading }] =
     useAddServiceWithCategoriesMutation();
+  const [unAssignServiceFromCategories, { isLoading: categoriesUnassignLoading }] =
+    useUnAssignServiceFromCategoriesMutation();
   const [unAssignServiceFromPreferences, { isLoading: unassignLoading }] =
     useUnAssignServiceFromPreferencesMutation();
 
@@ -81,7 +84,7 @@ export default function ConfigureModal({ open, onClose, selectedServiceId }) {
   const watchedCategories = watch("selectedCategories");
   const watchedPreferences = watch("selectedPreferences");
 
-  const { data: existingServiceData } = useGetServiceWitPreferencesQuery(
+  const { data: existingServiceData, refetch: refetchServiceConfig } = useGetServiceWitPreferencesQuery(
     watchedServiceId,
     {
       skip: !watchedServiceId,
@@ -133,6 +136,12 @@ export default function ConfigureModal({ open, onClose, selectedServiceId }) {
 
     try {
       const currentCategories = watchedCategories || [];
+      const removedCategoryIds = originalLinkedCategories.filter(
+        (id) => !currentCategories.includes(id)
+      );
+      const addedCategoryIds = currentCategories.filter(
+        (id) => !originalLinkedCategories.includes(id)
+      );
 
       // Check if there are any changes
       const hasChanges =
@@ -146,36 +155,38 @@ export default function ConfigureModal({ open, onClose, selectedServiceId }) {
         return;
       }
 
-      // If all categories are removed, show error
-      if (currentCategories.length === 0 && originalLinkedCategories.length > 0) {
-        error("At least one category must be selected");
-        return;
+      // Unassign removed categories first
+      if (removedCategoryIds.length > 0) {
+        await unAssignServiceFromCategories({
+          serviceId: watchedServiceId,
+          categoryIds: removedCategoryIds,
+        }).unwrap();
       }
 
-      // Update categories (API should handle both add and remove)
-      if (currentCategories.length > 0) {
+      // Assign only newly added categories
+      if (addedCategoryIds.length > 0) {
         const apiBody = {
           serviceId: watchedServiceId,
-          categoryId: currentCategories,
+          categoryId: addedCategoryIds,
         };
 
         const res = await addServiceWithCategories(apiBody).unwrap();
 
         if (res?.status === "1") {
-          // Update original linked categories after successful save
-          setOriginalLinkedCategories([...currentCategories]);
-          if (moveToNextStep) {
-            success("Categories saved! Now configure preferences.");
-            setCurrentStep(2); // Move to step 2
-          } else {
-            success("Categories updated successfully!");
-          }
         } else {
           error(res?.message);
+          return;
         }
-      } else if (moveToNextStep) {
-        // If no categories selected but moving to next step, just move forward
+      }
+
+      // Update original linked categories after successful delta sync
+      setOriginalLinkedCategories([...currentCategories]);
+      refetchServiceConfig();
+      if (moveToNextStep) {
+        success("Categories saved! Now configure preferences.");
         setCurrentStep(2);
+      } else if (removedCategoryIds.length > 0 || addedCategoryIds.length > 0) {
+        success("Categories updated successfully!");
       }
     } catch (err) {
       error(err?.data?.message || err?.message || "Failed to update categories");
@@ -228,6 +239,7 @@ export default function ConfigureModal({ open, onClose, selectedServiceId }) {
         if (res?.status === "1") {
           // Update original linked preferences after successful save
           setOriginalLinkedPreferences([...currentPreferences]);
+          refetchServiceConfig();
           success("Preferences updated successfully!");
         } else {
           error(res?.message || "Something went wrong");
@@ -235,6 +247,7 @@ export default function ConfigureModal({ open, onClose, selectedServiceId }) {
       } else {
         // All preferences were removed
         setOriginalLinkedPreferences([]);
+        refetchServiceConfig();
         success("Preferences unassigned successfully!");
       }
     } catch (err) {
@@ -449,7 +462,11 @@ export default function ConfigureModal({ open, onClose, selectedServiceId }) {
                 size="medium"
                 text="Next →"
                 onClick={() => handleCategoriesSubmit(true)}
-                disabled={categoriesLoading || !watchedServiceId}
+                disabled={
+                  categoriesLoading ||
+                  categoriesUnassignLoading ||
+                  !watchedServiceId
+                }
               />
             </Box>
           </Box>

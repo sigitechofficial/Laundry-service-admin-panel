@@ -752,7 +752,9 @@ export default function CancellationPolicyContent() {
       prePickupAbsoluteCurrency: config.prePickupAbsoluteCurrency || "USD",
       prePickupAbsoluteAmount: config.prePickupAbsoluteAmount?.toString() || "",
       prePickupPercentage: config.prePickupPercentage?.toString() || "",
-      prePickupFreeChargeWindowMinutes: config.prePickupFreeChargeWindowMinutes?.toString() || "",
+      prePickupFreeChargeWindowMinutes: config.prePickupFreeChargeWindowMinutes
+        ? (Number(config.prePickupFreeChargeWindowMinutes) / 60).toString()
+        : "",
       prePickupFirstCancellationLeniency: config.prePickupFirstCancellationLeniency ?? true,
       unprocessedAbsoluteCurrency: config.unprocessedAbsoluteCurrency || "USD",
       unprocessedAbsoluteAmount: config.unprocessedAbsoluteAmount?.toString() || "",
@@ -950,7 +952,9 @@ export default function CancellationPolicyContent() {
         prePickupAbsoluteCurrency: data.prePickupAbsoluteCurrency,
         prePickupAbsoluteAmount: data.prePickupAbsoluteAmount ? parseFloat(data.prePickupAbsoluteAmount) : 0,
         prePickupPercentage: data.prePickupPercentage ? parseFloat(data.prePickupPercentage) : 0,
-        prePickupFreeChargeWindowMinutes: data.prePickupFreeChargeWindowMinutes ? parseInt(data.prePickupFreeChargeWindowMinutes) : 0,
+        prePickupFreeChargeWindowMinutes: data.prePickupFreeChargeWindowMinutes
+          ? Math.round(parseFloat(data.prePickupFreeChargeWindowMinutes) * 60)
+          : 0,
         prePickupFirstCancellationLeniency: data.prePickupFirstCancellationLeniency,
         unprocessedAbsoluteCurrency: data.unprocessedAbsoluteCurrency,
         unprocessedAbsoluteAmount: data.unprocessedAbsoluteAmount ? parseFloat(data.unprocessedAbsoluteAmount) : 0,
@@ -1318,12 +1322,12 @@ export default function CancellationPolicyContent() {
                   control={control}
                   render={({ field: { onChange, value } }) => (
                     <InputFieldModal
-                      title="Free Charge Window (Minutes)"
-                      placeholder="Enter minutes"
+                      title="Free Charge Window (Hours)"
+                      placeholder="Enter hours"
                       type="number"
                       value={value || ""}
                       onChange={(e) => onChange(e.target.value)}
-                      tooltipText="Time window in minutes after order placement where cancellations are free. Cancellations within this window will not incur any charges."
+                      tooltipText="Time window in hours after order placement where cancellations are free. This value is converted to minutes before saving."
                     />
                   )}
                 />

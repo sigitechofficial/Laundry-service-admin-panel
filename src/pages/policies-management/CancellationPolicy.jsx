@@ -682,7 +682,9 @@ export default function CancellationPolicy() {
       prePickupFeeValue: feeValue,
       prePickupAbsoluteAmount: config.prePickupAbsoluteAmount?.toString() || "",
       prePickupPercentage: config.prePickupPercentage?.toString() || "",
-      prePickupFreeChargeWindowMinutes: config.prePickupFreeChargeWindowMinutes?.toString() || "",
+      prePickupFreeChargeWindowMinutes: config.prePickupFreeChargeWindowMinutes
+        ? (Number(config.prePickupFreeChargeWindowMinutes) / 60).toString()
+        : "",
       prePickupFirstCancellationLeniency: config.prePickupFirstCancellationLeniency ?? true,
       // Determine fee type based on existing data (prefer percentage if both exist)
       unprocessedFeeType: (() => {
@@ -772,7 +774,9 @@ export default function CancellationPolicy() {
         prePickupAbsoluteCurrency: data.currency,
         prePickupAbsoluteAmount: prePickupAbsoluteAmount,
         prePickupPercentage: prePickupPercentage,
-        prePickupFreeChargeWindowMinutes: data.prePickupFreeChargeWindowMinutes ? parseInt(data.prePickupFreeChargeWindowMinutes) : 0,
+        prePickupFreeChargeWindowMinutes: data.prePickupFreeChargeWindowMinutes
+          ? Math.round(parseFloat(data.prePickupFreeChargeWindowMinutes) * 60)
+          : 0,
         prePickupFirstCancellationLeniency: data.prePickupFirstCancellationLeniency,
         unprocessedAbsoluteCurrency: data.currency,
         unprocessedAbsoluteAmount: unprocessedAbsoluteAmount,
@@ -1325,12 +1329,12 @@ export default function CancellationPolicy() {
                       control={control}
                       render={({ field: { onChange, value } }) => (
                         <InputFieldModal
-                          title="Free Charge Window (Minutes)"
-                          placeholder="Enter minutes"
+                          title="Free Charge Window (Hours)"
+                          placeholder="Enter hours"
                           type="number"
                           value={value || ""}
                           onChange={(e) => onChange(e.target.value)}
-                          tooltipText="Time window in minutes after order placement where cancellations are free. Cancellations within this window will not incur any charges."
+                          tooltipText="Time window in hours after order placement where cancellations are free. This value is converted to minutes before saving."
                         />
                       )}
                     />

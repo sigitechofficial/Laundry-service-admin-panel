@@ -4,6 +4,7 @@ import baseQueryWithReauth from "./baseQueryWithReauth";
 export const api = createApi({
   reducerPath: "api",
   baseQuery: baseQueryWithReauth,
+  tagTypes: ["ServiceConfig"],
 
   endpoints: (builder) => ({
     adminLogin: builder.mutation({
@@ -162,6 +163,10 @@ export const api = createApi({
         method: "POST",
         body,
       }),
+      invalidatesTags: (result, error, body) =>
+        body?.serviceId
+          ? [{ type: "ServiceConfig", id: body.serviceId }]
+          : [{ type: "ServiceConfig", id: "LIST" }],
     }),
 
     addServiceWithCategories: builder.mutation({
@@ -170,6 +175,22 @@ export const api = createApi({
         method: "POST",
         body,
       }),
+      invalidatesTags: (result, error, body) =>
+        body?.serviceId
+          ? [{ type: "ServiceConfig", id: body.serviceId }]
+          : [{ type: "ServiceConfig", id: "LIST" }],
+    }),
+
+    unAssignServiceFromCategories: builder.mutation({
+      query: ({ serviceId, categoryIds }) => ({
+        url: `admin/unassignServiceFromCategories/${serviceId}`,
+        method: "DELETE",
+        body: { categoryIds },
+      }),
+      invalidatesTags: (result, error, args) =>
+        args?.serviceId
+          ? [{ type: "ServiceConfig", id: args.serviceId }]
+          : [{ type: "ServiceConfig", id: "LIST" }],
     }),
 
     unAssignServiceFromPreferences: builder.mutation({
@@ -177,6 +198,10 @@ export const api = createApi({
         url: `admin/unAssignServiceFromPreferences/${serviceId}`,
         method: "DELETE",
       }),
+      invalidatesTags: (result, error, serviceId) =>
+        serviceId
+          ? [{ type: "ServiceConfig", id: serviceId }]
+          : [{ type: "ServiceConfig", id: "LIST" }],
     }),
 
     getServiceWitPreferences: builder.query({
@@ -184,6 +209,10 @@ export const api = createApi({
         url: `admin/servicesAndPreferencesData/${id}`,
         method: "GET",
       }),
+      providesTags: (result, error, id) =>
+        id
+          ? [{ type: "ServiceConfig", id }]
+          : [{ type: "ServiceConfig", id: "LIST" }],
     }),
 
     //Customers
@@ -879,6 +908,7 @@ export const {
   useGetServiceWitPreferencesQuery,
   useAddServiceWithPreferencesMutation,
   useAddServiceWithCategoriesMutation,
+  useUnAssignServiceFromCategoriesMutation,
   useUnAssignServiceFromPreferencesMutation,
   useGetAllCustomersQuery,
   useGetAllCustomersCountQuery,
