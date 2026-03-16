@@ -15,6 +15,22 @@ import {
   defaultSubCategoryValues,
 } from "./constants";
 
+const normalizeEditorContent = (value = "") => {
+  if (typeof value !== "string") return "";
+
+  const html = value.trim();
+  if (!html) return "";
+
+  if (!/[<>]/.test(html)) {
+    return html.replace(/\s+/g, " ").trim();
+  }
+
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(html, "text/html");
+  const text = (doc.body?.textContent || "").replace(/\u00a0/g, " ");
+  return text.replace(/\s+/g, " ").trim();
+};
+
 export default function SubCategoryModal({
   open,
   onClose,
@@ -40,13 +56,14 @@ export default function SubCategoryModal({
     mode: "onChange",
   });
 
-  const isUpdate = type === "update";
+  const isUpdate = open && type === "update";
 
   const onSubmit = async (data) => {
     try {
+      const cleanDescription = normalizeEditorContent(data.description);
       const formData = {
         name: data.subCategory,
-        description: data.description,
+        description: cleanDescription,
         price: parseFloat(data.price),
         status: true,
         categoryId: categoryData?.id,
@@ -67,9 +84,10 @@ export default function SubCategoryModal({
   
   const UpdateSubCategory = async (data) => {
     try {
+      const cleanDescription = normalizeEditorContent(data.description);
       const apiData = {
         name: data.subCategory,
-        description: data.description,
+        description: cleanDescription,
         price: parseFloat(data.price),
         status: true,
       };
@@ -112,7 +130,7 @@ export default function SubCategoryModal({
 
   return (
     <ModalComponent
-      open={open || isUpdate}
+      open={open}
       title={type === "update" ? "Update Sub Category" : "Add Sub Category"}
       onClose={handleClose}
       secondaryAction={{

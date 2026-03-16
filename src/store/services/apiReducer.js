@@ -197,6 +197,33 @@ const apiDataSlice = createSlice({
     );
 
     builder.addMatcher(
+      api.endpoints.editCategory.matchFulfilled,
+      (state, { payload, meta }) => {
+        const { categoryId, body } = meta.arg.originalArgs || {};
+        const index = state.categories.findIndex((item) => item.id === categoryId);
+
+        if (index === -1) return;
+
+        if (payload?.data) {
+          state.categories[index] = {
+            ...state.categories[index],
+            ...payload.data,
+          };
+          return;
+        }
+
+        if (body instanceof FormData) {
+          state.categories[index] = {
+            ...state.categories[index],
+            name: body.get("name") || state.categories[index]?.name,
+            description:
+              body.get("description") || state.categories[index]?.description,
+          };
+        }
+      }
+    );
+
+    builder.addMatcher(
       api.endpoints.getSubCategories.matchFulfilled,
       (state, { payload }) => {
         state.subCategories = payload.data;

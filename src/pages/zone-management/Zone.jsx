@@ -20,6 +20,7 @@ import {
   useGetActivePoliciesQuery,
   useAddZoneByPostcodesMutation,
   useEditZoneByPostcodesMutation,
+  useDeleteZoneMutation,
 } from "../../store/services/api";
 import { useSelector } from "react-redux";
 import { Delay } from "../../components/shared/Loaders";
@@ -104,6 +105,7 @@ export default function ZoneManagement() {
   const { data: allCitiesData } = useGetAllCitiesQuery();
   const [addZoneByPostcodes, { isLoading: isAddingZone }] = useAddZoneByPostcodesMutation();
   const [editZoneByPostcodes, { isLoading: isEditingZone }] = useEditZoneByPostcodesMutation();
+  const [deleteZone] = useDeleteZoneMutation();
   const [fetchZoneById] = useLazyGetZoneByIdQuery();
   const zones = useSelector((state) => state?.apiData?.zones);
   const countries = useSelector((state) => state?.apiData?.countries);
@@ -512,6 +514,28 @@ export default function ZoneManagement() {
     }
   };
 
+  const handleDeleteZone = async (row) => {
+    const rowZone = row?.rawZone || row || {};
+    const zoneId = rowZone.id || row?.id;
+
+    if (!zoneId) {
+      showError("Unable to delete zone: missing zone id.");
+      return;
+    }
+
+    try {
+      const res = await deleteZone(zoneId).unwrap();
+      if (res?.status === "1") {
+        success("Zone deleted successfully.");
+      } else {
+        showError(res?.message || "Failed to delete zone.");
+      }
+      refetchZones();
+    } catch (err) {
+      showError(err?.data?.message || "Failed to delete zone.");
+    }
+  };
+
   // Column configuration for zone table
   const zoneColumns = [
     {
@@ -611,7 +635,7 @@ export default function ZoneManagement() {
         <ActionButtons
           showView={false}
           onEdit={() => handleEditZone(params)}
-          onDelete={() => alert(`Delete ${params.zoneName}`)}
+          onDelete={() => handleDeleteZone(params)}
         />
       ),
     },
@@ -822,8 +846,7 @@ export default function ZoneManagement() {
         handleEditZone(rowData);
         break;
       case "delete":
-        // Show confirmation dialog and delete zone
-        console.log("Deleting zone:", rowData.zoneName);
+        handleDeleteZone(rowData);
         break;
       case "toggle-status":
         // Toggle zone status

@@ -62,7 +62,14 @@ export default function ItemCategoriesCard({ triggerAdd }) {
   };
 
   const handleCloseModal = () => {
-    setIsModalOpen({ isOpen: false });
+    setIsModalOpen({
+      isOpen: false,
+      isSubModalOpen: false,
+      data: {},
+      subCatId: "",
+      categoryName: "",
+      type: "",
+    });
   };
 
   const handleCategoryToggle = (categoryId) => {
@@ -207,6 +214,21 @@ export default function ItemCategoriesCard({ triggerAdd }) {
                           Add Sub Category
                         </button>
                         <IconButton
+                          size="small"
+                          sx={{ color: "#00028B" }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setIsModalOpen({
+                              ...isModalOpen,
+                              isOpen: true,
+                              data: category,
+                              type: "update",
+                            });
+                          }}
+                        >
+                          <TbPencil size="18px" />
+                        </IconButton>
+                        <IconButton
                           disabled={deleteLoading}
                           size="small"
                           sx={{ color: "#EF4444" }}
@@ -328,7 +350,12 @@ export default function ItemCategoriesCard({ triggerAdd }) {
         </MenuItem>
       </Menu>
 
-      <CategoryModal open={isModalOpen.isOpen} onClose={handleCloseModal} />
+      <CategoryModal
+        open={isModalOpen.isOpen}
+        onClose={handleCloseModal}
+        type={isModalOpen.type}
+        categoryData={isModalOpen.data}
+      />
 
       <SubCategoryModal
         open={isModalOpen.isSubModalOpen}
@@ -336,7 +363,11 @@ export default function ItemCategoriesCard({ triggerAdd }) {
         type={isModalOpen.type}
         onClose={() => {
           setIsModalOpen({
+            ...isModalOpen,
             isSubModalOpen: false,
+            type: "",
+            subCatId: "",
+            data: {},
           });
         }}
       />

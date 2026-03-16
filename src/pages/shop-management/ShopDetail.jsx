@@ -44,6 +44,41 @@ const CARD_SX = {
   bgcolor: "#fff",
 };
 
+const DAY_ORDER = [
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+  "Sunday",
+];
+
+const toHourMinute = (value, fallback) => {
+  if (!value || typeof value !== "string") return fallback;
+  const [hh = "00", mm = "00"] = value.split(":");
+  return `${hh.padStart(2, "0")}:${mm.padStart(2, "0")}`;
+};
+
+const buildOpeningHours = (workingHours = []) => {
+  const byDay = new Map(
+    (Array.isArray(workingHours) ? workingHours : []).map((item) => [
+      String(item?.dayOfWeek || "").toLowerCase(),
+      item,
+    ])
+  );
+
+  return DAY_ORDER.map((day, index) => {
+    const hit = byDay.get(day.toLowerCase());
+    return {
+      day,
+      enabled: Boolean(hit),
+      start: toHourMinute(hit?.openTime, index === 5 ? "09:00" : "08:00"),
+      end: toHourMinute(hit?.closeTime, index === 5 ? "15:00" : "18:00"),
+    };
+  });
+};
+
 const Label = ({ children }) => (
   <Typography
     sx={{
@@ -95,19 +130,7 @@ export default function ShopDetails() {
   const [adminNotes, setAdminNotes] = useState(
     "Long-standing partner. Environmental health cert follow-up required."
   );
-  const [openingHours, setOpeningHours] = useState([
-    { day: "Monday", enabled: true, start: "08:00", end: "18:00" },
-    { day: "Tuesday", enabled: true, start: "08:00", end: "18:00" },
-    { day: "Wednesday", enabled: true, start: "08:00", end: "18:00" },
-    { day: "Thursday", enabled: true, start: "08:00", end: "18:00" },
-    { day: "Friday", enabled: true, start: "08:00", end: "18:00" },
-    { day: "Saturday", enabled: true, start: "09:00", end: "15:00" },
-    { day: "Sunday", enabled: false, start: "09:00", end: "15:00" },
-  ]);
-  const [serviceRows, setServiceRows] = useState([
-    { name: "Wash & Fold", turnaround: "24h", fee: "2.50", status: "active" },
-    { name: "Dry Cleaning", turnaround: "48h", fee: "4.00", status: "active" },
-  ]);
+  const [openingHours, setOpeningHours] = useState(buildOpeningHours());
   const [financeSettings, setFinanceSettings] = useState({
     commissionRate: "12",
     payoutSchedule: "weekly",
@@ -177,57 +200,6 @@ export default function ShopDetails() {
     .sort((a, b) => dayjs(b?.createdAt).valueOf() - dayjs(a?.createdAt).valueOf())
     .slice(0, 4);
   const allOrders = [...orders].sort((a, b) => dayjs(b?.createdAt).valueOf() - dayjs(a?.createdAt).valueOf());
-
-  const shopServices = useMemo(() => {
-    const serviceSources = [
-      ...(Array.isArray(shop?.services) ? shop.services : []),
-      ...(Array.isArray(shop?.serviceDetails) ? shop.serviceDetails : []),
-      ...(Array.isArray(shop?.shopServices) ? shop.shopServices : []),
-      ...(Array.isArray(shop?.serviceTimes) ? shop.serviceTimes : []),
-      ...(Array.isArray(biz?.services) ? biz.services : []),
-      ...(Array.isArray(shop?.laundryServices) ? shop.laundryServices : []),
-    ];
-
-    const mapped = serviceSources
-      .map((s) => {
-        const serviceId = s?.serviceId ?? s?.id ?? s?._id ?? s?.service?.id ?? null;
-        const serviceName =
-          s?.name ??
-          s?.serviceName ??
-          s?.title ??
-          s?.type ??
-          s?.service?.name ??
-          s?.service?.serviceName ??
-          (serviceId ? `Service ${serviceId}` : null);
-        return {
-          id: serviceId ?? serviceName,
-          name: serviceName,
-          timeRequired: s?.serviceTimeRequired ?? s?.timeRequired ?? s?.hoursRequired ?? "—",
-          price: s?.price ?? s?.amount ?? s?.rate ?? s?.service?.price ?? null,
-        };
-      })
-      .filter((s) => s.name);
-
-    const fromOrders = orders
-      .map((o) => o?.serviceType)
-      .filter(Boolean)
-      .map((serviceType) => ({
-        id: serviceType,
-        name: serviceType,
-        timeRequired: "—",
-        price: null,
-      }));
-
-    const uniqueMap = new Map();
-    [...mapped, ...fromOrders].forEach((service) => {
-      const key = String(service.id ?? service.name);
-      if (!uniqueMap.has(key)) {
-        uniqueMap.set(key, service);
-      }
-    });
-
-    return Array.from(uniqueMap.values());
-  }, [biz?.services, orders, shop?.laundryServices, shop?.serviceDetails, shop?.serviceTimes, shop?.services, shop?.shopServices]);
 
   const shopStaff = useMemo(() => {
     const currentShopId = String(shop?.id ?? id ?? "");
@@ -306,29 +278,17 @@ export default function ShopDetails() {
       leadTimeHours: Number(shop?.leadTimeHours ?? prev.leadTimeHours),
       maxActiveOrders: Number(shop?.maxActiveOrders ?? prev.maxActiveOrders),
     }));
+    setOpeningHours(buildOpeningHours(biz?.bussinessWorkingHours));
     setAdminNotes(
       shop?.adminNotes ||
         "Long-standing partner. Environmental health cert follow-up required."
-    );
-    setServiceRows(
-      shopServices.length
-        ? shopServices.map((s) => ({
-            name: s?.name || "Service",
-            turnaround: s?.timeRequired === "—" ? "24h" : `${s?.timeRequired}h`,
-            fee: s?.price == null ? "0.00" : String(s?.price),
-            status: "active",
-          }))
-        : [
-            { name: "Wash & Fold", turnaround: "24h", fee: "2.50", status: "active" },
-            { name: "Dry Cleaning", turnaround: "48h", fee: "4.00", status: "active" },
-          ]
     );
     setFinanceSettings((prev) => ({
       ...prev,
       minOrderValue: String(shop?.minOrderValue ?? prev.minOrderValue),
       commissionRate: String(shop?.commissionRate ?? prev.commissionRate),
     }));
-  }, [addr?.city?.name, addr?.country?.name, addr?.district, addr?.postalCode, addr?.streetAddress, biz?.email, biz?.phoneNum, biz?.website, shop, shopServices]);
+  }, [addr?.city?.name, addr?.country?.name, addr?.district, addr?.postalCode, addr?.streetAddress, biz?.bussinessWorkingHours, biz?.email, biz?.phoneNum, biz?.website, shop]);
 
   const handleSettingsChange = (key) => (event) => {
     setSettingsForm((prev) => ({ ...prev, [key]: event.target.value }));
@@ -338,11 +298,6 @@ export default function ShopDetails() {
   };
   const handleOpeningHourChange = (index, key, value) => {
     setOpeningHours((prev) =>
-      prev.map((row, i) => (i === index ? { ...row, [key]: value } : row))
-    );
-  };
-  const handleServiceRowChange = (index, key, value) => {
-    setServiceRows((prev) =>
       prev.map((row, i) => (i === index ? { ...row, [key]: value } : row))
     );
   };
@@ -413,28 +368,7 @@ export default function ShopDetails() {
       emailNotifications: true,
       smsAlerts: false,
     });
-    setOpeningHours([
-      { day: "Monday", enabled: true, start: "08:00", end: "18:00" },
-      { day: "Tuesday", enabled: true, start: "08:00", end: "18:00" },
-      { day: "Wednesday", enabled: true, start: "08:00", end: "18:00" },
-      { day: "Thursday", enabled: true, start: "08:00", end: "18:00" },
-      { day: "Friday", enabled: true, start: "08:00", end: "18:00" },
-      { day: "Saturday", enabled: true, start: "09:00", end: "15:00" },
-      { day: "Sunday", enabled: false, start: "09:00", end: "15:00" },
-    ]);
-    setServiceRows(
-      shopServices.length
-        ? shopServices.map((s) => ({
-            name: s?.name || "Service",
-            turnaround: s?.timeRequired === "—" ? "24h" : `${s?.timeRequired}h`,
-            fee: s?.price == null ? "0.00" : String(s?.price),
-            status: "active",
-          }))
-        : [
-            { name: "Wash & Fold", turnaround: "24h", fee: "2.50", status: "active" },
-            { name: "Dry Cleaning", turnaround: "48h", fee: "4.00", status: "active" },
-          ]
-    );
+    setOpeningHours(buildOpeningHours(biz?.bussinessWorkingHours));
     setFinanceSettings({
       commissionRate: String(shop?.commissionRate ?? 12),
       payoutSchedule: "weekly",
@@ -611,9 +545,7 @@ export default function ShopDetails() {
         >
           <Tab value="overview" label="Overview" />
           <Tab value="orders" label="Orders" />
-          <Tab value="services" label="Services" />
           <Tab value="staff" label="Staff" />
-          <Tab value="reviews" label="Reviews" />
           <Tab value="documents" label="Documents" />
           <Tab value="settings" label="Settings" />
         </Tabs>
@@ -834,17 +766,13 @@ export default function ShopDetails() {
                   <Typography sx={{ fontSize: 14, fontWeight: 600, color: "#0F172A" }}>Opening Hours</Typography>
                 </Box>
                 <Box sx={{ p: 2 }}>
-                  {[
-                    ["Mon Today", "8:00 - 18:00", true],
-                    ["Tuesday", "8:00 - 18:00"],
-                    ["Wednesday", "8:00 - 18:00"],
-                    ["Thursday", "8:00 - 18:00"],
-                    ["Friday", "8:00 - 18:00"],
-                    ["Saturday", "9:00 - 15:00"],
-                    ["Sunday", "Closed"],
-                  ].map(([day, time, highlight]) => (
+                  {openingHours.map((row, index) => {
+                    const time = row.enabled ? `${row.start} - ${row.end}` : "Closed";
+                    const highlight = index === 0;
+                    const dayLabel = index === 0 ? `${row.day.slice(0, 3)} Today` : row.day;
+                    return (
                     <Box
-                      key={day}
+                      key={row.day}
                       className="flex items-center justify-between"
                       sx={{
                         px: 1.4,
@@ -854,12 +782,13 @@ export default function ShopDetails() {
                         border: highlight ? "1px solid #C7D2FE" : "none",
                       }}
                     >
-                      <Typography sx={{ fontSize: 13, color: highlight ? "#00028B" : "#475569", fontWeight: highlight ? 600 : 400 }}>{day}</Typography>
+                      <Typography sx={{ fontSize: 13, color: highlight ? "#00028B" : "#475569", fontWeight: highlight ? 600 : 400 }}>{dayLabel}</Typography>
                       <Typography sx={{ fontSize: 13, color: time === "Closed" ? "#EF4444" : highlight ? "#00028B" : "#475569", fontWeight: time === "Closed" ? 600 : 500 }}>
                         {time}
                       </Typography>
                     </Box>
-                  ))}
+                  );
+                  })}
                 </Box>
               </Paper>
 
@@ -990,76 +919,6 @@ export default function ShopDetails() {
                     <TableRow>
                       <TableCell colSpan={6} sx={{ fontSize: 13, color: "#94A3B8", py: 5, textAlign: "center" }}>
                         No orders found for this shop.
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </Paper>
-        )}
-
-        {activeTab === "services" && (
-          <Paper sx={CARD_SX}>
-            <Box
-              sx={{
-                px: 2.5,
-                py: 1.8,
-                borderBottom: "1px solid #F1F5F9",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-              }}
-            >
-              <Typography sx={{ fontSize: 14, fontWeight: 600, color: "#0F172A" }}>
-                Services
-              </Typography>
-              <Chip
-                size="small"
-                label={`${shopServices.length} total`}
-                sx={{ bgcolor: "#F1F5F9", color: "#475569", fontSize: 10 }}
-              />
-            </Box>
-            <TableContainer>
-              <Table size="small">
-                <TableHead>
-                  <TableRow sx={{ bgcolor: "#F8FAFC" }}>
-                    {["Service", "Time Required", "Price"].map((h) => (
-                      <TableCell
-                        key={h}
-                        sx={{
-                          fontSize: 11,
-                          fontWeight: 700,
-                          color: "#94A3B8",
-                          textTransform: "uppercase",
-                          letterSpacing: "0.06em",
-                          borderBottom: "1px solid #F1F5F9",
-                        }}
-                      >
-                        {h}
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {shopServices.length ? (
-                    shopServices.map((service, idx) => (
-                      <TableRow key={`${service.id}-${idx}`} hover>
-                        <TableCell sx={{ fontSize: 13, fontWeight: 600, color: "#0F172A" }}>
-                          {service.name}
-                        </TableCell>
-                        <TableCell sx={{ fontSize: 13, color: "#475569" }}>
-                          {service.timeRequired === "—" ? "—" : `${service.timeRequired}h`}
-                        </TableCell>
-                        <TableCell sx={{ fontSize: 13, color: "#334155" }}>
-                          {service.price == null ? "—" : `£${Number(service.price).toFixed(2)}`}
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  ) : (
-                    <TableRow>
-                      <TableCell colSpan={3} sx={{ fontSize: 13, color: "#94A3B8", py: 5, textAlign: "center" }}>
-                        No services configured for this shop.
                       </TableCell>
                     </TableRow>
                   )}
@@ -1222,8 +1081,32 @@ export default function ShopDetails() {
                         checked={row.enabled}
                         onChange={(e) => handleOpeningHourChange(index, "enabled", e.target.checked)}
                         sx={{
-                          "& .MuiSwitch-switchBase.Mui-checked": { color: "#1D4ED8" },
-                          "& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track": { backgroundColor: "#1D4ED8" },
+                          width: 44,
+                          height: 24,
+                          p: 0,
+                          "& .MuiSwitch-switchBase": {
+                            p: 0.4,
+                            transitionDuration: "220ms",
+                          },
+                          "& .MuiSwitch-switchBase.Mui-checked": {
+                            transform: "translateX(20px)",
+                            color: "#FFFFFF",
+                          },
+                          "& .MuiSwitch-thumb": {
+                            boxShadow: "0 1px 2px rgba(15,23,42,0.35)",
+                            width: 18,
+                            height: 18,
+                          },
+                          "& .MuiSwitch-track": {
+                            borderRadius: "999px",
+                            backgroundColor: "#CBD5E1",
+                            opacity: 1,
+                            transition: "background-color 220ms ease",
+                          },
+                          "& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track": {
+                            backgroundColor: "#00028B",
+                            opacity: 1,
+                          },
                         }}
                       />
                       {row.enabled ? (
@@ -1237,50 +1120,6 @@ export default function ShopDetails() {
                       )}
                     </Box>
                   ))}
-                </Box>
-              </Paper>
-
-              <Paper sx={CARD_SX}>
-                <Box sx={{ px: 2.5, py: 1.8, borderBottom: "1px solid #F1F5F9" }}>
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                    <Box sx={{ width: 8, height: 8, borderRadius: "50%", bgcolor: "#10B981" }} />
-                    <Typography sx={{ fontSize: 12, fontWeight: 700, color: "#64748B", textTransform: "uppercase", letterSpacing: "0.08em" }}>
-                      Services & Pricing
-                    </Typography>
-                  </Box>
-                </Box>
-                <Box sx={{ p: 2.5, display: "flex", flexDirection: "column", rowGap: 1.2 }}>
-                  {serviceRows.map((row, idx) => (
-                    <Box key={`${row.name}-${idx}`} sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "1.2fr 120px 120px 120px 40px" }, gap: 1 }}>
-                      <TextField size="small" value={row.name} onChange={(e) => handleServiceRowChange(idx, "name", e.target.value)} />
-                      <TextField size="small" value={row.turnaround} onChange={(e) => handleServiceRowChange(idx, "turnaround", e.target.value)} />
-                      <TextField size="small" value={row.fee} onChange={(e) => handleServiceRowChange(idx, "fee", e.target.value)} />
-                      <TextField select size="small" value={row.status} onChange={(e) => handleServiceRowChange(idx, "status", e.target.value)}>
-                        <MenuItem value="active">Active</MenuItem>
-                        <MenuItem value="inactive">Inactive</MenuItem>
-                      </TextField>
-                      <Button
-                        variant="text"
-                        size="small"
-                        onClick={() => setServiceRows((prev) => prev.filter((_, i) => i !== idx))}
-                        sx={{ minWidth: 0, color: "#DC2626" }}
-                      >
-                        x
-                      </Button>
-                    </Box>
-                  ))}
-                  <Button
-                    variant="text"
-                    onClick={() =>
-                      setServiceRows((prev) => [
-                        ...prev,
-                        { name: "New Service", turnaround: "24h", fee: "0.00", status: "active" },
-                      ])
-                    }
-                    sx={{ justifyContent: "flex-start", textTransform: "none", color: "#00028B", px: 0.5 }}
-                  >
-                    + Add Service Row
-                  </Button>
                 </Box>
               </Paper>
 
@@ -1508,7 +1347,7 @@ export default function ShopDetails() {
           </Box>
         )}
 
-        {activeTab !== "overview" && activeTab !== "orders" && activeTab !== "services" && activeTab !== "staff" && activeTab !== "settings" && (
+        {activeTab !== "overview" && activeTab !== "orders" && activeTab !== "staff" && activeTab !== "settings" && (
           <Paper sx={{ ...CARD_SX, p: 3 }}>
             <Typography sx={{ fontSize: 16, fontWeight: 600, color: "#0F172A" }}>
               {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} section

@@ -120,6 +120,14 @@ export const api = createApi({
       }),
     }),
 
+    editCategory: builder.mutation({
+      query: ({ categoryId, body }) => ({
+        url: `admin/editCategories/${categoryId}`,
+        method: "PATCH",
+        body,
+      }),
+    }),
+
     deleteCategory: builder.mutation({
       query: (deletedId) => ({
         url: `admin/deleteCategories/${deletedId}`,
@@ -474,6 +482,13 @@ export const api = createApi({
         url: `admin/editZoneByPostcodes/${id}`,
         method: "PUT",
         body,
+      }),
+    }),
+
+    deleteZone: builder.mutation({
+      query: (zoneId) => ({
+        url: `admin/delete-zone?zoneId=${zoneId}`,
+        method: "DELETE",
       }),
     }),
 
@@ -895,6 +910,7 @@ export const {
   useAddPreferenceMutation,
   useAddPreferenceValueMutation,
   useAddCategoryMutation,
+  useEditCategoryMutation,
   useAddSubCategoryMutation,
   useDeleteServiceMutation,
   useDeletePreferenceMutation,
@@ -958,6 +974,7 @@ export const {
   useAddZoneMutation,
   useAddZoneByPostcodesMutation,
   useEditZoneByPostcodesMutation,
+  useDeleteZoneMutation,
   useUpdateDriverMutation,
   useAddDriverByLaundryShopMutation,
   useGetAllDriverMiniDetailsQuery,

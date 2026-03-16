@@ -13,9 +13,8 @@ import {
   useGetFeaturesQuery,
 } from "../../store/services/api";
 
-const ACTION_OPTIONS = ["view", "create", "edit", "update", "delete", "manage"];
-const PERMISSION_TYPES = ["create", "edit", "update", "delete"];
-const DEFAULT_FEATURE_OF = "AdminEmployee";
+const ACTION_OPTIONS = ["create", "read", "update", "delete"];
+const DEFAULT_FEATURE_OF = "Agent Employee";
 
 const pretty = (value = "") =>
   String(value)
@@ -24,20 +23,23 @@ const pretty = (value = "") =>
     .trim()
     .replace(/\b\w/g, (m) => m.toUpperCase());
 
-const toSnake = (value = "") =>
-  String(value)
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, "_")
-    .replace(/[^a-z0-9_]/g, "");
+const toFeatureKey = (value = "") => {
+  const cleaned = String(value).replace(/[^a-zA-Z0-9\s]/g, " ").trim();
+  if (!cleaned) return "";
 
-const toPascal = (value = "") =>
-  String(value)
-    .replace(/[_-]/g, " ")
-    .split(/\s+/)
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+  const parts = cleaned.split(/\s+/).filter(Boolean);
+  if (parts.length === 1) {
+    const token = parts[0];
+    return token.charAt(0).toLowerCase() + token.slice(1);
+  }
+
+  return parts
+    .map((part, idx) => {
+      const lower = part.toLowerCase();
+      return idx === 0 ? lower : lower.charAt(0).toUpperCase() + lower.slice(1);
+    })
     .join("");
+};
 
 const extractList = (payload, keys = []) => {
   const source = payload?.data ?? payload;
@@ -53,41 +55,20 @@ const extractList = (payload, keys = []) => {
   return [];
 };
 
-const normalizeFeatureOptions = (featuresResponse, rolesResponse) => {
-  const features = extractList(featuresResponse, ["features", "permissions", "items", "rows"]);
+const normalizeFeatureOptions = (featuresResponse) => {
+  const features = extractList(featuresResponse, [
+    "features",
+    "permissions",
+    "items",
+    "rows",
+  ]);
   if (features.length) {
     return features.map((item, idx) => ({
       id: item?.id ?? item?.featureId ?? item?.permissionId ?? idx + 1,
       title: item?.title ?? item?.name ?? item?.key ?? `Feature ${idx + 1}`,
     }));
   }
-
-  const roles = extractList(rolesResponse, ["roles", "items", "rows"]);
-  const fromRoles = [];
-  roles.forEach((role) => {
-    const permissionRoles = Array.isArray(role?.permissionRole) ? role.permissionRole : [];
-    permissionRoles.forEach((entry) => {
-      if (!entry?.id) return;
-      fromRoles.push({
-        id: entry.id,
-        title:
-          entry?.feature?.title ??
-          entry?.featureTitle ??
-          entry?.name ??
-          `Permission ${entry.id}`,
-      });
-    });
-  });
-
-  const seen = new Set();
-  const deduped = fromRoles.filter((item) => {
-    const key = String(item.id);
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
-
-  return deduped;
+  return [];
 };
 
 export default function RolePermission() {
@@ -98,18 +79,12 @@ export default function RolePermission() {
   const [addLaundryRole, { isLoading: isAddingRole }] = useAddLaundryRoleMutation();
 
   const roles = useMemo(() => extractList(rolesRes, ["roles", "items", "rows"]), [rolesRes]);
-  const permissionOptions = useMemo(
-    () => normalizeFeatureOptions(featuresRes, rolesRes),
-    [featuresRes, rolesRes]
-  );
+  const permissionOptions = useMemo(() => normalizeFeatureOptions(featuresRes), [featuresRes]);
 
   const [permissionModal, setPermissionModal] = useState(false);
   const [roleModal, setRoleModal] = useState(false);
 
   const [permissionName, setPermissionName] = useState("");
-  const [permissionTypes, setPermissionTypes] = useState(
-    PERMISSION_TYPES.reduce((acc, type) => ({ ...acc, [type]: false }), {})
-  );
 
   const [roleName, setRoleName] = useState("");
   const [roleSelections, setRoleSelections] = useState({});
@@ -128,10 +103,6 @@ export default function RolePermission() {
     });
   }, [permissionOptions]);
 
-  const handlePermissionTypeToggle = (key) => {
-    setPermissionTypes((prev) => ({ ...prev, [key]: !prev[key] }));
-  };
-
   const handleRoleActionToggle = (featureId, action) => {
     const key = String(featureId);
     setRoleSelections((prev) => ({
@@ -146,7 +117,6 @@ export default function RolePermission() {
   const closePermissionModal = () => {
     setPermissionModal(false);
     setPermissionName("");
-    setPermissionTypes(PERMISSION_TYPES.reduce((acc, type) => ({ ...acc, [type]: false }), {}));
   };
 
   const closeRoleModal = () => {
@@ -165,25 +135,21 @@ export default function RolePermission() {
     const name = permissionName.trim();
     if (!name) return error("Permission name is required.");
 
-    const selectedTypes = PERMISSION_TYPES.filter((type) => permissionTypes[type]);
-    if (!selectedTypes.length) return error("Select at least one permission type.");
+    const normalized = toFeatureKey(name);
+    if (!normalized) return error("Permission name is invalid.");
 
     try {
-      await Promise.all(
-        selectedTypes.map((type) =>
-          addFeature({
-            title: `${toPascal(name)}${toPascal(type)}`,
-            status: true,
-            featureOf: DEFAULT_FEATURE_OF,
-            key: `${toSnake(name)}_${type}`,
-          }).unwrap()
-        )
-      );
-      success("Permission(s) added successfully.");
+      await addFeature({
+        title: normalized,
+        status: true,
+        featureOf: DEFAULT_FEATURE_OF,
+        key: normalized,
+      }).unwrap();
+      success("Feature added successfully.");
       closePermissionModal();
       refetchFeatures();
     } catch (err) {
-      error(err?.data?.message ?? "Failed to add permission.");
+      error(err?.data?.message ?? "Failed to add feature.");
     }
   };
 
@@ -197,21 +163,13 @@ export default function RolePermission() {
         const hasAny = ACTION_OPTIONS.some((action) => actions[action]);
         if (!hasAny) return null;
 
-        const read = Boolean(actions.view);
-        const update = Boolean(actions.update || actions.edit);
-        const write = Boolean(
-          actions.create || actions.edit || actions.update || actions.delete || actions.manage
-        );
-
         return {
           id: Number(feature.id),
           permissions: {
             create: Boolean(actions.create),
-            read,
-            update,
+            read: Boolean(actions.read),
+            update: Boolean(actions.update),
             delete: Boolean(actions.delete),
-            write,
-            manage: Boolean(actions.manage),
           },
         };
       })
@@ -306,36 +264,15 @@ export default function RolePermission() {
       >
         <Box className="!space-y-6">
           <Typography variant="body1" color="grey.400">
-            Define permission and select allowed actions
+            Add feature first to use it in roles.
           </Typography>
 
           <InputFieldModal
             title="Permission Name"
-            placeholder="Enter full name"
+            placeholder="e.g. serviceManagement"
             value={permissionName}
             onChange={(e) => setPermissionName(e.target.value)}
           />
-
-          <Box className="!space-y-3">
-            <Typography variant="h5" fontFamily="Switzer" color="grey.20">
-              Permission Types
-            </Typography>
-            <Typography variant="body2" color="grey.400">
-              Select the permission for this role.
-            </Typography>
-
-            <Box className="!space-y-3">
-              {PERMISSION_TYPES.map((type) => (
-                <Box key={type} className="flex items-center gap-2">
-                  <StyledCheckbox
-                    checked={Boolean(permissionTypes[type])}
-                    onChange={() => handlePermissionTypeToggle(type)}
-                  />
-                  <Typography variant="body1">{pretty(type)}</Typography>
-                </Box>
-              ))}
-            </Box>
-          </Box>
         </Box>
       </ModalComponent>
 
