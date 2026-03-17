@@ -1,5 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
-import { Box, Button, Typography } from "@mui/material";
+import {
+  Box,
+  Button,
+  Typography,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Paper,
+  Chip,
+} from "@mui/material";
 import { RiUserSettingsLine } from "../../shared/icons/index";
 import ModalComponent from "../../components/shared/Modal";
 import InputFieldModal from "../../components/ui/InputFieldModal";
@@ -11,6 +23,7 @@ import {
   useAddLaundryRoleMutation,
   useGetAllRolesQuery,
   useGetFeaturesQuery,
+  useUpdateRoleMutation,
 } from "../../store/services/api";
 
 const ACTION_OPTIONS = ["create", "read", "update", "delete"];
@@ -77,16 +90,20 @@ export default function RolePermission() {
   const { data: featuresRes, refetch: refetchFeatures } = useGetFeaturesQuery();
   const [addFeature, { isLoading: isAddingFeature }] = useAddFeatureMutation();
   const [addLaundryRole, { isLoading: isAddingRole }] = useAddLaundryRoleMutation();
+  const [updateRole, { isLoading: isUpdatingRole }] = useUpdateRoleMutation();
 
   const roles = useMemo(() => extractList(rolesRes, ["roles", "items", "rows"]), [rolesRes]);
   const permissionOptions = useMemo(() => normalizeFeatureOptions(featuresRes), [featuresRes]);
 
   const [permissionModal, setPermissionModal] = useState(false);
   const [roleModal, setRoleModal] = useState(false);
+  const [isEditRoleMode, setIsEditRoleMode] = useState(false);
+  const [editingRoleId, setEditingRoleId] = useState(null);
 
   const [permissionName, setPermissionName] = useState("");
 
   const [roleName, setRoleName] = useState("");
+  const [roleStatus, setRoleStatus] = useState(true);
   const [roleSelections, setRoleSelections] = useState({});
 
   useEffect(() => {
@@ -121,7 +138,10 @@ export default function RolePermission() {
 
   const closeRoleModal = () => {
     setRoleModal(false);
+    setIsEditRoleMode(false);
+    setEditingRoleId(null);
     setRoleName("");
+    setRoleStatus(true);
     setRoleSelections((prev) => {
       const reset = {};
       Object.keys(prev).forEach((id) => {
@@ -175,16 +195,62 @@ export default function RolePermission() {
       })
       .filter(Boolean);
 
-    if (!permissionRole.length) return error("Select at least one permission.");
+    if (!isEditRoleMode && !permissionRole.length) {
+      return error("Select at least one permission.");
+    }
 
     try {
-      await addLaundryRole({ name, permissionRole }).unwrap();
-      success("Role added successfully.");
+      if (isEditRoleMode) {
+        await updateRole({
+          id: editingRoleId,
+          name,
+          status: roleStatus,
+          permissionRole,
+        }).unwrap();
+        success("Role updated successfully.");
+      } else {
+        await addLaundryRole({ name, permissionRole }).unwrap();
+        success("Role added successfully.");
+      }
       closeRoleModal();
       refetchRoles();
     } catch (err) {
-      error(err?.data?.message ?? "Failed to add role.");
+      error(err?.data?.message ?? (isEditRoleMode ? "Failed to update role." : "Failed to add role."));
     }
+  };
+
+  const openEditRoleModal = (role) => {
+    const roleId = role?.id;
+    if (!roleId) return;
+
+    setIsEditRoleMode(true);
+    setEditingRoleId(roleId);
+    setRoleName(role?.name || "");
+    setRoleStatus(Boolean(role?.status));
+
+    const next = {};
+    permissionOptions.forEach((feature) => {
+      next[String(feature.id)] = ACTION_OPTIONS.reduce(
+        (acc, action) => ({ ...acc, [action]: false }),
+        {}
+      );
+    });
+
+    const existingPermissions = Array.isArray(role?.permissionRole) ? role.permissionRole : [];
+    existingPermissions.forEach((entry) => {
+      const key = String(entry?.id);
+      if (!next[key]) return;
+      const perms = entry?.permissions || {};
+      next[key] = {
+        create: Boolean(perms.create),
+        read: Boolean(perms.read),
+        update: Boolean(perms.update),
+        delete: Boolean(perms.delete),
+      };
+    });
+
+    setRoleSelections(next);
+    setRoleModal(true);
   };
 
   if (isRolesLoading) return <Delay />;
@@ -211,7 +277,13 @@ export default function RolePermission() {
           </Button>
           <Button
             variant="contained"
-            onClick={() => setRoleModal(true)}
+            onClick={() => {
+              setIsEditRoleMode(false);
+              setEditingRoleId(null);
+              setRoleStatus(true);
+              setRoleName("");
+              setRoleModal(true);
+            }}
             sx={{ textTransform: "none", borderRadius: "999px", bgcolor: "#2176d2" }}
           >
             Add Role
@@ -229,21 +301,68 @@ export default function RolePermission() {
             No roles found.
           </Typography>
         ) : (
-          <Box className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {roles.map((role) => (
-              <Box
-                key={role?.id ?? role?.name}
-                className="rounded-lg border border-[#E5E7EB] !p-4 !space-y-2"
-              >
-                <Typography variant="body1" fontFamily="Switzer" color="grey.20">
-                  {role?.name ?? `Role ${role?.id}`}
-                </Typography>
-                <Typography variant="caption" color="grey.400">
-                  ID: {role?.id ?? "-"}
-                </Typography>
-              </Box>
-            ))}
-          </Box>
+          <TableContainer component={Paper} elevation={0} sx={{ border: "1px solid #E5E7EB", borderRadius: "12px" }}>
+            <Table size="small">
+              <TableHead>
+                <TableRow sx={{ bgcolor: "#F8FAFC" }}>
+                  {["ID", "Role Name", "Status", "Created At", "Updated At", "Actions"].map((header) => (
+                    <TableCell
+                      key={header}
+                      sx={{
+                        fontSize: 11,
+                        fontWeight: 700,
+                        color: "#94A3B8",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.06em",
+                        borderBottom: "1px solid #E2E8F0",
+                      }}
+                    >
+                      {header}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {roles.map((role) => (
+                  <TableRow key={role?.id ?? role?.name} hover>
+                    <TableCell sx={{ fontSize: 13, fontWeight: 700, color: "#1E293B" }}>
+                      {role?.id ?? "-"}
+                    </TableCell>
+                    <TableCell sx={{ fontSize: 13, color: "#334155" }}>
+                      {role?.name ?? `Role ${role?.id ?? ""}`}
+                    </TableCell>
+                    <TableCell>
+                      <Chip
+                        size="small"
+                        label={role?.status ? "Active" : "Inactive"}
+                        sx={{
+                          fontSize: 11,
+                          fontWeight: 700,
+                          bgcolor: role?.status ? "#DCFCE7" : "#F1F5F9",
+                          color: role?.status ? "#15803D" : "#64748B",
+                        }}
+                      />
+                    </TableCell>
+                    <TableCell sx={{ fontSize: 12, color: "#64748B" }}>
+                      {role?.createdAt ? new Date(role.createdAt).toLocaleString() : "-"}
+                    </TableCell>
+                    <TableCell sx={{ fontSize: 12, color: "#64748B" }}>
+                      {role?.updatedAt ? new Date(role.updatedAt).toLocaleString() : "-"}
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        size="small"
+                        onClick={() => openEditRoleModal(role)}
+                        sx={{ textTransform: "none", minWidth: 0 }}
+                      >
+                        Edit
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
         )}
       </Box>
 
@@ -279,12 +398,12 @@ export default function RolePermission() {
       <ModalComponent
         open={roleModal}
         onClose={closeRoleModal}
-        title="Create New Role"
+        title={isEditRoleMode ? "Update Role" : "Create New Role"}
         width={680}
         primaryAction={{
-          label: "Add Role",
+          label: isEditRoleMode ? "Update Role" : "Add Role",
           onClick: submitRole,
-          isLoading: isAddingRole,
+          isLoading: isAddingRole || isUpdatingRole,
         }}
         secondaryAction={{
           label: "Cancel",
@@ -293,7 +412,9 @@ export default function RolePermission() {
       >
         <Box className="!space-y-6">
           <Typography variant="body1" color="grey.400">
-            Define a new role and assign permission.
+            {isEditRoleMode
+              ? "Update role details and permissions."
+              : "Define a new role and assign permission."}
           </Typography>
 
           <InputFieldModal
@@ -302,6 +423,13 @@ export default function RolePermission() {
             value={roleName}
             onChange={(e) => setRoleName(e.target.value)}
           />
+
+          <Box className="flex items-center justify-between rounded-lg border border-[#E5E7EB] !px-3 !py-2.5">
+            <Typography variant="body2" color="grey.20">
+              Role Status
+            </Typography>
+            <StyledCheckbox checked={roleStatus} onChange={() => setRoleStatus((prev) => !prev)} />
+          </Box>
 
           <Box className="!space-y-4">
             <Typography variant="h5" fontFamily="Switzer" color="grey.20">

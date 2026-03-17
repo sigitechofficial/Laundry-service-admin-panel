@@ -701,7 +701,9 @@ export default function CancellationPolicy() {
       })(),
       unprocessedAbsoluteAmount: config.unprocessedAbsoluteAmount?.toString() || "",
       unprocessedPercentage: config.unprocessedPercentage?.toString() || "",
-      unprocessedAfterPickupMinutes: config.unprocessedAfterPickupMinutes?.toString() || "",
+      unprocessedAfterPickupMinutes: config.unprocessedAfterPickupMinutes
+        ? (Number(config.unprocessedAfterPickupMinutes) / 60).toString()
+        : "",
       unprocessedOrderValuePercentage: config.unprocessedOrderValuePercentage?.toString() || "",
       allowCancelUnprocessed: config.allowCancelUnprocessed ?? true,
       courtesyWindowDays: config.courtesyWindowDays?.toString() || "",
@@ -781,7 +783,9 @@ export default function CancellationPolicy() {
         unprocessedAbsoluteCurrency: data.currency,
         unprocessedAbsoluteAmount: unprocessedAbsoluteAmount,
         unprocessedPercentage: unprocessedPercentage,
-        unprocessedAfterPickupMinutes: data.unprocessedAfterPickupMinutes ? parseInt(data.unprocessedAfterPickupMinutes) : 0,
+        unprocessedAfterPickupMinutes: data.unprocessedAfterPickupMinutes
+          ? Math.round(parseFloat(data.unprocessedAfterPickupMinutes) * 60)
+          : 0,
         unprocessedOrderValuePercentage: data.unprocessedOrderValuePercentage ? parseFloat(data.unprocessedOrderValuePercentage) : 0,
         allowCancelUnprocessed: data.allowCancelUnprocessed,
         courtesyWindowDays: data.courtesyWindowDays ? parseInt(data.courtesyWindowDays) : 0,
@@ -1421,12 +1425,12 @@ export default function CancellationPolicy() {
                       control={control}
                       render={({ field: { onChange, value } }) => (
                         <InputFieldModal
-                          title="After Pickup (Minutes)"
-                          placeholder="Enter minutes"
+                          title="After Pickup (Hours)"
+                          placeholder="Enter hours"
                           type="number"
                           value={value || ""}
                           onChange={(e) => onChange(e.target.value)}
-                          tooltipText="Time window in minutes after pickup where cancellations are allowed. Cancellations after this window may have different charges or restrictions."
+                          tooltipText="Time window in hours after pickup where cancellations are allowed. This value is converted to minutes before saving."
                         />
                       )}
                     />

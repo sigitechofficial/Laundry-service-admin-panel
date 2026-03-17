@@ -602,6 +602,14 @@ export const api = createApi({
       }),
     }),
 
+    updateRole: builder.mutation({
+      query: (body) => ({
+        url: "admin/updateRoles",
+        method: "PUT",
+        body,
+      }),
+    }),
+
     addAdminEmployee: builder.mutation({
       query: (body) => ({
         url: "admin/adinEmployeeAdd",
@@ -951,6 +959,7 @@ export const {
   useGetFeaturesQuery,
   useAddFeatureMutation,
   useAddLaundryRoleMutation,
+  useUpdateRoleMutation,
   useAddAdminEmployeeMutation,
   useAddAgentEmployeeMutation,
   useUpdateAgentEmployeeMutation,
