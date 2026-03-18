@@ -7,6 +7,12 @@ export const api = createApi({
   tagTypes: ["ServiceConfig"],
 
   endpoints: (builder) => ({
+    // Report query helper
+    // Supported params:
+    // period=today|this_week|this_month|all|custom
+    // startDate/endDate when period=custom
+    // zoneId, search, page, limit
+    // eslint-disable-next-line no-unused-vars
     adminLogin: builder.mutation({
       query: (body) => ({
         url: "admin/adminSignIn",
@@ -610,6 +616,133 @@ export const api = createApi({
       }),
     }),
 
+    reportsTopServices: builder.query({
+      query: (params = {}) => {
+        const q = new URLSearchParams();
+        if (params.period) q.append("period", params.period);
+        if (params.period === "custom" && params.startDate) q.append("startDate", params.startDate);
+        if (params.period === "custom" && params.endDate) q.append("endDate", params.endDate);
+        if (params.zoneId) q.append("zoneId", params.zoneId);
+        if (params.search) q.append("search", params.search);
+        if (params.page) q.append("page", params.page);
+        if (params.limit) q.append("limit", params.limit);
+        const queryString = q.toString();
+        return {
+          url: queryString ? `admin/reports/top-services?${queryString}` : "admin/reports/top-services",
+          method: "GET",
+        };
+      },
+    }),
+
+    reportsHourly: builder.query({
+      query: (params = {}) => {
+        const q = new URLSearchParams();
+        if (params.period) q.append("period", params.period);
+        if (params.period === "custom" && params.startDate) q.append("startDate", params.startDate);
+        if (params.period === "custom" && params.endDate) q.append("endDate", params.endDate);
+        const queryString = q.toString();
+        return {
+          url: queryString ? `admin/reports/hourly?${queryString}` : "admin/reports/hourly",
+          method: "GET",
+        };
+      },
+    }),
+
+    reportsOnHold: builder.query({
+      query: (params = {}) => {
+        const q = new URLSearchParams();
+        if (params.period) q.append("period", params.period);
+        if (params.period === "custom" && params.startDate) q.append("startDate", params.startDate);
+        if (params.period === "custom" && params.endDate) q.append("endDate", params.endDate);
+        if (params.zoneId) q.append("zoneId", params.zoneId);
+        if (params.search) q.append("search", params.search);
+        if (params.page) q.append("page", params.page);
+        if (params.limit) q.append("limit", params.limit);
+        const queryString = q.toString();
+        return {
+          url: queryString ? `admin/reports/on-hold?${queryString}` : "admin/reports/on-hold",
+          method: "GET",
+        };
+      },
+    }),
+
+    reportsServiceDemand: builder.query({
+      query: (params = {}) => {
+        const q = new URLSearchParams();
+        if (params.period) q.append("period", params.period);
+        if (params.period === "custom" && params.startDate) q.append("startDate", params.startDate);
+        if (params.period === "custom" && params.endDate) q.append("endDate", params.endDate);
+        const queryString = q.toString();
+        return {
+          url: queryString ? `admin/reports/service-demand?${queryString}` : "admin/reports/service-demand",
+          method: "GET",
+        };
+      },
+    }),
+
+    reportsTopShops: builder.query({
+      query: (params = {}) => {
+        const q = new URLSearchParams();
+        if (params.period) q.append("period", params.period);
+        if (params.period === "custom" && params.startDate) q.append("startDate", params.startDate);
+        if (params.period === "custom" && params.endDate) q.append("endDate", params.endDate);
+        const queryString = q.toString();
+        return {
+          url: queryString ? `admin/reports/top-shops?${queryString}` : "admin/reports/top-shops",
+          method: "GET",
+        };
+      },
+    }),
+
+    reportsDailyEarnings: builder.query({
+      query: (params = {}) => {
+        const q = new URLSearchParams();
+        if (params.period) q.append("period", params.period);
+        if (params.period === "custom" && params.startDate) q.append("startDate", params.startDate);
+        if (params.period === "custom" && params.endDate) q.append("endDate", params.endDate);
+        if (params.zoneId) q.append("zoneId", params.zoneId);
+        const queryString = q.toString();
+        return {
+          url: queryString ? `admin/reports/daily-earnings?${queryString}` : "admin/reports/daily-earnings",
+          method: "GET",
+        };
+      },
+    }),
+
+    reportsDailyEarningsByZone: builder.query({
+      query: (params = {}) => {
+        const q = new URLSearchParams();
+        if (params.period) q.append("period", params.period);
+        if (params.period === "custom" && params.startDate) q.append("startDate", params.startDate);
+        if (params.period === "custom" && params.endDate) q.append("endDate", params.endDate);
+        if (params.zoneId) q.append("zoneId", params.zoneId);
+        const queryString = q.toString();
+        return {
+          url: queryString
+            ? `admin/reports/daily-earnings/zone?${queryString}`
+            : "admin/reports/daily-earnings/zone",
+          method: "GET",
+        };
+      },
+    }),
+
+    reportsDailyEarningsByShop: builder.query({
+      query: (params = {}) => {
+        const q = new URLSearchParams();
+        if (params.period) q.append("period", params.period);
+        if (params.period === "custom" && params.startDate) q.append("startDate", params.startDate);
+        if (params.period === "custom" && params.endDate) q.append("endDate", params.endDate);
+        if (params.zoneId) q.append("zoneId", params.zoneId);
+        const queryString = q.toString();
+        return {
+          url: queryString
+            ? `admin/reports/daily-earnings/shop?${queryString}`
+            : "admin/reports/daily-earnings/shop",
+          method: "GET",
+        };
+      },
+    }),
+
     addAdminEmployee: builder.mutation({
       query: (body) => ({
         url: "admin/adinEmployeeAdd",
@@ -960,6 +1093,14 @@ export const {
   useAddFeatureMutation,
   useAddLaundryRoleMutation,
   useUpdateRoleMutation,
+  useReportsTopServicesQuery,
+  useReportsHourlyQuery,
+  useReportsOnHoldQuery,
+  useReportsServiceDemandQuery,
+  useReportsTopShopsQuery,
+  useReportsDailyEarningsQuery,
+  useReportsDailyEarningsByZoneQuery,
+  useReportsDailyEarningsByShopQuery,
   useAddAdminEmployeeMutation,
   useAddAgentEmployeeMutation,
   useUpdateAgentEmployeeMutation,

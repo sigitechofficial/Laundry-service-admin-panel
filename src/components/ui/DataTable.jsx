@@ -34,6 +34,11 @@ const DataTable = ({
   showDateRange = true,
   showDownload = true,
   height = 600,
+  searchValue,
+  onSearchChange,
+  dateRangeValue,
+  onDateRangeChange,
+  onDownload,
   // Server-side pagination props
   serverSidePagination = false,
   totalRows = 0,
@@ -62,8 +67,21 @@ const DataTable = ({
     setPageSize(externalPageSize);
   }, [externalPageSize]);
 
+  React.useEffect(() => {
+    if (searchValue !== undefined) {
+      setSearchTerm(searchValue);
+    }
+  }, [searchValue]);
+
+  React.useEffect(() => {
+    if (dateRangeValue !== undefined) {
+      setDateRange(dateRangeValue);
+    }
+  }, [dateRangeValue]);
+
   // filtering
   const filteredData = useMemo(() => {
+    if (serverSidePagination) return data;
     if (!searchTerm) return data;
 
     return data.filter((row) =>
@@ -71,7 +89,7 @@ const DataTable = ({
         String(field).toLowerCase().includes(searchTerm.toLowerCase())
       )
     );
-  }, [data, searchTerm]);
+  }, [data, searchTerm, serverSidePagination]);
 
   // 🔹 Sorting logic
   const sortedData = React.useMemo(() => {
@@ -136,7 +154,11 @@ const DataTable = ({
               boxShadow="none"
               placeholder={searchPlaceholder}
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => {
+                const next = e.target.value;
+                setSearchTerm(next);
+                if (onSearchChange) onSearchChange(next);
+              }}
               startAdornment={<TbSearch size="20px" color="#9CA3AF" />}
             />
           </Box>
@@ -158,7 +180,10 @@ const DataTable = ({
                 border="none"
                 boxShadow="none"
                 value={dateRange}
-                onChange={setDateRange}
+                onChange={(nextRange) => {
+                  setDateRange(nextRange);
+                  if (onDateRangeChange) onDateRangeChange(nextRange);
+                }}
                 placeholder="Select Range"
               />
             )}
@@ -169,6 +194,9 @@ const DataTable = ({
                 boxShadow="none"
                 text="Download"
                 Icon={<TbFileDownload size="20px" color="#9CA3AF" />}
+                onClick={() => {
+                  if (onDownload) onDownload(data);
+                }}
               />
             )}
           </Box>
@@ -316,7 +344,7 @@ const DataTable = ({
           }}
         >
           <Typography sx={{ fontSize: "14px", color: "#6B7280" }}>
-            {startIndex + 1} - {endIndex} of {totalRows}
+            {displayTotalRows === 0 ? 0 : startIndex + 1} - {endIndex} of {displayTotalRows}
           </Typography>
 
           <Stack spacing={2}>

@@ -1,81 +1,90 @@
 import { useState } from "react";
 import SelectField from "../../components/ui/SelectField";
 
-export default function DashboardFilter() {
+const DEFAULT_PERIOD_OPTIONS = [
+  { value: "all", label: "All Time" },
+  { value: "today", label: "Today" },
+  { value: "this_week", label: "This Week" },
+  { value: "this_month", label: "This Month" },
+  { value: "custom", label: "Custom" },
+];
+
+export default function DashboardFilter({
+  value,
+  onChange,
+  zoneOptions = [],
+  cityOptions = [],
+  countryOptions = [],
+  periodOptions = DEFAULT_PERIOD_OPTIONS,
+}) {
   const [selectedFilters, setSelectedFilters] = useState({
-    zone: "",
-    city: "",
-    country: "",
-    time: "",
+    zoneId: "",
+    cityId: "",
+    countryId: "",
+    period: "all",
   });
+  const state = value || selectedFilters;
 
   const handleFilterChange = (e) => {
+    const next = {
+      ...state,
+      [e.target.name]: e.target.value,
+    };
     setSelectedFilters((prev) => ({
       ...prev,
       [e.target.name]: e.target.value,
     }));
+    if (onChange) onChange(next);
   };
 
   return (
     <div className="flex items-center gap-4">
       <SelectField
         onChange={(e) => handleFilterChange(e)}
-        options={[
-          { value: "admin", label: "Admin" },
-          { value: "manager", label: "Manager" },
-        ]}
-        value={selectedFilters.zone}
+        options={zoneOptions}
+        value={state.zoneId || ""}
         placeholder="Zone"
         width={"120px"}
         radius="4px"
         height="44px"
         bgcolor={"white"}
-        name="zone"
+        name="zoneId"
       />
 
       <SelectField
         onChange={(e) => handleFilterChange(e)}
-        options={[
-          { value: "admin", label: "Admin" },
-          { value: "manager", label: "Manager" },
-        ]}
-        value={selectedFilters.zone}
+        options={cityOptions}
+        value={state.cityId || ""}
         placeholder="City"
         width={"120px"}
         radius="4px"
         height="44px"
         bgcolor={"white"}
-        name="zone"
+        name="cityId"
       />
 
       <SelectField
         onChange={(e) => handleFilterChange(e)}
-        options={[
-          { value: "admin", label: "Admin" },
-          { value: "manager", label: "Manager" },
-        ]}
-        value={selectedFilters.zone}
+        options={countryOptions}
+        value={state.countryId || ""}
         placeholder="Country"
         width={"120px"}
         radius="4px"
         height="44px"
         bgcolor={"white"}
-        name="zone"
+        name="countryId"
       />
 
       <SelectField
         onChange={(e) => handleFilterChange(e)}
-        options={[
-          { value: "admin", label: "Admin" },
-          { value: "manager", label: "Manager" },
-        ]}
-        value={selectedFilters.zone}
+        options={periodOptions}
+        value={state.period || "all"}
         placeholder="All Time"
         width={"120px"}
         radius="4px"
         height="44px"
         bgcolor={"white"}
-        name="zone"
+        name="period"
       />
     </div>
   );

@@ -13,7 +13,6 @@ import {
 } from "../../store/services/api";
 import { useSelector } from "react-redux";
 import { Delay } from "../../components/shared/Loaders";
-import DashboardFilter from "../dashboard/DashboardFilter";
 import { dateTimeFormat } from "../../shared/constants";
 
 export default function Reports() {
@@ -140,9 +139,6 @@ export default function Reports() {
                 </Typography>
               </Box>
 
-              <div>
-                <DashboardFilter />
-              </div>
             </Box>
 
             <div className="w-full overflow-auto">

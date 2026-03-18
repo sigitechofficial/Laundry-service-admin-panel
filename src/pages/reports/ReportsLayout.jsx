@@ -47,6 +47,8 @@ export default function ReportsLayout() {
     navigate(REPORT_TABS[newValue].path, { replace: true });
   };
 
+  const ActivePanel = REPORT_PANELS[activeTab];
+
   return (
     <div className="!space-y-11">
       <Box className="flex items-center gap-x-5 justify-between">
@@ -76,16 +78,7 @@ export default function ReportsLayout() {
         ))}
       </Tabs>
 
-      <Box>
-        {REPORT_PANELS.map((Panel, index) => (
-          <Box
-            key={REPORT_TABS[index].path}
-            sx={{ display: activeTab === index ? "block" : "none" }}
-          >
-            <Panel />
-          </Box>
-        ))}
-      </Box>
+      <Box>{ActivePanel ? <ActivePanel /> : null}</Box>
     </div>
   );
 }
