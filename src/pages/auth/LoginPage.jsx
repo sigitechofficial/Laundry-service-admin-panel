@@ -89,9 +89,8 @@ export default function LoginPage() {
   return (
     <Box className="w-full h-full min-h-screen bg-blue100 flex justify-center items-center relative overflow-hidden">
       <Box
-        className={`w-full  ${
-          role ? "max-w-[850px]" : "max-w-[939px]"
-        } min-h-[500px] bg-white rounded-xl flex flex-col items-center !py-9 gap-y-12 transition-all duration-300 relative z-10`}
+        className={`w-full  ${role ? "max-w-[850px]" : "max-w-[939px]"
+          } min-h-[500px] bg-white rounded-xl flex flex-col items-center !py-9 gap-y-12 transition-all duration-300 relative z-10`}
       >
         <Box pt={"8px"}>
           <img
@@ -117,7 +116,7 @@ export default function LoginPage() {
             >
               <img src="/images/zoneAdmin.png" alt="" />
 
-              <Typography variant="h5">Login as Zone manager</Typography>
+              <Typography variant="h5">Login as Zone manager  new login</Typography>
             </Box>
           </div>
         ) : (
@@ -128,7 +127,7 @@ export default function LoginPage() {
             {/* Email */}
             <div className="flex flex-col gap-y-3">
               <label htmlFor="email" className="text-grey40">
-              Email
+                Email
               </label>
 
               <input
