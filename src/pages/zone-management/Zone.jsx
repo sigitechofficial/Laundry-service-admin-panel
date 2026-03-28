@@ -702,9 +702,41 @@ export default function ZoneManagement() {
 
   const handleAddZone = async () => {
     try {
-      // Validate that at least one postal code is added
+      if (!add.countryId || String(add.countryId).trim() === "") {
+        showError("Please select a country.");
+        return;
+      }
+      if (!add.cityId || String(add.cityId).trim() === "") {
+        showError("Please select a city.");
+        return;
+      }
       if (!addedPostcodes || addedPostcodes.length === 0) {
-        showError("Please add at least one postal code before creating a zone");
+        showError("Please add at least one postal code before creating a zone.");
+        return;
+      }
+      const zoneNameTrimmed = String(add.zoneName ?? "").trim();
+      if (!zoneNameTrimmed) {
+        showError("Zone name is required.");
+        return;
+      }
+      const minRaw = add.zoneMinimumAmount;
+      if (minRaw === "" || minRaw === null || minRaw === undefined) {
+        showError("Zone minimum amount is required.");
+        return;
+      }
+      const zoneMinimumNum = parseFloat(String(minRaw).trim());
+      if (!Number.isFinite(zoneMinimumNum) || zoneMinimumNum < 0) {
+        showError("Enter a valid zone minimum amount.");
+        return;
+      }
+      const commRaw = add.zoneCommission;
+      if (commRaw === "" || commRaw === null || commRaw === undefined) {
+        showError("Zone commission is required.");
+        return;
+      }
+      const zoneCommissionNum = parseFloat(String(commRaw).trim());
+      if (!Number.isFinite(zoneCommissionNum) || zoneCommissionNum < 0) {
+        showError("Enter a valid zone commission percentage.");
         return;
       }
 
@@ -721,14 +753,14 @@ export default function ZoneManagement() {
       const distanceUnitId = parseInt(add.distanceUnitId) || 2;
 
       const zoneData = {
-        name: add.zoneName,
+        name: zoneNameTrimmed,
         postcodes: postcodes,
-        cityId: parseInt(add.cityId) || 1,
-        zoneMinimumAmount: parseFloat(add.zoneMinimumAmount) || 0,
+        cityId: parseInt(add.cityId, 10),
+        zoneMinimumAmount: zoneMinimumNum,
         currencyUnitId: currencyUnitId || parseInt(add.currencyUnitId) || 1,
         distanceUnitId: distanceUnitId,
         serviceCharge: parseFloat(add.deliveryCharges) || 0,
-        zoneAdminComission: parseFloat(add.zoneCommission) || 0,
+        zoneAdminComission: zoneCommissionNum,
         zoneAdminId: add.zoneAdminId && add.zoneAdminId.trim() !== "" ? parseInt(add.zoneAdminId) : null,
         status: true, // Default to active
         ...(add.cancellationPolicyId && { cancellationPolicyId: parseInt(add.cancellationPolicyId) }),

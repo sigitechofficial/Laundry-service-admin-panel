@@ -11,6 +11,9 @@ import {
   TableRow,
   Paper,
   Chip,
+  FormControl,
+  Select,
+  MenuItem,
 } from "@mui/material";
 import { RiUserSettingsLine } from "../../shared/icons/index";
 import ModalComponent from "../../components/shared/Modal";
@@ -25,6 +28,7 @@ import {
   useGetFeaturesQuery,
   useUpdateRoleMutation,
 } from "../../store/services/api";
+import { getSidebarPermissionSelectOptions } from "../../components/shared/constants";
 
 const ACTION_OPTIONS = ["create", "read", "update", "delete"];
 const DEFAULT_FEATURE_OF = "Agent Employee";
@@ -35,24 +39,6 @@ const pretty = (value = "") =>
     .replace(/\s+/g, " ")
     .trim()
     .replace(/\b\w/g, (m) => m.toUpperCase());
-
-const toFeatureKey = (value = "") => {
-  const cleaned = String(value).replace(/[^a-zA-Z0-9\s]/g, " ").trim();
-  if (!cleaned) return "";
-
-  const parts = cleaned.split(/\s+/).filter(Boolean);
-  if (parts.length === 1) {
-    const token = parts[0];
-    return token.charAt(0).toLowerCase() + token.slice(1);
-  }
-
-  return parts
-    .map((part, idx) => {
-      const lower = part.toLowerCase();
-      return idx === 0 ? lower : lower.charAt(0).toUpperCase() + lower.slice(1);
-    })
-    .join("");
-};
 
 const extractList = (payload, keys = []) => {
   const source = payload?.data ?? payload;
@@ -100,7 +86,9 @@ export default function RolePermission() {
   const [isEditRoleMode, setIsEditRoleMode] = useState(false);
   const [editingRoleId, setEditingRoleId] = useState(null);
 
-  const [permissionName, setPermissionName] = useState("");
+  const [permissionPath, setPermissionPath] = useState("");
+
+  const sidebarPermissionOptions = useMemo(() => getSidebarPermissionSelectOptions(), []);
 
   const [roleName, setRoleName] = useState("");
   const [roleStatus, setRoleStatus] = useState(true);
@@ -133,7 +121,7 @@ export default function RolePermission() {
 
   const closePermissionModal = () => {
     setPermissionModal(false);
-    setPermissionName("");
+    setPermissionPath("");
   };
 
   const closeRoleModal = () => {
@@ -152,11 +140,11 @@ export default function RolePermission() {
   };
 
   const submitPermission = async () => {
-    const name = permissionName.trim();
-    if (!name) return error("Permission name is required.");
+    if (!permissionPath) return error("Select a screen from the list.");
 
-    const normalized = toFeatureKey(name);
-    if (!normalized) return error("Permission name is invalid.");
+    const selected = sidebarPermissionOptions.find((o) => o.value === permissionPath);
+    const normalized = selected?.featureKey || "";
+    if (!normalized) return error("Could not derive a permission key for that screen.");
 
     try {
       await addFeature({
@@ -386,12 +374,52 @@ export default function RolePermission() {
             Add feature first to use it in roles.
           </Typography>
 
-          <InputFieldModal
-            title="Permission Name"
-            placeholder="e.g. serviceManagement"
-            value={permissionName}
-            onChange={(e) => setPermissionName(e.target.value)}
-          />
+          <Box className="w-full">
+            <Typography variant="body2" sx={{ color: "#374151", mb: "8px" }}>
+              Screen / tab
+            </Typography>
+            <FormControl fullWidth>
+              <Select
+                id="permission-screen-select"
+                inputProps={{ "aria-label": "Permission screen" }}
+                displayEmpty
+                value={permissionPath}
+                onChange={(e) => setPermissionPath(e.target.value)}
+                renderValue={(selected) => {
+                  if (!selected) {
+                    return (
+                      <Typography component="span" variant="body1" sx={{ color: "#94A3B8", fontFamily: "Switzer" }}>
+                        &nbsp;
+                      </Typography>
+                    );
+                  }
+                  const opt = sidebarPermissionOptions.find((o) => o.value === selected);
+                  return (
+                    <Typography component="span" variant="body1" sx={{ fontFamily: "Switzer", fontWeight: 400 }}>
+                      {opt?.menuLabel ?? selected}
+                    </Typography>
+                  );
+                }}
+                sx={{
+                  height: 52,
+                  borderRadius: "8px",
+                  bgcolor: "#F4F7FF",
+                  fontFamily: "Switzer",
+                  fontWeight: 400,
+                  "& .MuiOutlinedInput-notchedOutline": { border: "none" },
+                  "&:hover .MuiOutlinedInput-notchedOutline": { border: "none" },
+                  "&.Mui-focused .MuiOutlinedInput-notchedOutline": { border: "none" },
+                }}
+                MenuProps={{ PaperProps: { sx: { maxHeight: 360 } } }}
+              >
+                {sidebarPermissionOptions.map((opt) => (
+                  <MenuItem key={opt.value} value={opt.value}>
+                    {opt.menuLabel}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Box>
         </Box>
       </ModalComponent>
 

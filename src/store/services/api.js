@@ -21,6 +21,14 @@ export const api = createApi({
       }),
     }),
 
+    zoneAdminLogin: builder.mutation({
+      query: (body) => ({
+        url: "admin/zoneAdminSignIn",
+        method: "POST",
+        body,
+      }),
+    }),
+
     getAllServices: builder.query({
       query: () => ({
         url: `admin/getServices`,
@@ -1043,6 +1051,7 @@ export const api = createApi({
 
 export const {
   useAdminLoginMutation,
+  useZoneAdminLoginMutation,
   useGetAllServicesQuery,
   useGetPreferencesQuery,
   useGetCategoriesQuery,

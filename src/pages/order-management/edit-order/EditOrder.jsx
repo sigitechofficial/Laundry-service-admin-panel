@@ -42,6 +42,11 @@ export default function EditOrder() {
   const { success, error: showError } = useToaster();
 
   const orderData = orderResponse?.data;
+  const shopName =
+    orderData?.laundryShop?.bussinessInformations?.[0]?.shopName ||
+    orderData?.laundryShop?.shopName ||
+    orderData?.laundryShop?.name ||
+    "";
   const allServices = servicesResponse?.data?.services || [];
   const allPreferences = preferencesResponse?.data || [];
 
@@ -115,7 +120,7 @@ export default function EditOrder() {
         pickupTime: pickupTime,
         deliveryDate: orderData.deliveryDate ? dayjs(orderData.deliveryDate) : null,
         deliveryTime: deliveryTime,
-        shopName: orderData?.laundryShop?.name || "",
+        shopName: shopName,
         driverInstruction: orderData?.driverInstruction || "",
         addressLine1: orderData?.dropOffAddress?.streetAddress || "",
         addressLine2: orderData?.dropOffAddress?.district || "",
@@ -123,7 +128,7 @@ export default function EditOrder() {
         postCode: orderData?.dropOffAddress?.postalCode || "",
         country: orderData?.dropOffAddress?.country || "",
         deliveryFee: "0.00",
-        driverTip: "0.00",
+        driverTip: orderData?.tips?.[0]?.amount || "0.00",
         minimumOrderFee: "0.00",
         serviceCharge: "0.00",
       });
@@ -144,7 +149,7 @@ export default function EditOrder() {
         deliveryDriver: deliveryDriverName || "Unassigned",
       });
     }
-  }, [orderData]);
+  }, [orderData, shopName]);
 
   const handleInputChange = (field, value) => {
     setFormData((prev) => ({
@@ -325,6 +330,7 @@ export default function EditOrder() {
         preferencesArray: preferencesArray,
         services: services,
         totalItems: totalItems,
+        tipAmount: formData.driverTip || "0.00",
       };
 
       console.log('📤 EditOrder: Sending API request with body:', JSON.stringify(body, null, 2));

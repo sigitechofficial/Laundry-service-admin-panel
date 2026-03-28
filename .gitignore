@@ -16,6 +16,9 @@ dist-ssr
 # Environment variables
 .env
 .env.local
+
+# Generated from .env via npm run sync:fcm-sw (contains Firebase web config)
+public/firebase-messaging-sw.js
 .env.production
 .env.development
 .env*.local

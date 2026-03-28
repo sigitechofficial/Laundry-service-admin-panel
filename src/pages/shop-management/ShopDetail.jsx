@@ -710,59 +710,6 @@ export default function ShopDetails() {
             <Box sx={{ display: "flex", flexDirection: "column", rowGap: 2 }}>
               <Paper sx={CARD_SX}>
                 <Box sx={{ px: 2.5, py: 1.8, borderBottom: "1px solid #F1F5F9" }}>
-                  <Typography sx={{ fontSize: 14, fontWeight: 600, color: "#0F172A" }}>Shop Controls</Typography>
-                </Box>
-                <Box sx={{ p: 2.5, display: "flex", flexDirection: "column", rowGap: 2 }}>
-                  {[
-                    { key: "visible", title: "Visibility", sub: "Visible in app listings" },
-                    { key: "acceptsOrders", title: "Accept Orders", sub: "Taking new bookings" },
-                    { key: "featured", title: "Featured", sub: "Promoted in search" },
-                    { key: "sameDay", title: "Same-Day Service", sub: "Express orders enabled" },
-                  ].map((item) => (
-                    <Box key={item.key} className="flex items-center justify-between">
-                      <Box>
-                        <Typography sx={{ fontSize: 14, fontWeight: 500, color: "#334155" }}>{item.title}</Typography>
-                        <Typography sx={{ fontSize: 11, color: "#94A3B8" }}>{item.sub}</Typography>
-                      </Box>
-                      <Switch
-                        checked={Boolean(controls[item.key])}
-                        onChange={(e) =>
-                          setControls((prev) => ({ ...prev, [item.key]: e.target.checked }))
-                        }
-                        sx={{
-                          "& .MuiSwitch-switchBase.Mui-checked": { color: "#1D4ED8" },
-                          "& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track": { backgroundColor: "#1D4ED8" },
-                        }}
-                      />
-                    </Box>
-                  ))}
-                  <Box sx={{ borderTop: "1px solid #F1F5F9", pt: 2 }}>
-                    <Box className="flex items-center gap-2">
-                      <Box sx={{ width: 32, height: 32, borderRadius: "10px", bgcolor: "#E0E7FF" }} />
-                      <Box>
-                        <Typography sx={{ fontSize: 14, fontWeight: 600, color: "#334155" }}>
-                          Identity Verified
-                        </Typography>
-                        <Typography sx={{ fontSize: 11, color: "#94A3B8" }}>15 Jan 2021</Typography>
-                      </Box>
-                    </Box>
-                  </Box>
-                  <Paper sx={{ p: 1.5, bgcolor: "#FFFBEB", border: "1px solid #FDE68A", borderRadius: "12px", boxShadow: "none" }}>
-                    <Box className="flex items-center justify-between">
-                      <Box>
-                        <Typography sx={{ fontSize: 12, fontWeight: 700, color: "#92400E" }}>Pro Plan</Typography>
-                        <Typography sx={{ fontSize: 11, color: "#B45309" }}>12% commission rate</Typography>
-                      </Box>
-                      <Button size="small" sx={{ textTransform: "none", fontSize: 11, color: "#00028B", fontWeight: 700 }}>
-                        Change
-                      </Button>
-                    </Box>
-                  </Paper>
-                </Box>
-              </Paper>
-
-              <Paper sx={CARD_SX}>
-                <Box sx={{ px: 2.5, py: 1.8, borderBottom: "1px solid #F1F5F9" }}>
                   <Typography sx={{ fontSize: 14, fontWeight: 600, color: "#0F172A" }}>Opening Hours</Typography>
                 </Box>
                 <Box sx={{ p: 2 }}>

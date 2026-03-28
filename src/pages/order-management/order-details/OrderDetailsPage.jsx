@@ -70,6 +70,20 @@ function formatAddress(address) {
   return parts.join(", ") || "N/A";
 }
 
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function toNumber(value, fallback = 0) {
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
 export default function OrderDetailsPage() {
   const navigate = useNavigate();
   const { id } = useParams();
@@ -79,6 +93,11 @@ export default function OrderDetailsPage() {
     skip: !orderId,
   });
   const orderData = orderResponse?.data;
+  const shopName =
+    orderData?.laundryShop?.bussinessInformations?.[0]?.shopName ||
+    orderData?.laundryShop?.shopName ||
+    orderData?.laundryShop?.name ||
+    "";
   const bookingId = orderData?.id || orderId;
 
   const { data: orderItemsResponse, isLoading: isLoadingItems } =
@@ -126,9 +145,202 @@ export default function OrderDetailsPage() {
     0
   );
 
-  const orderTotal = parseFloat(
-    orderItemsData?.totalAmount ?? orderData?.orderAmount ?? 0
-  ).toFixed(2);
+  const subtotalAmount = toNumber(
+    orderData?.subTotal ?? orderItemsData?.totalAmount ?? orderData?.orderAmount ?? 0
+  );
+  const minimumOrderFeeAmount = toNumber(
+    orderData?.billingDetail?.categoryCharge ?? 0
+  );
+  const serviceChargeAmount = toNumber(orderData?.billingDetail?.serviceCharge ?? 0);
+  const deliveryFeeAmount = toNumber(orderData?.deliveryFee ?? 0);
+  const tipAmount = toNumber(orderData?.tips?.[0]?.amount ?? 0);
+  const totalAmount = toNumber(
+    orderData?.billingDetail?.total ?? orderData?.orderAmount ?? subtotalAmount
+  );
+
+  const orderTotal = totalAmount.toFixed(2);
+
+  const handlePrintReceipt = () => {
+    if (!orderData) return;
+
+    const receiptOrderId = orderData?.orderTrackId || orderData?.id || orderId || "";
+    const createdAt = dayjs(orderData?.created_at || orderData?.createdAt).isValid()
+      ? dayjs(orderData?.created_at || orderData?.createdAt).format("ddd DD MMM YYYY · HH:mm")
+      : "";
+
+    const customerName = `${orderData?.customer?.firstName || ""} ${orderData?.customer?.lastName || ""}`.trim();
+    const customerEmail = orderData?.customer?.email || "";
+    const customerPhone = orderData?.customer?.phone || orderData?.customer?.mobile || "";
+
+    const pickupDateText = dayjs(orderData?.collectionDate).isValid()
+      ? dayjs(orderData?.collectionDate).format("ddd DD MMM YYYY")
+      : "N/A";
+    const pickupTimeText =
+      orderData?.collectionTimeFrom && orderData?.collectionTimeTo
+        ? `${orderData.collectionTimeFrom} - ${orderData.collectionTimeTo}`
+        : orderData?.collectionTimeFrom || "N/A";
+
+    const deliveryDateText = dayjs(orderData?.deliveryDate).isValid()
+      ? dayjs(orderData?.deliveryDate).format("ddd DD MMM YYYY")
+      : "N/A";
+    const deliveryTimeText =
+      orderData?.deliveryTimeFrom && orderData?.deliveryTimeTo
+        ? `${orderData.deliveryTimeFrom} - ${orderData.deliveryTimeTo}`
+        : orderData?.deliveryTimeFrom || "N/A";
+
+    const dropOff = orderData?.dropOffAddress || null;
+    const pickup = orderData?.pickupAddress || null;
+
+    const items = Array.isArray(groupedItems)
+      ? groupedItems.map((row) => ({
+          label: `${row.name} (${row.serviceName})`,
+          qty: row.count,
+          price: row.price,
+        }))
+      : [];
+
+    const itemsHtml =
+      items.length > 0
+        ? items
+            .map(
+              (it) => `
+              <div class="row item">
+                <div class="grow">
+                  <div class="name">${escapeHtml(it.label)}</div>
+                  <div class="muted">Qty: ${escapeHtml(it.qty)}</div>
+                </div>
+                <div class="price">$${escapeHtml(Number(it.price || 0).toFixed(2))}</div>
+              </div>
+            `
+            )
+            .join("")
+        : `<div class="muted">No items</div>`;
+
+    const html = `<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Receipt #${escapeHtml(receiptOrderId)}</title>
+    <style>
+      @page { margin: 12mm; }
+      body { font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial; color: #0f172a; }
+      .sheet { max-width: 520px; margin: 0 auto; }
+      .brand { display:flex; align-items:flex-start; justify-content:space-between; gap: 12px; }
+      .brand h1 { margin:0; font-size: 16px; letter-spacing: .08em; text-transform: uppercase; }
+      .brand .meta { text-align:right; font-size: 12px; color: #475569; }
+      .divider { height:1px; background:#e2e8f0; margin: 12px 0; }
+      .sectionTitle { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: #64748b; margin: 0 0 8px; font-weight: 700; }
+      .row { display:flex; justify-content:space-between; gap: 12px; }
+      .grow { flex: 1; min-width: 0; }
+      .muted { color:#64748b; font-size: 12px; }
+      .value { font-size: 13px; color:#334155; font-weight: 600; }
+      .item { padding: 8px 0; border-bottom: 1px dashed #e2e8f0; }
+      .item:last-child { border-bottom: none; }
+      .name { font-size: 13px; font-weight: 700; color:#0f172a; }
+      .price { font-size: 13px; font-weight: 700; white-space: nowrap; }
+      .totals { margin-top: 10px; }
+      .totals .row { padding: 6px 0; }
+      .totals .grand { border-top: 2px solid #0f172a; margin-top: 8px; padding-top: 10px; }
+      .footer { margin-top: 18px; text-align:center; font-size: 11px; color:#64748b; }
+      .pill { display:inline-flex; align-items:center; gap:6px; padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; background:#f1f5f9; color:#334155; }
+      .dot { width: 6px; height: 6px; border-radius: 50%; background: #0ea5e9; display:inline-block; }
+    </style>
+  </head>
+  <body>
+    <div class="sheet">
+      <div class="brand">
+        <div>
+          <h1>Receipt</h1>
+          <div class="muted">Order #${escapeHtml(receiptOrderId)}</div>
+          ${statusBadge?.label ? `<div style="margin-top:6px"><span class="pill"><span class="dot"></span>${escapeHtml(statusBadge.label)}</span></div>` : ""}
+        </div>
+        <div class="meta">
+          <div>${escapeHtml(createdAt)}</div>
+          <div>${escapeHtml(shopName || "")}</div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div>
+        <div class="sectionTitle">Customer</div>
+        <div class="row"><div class="muted">Name</div><div class="value">${escapeHtml(customerName || "N/A")}</div></div>
+        ${customerPhone ? `<div class="row"><div class="muted">Phone</div><div class="value">${escapeHtml(customerPhone)}</div></div>` : ""}
+        ${customerEmail ? `<div class="row"><div class="muted">Email</div><div class="value">${escapeHtml(customerEmail)}</div></div>` : ""}
+      </div>
+
+      <div class="divider"></div>
+
+      <div>
+        <div class="sectionTitle">Schedule</div>
+        <div class="row"><div class="muted">Pickup</div><div class="value">${escapeHtml(pickupDateText)} · ${escapeHtml(pickupTimeText)}</div></div>
+        <div class="row"><div class="muted">Delivery</div><div class="value">${escapeHtml(deliveryDateText)} · ${escapeHtml(deliveryTimeText)}</div></div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div>
+        <div class="sectionTitle">Address</div>
+        <div class="row"><div class="muted">Pickup</div><div class="value">${escapeHtml(formatAddress(pickup))}</div></div>
+        <div class="row"><div class="muted">Drop off</div><div class="value">${escapeHtml(formatAddress(dropOff))}</div></div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div>
+        <div class="sectionTitle">Items</div>
+        ${itemsHtml}
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="totals">
+        <div class="row"><div class="muted">Total items</div><div class="value">${escapeHtml(orderData?.totalItems || items.reduce((s, i) => s + Number(i.qty || 0), 0) || 0)}</div></div>
+        <div class="row grand"><div class="name">Total</div><div class="price">$${escapeHtml(orderTotal)}</div></div>
+      </div>
+
+      <div class="footer">Thank you</div>
+    </div>
+    <script>
+      window.onload = () => { window.print(); };
+    </script>
+  </body>
+</html>`;
+
+    // Use an off-screen iframe for reliable printing (avoids popup blockers/blank tabs).
+    const iframe = document.createElement("iframe");
+    iframe.style.position = "fixed";
+    iframe.style.right = "0";
+    iframe.style.bottom = "0";
+    iframe.style.width = "0";
+    iframe.style.height = "0";
+    iframe.style.border = "0";
+    iframe.setAttribute("aria-hidden", "true");
+    document.body.appendChild(iframe);
+
+    const frameDoc = iframe.contentWindow?.document;
+    if (!frameDoc) {
+      document.body.removeChild(iframe);
+      return;
+    }
+
+    frameDoc.open();
+    frameDoc.write(html);
+    frameDoc.close();
+
+    const cleanup = () => {
+      setTimeout(() => {
+        if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
+      }, 1200);
+    };
+
+    iframe.onload = () => {
+      iframe.contentWindow?.focus();
+      iframe.contentWindow?.print();
+      cleanup();
+    };
+  };
 
   const pickupPrimaryProof = pickupProofs[0] || {};
   const deliveryPrimaryProof = deliveryProofs[0] || {};
@@ -252,6 +464,7 @@ export default function OrderDetailsPage() {
             <Button
               variant="outlined"
               size="small"
+              onClick={handlePrintReceipt}
               sx={{
                 textTransform: "uppercase",
                 fontSize: 11,
@@ -779,46 +992,46 @@ export default function OrderDetailsPage() {
               </TableBody>
             </Table>
 
-            <Box sx={{ p: 2.5, borderTop: "1px solid #E4E7EC", bgcolor: "#FCFCFD" }}>
-              <Box className="flex justify-between py-1">
+            <Box sx={{ p: 2.5, borderTop: "1px solid #E4E7EC", bgcolor: "#FCFCFD", display: "flex", flexDirection: "column", rowGap: 0.4 }}>
+              <Box className="flex items-center justify-between" sx={{ py: 0.9 }}>
                 <Typography variant="body2" color="text.secondary">
                   Subtotal
                 </Typography>
-                <Typography variant="body2">${orderTotal}</Typography>
+                <Typography variant="body2">${subtotalAmount.toFixed(2)}</Typography>
               </Box>
-              <Box className="flex justify-between py-1">
+              <Box className="flex items-center justify-between" sx={{ py: 0.9 }}>
                 <Typography variant="body2" color="text.secondary">
                   Minimum Order Fee
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  —
+                  ${minimumOrderFeeAmount.toFixed(2)}
                 </Typography>
               </Box>
-              <Box className="flex justify-between py-1">
+              <Box className="flex items-center justify-between" sx={{ py: 0.9 }}>
                 <Typography variant="body2" color="text.secondary">
                   Service Charge
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  —
+                  ${serviceChargeAmount.toFixed(2)}
                 </Typography>
               </Box>
-              <Box className="flex justify-between py-1">
+              <Box className="flex items-center justify-between" sx={{ py: 0.9 }}>
                 <Typography variant="body2" color="text.secondary">
                   Delivery Fee
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  $0.00
+                  ${deliveryFeeAmount.toFixed(2)}
                 </Typography>
               </Box>
-              <Box className="flex justify-between py-1">
+              <Box className="flex items-center justify-between" sx={{ py: 0.9 }}>
                 <Typography variant="body2" color="text.secondary">
                   Driver Tip
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  $0.00
+                  ${tipAmount.toFixed(2)}
                 </Typography>
               </Box>
-              <Box className="flex justify-between pt-2 mt-2" sx={{ borderTop: "1px solid #E4E7EC" }}>
+              <Box className="flex items-center justify-between pt-2.5 mt-2.5" sx={{ borderTop: "1px solid #E4E7EC" }}>
                 <Typography fontFamily="Switzer" fontWeight={700}>
                   Total
                 </Typography>
@@ -854,7 +1067,7 @@ export default function OrderDetailsPage() {
                   Shop Name
                 </Typography>
                 <Typography sx={{ fontSize: 13, fontWeight: 500, color: "#475569" }} textAlign="right">
-                  {orderData?.laundryShop?.name || "Not assigned"}
+                  {shopName || "Not assigned"}
                 </Typography>
               </Box>
               <Box className="flex justify-between gap-3">
@@ -1059,6 +1272,7 @@ export default function OrderDetailsPage() {
                 variant="outlined"
                 size="small"
                 sx={{ textTransform: "uppercase", fontSize: 11, fontWeight: 700, borderRadius: "8px", minHeight: 36 }}
+              onClick={handlePrintReceipt}
               >
                 Print Receipt
               </Button>

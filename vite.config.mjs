@@ -5,7 +5,8 @@ import tailwindcss from "@tailwindcss/vite";
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react(), tailwindcss()],
-  envPrefix: 'LAUNDRY_', // Use LAUNDRY_ prefix for environment variables
+  // Expose both prefixes so FCM can use either LAUNDRY_FIREBASE_* or standard VITE_FIREBASE_* from .env
+  envPrefix: ["LAUNDRY_", "VITE_"],
   server: {
     host: true, // Listen on all addresses
     allowedHosts: [

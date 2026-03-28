@@ -2,7 +2,10 @@ import { Box, Checkbox, Typography } from "@mui/material";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import ButtonBlue from "../../components/ui/ButtonBlue";
 import ButtonWhite from "../../components/ui/ButtonWhite";
-import { useAdminLoginMutation } from "../../store/services/api";
+import {
+  useAdminLoginMutation,
+  useZoneAdminLoginMutation,
+} from "../../store/services/api";
 import { useForm } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import { loginSchema } from "./constant";
@@ -10,6 +13,7 @@ import useToaster from "../../components/ui/Toaster";
 import { useState } from "react";
 import { AiOutlineEye, AiOutlineEyeInvisible } from "../../shared/icons/index";
 import { setLoginStatus } from "../../hooks/useAuth";
+import { requestDeviceToken } from "../../utilities/requestFCMToken";
 
 export default function LoginPage() {
   const { success, error } = useToaster();
@@ -17,8 +21,13 @@ export default function LoginPage() {
 
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const [adminLogin, { isLoading }] = useAdminLoginMutation();
   const role = searchParams.get("role");
+  const [adminLogin, { isLoading: adminLoginLoading }] =
+    useAdminLoginMutation();
+  const [zoneAdminLogin, { isLoading: zoneAdminLoginLoading }] =
+    useZoneAdminLoginMutation();
+  const isLoading =
+    role === "manager" ? zoneAdminLoginLoading : adminLoginLoading;
 
   const {
     register,
@@ -48,11 +57,22 @@ export default function LoginPage() {
         localStorage.removeItem("rememberedEmail");
       }
 
-      const res = await adminLogin({
-        email: data.email,
-        password: data.password,
-        dvToken: "",
-      }).unwrap();
+      const dvToken = await requestDeviceToken();
+
+      let res;
+      if (role === "manager") {
+        res = await zoneAdminLogin({
+          email: data.email,
+          password: data.password,
+          dvToken: dvToken || "",
+        }).unwrap();
+      } else {
+        res = await adminLogin({
+          email: data.email,
+          password: data.password,
+          dvToken: dvToken || "",
+        }).unwrap();
+      }
 
       if (res.status === "1") {
         setLoginStatus(true);

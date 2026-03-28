@@ -247,6 +247,34 @@ export const sidebarList = [
   },
 ];
 
+/** Map sidebar labels to API feature keys (camelCase), same rules as RolePermission.toFeatureKey */
+export function labelToFeatureKey(value = "") {
+  const cleaned = String(value).replace(/[^a-zA-Z0-9\s]/g, " ").trim();
+  if (!cleaned) return "";
+  const parts = cleaned.split(/\s+/).filter(Boolean);
+  if (parts.length === 1) {
+    const token = parts[0];
+    return token.charAt(0).toLowerCase() + token.slice(1);
+  }
+  return parts
+    .map((part, idx) => {
+      const lower = part.toLowerCase();
+      return idx === 0 ? lower : lower.charAt(0).toUpperCase() + lower.slice(1);
+    })
+    .join("");
+}
+
+/** Parent sidebar sections only (no nested sub-routes) for permission picker (value = parent path). */
+export function getSidebarPermissionSelectOptions() {
+  return sidebarList
+    .filter((item) => item.path)
+    .map((item) => ({
+      value: item.path,
+      menuLabel: item.label,
+      featureKey: labelToFeatureKey(item.label),
+    }));
+}
+
 export const bottomMenuItem = [
   {
     label: "Privacy Policy",

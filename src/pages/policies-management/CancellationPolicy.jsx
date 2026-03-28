@@ -786,7 +786,10 @@ export default function CancellationPolicy() {
         unprocessedAfterPickupMinutes: data.unprocessedAfterPickupMinutes
           ? Math.round(parseFloat(data.unprocessedAfterPickupMinutes) * 60)
           : 0,
-        unprocessedOrderValuePercentage: data.unprocessedOrderValuePercentage ? parseFloat(data.unprocessedOrderValuePercentage) : 0,
+        unprocessedOrderValuePercentage:
+          data.unprocessedFeeType === "percentage" && data.unprocessedOrderValuePercentage
+            ? parseFloat(data.unprocessedOrderValuePercentage)
+            : 0,
         allowCancelUnprocessed: data.allowCancelUnprocessed,
         courtesyWindowDays: data.courtesyWindowDays ? parseInt(data.courtesyWindowDays) : 0,
         courtesyCapAmount: data.courtesyCapAmount ? parseFloat(data.courtesyCapAmount) : 0,
@@ -1382,12 +1385,14 @@ export default function CancellationPolicy() {
                             title="Fee Type"
                             value={value}
                             onChange={(e) => {
-                              onChange(e.target.value);
-                              // Clear the fee value when switching types
+                              const next = e.target.value;
+                              onChange(next);
+                              // Clear the fee value when switching types; order-value % only applies to percentage fee type
                               reset({
                                 ...watch(),
-                                unprocessedFeeType: e.target.value,
+                                unprocessedFeeType: next,
                                 unprocessedFeeValue: "",
+                                ...(next === "absolute" && { unprocessedOrderValuePercentage: "" }),
                               });
                             }}
                             options={[
@@ -1435,20 +1440,22 @@ export default function CancellationPolicy() {
                       )}
                     />
 
-                    <Controller
-                      name="unprocessedOrderValuePercentage"
-                      control={control}
-                      render={({ field: { onChange, value } }) => (
-                        <InputFieldModal
-                          title="Order Value Percentage (%)"
-                          placeholder="Enter percentage"
-                          type="number"
-                          value={value || ""}
-                          onChange={(e) => onChange(e.target.value)}
-                          tooltipText="Percentage of order value used for calculating cancellation fees for unprocessed orders (e.g., 10.00 for 10% of order value)."
-                        />
-                      )}
-                    />
+                    {unprocessedFeeType === "percentage" && (
+                      <Controller
+                        name="unprocessedOrderValuePercentage"
+                        control={control}
+                        render={({ field: { onChange, value } }) => (
+                          <InputFieldModal
+                            title="Order Value Percentage (%)"
+                            placeholder="Enter percentage"
+                            type="number"
+                            value={value || ""}
+                            onChange={(e) => onChange(e.target.value)}
+                            tooltipText="Percentage of order value used for calculating cancellation fees for unprocessed orders (e.g., 10.00 for 10% of order value)."
+                          />
+                        )}
+                      />
+                    )}
 
                     <Controller
                       name="allowCancelUnprocessed"
