@@ -8,7 +8,7 @@ import {
 } from "../../store/services/api";
 import { useForm } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
-import { loginSchema } from "./constant";
+import { FALLBACK_DV_TOKEN, loginSchema } from "./constant";
 import useToaster from "../../components/ui/Toaster";
 import { useState } from "react";
 import { AiOutlineEye, AiOutlineEyeInvisible } from "../../shared/icons/index";
@@ -57,20 +57,24 @@ export default function LoginPage() {
         localStorage.removeItem("rememberedEmail");
       }
 
-      const dvToken = await requestDeviceToken();
+      const rawDvToken = await requestDeviceToken();
+      const dvToken =
+        rawDvToken && String(rawDvToken).trim()
+          ? String(rawDvToken).trim()
+          : FALLBACK_DV_TOKEN;
 
       let res;
       if (role === "manager") {
         res = await zoneAdminLogin({
           email: data.email,
           password: data.password,
-          dvToken: dvToken || "",
+          dvToken,
         }).unwrap();
       } else {
         res = await adminLogin({
           email: data.email,
           password: data.password,
-          dvToken: dvToken || "",
+          dvToken,
         }).unwrap();
       }
 
@@ -116,7 +120,7 @@ export default function LoginPage() {
             >
               <img src="/images/zoneAdmin.png" alt="" />
 
-              <Typography variant="h5">Login as Zone manager  new login</Typography>
+              <Typography variant="h5">Login as Zone manager </Typography>
             </Box>
           </div>
         ) : (
