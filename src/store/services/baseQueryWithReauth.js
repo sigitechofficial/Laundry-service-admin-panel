@@ -1,22 +1,32 @@
 import { fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 import { BASE_URL } from "../../utilities/URL";
+import {
+  LS_ACCESS_TOKEN,
+  LS_EMPLOYEE_FEATURE_IDS,
+  clearAuthTokens,
+  getActiveEmployeeFeatureId,
+} from "../../utilities/authStorage";
 
 const baseQuery = fetchBaseQuery({
   baseUrl: BASE_URL,
   credentials: "include",
   prepareHeaders: (headers) => {
-    // Get token from localStorage
-    const token = localStorage.getItem('accessToken');
+    const token = localStorage.getItem(LS_ACCESS_TOKEN);
+    const activeFeatureId = getActiveEmployeeFeatureId();
+    const featureIdsCsv = localStorage.getItem(LS_EMPLOYEE_FEATURE_IDS);
 
-    // Don't set Content-Type here - let RTK Query handle it
-    // RTK Query automatically detects FormData and won't set Content-Type for it
-    // We'll only add it in fetchFn for non-FormData requests
+    headers.set("ngrok-skip-browser-warning", "true");
 
-    headers.set('ngrok-skip-browser-warning', 'true');
-
-    // Add Bearer token if available
     if (token) {
-      headers.set('Authorization', `Bearer ${token}`);
+      headers.set("Authorization", `Bearer ${token}`);
+    }
+
+    // Zone employee: prefer current sidebar section (single id); else all allowed ids from login.
+    // Header name must be all lowercase (backend expects `featureid`, not `Featureid`).
+    if (activeFeatureId) {
+      headers.set("featureid", activeFeatureId);
+    } else if (featureIdsCsv) {
+      headers.set("featureid", featureIdsCsv);
     }
 
     return headers;
@@ -70,6 +80,7 @@ const baseQueryWithReauth = async (args, api, extraOptions) => {
 
     document.cookie =
       "accessToken=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+    clearAuthTokens();
     localStorage.removeItem("login_status");
 
     window.location.href = "/auth/login";

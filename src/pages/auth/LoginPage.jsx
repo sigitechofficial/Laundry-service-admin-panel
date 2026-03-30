@@ -14,6 +14,10 @@ import { useState } from "react";
 import { AiOutlineEye, AiOutlineEyeInvisible } from "../../shared/icons/index";
 import { setLoginStatus } from "../../hooks/useAuth";
 import { requestDeviceToken } from "../../utilities/requestFCMToken";
+import {
+  persistAdminLoginSession,
+  persistZoneAdminLoginSession,
+} from "../../utilities/authStorage";
 
 export default function LoginPage() {
   const { success, error } = useToaster();
@@ -79,6 +83,12 @@ export default function LoginPage() {
       }
 
       if (res.status === "1") {
+        const payload = res.data;
+        if (role === "manager") {
+          persistZoneAdminLoginSession(payload);
+        } else {
+          persistAdminLoginSession(payload);
+        }
         setLoginStatus(true);
         success("Login successful 🎉");
         navigate("/");

@@ -15,7 +15,21 @@ import {
   useGetAllCountriesQuery,
   useGetCitiesByCountryIdQuery,
   useGetAllRolesQuery,
+  useGetAllZonesQuery,
 } from "../../../store/services/api";
+
+/** Role label from API (e.g. "Zone Admin", id 7) — zone field only for this role. */
+function isZoneAdminRole(roleId, roles) {
+  if (roleId === undefined || roleId === null || String(roleId).trim() === "") return false;
+  const list = Array.isArray(roles) ? roles : [];
+  const r = list.find((x) => String(x.id) === String(roleId));
+  if (!r) return false;
+  const name = String(r.name ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+  return name === "zone admin";
+}
 
 const addEmployeeSchema = yup.object().shape({
   firstName: yup.string().required("First name is required").min(2, "At least 2 characters"),
@@ -38,6 +52,17 @@ const addEmployeeSchema = yup.object().shape({
     then: (s) => s.optional(),
     otherwise: (s) => s.required("City is required"),
   }),
+  zoneId: yup.mixed().when("$forShopEmployees", {
+    is: true,
+    then: (s) => s.optional(),
+    otherwise: (s) =>
+      s.test("zone-if-zone-admin", "Zone is required for Zone Admin", function (value) {
+        const roleId = this.parent.roleId;
+        const rolesList = this.options.context?.roles ?? [];
+        if (!isZoneAdminRole(roleId, rolesList)) return true;
+        return value !== undefined && value !== null && String(value).trim() !== "";
+      }),
+  }),
   agentId: yup.mixed().when("$forShopEmployees", {
     is: true,
     then: (s) => s.required("Shop is required"),
@@ -54,6 +79,7 @@ const emptyDefaults = {
   roleId: "",
   countryId: "",
   cityId: "",
+  zoneId: "",
   agentId: "",
 };
 
@@ -62,6 +88,7 @@ function getDefaultsFromEmployee(emp, forShopEmployees) {
   const roleId = emp.roleId ?? emp.role?.id ?? "";
   const countryId = emp.countryId ?? emp.country?.id ?? "";
   const cityId = emp.cityId ?? emp.city?.id ?? "";
+  const zoneId = emp.zoneId ?? emp.zone?.id ?? "";
   const agentId = emp.agentId ?? emp.shopId ?? emp.shopInfo?.id ?? "";
 
   const normalizeValue = (value) =>
@@ -76,6 +103,7 @@ function getDefaultsFromEmployee(emp, forShopEmployees) {
     roleId: normalizeValue(roleId),
     countryId: normalizeValue(countryId),
     cityId: normalizeValue(cityId),
+    zoneId: normalizeValue(zoneId),
     ...(forShopEmployees ? { agentId: normalizeValue(agentId) } : {}),
   };
 }
@@ -96,20 +124,24 @@ export default function AddEmployeeModal({
   const [updateAgentEmployee, { isLoading: isUpdatingAgent }] = useUpdateAgentEmployeeMutation();
   const isLoading = isAdding || isAddingAgent || isUpdating || isUpdatingAgent;
   const { data: countriesRes } = useGetAllCountriesQuery(undefined, { skip: !open });
-  const countries = countriesRes?.data?.countries ?? countriesRes?.data ?? [];
+  const countries = useMemo(() => {
+    const d = countriesRes?.data?.countries ?? countriesRes?.data;
+    return Array.isArray(d) ? d : [];
+  }, [countriesRes?.data]);
   const countryOptions = useMemo(() => {
-    const list = Array.isArray(countries) ? countries : [];
-    return list.map((c) => ({
+    return countries.map((c) => ({
       value: String(c.id),
       label: c.name ?? c.countryName ?? String(c.id),
     }));
   }, [countries]);
 
   const { data: rolesRes } = useGetAllRolesQuery(undefined, { skip: !open });
-  const roles = rolesRes?.data ?? [];
+  const roles = useMemo(() => {
+    const d = rolesRes?.data;
+    return Array.isArray(d) ? d : [];
+  }, [rolesRes?.data]);
   const roleOptions = useMemo(() => {
-    const list = Array.isArray(roles) ? roles : [];
-    return list.map((r) => ({ value: String(r.id), label: r.name ?? String(r.id) }));
+    return roles.map((r) => ({ value: String(r.id), label: r.name ?? String(r.id) }));
   }, [roles]);
 
   const formDefaultValues = useMemo(
@@ -123,11 +155,13 @@ export default function AddEmployeeModal({
     handleSubmit,
     reset,
     watch,
+    setValue,
+    getValues,
     formState: { errors },
   } = useForm({
     resolver: yupResolver(addEmployeeSchema),
     defaultValues: formDefaultValues,
-    context: { isEdit, forShopEmployees },
+    context: { isEdit, forShopEmployees, roles },
   });
 
   useEffect(() => {
@@ -138,17 +172,48 @@ export default function AddEmployeeModal({
   }, [open, initialEmployee, forShopEmployees, reset]);
 
   const countryId = watch("countryId");
+  const selectedRoleId = watch("roleId");
+  const showZoneForRole =
+    !forShopEmployees && isZoneAdminRole(selectedRoleId, roles);
+
+  useEffect(() => {
+    if (!open || forShopEmployees) return;
+    if (isZoneAdminRole(selectedRoleId, roles)) return;
+    if (!getValues("zoneId")) return;
+    setValue("zoneId", "", { shouldValidate: true });
+  }, [selectedRoleId, roles, open, forShopEmployees, setValue, getValues]);
+
   const { data: citiesRes } = useGetCitiesByCountryIdQuery(countryId, {
     skip: !open || !countryId,
   });
-  const cities = citiesRes?.data?.cities ?? citiesRes?.data ?? [];
+  const cities = useMemo(() => {
+    const d = citiesRes?.data?.cities ?? citiesRes?.data;
+    return Array.isArray(d) ? d : [];
+  }, [citiesRes?.data]);
   const cityOptions = useMemo(() => {
-    const list = Array.isArray(cities) ? cities : [];
-    return list.map((c) => ({
+    return cities.map((c) => ({
       value: String(c.id),
       label: c.name ?? c.cityName ?? String(c.id),
     }));
   }, [cities]);
+
+  const { data: zonesRes } = useGetAllZonesQuery(undefined, {
+    skip: !open || forShopEmployees || !showZoneForRole,
+  });
+  const zonesRaw = Array.isArray(zonesRes?.data)
+    ? zonesRes.data
+    : zonesRes?.data?.zones ?? zonesRes?.zones ?? [];
+  const zones = Array.isArray(zonesRaw) ? zonesRaw : [];
+  const zoneOptions = useMemo(
+    () =>
+      zones
+        .map((z) => ({
+          value: String(z.id ?? z.zoneId ?? ""),
+          label: z.name ?? z.zoneName ?? String(z.id ?? z.zoneId ?? ""),
+        }))
+        .filter((opt) => opt.value !== ""),
+    [zones]
+  );
 
   const handleClose = () => {
     reset(emptyDefaults);
@@ -185,6 +250,9 @@ export default function AddEmployeeModal({
         countryId: data.countryId ? Number(data.countryId) : undefined,
         cityId: data.cityId ? Number(data.cityId) : undefined,
       };
+      if (isZoneAdminRole(data.roleId, roles) && data.zoneId) {
+        body.zoneId = Number(data.zoneId);
+      }
       const res = await updateEmployee(body);
       if (res?.data?.status === "1") {
         success(res?.data?.message ?? "Employee updated successfully.");
@@ -224,6 +292,9 @@ export default function AddEmployeeModal({
         countryId: Number(data.countryId),
         cityId: Number(data.cityId),
       };
+      if (isZoneAdminRole(data.roleId, roles) && data.zoneId) {
+        body.zoneId = Number(data.zoneId);
+      }
       const res = await addEmployee(body);
       if (res?.data?.status === "1") {
         success(res?.data?.message ?? "Employee added successfully.");
@@ -371,6 +442,26 @@ export default function AddEmployeeModal({
             />
             {errors.cityId && (
               <p className="text-red-500 text-sm mt-0.5">{errors.cityId.message}</p>
+            )}
+            {showZoneForRole && (
+              <>
+                <Controller
+                  name="zoneId"
+                  control={control}
+                  render={({ field }) => (
+                    <SelectField
+                      title="Zone"
+                      value={field.value}
+                      onChange={field.onChange}
+                      options={zoneOptions}
+                      placeholder="Select zone"
+                    />
+                  )}
+                />
+                {errors.zoneId && (
+                  <p className="text-red-500 text-sm mt-0.5">{errors.zoneId.message}</p>
+                )}
+              </>
             )}
           </>
         )}

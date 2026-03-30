@@ -15,6 +15,7 @@ import {
 import {
   bottomMenuItem,
   getInitialSubmenuOpen,
+  labelToFeatureKey,
   sidebarList,
 } from "./constants";
 import {
@@ -31,6 +32,16 @@ import { toggleSidebar } from "../../store/slices/uiSlice";
 import { clearSearch, setSearchValue } from "../../store/slices/searchSlice";
 import useToaster from "../ui/Toaster";
 import { useGetOrdersCountQuery } from "../../store/services/api";
+import {
+  clearAuthTokens,
+  getEmployeePermissions,
+  isEmployeePermissionSession,
+  setActiveEmployeeFeatureId,
+} from "../../utilities/authStorage";
+import {
+  getAllowedFeatureKeysFromPermissions,
+  resolveEmployeeFeatureIdForPathname,
+} from "../../utilities/employeeFeatureAccess";
 
 function Sidebar() {
   const dispatch = useDispatch();
@@ -80,10 +91,21 @@ function Sidebar() {
   const searchQuery = String(searchValue || "").trim().toLowerCase();
   const isSearching = Boolean(searchQuery);
 
-  const filteredSidebarList = useMemo(() => {
-    if (!isSearching) return sidebarList;
+  const permissionFilteredSidebarList = useMemo(() => {
+    if (!isEmployeePermissionSession()) return sidebarList;
+    const keys = getAllowedFeatureKeysFromPermissions(
+      getEmployeePermissions()
+    );
+    if (!keys.size) return [];
+    return sidebarList.filter((item) =>
+      keys.has(labelToFeatureKey(item.label))
+    );
+  }, [location.pathname]);
 
-    return sidebarList
+  const filteredSidebarList = useMemo(() => {
+    if (!isSearching) return permissionFilteredSidebarList;
+
+    return permissionFilteredSidebarList
       .map((item) => {
         const labelMatch = item.label.toLowerCase().includes(searchQuery);
         const children = Array.isArray(item.children) ? item.children : [];
@@ -96,7 +118,7 @@ function Sidebar() {
         return null;
       })
       .filter(Boolean);
-  }, [isSearching, searchQuery]);
+  }, [isSearching, searchQuery, permissionFilteredSidebarList]);
 
   const handleSearchChange = (event) => {
     dispatch(setSearchValue(event.target.value));
@@ -200,7 +222,7 @@ function Sidebar() {
   };
 
   useEffect(() => {
-    sidebarList.forEach((item) => {
+    permissionFilteredSidebarList.forEach((item) => {
       if (item.children) {
         const isUnderParent =
           location.pathname === item.path ||
@@ -215,6 +237,15 @@ function Sidebar() {
     });
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.pathname, permissionFilteredSidebarList]);
+
+  useEffect(() => {
+    if (!isEmployeePermissionSession()) {
+      setActiveEmployeeFeatureId(null);
+      return;
+    }
+    const id = resolveEmployeeFeatureIdForPathname(location.pathname);
+    setActiveEmployeeFeatureId(id);
   }, [location.pathname]);
 
   return (
@@ -529,6 +560,8 @@ function Sidebar() {
                     if (item.label === "Logout") {
                       document.cookie =
                         "accessToken=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+                      clearAuthTokens();
+                      localStorage.removeItem("login_status");
                       success("Logged out successfully");
                       navigate(item.path);
                     } else {
