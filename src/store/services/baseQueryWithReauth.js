@@ -71,18 +71,36 @@ const baseQuery = fetchBaseQuery({
   }
 });
 
+const shouldForceLogout = (error) => {
+  const status = Number(error?.status);
+  if (status === 401) return true;
+
+  // Some backends can reply 403 for expired/invalid auth.
+  if (status === 403) {
+    const message = String(
+      error?.data?.message || error?.data?.error || error?.error || ""
+    ).toLowerCase();
+    return (
+      message.includes("jwt") ||
+      message.includes("token") ||
+      message.includes("unauthorized") ||
+      message.includes("not authenticated") ||
+      message.includes("session")
+    );
+  }
+
+  return false;
+};
+
 const baseQueryWithReauth = async (args, api, extraOptions) => {
   const result = await baseQuery(args, api, extraOptions);
 
-  // check for 403
-  if (result?.error?.status === 403) {
-    console.warn("Access denied. Logging out...");
-
+  if (shouldForceLogout(result?.error)) {
+    console.warn("Session expired/invalid. Logging out...");
     document.cookie =
       "accessToken=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
     clearAuthTokens();
     localStorage.removeItem("login_status");
-
     window.location.href = "/auth/login";
   }
 

@@ -245,6 +245,12 @@ export const sidebarList = [
     path: "/reports",
     size: "24px",
   },
+  {
+    label: "Customer Support",
+    Icon: PiHeadsetBold,
+    path: "/customer-support",
+    size: "23px",
+  },
 ];
 
 /** Map sidebar labels to API feature keys (camelCase), same rules as RolePermission.toFeatureKey */

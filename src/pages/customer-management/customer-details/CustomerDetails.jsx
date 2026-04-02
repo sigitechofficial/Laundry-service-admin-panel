@@ -237,10 +237,10 @@ export default function CustomerDetails() {
               </Typography>
               <Typography sx={{ fontSize: 13, display: "flex", alignItems: "center", gap: 0.7, color: "#334155" }}>
                 <MdOutlinePhone size={14} /> {user?.phoneNum || "—"}
-              </Typography>
+                </Typography>
               <Typography sx={{ fontSize: 13, display: "flex", alignItems: "center", gap: 0.7, color: "#334155" }}>
                 <MdOutlineLocationOn size={14} /> {fullAddress}
-              </Typography>
+                </Typography>
             </Box>
           </Box>
           <Box className="flex gap-2.5 flex-wrap">
@@ -705,12 +705,12 @@ export default function CustomerDetails() {
         )}
       </Box>
 
-      <DeleteOrderModal
-        open={deleteModal.open}
-        orderId={deleteModal.orderId}
-        onClose={() => setDeleteModal({ open: false, orderId: null })}
-        onSuccess={() => refetch()}
-      />
+            <DeleteOrderModal
+              open={deleteModal.open}
+              orderId={deleteModal.orderId}
+              onClose={() => setDeleteModal({ open: false, orderId: null })}
+              onSuccess={() => refetch()}
+            />
     </Box>
   );
 }

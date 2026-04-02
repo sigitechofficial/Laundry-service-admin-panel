@@ -457,7 +457,7 @@ export default function ShopDetails() {
       >
         <Box className="flex items-center gap-3">
           <Button
-            onClick={() => navigate("/shop-management")}
+                  onClick={() => navigate("/shop-management")}
             startIcon={<IoChevronBackOutline size={14} />}
             sx={{ textTransform: "none", color: "#64748B", fontSize: 13, minWidth: "auto", px: 0 }}
           >
@@ -510,10 +510,10 @@ export default function ShopDetails() {
               </Typography>
               <Typography sx={{ fontSize: 13, color: "#334155", display: "flex", alignItems: "center", gap: 0.8 }}>
                 <MdOutlinePhone size={14} /> {biz?.phoneNum || "—"}
-              </Typography>
+                </Typography>
               <Typography sx={{ fontSize: 13, color: "#334155", display: "flex", alignItems: "center", gap: 0.8 }}>
                 <MdMailOutline size={14} /> {biz?.email || "—"}
-              </Typography>
+                </Typography>
             </Box>
           </Box>
           <Box className="flex gap-2.5 flex-wrap">
@@ -660,7 +660,7 @@ export default function ShopDetails() {
                   <Button size="small" onClick={() => setActiveTab("orders")} sx={{ textTransform: "none", fontSize: 12, color: "#00028B", fontWeight: 700 }}>
                     View All →
                   </Button>
-                </Box>
+              </Box>
                 <TableContainer>
                   <Table size="small">
                     <TableHead>

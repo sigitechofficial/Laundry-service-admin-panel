@@ -25,6 +25,10 @@ export const CustomerManagement = lazy(() =>
   import("../pages/customer-management/CustomerManagement")
 );
 
+export const CustomerSupport = lazy(() =>
+  import("../pages/customer-support/CustomerSupport")
+);
+
 export const CustomerDetails = lazy(() =>
   import("../pages/customer-management/customer-details/CustomerDetails")
 );

@@ -8,6 +8,7 @@ import {
   ServiceDashboardPage,
   ConfigureServicesPage,
   CustomerManagement,
+  CustomerSupport,
   CustomerDetails,
   ShopDetails,
   DriverManagement,
@@ -75,6 +76,11 @@ export const privateRoutes = [
     path: "/customer-management",
     element: CustomerManagement,
     resourceKey: "customer_management_Page",
+  },
+  {
+    path: "/customer-support",
+    element: CustomerSupport,
+    resourceKey: "customer_support_page",
   },
   {
     path: "/customer-management/details/:id",

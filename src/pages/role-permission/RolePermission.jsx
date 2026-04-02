@@ -65,10 +65,23 @@ const normalizeFeatureOptions = (featuresResponse) => {
     return features.map((item, idx) => ({
       id: item?.id ?? item?.featureId ?? item?.permissionId ?? idx + 1,
       title: item?.title ?? item?.name ?? item?.key ?? `Feature ${idx + 1}`,
+      key: item?.key,
+      /** Per-role CRUD rows from GET /admin/getFeatures (match by roleId when editing). */
+      permissions: Array.isArray(item?.permissions) ? item.permissions : [],
     }));
   }
   return [];
 };
+
+const emptyActions = () =>
+  ACTION_OPTIONS.reduce((acc, action) => ({ ...acc, [action]: false }), {});
+
+const pickCrud = (obj) => ({
+  create: Boolean(obj?.create),
+  read: Boolean(obj?.read),
+  update: Boolean(obj?.update),
+  delete: Boolean(obj?.delete),
+});
 
 export default function RolePermission() {
   const { success, error } = useToaster();
@@ -108,6 +121,14 @@ export default function RolePermission() {
     });
   }, [permissionOptions]);
 
+  const resetRoleSelectionsToEmpty = () => {
+    const reset = {};
+    permissionOptions.forEach((feature) => {
+      reset[String(feature.id)] = emptyActions();
+    });
+    setRoleSelections(reset);
+  };
+
   const handleRoleActionToggle = (featureId, action) => {
     const key = String(featureId);
     setRoleSelections((prev) => ({
@@ -133,7 +154,7 @@ export default function RolePermission() {
     setRoleSelections((prev) => {
       const reset = {};
       Object.keys(prev).forEach((id) => {
-        reset[id] = ACTION_OPTIONS.reduce((acc, action) => ({ ...acc, [action]: false }), {});
+        reset[id] = emptyActions();
       });
       return reset;
     });
@@ -216,25 +237,22 @@ export default function RolePermission() {
     setRoleName(role?.name || "");
     setRoleStatus(Boolean(role?.status));
 
+    const existingFromRole = Array.isArray(role?.permissionRole) ? role.permissionRole : [];
+    const byFeatureId = new Map(
+      existingFromRole
+        .filter((e) => e != null && e.id != null)
+        .map((e) => [Number(e.id), e?.permissions])
+    );
+
     const next = {};
     permissionOptions.forEach((feature) => {
-      next[String(feature.id)] = ACTION_OPTIONS.reduce(
-        (acc, action) => ({ ...acc, [action]: false }),
-        {}
+      const fid = Number(feature.id);
+      const fromFeatures = feature.permissions?.find(
+        (p) => Number(p?.roleId) === Number(roleId)
       );
-    });
-
-    const existingPermissions = Array.isArray(role?.permissionRole) ? role.permissionRole : [];
-    existingPermissions.forEach((entry) => {
-      const key = String(entry?.id);
-      if (!next[key]) return;
-      const perms = entry?.permissions || {};
-      next[key] = {
-        create: Boolean(perms.create),
-        read: Boolean(perms.read),
-        update: Boolean(perms.update),
-        delete: Boolean(perms.delete),
-      };
+      const fromRoleList = byFeatureId.get(fid);
+      const source = fromFeatures || fromRoleList;
+      next[String(feature.id)] = source ? pickCrud(source) : emptyActions();
     });
 
     setRoleSelections(next);
@@ -270,6 +288,7 @@ export default function RolePermission() {
               setEditingRoleId(null);
               setRoleStatus(true);
               setRoleName("");
+              resetRoleSelectionsToEmpty();
               setRoleModal(true);
             }}
             sx={{ textTransform: "none", borderRadius: "999px", bgcolor: "#2176d2" }}

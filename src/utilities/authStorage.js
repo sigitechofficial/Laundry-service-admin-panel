@@ -13,16 +13,57 @@ export const LS_EMPLOYEE_PERMISSIONS = "employeePermissions";
 /** Single feature id for current sidebar section / route (request header). */
 export const LS_ACTIVE_FEATURE_ID = "activeEmployeeFeatureId";
 
+/** JSON: { firstName, lastName, email, zoneName?, roleLabel } for header / UI. */
+export const LS_USER_PROFILE = "userProfile";
+
 export function clearAuthTokens() {
   localStorage.removeItem(LS_ACCESS_TOKEN);
   localStorage.removeItem(LS_EMPLOYEE_FEATURE_IDS);
   localStorage.removeItem(LS_EMPLOYEE_PERMISSIONS);
   localStorage.removeItem(LS_ACTIVE_FEATURE_ID);
+  localStorage.removeItem(LS_USER_PROFILE);
+}
+
+export function getUserProfile() {
+  try {
+    const raw = localStorage.getItem(LS_USER_PROFILE);
+    if (!raw) return null;
+    const p = JSON.parse(raw);
+    return p && typeof p === "object" ? p : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Store display fields after login. `isZoneAdmin` drives subtitle (Zone Admin vs Admin).
+ */
+export function persistUserProfile(data, options = {}) {
+  const { isZoneAdmin = false } = options;
+  const firstName = data?.firstName != null ? String(data.firstName).trim() : "";
+  const lastName = data?.lastName != null ? String(data.lastName).trim() : "";
+  const email = data?.email != null ? String(data.email).trim() : "";
+  const zoneName = data?.zoneName != null ? String(data.zoneName).trim() : "";
+  const roleLabel = isZoneAdmin
+    ? zoneName
+      ? `Zone Admin · ${zoneName}`
+      : "Zone Admin"
+    : "Admin";
+  localStorage.setItem(
+    LS_USER_PROFILE,
+    JSON.stringify({ firstName, lastName, email, zoneName, roleLabel })
+  );
 }
 
 /** Zone employee session: permissions JSON is present. */
 export function isEmployeePermissionSession() {
   try {
+    const profile = getUserProfile();
+    const isZoneAdmin =
+      typeof profile?.roleLabel === "string" &&
+      profile.roleLabel.toLowerCase().includes("zone admin");
+    if (!isZoneAdmin) return false;
+
     const raw = localStorage.getItem(LS_EMPLOYEE_PERMISSIONS);
     return Boolean(raw && raw !== "[]");
   } catch {
@@ -66,6 +107,7 @@ export function persistAdminLoginSession(data) {
   localStorage.removeItem(LS_EMPLOYEE_FEATURE_IDS);
   localStorage.removeItem(LS_EMPLOYEE_PERMISSIONS);
   localStorage.removeItem(LS_ACTIVE_FEATURE_ID);
+  persistUserProfile(data, { isZoneAdmin: false });
 }
 
 /**
@@ -95,4 +137,6 @@ export function persistZoneAdminLoginSession(data) {
   } else {
     localStorage.removeItem(LS_EMPLOYEE_PERMISSIONS);
   }
+
+  persistUserProfile(data, { isZoneAdmin: true });
 }

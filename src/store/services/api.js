@@ -4,7 +4,7 @@ import baseQueryWithReauth from "./baseQueryWithReauth";
 export const api = createApi({
   reducerPath: "api",
   baseQuery: baseQueryWithReauth,
-  tagTypes: ["ServiceConfig"],
+  tagTypes: ["ServiceConfig", "SupportContact"],
 
   endpoints: (builder) => ({
     // Report query helper
@@ -1046,6 +1046,23 @@ export const api = createApi({
         body,
       }),
     }),
+
+    updateSupportContact: builder.mutation({
+      query: (body) => ({
+        url: "admin/updateSupportContact",
+        method: "PATCH",
+        body,
+      }),
+      invalidatesTags: ["SupportContact"],
+    }),
+
+    getSupportContact: builder.query({
+      query: () => ({
+        url: "admin/getSupportContact",
+        method: "GET",
+      }),
+      providesTags: ["SupportContact"],
+    }),
   }),
 });
 
@@ -1166,5 +1183,7 @@ export const {
   useGetAllBlogsQuery,
   useDeleteBlogMutation,
   useCreateBlogMutation,
-  useUpdateBlogMutation
+  useUpdateBlogMutation,
+  useUpdateSupportContactMutation,
+  useGetSupportContactQuery
 } = api;
