@@ -17,6 +17,7 @@ import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import dayjs from "dayjs";
 import LabelWithTooltip from "../../components/ui/LabelWithTooltip";
+import { useGetAllZonesQuery } from "../../store/services/api";
 
 export default function CancellationPolicy() {
   const { success, error: showError } = useToaster();
@@ -51,6 +52,7 @@ export default function CancellationPolicy() {
   const [addCancellationPolicy, { isLoading: isAdding }] = useAddCancellationPolicyMutation();
   const [updateCancellationPolicy, { isLoading: isUpdating }] = useUpdateCancellationPolicyMutation();
   const [deleteCancellationPolicy, { isLoading: isDeleting }] = useDeleteCancellationPolicyMutation();
+  const { data: zonesResponse } = useGetAllZonesQuery();
   const [createReason, { isLoading: isCreatingReason }] = useCreateReasonMutation();
   const [deleteReason] = useDeleteReasonMutation();
   const { data: reasonsResponse, refetch: refetchReasons } = useGetAllReasonsQuery(undefined, {
@@ -73,6 +75,7 @@ export default function CancellationPolicy() {
     defaultValues: {
       name: "",
       description: "",
+      zoneId: "",
       effectiveFrom: dayjs(),
       effectiveTo: null,
       isActive: true,
@@ -101,6 +104,10 @@ export default function CancellationPolicy() {
   // Watch the fee types to show/hide appropriate inputs
   const prePickupFeeType = watch("prePickupFeeType");
   const unprocessedFeeType = watch("unprocessedFeeType");
+  const zones = zonesResponse?.zones || zonesResponse?.data?.zones || [];
+  const zoneOptions = Array.isArray(zones)
+    ? zones.map((z) => ({ value: String(z.id), label: z.name }))
+    : [];
 
   // Table columns
   const columns = [
@@ -628,6 +635,7 @@ export default function CancellationPolicy() {
     reset({
       name: nextVersionName,
       description: "",
+      zoneId: "",
       effectiveFrom: dayjs(),
       effectiveTo: null,
       isActive: true,
@@ -669,6 +677,7 @@ export default function CancellationPolicy() {
     reset({
       name: policy.name || "",
       description: policy.description || "",
+      zoneId: policy.zoneId ? String(policy.zoneId) : "",
       effectiveFrom: policy.effectiveFrom
         ? dayjs(policy.effectiveFrom)
         : (policy.createdAt ? dayjs(policy.createdAt) : dayjs()),
@@ -769,6 +778,7 @@ export default function CancellationPolicy() {
       const payload = {
         name: data.name,
         description: data.description,
+        zoneId: data.zoneId ? parseInt(data.zoneId, 10) : null,
         effectiveFrom: effectiveFromUtc,
         effectiveTo: effectiveToUtc,
         isActive: !!data.isActive,
@@ -1111,6 +1121,32 @@ export default function CancellationPolicy() {
                           {errors.description && (
                             <Typography variant="caption" sx={{ color: "error.main", mt: 1, display: "block" }}>
                               {errors.description.message}
+                            </Typography>
+                          )}
+                        </Box>
+                      )}
+                    />
+                    <Controller
+                      name="zoneId"
+                      control={control}
+                      rules={{ required: "Zone is required" }}
+                      render={({ field: { onChange, value } }) => (
+                        <Box>
+                          <SelectField
+                            title="Zone*"
+                            value={value || ""}
+                            onChange={(e) => onChange(e.target.value)}
+                            options={zoneOptions}
+                            placeholder="Select zone"
+                            fullWidth
+                            tooltipText="Select which zone this cancellation policy applies to."
+                          />
+                          {errors.zoneId && (
+                            <Typography
+                              variant="caption"
+                              sx={{ color: "error.main", mt: 1, display: "block" }}
+                            >
+                              {errors.zoneId.message}
                             </Typography>
                           )}
                         </Box>

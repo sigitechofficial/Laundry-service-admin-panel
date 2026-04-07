@@ -281,7 +281,7 @@ export default function ItemCategoriesCard({ triggerAdd }) {
                                   {item?.service}
                                 </Typography>
                                 <Typography variant="body2" fontFamily="Inter">
-                                  ${item?.price}
+                                  £{item?.price}
                                 </Typography>
                               </Box>
                               <IconButton

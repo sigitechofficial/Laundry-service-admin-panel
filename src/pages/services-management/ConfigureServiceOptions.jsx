@@ -156,7 +156,7 @@ export default function ConfigureServiceOptions({ serviceId }) {
                             fontFamily: "Inter, sans-serif",
                           }}
                         >
-                          {sub.name} – ${sub.price}
+                          {sub.name} – £{sub.price}
                         </Typography>
                       </Box>
                     ))}

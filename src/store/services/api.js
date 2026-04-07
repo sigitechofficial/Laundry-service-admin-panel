@@ -66,6 +66,15 @@ export const api = createApi({
       }),
     }),
 
+    /** Body: { serviceIds: number[] } — IDs in the desired display order (customer-facing). */
+    reorderServices: builder.mutation({
+      query: (serviceIds) => ({
+        url: "admin/reorderServices",
+        method: "POST",
+        body: { serviceIds },
+      }),
+    }),
+
     getPreferences: builder.query({
       query: () => ({
         url: `admin/getPreferenceTypes`,
@@ -1080,6 +1089,7 @@ export const {
   useEditCategoryMutation,
   useAddSubCategoryMutation,
   useDeleteServiceMutation,
+  useReorderServicesMutation,
   useDeletePreferenceMutation,
   useDeleteCategoryMutation,
   useDeletePreferenceValueMutation,

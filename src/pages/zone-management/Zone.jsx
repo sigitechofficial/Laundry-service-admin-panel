@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, Fragment } from "react";
 import { Box, Button, IconButton, Typography } from "@mui/material";
 import { BsCardList, TbPlus } from "../../shared/icons/index";
 import Search from "../../components/ui/Search";
@@ -35,12 +35,118 @@ import {
   DrawingManager,
   Marker,
   Polygon,
+  Polyline,
 } from "@react-google-maps/api";
 import { LiaHandPointerSolid } from "react-icons/lia";
 import { TbLassoPolygon } from "react-icons/tb";
 import { RxCross2 } from "react-icons/rx";
 import InputFieldModal from "../../components/ui/InputFieldModal";
 import useToaster from "../../components/ui/Toaster";
+
+/**
+ * UK postcode **sector** polygons (e.g. SW1A — not a single unit like SW1A 1AA).
+ * Matching on outcode draws the whole sector; do not use when postcodes.io returns a unit `incode`.
+ * @see https://github.com/missinglink/uk-postcode-polygons
+ */
+const UK_POSTCODE_AREA_GEOJSON_BASE =
+  "https://cdn.jsdelivr.net/gh/missinglink/uk-postcode-polygons@master/geojson";
+const ukPostcodeAreaGeojsonCache = new Map();
+
+/** If Google’s viewport is larger than this for a full unit postcode, it’s closer to sector than unit — use tight hex. */
+const FULL_UNIT_MAX_VIEWPORT_DIAGONAL_KM = 1.15;
+/** ~100 m in latitude degrees — approximate unit footprint when no tighter polygon exists. */
+const UK_UNIT_POSTCODE_HEX_RADIUS_DEG = 0.0009;
+
+function extractUkPostcodeAreaLetters(outcode) {
+  const cleaned = String(outcode || "").replace(/\s+/g, "").toUpperCase();
+  const m = cleaned.match(/^([A-Z]+)\d/);
+  return m ? m[1] : null;
+}
+
+function geoJsonRingToGoogleMapsPath(ring) {
+  if (!Array.isArray(ring) || ring.length < 3) return null;
+  const path = ring.map(([lng, lat]) => ({
+    lat: Number(lat),
+    lng: Number(lng),
+  }));
+  const first = path[0];
+  const last = path[path.length - 1];
+  if (first.lat !== last.lat || first.lng !== last.lng) {
+    path.push({ lat: first.lat, lng: first.lng });
+  }
+  return path;
+}
+
+function googleBoundsDiagonalKm(box) {
+  if (!box?.northeast || !box?.southwest) return Infinity;
+  const { northeast, southwest } = box;
+  const midLat = (southwest.lat + northeast.lat) / 2;
+  const dyKm = (northeast.lat - southwest.lat) * 111.32;
+  const dxKm = (northeast.lng - southwest.lng) * 111.32 * Math.cos((midLat * Math.PI) / 180);
+  return Math.sqrt(dxKm * dxKm + dyKm * dyKm);
+}
+
+/** Red dotted outline (Polygon has no dash support — use invisible-stroke Polyline + symbol icons). */
+function getPostcodeDottedRedOutlineOptions() {
+  if (typeof google !== "undefined" && google?.maps) {
+    return {
+      strokeOpacity: 0,
+      icons: [
+        {
+          icon: {
+            path: google.maps.SymbolPath.CIRCLE,
+            fillColor: "#D32F2F",
+            fillOpacity: 1,
+            strokeWeight: 0,
+            scale: 1.75,
+          },
+          offset: "0",
+          repeat: "6px",
+        },
+      ],
+      zIndex: 2,
+    };
+  }
+  return { strokeColor: "#D32F2F", strokeOpacity: 1, strokeWeight: 1 };
+}
+
+async function fetchUkPostcodeDistrictPolygon(outcode) {
+  const area = extractUkPostcodeAreaLetters(outcode);
+  if (!area) return null;
+  try {
+    let fc = ukPostcodeAreaGeojsonCache.get(area);
+    if (!fc) {
+      const res = await fetch(
+        `${UK_POSTCODE_AREA_GEOJSON_BASE}/${encodeURIComponent(area)}.geojson`
+      );
+      if (!res.ok) return null;
+      fc = await res.json();
+      if (!fc?.features) return null;
+      ukPostcodeAreaGeojsonCache.set(area, fc);
+    }
+    const target = String(outcode).replace(/\s+/g, "").toUpperCase();
+    const feature = fc.features.find(
+      (f) =>
+        String(f.properties?.name || "")
+          .replace(/\s+/g, "")
+          .toUpperCase() === target
+    );
+    if (!feature?.geometry) return null;
+    const { geometry } = feature;
+    let ring = null;
+    if (geometry.type === "Polygon" && geometry.coordinates?.[0]) {
+      ring = geometry.coordinates[0];
+    } else if (
+      geometry.type === "MultiPolygon" &&
+      geometry.coordinates?.[0]?.[0]
+    ) {
+      ring = geometry.coordinates[0][0];
+    }
+    return geoJsonRingToGoogleMapsPath(ring);
+  } catch {
+    return null;
+  }
+}
 
 export default function ZoneManagement() {
   const navigate = useNavigate();
@@ -68,6 +174,8 @@ export default function ZoneManagement() {
   const [newPostcodeInput, setNewPostcodeInput] = useState("");
   const [isAddingPostcode, setIsAddingPostcode] = useState(false);
   const [showPostcodeInput, setShowPostcodeInput] = useState(false);
+  /** Set when edit modal hydrates postcodes; effect pans map once instance is ready */
+  const [editPendingMapCenter, setEditPendingMapCenter] = useState(null);
 
   // Map container style
   const containerStyle = {
@@ -193,6 +301,13 @@ export default function ZoneManagement() {
     }
   }, [add.open, isEditMode, add.cityId, add.countryId, allCities]);
 
+  useEffect(() => {
+    if (!editPendingMapCenter || !map || !add.open) return;
+    map.setCenter(editPendingMapCenter);
+    map.setZoom(14);
+    setEditPendingMapCenter(null);
+  }, [editPendingMapCenter, map, add.open]);
+
   console.log("🚀 ~ ZoneManagement ~ countries:", countries);
   console.log("🚀 ~ ZoneManagement ~ cities:", cities);
 
@@ -277,11 +392,15 @@ export default function ZoneManagement() {
       zone?.postcodes,
       zone?.postCodes,
       zone?.postalCodes,
+      zone?.postalCodeList,
       zone?.zonePostcodes,
       zone?.zonePostCodes,
       zone?.zone_postcodes,
       zone?.postcodeList,
       zone?.postcode,
+      zone?.postalCode,
+      zone?.postal_code,
+      zone?.post_codes,
     ];
 
     const firstNonEmpty = rawCandidates.find((value) => {
@@ -356,16 +475,34 @@ export default function ZoneManagement() {
     return Array.isArray(ring) ? ring : [];
   };
 
+  /** Rough max distance across ring bbox (km). Used to detect compact “one postcode” shapes. */
+  const ringBoundingDiagonalKm = (lngLatPoints) => {
+    if (!Array.isArray(lngLatPoints) || lngLatPoints.length === 0) return Infinity;
+    let minLat = Infinity;
+    let maxLat = -Infinity;
+    let minLng = Infinity;
+    let maxLng = -Infinity;
+    for (const pt of lngLatPoints) {
+      const [lng, lat] = pt || [];
+      if (typeof lng !== "number" || typeof lat !== "number") continue;
+      minLat = Math.min(minLat, lat);
+      maxLat = Math.max(maxLat, lat);
+      minLng = Math.min(minLng, lng);
+      maxLng = Math.max(maxLng, lng);
+    }
+    if (!Number.isFinite(minLat)) return Infinity;
+    const midLat = (minLat + maxLat) / 2;
+    const dyKm = (maxLat - minLat) * 111.32;
+    const dxKm = (maxLng - minLng) * 111.32 * Math.cos((midLat * Math.PI) / 180);
+    return Math.sqrt(dxKm * dxKm + dyKm * dyKm);
+  };
+
+  /** Above this, polygon is treated as a larger / hand-drawn zone → sample perimeter. */
+  const POLYGON_DERIVED_SINGLE_POSTCODE_MAX_DIAGONAL_KM = 6;
+
   const getPostcodesFromCoordinates = async (ringCoordinates) => {
     if (!Array.isArray(ringCoordinates) || ringCoordinates.length === 0) return [];
 
-    // Sample points from polygon so we don't over-call reverse geocoding API
-    const sampleStep = Math.max(1, Math.floor(ringCoordinates.length / 8));
-    const sampled = ringCoordinates
-      .filter((_, index) => index % sampleStep === 0)
-      .slice(0, 10);
-
-    const results = [];
     const extractPostcodeFromPostcodesIo = (payload) => {
       const result = payload?.result;
       if (Array.isArray(result)) {
@@ -377,45 +514,89 @@ export default function ZoneManagement() {
       return "";
     };
 
-    for (const point of sampled) {
-      const [lng, lat] = point || [];
-      if (typeof lng !== "number" || typeof lat !== "number") continue;
+    const lookupPostcodePostcodesIo = async (lng, lat) => {
       try {
         const response = await fetch(
           `https://api.postcodes.io/postcodes?lon=${lng}&lat=${lat}`
         );
-        if (!response.ok) continue;
+        if (!response.ok) return "";
         const data = await response.json();
-        const postcode = extractPostcodeFromPostcodesIo(data);
-        if (postcode) results.push(postcode);
+        return extractPostcodeFromPostcodesIo(data);
       } catch {
-        // Skip failed reverse geocode points
+        return "";
       }
+    };
+
+    const lookupPostcodeGoogle = async (lng, lat) => {
+      if (!googleApiKey) return "";
+      try {
+        const geoUrl = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${googleApiKey}`;
+        const response = await fetch(geoUrl);
+        if (!response.ok) return "";
+        const data = await response.json();
+        const postcodeComponent = data?.results
+          ?.flatMap((result) => result?.address_components || [])
+          ?.find((component) => component?.types?.includes("postal_code"));
+        return postcodeComponent?.long_name || postcodeComponent?.short_name || "";
+      } catch {
+        return "";
+      }
+    };
+
+    const validPoints = ringCoordinates.filter(
+      (p) => Array.isArray(p) && typeof p[0] === "number" && typeof p[1] === "number"
+    );
+    if (validPoints.length === 0) return [];
+
+    const ringNoClose =
+      validPoints.length > 1 &&
+      validPoints[0][0] === validPoints[validPoints.length - 1][0] &&
+      validPoints[0][1] === validPoints[validPoints.length - 1][1]
+        ? validPoints.slice(0, -1)
+        : validPoints;
+
+    let sumLng = 0;
+    let sumLat = 0;
+    for (const [lng, lat] of ringNoClose) {
+      sumLng += lng;
+      sumLat += lat;
+    }
+    const centroidLng = sumLng / ringNoClose.length;
+    const centroidLat = sumLat / ringNoClose.length;
+
+    const diagonalKm = ringBoundingDiagonalKm(ringNoClose);
+
+    // Single-postcode zones (hex / geocode bbox) are small; perimeter sampling lands in *neighbouring* postcodes.
+    if (diagonalKm <= POLYGON_DERIVED_SINGLE_POSTCODE_MAX_DIAGONAL_KM) {
+      let pc = await lookupPostcodePostcodesIo(centroidLng, centroidLat);
+      if (!pc) pc = await lookupPostcodeGoogle(centroidLng, centroidLat);
+      const normalized = String(pc || "").trim();
+      return normalized ? [normalized] : [];
     }
 
-    // If postcodes.io doesn't return codes, fallback to Google reverse geocoding
+    // Larger polygons: sample perimeter (legacy behaviour)
+    const sampleStep = Math.max(1, Math.floor(ringCoordinates.length / 8));
+    const sampled = ringCoordinates
+      .filter((_, index) => index % sampleStep === 0)
+      .slice(0, 10);
+
+    const results = [];
+    for (const point of sampled) {
+      const [lng, lat] = point || [];
+      if (typeof lng !== "number" || typeof lat !== "number") continue;
+      const postcode = await lookupPostcodePostcodesIo(lng, lat);
+      if (postcode) results.push(postcode);
+    }
+
     if (results.length === 0 && googleApiKey) {
       for (const point of sampled.slice(0, 5)) {
         const [lng, lat] = point || [];
         if (typeof lng !== "number" || typeof lat !== "number") continue;
-        try {
-          const geoUrl = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${googleApiKey}`;
-          const response = await fetch(geoUrl);
-          if (!response.ok) continue;
-          const data = await response.json();
-          const postcodeComponent = data?.results
-            ?.flatMap((result) => result?.address_components || [])
-            ?.find((component) => component?.types?.includes("postal_code"));
-          const postcode =
-            postcodeComponent?.long_name || postcodeComponent?.short_name || "";
-          if (postcode) results.push(postcode);
-        } catch {
-          // Continue to next sampled point
-        }
+        const postcode = await lookupPostcodeGoogle(lng, lat);
+        if (postcode) results.push(postcode);
       }
     }
 
-    // Deduplicate while preserving order
     const unique = [];
     const seen = new Set();
     results.forEach((postcode) => {
@@ -431,6 +612,7 @@ export default function ZoneManagement() {
 
   const handleEditZone = async (row) => {
     try {
+      setEditPendingMapCenter(null);
       const rowZone = row?.rawZone || row || {};
       const zoneId = rowZone.id || row?.id || null;
 
@@ -498,16 +680,72 @@ export default function ZoneManagement() {
         const ringCoordinates = extractRingCoordinates(zone);
         postcodes = await getPostcodesFromCoordinates(ringCoordinates);
       }
-      setAddedPostcodes(postcodes.map((postcode) => ({ postcode })));
-      if (postcodes.length === 0) {
-        showError("No postcode found from this zone's coordinates.");
-      }
 
       setPostalCodeHighlight(null);
-      setPostalCodeMarkers([]);
-      setMultiplePostcodeHighlights([]);
       setNewPostcodeInput("");
       setShowPostcodeInput(false);
+
+      const seenPc = new Set();
+      const uniquePostcodes = [];
+      for (const p of postcodes) {
+        const norm = String(p || "").trim();
+        if (!norm) continue;
+        const key = norm.toLowerCase().replace(/\s+/g, "");
+        if (seenPc.has(key)) continue;
+        seenPc.add(key);
+        uniquePostcodes.push(norm);
+      }
+
+      if (uniquePostcodes.length === 0) {
+        setAddedPostcodes([]);
+        setPostalCodeMarkers([]);
+        setMultiplePostcodeHighlights([]);
+        showError("No postcode found from this zone's coordinates.");
+        return;
+      }
+
+      const newHighlights = [];
+      const newMarkers = [];
+      const newPostcodeDataList = [];
+      let lastCenterPoint = null;
+
+      for (const postcode of uniquePostcodes) {
+        try {
+          const boundaryData = await fetchPostalCodeBoundary(postcode);
+          if (boundaryData) {
+            lastCenterPoint = boundaryData.centerPoint;
+            newPostcodeDataList.push({
+              postcode: boundaryData.postcode,
+              center: boundaryData.centerPoint,
+              paths: boundaryData.polygonPath,
+            });
+            newHighlights.push({
+              paths: boundaryData.polygonPath,
+              postcode: boundaryData.postcode,
+              center: boundaryData.centerPoint,
+            });
+            newMarkers.push({
+              position: boundaryData.centerPoint,
+              postcode: boundaryData.postcode,
+              label: boundaryData.postcode,
+            });
+          } else {
+            newPostcodeDataList.push({ postcode });
+          }
+        } catch (e) {
+          console.error(`Edit zone: boundary fetch failed for ${postcode}:`, e);
+          newPostcodeDataList.push({ postcode });
+        }
+      }
+
+      setAddedPostcodes(newPostcodeDataList);
+      setMultiplePostcodeHighlights(newHighlights);
+      setPostalCodeMarkers(newMarkers);
+
+      if (lastCenterPoint) {
+        setCenter(lastCenterPoint);
+        setEditPendingMapCenter(lastCenterPoint);
+      }
     } catch (error) {
       console.error("Error opening edit modal:", error);
       showError("Failed to open edit modal.");
@@ -677,6 +915,7 @@ export default function ZoneManagement() {
       setAddedPostcodes([]);
       setNewPostcodeInput("");
       setShowPostcodeInput(false);
+      setEditPendingMapCenter(null);
       if (map) {
         map.setOptions({ draggableCursor: "pointer" });
       }
@@ -986,120 +1225,102 @@ export default function ZoneManagement() {
     }
   };
 
-  // Helper function to fetch actual postal code boundary
+  // Helper function to fetch postal code boundary for the map.
+  // UK full unit (e.g. SW1A 1AA): postcodes.io gives outcode SW1A + incode — open GeoJSON is **sector** SW1A
+  // (huge, wrong vs Google’s unit outline). Skip GeoJSON for those; use Geocoding viewport if tight enough,
+  // else a small hex at the official centroid.
+  //
+  // Sector-only / resolved without incode: keep GeoJSON sector polygon when available.
+  //
+  // Note: api.postcodes.io /postcodes/{pc}/boundary returns 404 — not used here.
   const fetchPostalCodeBoundary = async (postalCode) => {
     try {
       const cleanPostcode = postalCode.replace(/\s+/g, "");
 
-      // Try Google Geocoding API first (matches Google Maps display)
+      const centerRes = await fetch(
+        `https://api.postcodes.io/postcodes/${encodeURIComponent(cleanPostcode)}`
+      );
+
+      let centerPoint = null;
+      let outcode = null;
+      let normalizedPostcode = postalCode;
+      /** True when lookup is a specific UK unit (has incode) — not whole sector SW1A. */
+      let hasFullUkUnit = false;
+
+      if (centerRes.ok) {
+        const centerData = await centerRes.json();
+        if (centerData.result) {
+          centerPoint = {
+            lat: centerData.result.latitude,
+            lng: centerData.result.longitude,
+          };
+          outcode = centerData.result.outcode;
+          normalizedPostcode = centerData.result.postcode || postalCode;
+          const inc = centerData.result.incode;
+          hasFullUkUnit = Boolean(inc != null && String(inc).trim() !== "");
+        }
+      }
+
+      // ── 1. Sector polygon (only when we are not targeting one specific unit) ──
+      if (outcode && centerPoint && !hasFullUkUnit) {
+        const districtPath = await fetchUkPostcodeDistrictPolygon(outcode);
+        if (districtPath?.length) {
+          return {
+            centerPoint,
+            polygonPath: districtPath,
+            postcode: normalizedPostcode,
+          };
+        }
+      }
+
+      // ── 2. Google Geocoding bounding-box ──
       try {
-        const geocodingUrl = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(postalCode)}&key=${googleApiKey}`;
-        const geocodingResponse = await fetch(geocodingUrl);
-        
-        if (geocodingResponse.ok) {
-          const geocodingData = await geocodingResponse.json();
-          
+        const geocodingRes = await fetch(
+          `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(postalCode)}&key=${googleApiKey}`
+        );
+
+        if (geocodingRes.ok) {
+          const geocodingData = await geocodingRes.json();
+
           if (geocodingData.results && geocodingData.results.length > 0) {
             const result = geocodingData.results[0];
             const geometry = result.geometry;
-            
-            const centerPoint = {
+            const gCenter = {
               lat: geometry.location.lat,
               lng: geometry.location.lng,
             };
 
-            // Get boundary from bounds or viewport
-            let polygonPath = null;
-
-            if (geometry.bounds) {
-              const bounds = geometry.bounds;
-              polygonPath = [
-                { lat: bounds.northeast.lat, lng: bounds.southwest.lng },
-                { lat: bounds.northeast.lat, lng: bounds.northeast.lng },
-                { lat: bounds.southwest.lat, lng: bounds.northeast.lng },
-                { lat: bounds.southwest.lat, lng: bounds.southwest.lng },
-                { lat: bounds.northeast.lat, lng: bounds.southwest.lng },
-              ];
-            } else if (geometry.viewport) {
-              const viewport = geometry.viewport;
-              polygonPath = [
-                { lat: viewport.northeast.lat, lng: viewport.southwest.lng },
-                { lat: viewport.northeast.lat, lng: viewport.northeast.lng },
-                { lat: viewport.southwest.lat, lng: viewport.northeast.lng },
-                { lat: viewport.southwest.lat, lng: viewport.southwest.lng },
-                { lat: viewport.northeast.lat, lng: viewport.southwest.lng },
-              ];
-            }
-
-            if (polygonPath) {
-              return { centerPoint, polygonPath, postcode: postalCode };
+            const box = geometry.bounds || geometry.viewport;
+            if (box) {
+              const diagKm = googleBoundsDiagonalKm(box);
+              const viewportTooLooseForUnit =
+                hasFullUkUnit && diagKm > FULL_UNIT_MAX_VIEWPORT_DIAGONAL_KM;
+              if (!viewportTooLooseForUnit) {
+                const polygonPath = [
+                  { lat: box.northeast.lat, lng: box.southwest.lng },
+                  { lat: box.northeast.lat, lng: box.northeast.lng },
+                  { lat: box.southwest.lat, lng: box.northeast.lng },
+                  { lat: box.southwest.lat, lng: box.southwest.lng },
+                  { lat: box.northeast.lat, lng: box.southwest.lng },
+                ];
+                return {
+                  centerPoint: centerPoint || gCenter,
+                  polygonPath,
+                  postcode: normalizedPostcode,
+                };
+              }
             }
           }
         }
       } catch (geocodingError) {
-        console.log("Google Geocoding API failed, trying postcode.io:", geocodingError);
+        console.log("Google Geocoding failed, trying hexagon fallback:", geocodingError);
       }
 
-      // Fallback to postcode.io boundary endpoint
-      try {
-        const boundaryResponse = await fetch(
-          `https://api.postcodes.io/postcodes/${encodeURIComponent(cleanPostcode)}/boundary`
-        );
-
-        if (boundaryResponse.ok) {
-          const boundaryData = await boundaryResponse.json();
-          if (boundaryData.result && boundaryData.result.length > 0) {
-            // Get center point
-            const centerResponse = await fetch(
-              `https://api.postcodes.io/postcodes/${encodeURIComponent(cleanPostcode)}`
-            );
-            let centerPoint = null;
-            if (centerResponse.ok) {
-              const centerData = await centerResponse.json();
-              if (centerData.result) {
-                centerPoint = {
-                  lat: centerData.result.latitude,
-                  lng: centerData.result.longitude,
-                };
-              }
-            }
-
-            // Convert GeoJSON coordinates to Google Maps format
-            const polygonPath = boundaryData.result.map((coord) => ({
-              lat: coord[1],
-              lng: coord[0],
-            }));
-            // Close the polygon
-            if (polygonPath.length > 0) {
-              polygonPath.push(polygonPath[0]);
-            }
-
-            if (centerPoint) {
-              // Get postcode from center data or use the input
-              const postcode = centerData.result?.postcode || postalCode;
-              return { centerPoint, polygonPath, postcode };
-            }
-          }
-        }
-      } catch (boundaryError) {
-        console.log("postcode.io boundary endpoint failed:", boundaryError);
-      }
-
-      // Final fallback: get center and create hexagon
-      const response = await fetch(
-        `https://api.postcodes.io/postcodes/${encodeURIComponent(cleanPostcode)}`
-      );
-
-      if (response.ok) {
-        const data = await response.json();
-        if (data.result) {
-          const centerPoint = {
-            lat: data.result.latitude,
-            lng: data.result.longitude,
-          };
-          const polygonPath = createHexagon(centerPoint.lat, centerPoint.lng, 0.005);
-          return { centerPoint, polygonPath, postcode: data.result.postcode };
-        }
+      // ── 3. Centroid + hexagon (tighter radius for full UK units) ──
+      if (centerPoint) {
+        const radiusDeg = hasFullUkUnit ? UK_UNIT_POSTCODE_HEX_RADIUS_DEG : 0.005;
+        const polygonPath = createHexagon(centerPoint.lat, centerPoint.lng, radiusDeg);
+        return { centerPoint, polygonPath, postcode: normalizedPostcode };
       }
     } catch (error) {
       console.error(`Error fetching postal code boundary for ${postalCode}:`, error);
@@ -1223,6 +1444,30 @@ export default function ZoneManagement() {
 
 
   // Handle adding postal codes (supports multiple)
+  // Returns true if the postcode belongs to the given city name (case-insensitive partial match)
+  const validatePostcodeCity = async (postcode, cityName) => {
+    try {
+      const cleanPostcode = postcode.replace(/\s+/g, "");
+      const response = await fetch(
+        `https://api.postcodes.io/postcodes/${encodeURIComponent(cleanPostcode)}`
+      );
+      if (!response.ok) return true; // Can't validate → allow
+      const data = await response.json();
+      if (!data.result) return true;
+
+      const { admin_district, admin_county, region, nuts } = data.result;
+      const candidates = [admin_district, admin_county, region, nuts]
+        .filter(Boolean)
+        .map((f) => f.toLowerCase());
+      const city = cityName.toLowerCase();
+
+      // Pass if any candidate contains the city name OR city name contains the candidate
+      return candidates.some((f) => f.includes(city) || city.includes(f));
+    } catch {
+      return true; // Network error → allow gracefully
+    }
+  };
+
   const handleAddPostcode = async () => {
     if (!newPostcodeInput.trim()) {
       showError("Please enter at least one postal code");
@@ -1243,17 +1488,41 @@ export default function ZoneManagement() {
       return;
     }
 
+    // Resolve selected city name for validation
+    const selectedCity = add.cityId
+      ? (Array.isArray(cities)
+          ? cities.find((c) => String(c.id) === String(add.cityId))
+          : null) ||
+        (Array.isArray(allCities)
+          ? allCities.find((c) => String(c.id) === String(add.cityId))
+          : null)
+      : null;
+    const selectedCityName = selectedCity?.name || null;
+
     try {
       const newHighlights = [];
       const newMarkers = [];
       const newPostcodeDataList = [];
       let lastCenterPoint = null;
+      let cityRejectedCount = 0;
 
       // Validate and fetch each postal code
       for (const postcode of postcodes) {
         // Check if postal code already exists
         if (addedPostcodes.some((pc) => pc.postcode === postcode)) {
           continue; // Skip already added postal codes
+        }
+
+        // City validation: reject postcodes outside the selected city
+        if (selectedCityName) {
+          const belongsToCity = await validatePostcodeCity(postcode, selectedCityName);
+          if (!belongsToCity) {
+            showError(
+              `"${postcode}" is outside of ${selectedCityName}. Only postal codes within the selected city can be added.`
+            );
+            cityRejectedCount++;
+            continue;
+          }
         }
 
         try {
@@ -1308,7 +1577,9 @@ export default function ZoneManagement() {
         setShowPostcodeInput(false);
         setNewPostcodeInput("");
         success(`Successfully added ${newHighlights.length} postal code(s)`);
-      } else {
+      } else if (cityRejectedCount === 0) {
+        // Only show the generic fallback if nothing was rejected by city validation
+        // (city rejections already showed their own specific toast)
         showError("No valid postal codes could be found or all are already added");
       }
     } catch (error) {
@@ -1579,34 +1850,43 @@ export default function ZoneManagement() {
                           onPolygonComplete={onPolygonComplete}
                         />
                       )}
-                      {/* Single postal code highlight polygon */}
+                      {/* Single postal code highlight: fill + red dotted border */}
                       {postalCodeHighlight && postalCodeHighlight.paths && (
-                        <Polygon
-                          paths={postalCodeHighlight.paths}
-                          options={{
-                            fillColor: "#87CEEB",
-                            fillOpacity: 0.3,
-                            strokeColor: "#808080",
-                            strokeOpacity: 0.6,
-                            strokeWeight: 1,
-                            clickable: false,
-                          }}
-                        />
+                        <>
+                          <Polygon
+                            paths={postalCodeHighlight.paths}
+                            options={{
+                              fillColor: "#87CEEB",
+                              fillOpacity: 0.3,
+                              strokeOpacity: 0,
+                              strokeWeight: 0,
+                              clickable: false,
+                            }}
+                          />
+                          <Polyline
+                            path={postalCodeHighlight.paths}
+                            options={getPostcodeDottedRedOutlineOptions()}
+                          />
+                        </>
                       )}
                       {/* Multiple postal code highlight polygons */}
                       {multiplePostcodeHighlights.map((highlight, index) => (
-                        <Polygon
-                          key={`highlight-${index}`}
-                          paths={highlight.paths}
-                          options={{
-                            fillColor: "#87CEEB",
-                            fillOpacity: 0.3,
-                            strokeColor: "#808080",
-                            strokeOpacity: 0.6,
-                            strokeWeight: 1,
-                            clickable: false,
-                          }}
-                        />
+                        <Fragment key={`highlight-${index}`}>
+                          <Polygon
+                            paths={highlight.paths}
+                            options={{
+                              fillColor: "#87CEEB",
+                              fillOpacity: 0.3,
+                              strokeOpacity: 0,
+                              strokeWeight: 0,
+                              clickable: false,
+                            }}
+                          />
+                          <Polyline
+                            path={highlight.paths}
+                            options={getPostcodeDottedRedOutlineOptions()}
+                          />
+                        </Fragment>
                       ))}
                       {/* Postal code markers */}
                       {postalCodeMarkers.map((marker, index) => (
