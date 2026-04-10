@@ -1,6 +1,14 @@
 import { useState, useEffect } from "react";
-import { Box, Typography, Divider } from "@mui/material";
-import { TbPlus, TbCalendar, TbTrash } from "../../shared/icons/index";
+import {
+  Box,
+  Typography,
+  Divider,
+  Button,
+  Menu,
+  MenuItem,
+  Tooltip,
+} from "@mui/material";
+import { TbPlus, TbCalendar, TbTrash, TbFilter } from "../../shared/icons/index";
 import StyledCheckbox from "../../components/ui/StyledCheckbox";
 import LabelWithTooltip from "../../components/ui/LabelWithTooltip";
 import DataTable from "../../components/ui/DataTable";
@@ -10,12 +18,13 @@ import SelectField from "../../components/ui/SelectField";
 import { useForm, Controller } from "react-hook-form";
 import ButtonBlueLight from "../../components/ui/ButtonBlueLight";
 import useToaster from "../../components/ui/Toaster";
-import { useAddCancellationPolicyMutation, useGetCancellationPoliciesQuery, useUpdateCancellationPolicyMutation, useDeleteCancellationPolicyMutation, useCreateReasonMutation, useGetAllReasonsQuery, useDeleteReasonMutation } from "../../store/services/api";
+import { useAddCancellationPolicyMutation, useGetCancellationPoliciesQuery, useUpdateCancellationPolicyMutation, useDeleteCancellationPolicyMutation, useCreateReasonMutation, useGetAllReasonsQuery, useDeleteReasonMutation, useGetAllZonesQuery } from "../../store/services/api";
 import { Delay } from "../../components/shared/Loaders";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import dayjs from "dayjs";
+import { useSelector } from "react-redux";
 
 export default function CancellationPolicyContent() {
   const { success, error: showError } = useToaster();
@@ -31,17 +40,28 @@ export default function CancellationPolicyContent() {
   // Filter states
   const [isActiveFilter, setIsActiveFilter] = useState("");
   const [isDefaultFilter, setIsDefaultFilter] = useState("");
+  const [selectedZoneId, setSelectedZoneId] = useState("");
+  const [zoneMenuAnchor, setZoneMenuAnchor] = useState(null);
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
 
   // Reset page to 1 when filters change
   useEffect(() => {
     setPage(1);
-  }, [isActiveFilter, isDefaultFilter, limit]);
+  }, [isActiveFilter, isDefaultFilter, selectedZoneId, limit]);
+
+  const zones = useSelector((state) => state?.apiData?.zones?.zones || []);
+  useGetAllZonesQuery(undefined, { refetchOnMountOrArgChange: false });
+  const zoneOptions =
+    zones?.map((z) => ({ value: String(z.id), label: z.name })) || [];
+  const selectedZoneLabel = zoneOptions.find(
+    (z) => z.value === String(selectedZoneId)
+  )?.label;
 
   const filterParams = {
     ...(isActiveFilter !== "" && { isActive: isActiveFilter }),
     ...(isDefaultFilter !== "" && { isDefault: isDefaultFilter }),
+    ...(selectedZoneId !== "" && { zoneId: selectedZoneId }),
     ...(page && { page }),
     ...(limit && { limit }),
   };
@@ -125,6 +145,18 @@ export default function CancellationPolicyContent() {
       renderCell: (row) => (
         <Typography sx={{ fontWeight: 500, fontSize: "13px" }}>
           {row.type || "N/A"}
+        </Typography>
+      ),
+    },
+    {
+      field: "zoneName",
+      headerName: "Zone",
+      flex: 0.12,
+      minWidth: 160,
+      sortable: true,
+      renderCell: (row) => (
+        <Typography sx={{ fontWeight: 400, fontSize: "13px" }}>
+          {row.zoneName || "—"}
         </Typography>
       ),
     },
@@ -512,12 +544,18 @@ export default function CancellationPolicyContent() {
   // Prepare table data
   const policiesData = policies?.map((policy, index) => {
     const config = policy.cancellationConfig || {};
+    const zoneName =
+      policy.zone?.name ||
+      zoneOptions.find((z) => String(z.value) === String(policy.zoneId))?.label ||
+      null;
     return {
       id: policy.id,
       sl: (pagination.page - 1) * pagination.limit + index + 1,
       name: policy.name,
       type: policy.type,
       description: policy.description,
+      zoneId: policy.zoneId ?? null,
+      zoneName,
       isActive: policy.isActive,
       isDefault: policy.isDefault,
       createdBy: policy.createdBy,
@@ -1069,10 +1107,81 @@ export default function CancellationPolicyContent() {
 
       {/* Data Table */}
       <Box sx={{ width: "100%", overflow: "visible" }}>
+        <Box
+          className="flex items-center gap-3 flex-wrap"
+          sx={{ mb: 2, justifyContent: "flex-end" }}
+        >
+          <Tooltip
+            title={
+              selectedZoneLabel
+                ? `Zone: ${selectedZoneLabel}`
+                : "Filter by zone"
+            }
+          >
+            <Button
+              variant="outlined"
+              onClick={(e) => setZoneMenuAnchor(e.currentTarget)}
+              startIcon={<TbFilter size={18} />}
+              sx={{
+                height: 40,
+                minWidth: 0,
+                px: 1.5,
+                borderRadius: "8px",
+                textTransform: "none",
+                fontFamily: "Inter",
+                bgcolor: "white",
+                border: selectedZoneId
+                  ? "2px solid #000099"
+                  : "1px solid #E5E7EB",
+                color: selectedZoneId ? "#000099" : "#64748B",
+                "&:hover": {
+                  bgcolor: "#F8FAFC",
+                  borderColor: selectedZoneId ? "#000099" : "#CBD5E1",
+                },
+                "& .MuiButton-startIcon": { mr: 0.5 },
+              }}
+            >
+              Zone
+            </Button>
+          </Tooltip>
+          <Menu
+            anchorEl={zoneMenuAnchor}
+            open={Boolean(zoneMenuAnchor)}
+            onClose={() => setZoneMenuAnchor(null)}
+            anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+            transformOrigin={{ vertical: "top", horizontal: "right" }}
+            PaperProps={{
+              sx: { minWidth: 220, borderRadius: 2, mt: 1 },
+            }}
+          >
+            <MenuItem
+              onClick={() => {
+                setSelectedZoneId("");
+                setZoneMenuAnchor(null);
+              }}
+              selected={selectedZoneId === ""}
+            >
+              All zones
+            </MenuItem>
+            {zoneOptions.map((z) => (
+              <MenuItem
+                key={z.value}
+                onClick={() => {
+                  setSelectedZoneId(z.value);
+                  setZoneMenuAnchor(null);
+                }}
+                selected={String(selectedZoneId) === String(z.value)}
+              >
+                {z.label}
+              </MenuItem>
+            ))}
+          </Menu>
+        </Box>
         <DataTable
           data={policiesData}
           columns={columns}
           height={700}
+          showFilters={false}
           serverSidePagination={true}
           totalRows={pagination.total || 0}
           currentPage={page}
@@ -1084,7 +1193,6 @@ export default function CancellationPolicyContent() {
             setLimit(newPageSize);
             setPage(1);
           }}
-          onFiltersClick={() => setFilterModalOpen(true)}
         />
       </Box>
 

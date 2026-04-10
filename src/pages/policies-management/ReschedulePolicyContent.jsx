@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { Box, Typography, Divider } from "@mui/material";
-import { TbCalendar, TbTrash } from "../../shared/icons/index";
+import { Box, Typography, Divider, Button, Menu, MenuItem, Tooltip } from "@mui/material";
+import { TbCalendar, TbTrash, TbFilter } from "../../shared/icons/index";
 import StyledCheckbox from "../../components/ui/StyledCheckbox";
 import LabelWithTooltip from "../../components/ui/LabelWithTooltip";
 import DataTable from "../../components/ui/DataTable";
@@ -14,14 +14,21 @@ import {
   useGetReschedulePoliciesQuery,
   useUpdateReschedulePolicyMutation,
   useDeleteReschedulePolicyMutation,
+  useGetAllZonesQuery,
 } from "../../store/services/api";
 import { Delay } from "../../components/shared/Loaders";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import dayjs from "dayjs";
+import { useSelector } from "react-redux";
 
-export default function ReschedulePolicyContent({ onAddButtonRef }) {
+export default function ReschedulePolicyContent({
+  onAddButtonRef,
+  zoneId: externalZoneId,
+  onZoneIdChange,
+  showZoneFilter = true,
+}) {
   const { success, error: showError } = useToaster();
   const [modalOpen, setModalOpen] = useState(false);
   const [editingPolicy, setEditingPolicy] = useState(null);
@@ -31,16 +38,28 @@ export default function ReschedulePolicyContent({ onAddButtonRef }) {
 
   const [isActiveFilter, setIsActiveFilter] = useState("");
   const [isDefaultFilter, setIsDefaultFilter] = useState("");
+  const [selectedZoneIdLocal, setSelectedZoneIdLocal] = useState("");
+  const selectedZoneId =
+    externalZoneId !== undefined ? externalZoneId : selectedZoneIdLocal;
+  const setSelectedZoneId =
+    typeof onZoneIdChange === "function" ? onZoneIdChange : setSelectedZoneIdLocal;
+  const [zoneMenuAnchor, setZoneMenuAnchor] = useState(null);
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
 
   useEffect(() => {
     setPage(1);
-  }, [isActiveFilter, isDefaultFilter, limit]);
+  }, [isActiveFilter, isDefaultFilter, selectedZoneId, limit]);
+
+  const zones = useSelector((state) => state?.apiData?.zones?.zones || []);
+  useGetAllZonesQuery(undefined, { refetchOnMountOrArgChange: false });
+  const zoneOptions = zones?.map((z) => ({ value: String(z.id), label: z.name })) || [];
+  const selectedZoneLabel = zoneOptions.find((z) => z.value === String(selectedZoneId))?.label;
 
   const filterParams = {
     ...(isActiveFilter !== "" && { isActive: isActiveFilter }),
     ...(isDefaultFilter !== "" && { isDefault: isDefaultFilter }),
+    ...(selectedZoneId !== "" && { zoneId: selectedZoneId }),
     ...(page && { page }),
     ...(limit && { limit }),
   };
@@ -60,9 +79,31 @@ export default function ReschedulePolicyContent({ onAddButtonRef }) {
   const pagination = policiesResponse?.data?.pagination || {};
   const totalPages = pagination.pages || 1;
 
+  const getNextVersionName = () => {
+    const versions = policies
+      .map((p) => String(p?.name || ""))
+      .map((name) => {
+        const m = name.match(/version\s+(\d+)(?:\.(\d+))?/i);
+        if (!m) return null;
+        const major = parseInt(m[1], 10);
+        const minor = m[2] ? parseInt(m[2], 10) : 0;
+        if (Number.isNaN(major) || Number.isNaN(minor)) return null;
+        return { major, minor, full: major * 100 + minor };
+      })
+      .filter(Boolean)
+      .sort((a, b) => b.full - a.full);
+
+    if (versions.length === 0) return "Version 1";
+    const highest = versions[0];
+    if (highest.minor === 0) return `Version ${highest.major}.01`;
+    const nextMinor = highest.minor + 1;
+    return `Version ${highest.major}.${nextMinor.toString().padStart(2, "0")}`;
+  };
+
   const rescheduleFormDefaults = {
     name: "",
     description: "",
+    zoneId: "",
     effectiveFrom: dayjs(),
     effectiveTo: null,
     isActive: true,
@@ -105,6 +146,18 @@ export default function ReschedulePolicyContent({ onAddButtonRef }) {
       flex: 0.12,
       minWidth: 150,
       sortable: true,
+    },
+    {
+      field: "zoneName",
+      headerName: "Zone",
+      flex: 0.12,
+      minWidth: 160,
+      sortable: true,
+      renderCell: (row) => (
+        <Typography sx={{ fontWeight: 400, fontSize: "13px" }}>
+          {row.zoneName || "—"}
+        </Typography>
+      ),
     },
     {
       field: "description",
@@ -390,10 +443,16 @@ export default function ReschedulePolicyContent({ onAddButtonRef }) {
         config.atDeliveryPercentage != null && config.atDeliveryPercentage !== ""
           ? "percentage"
           : "absolute";
+      const zoneName =
+        policy.zone?.name ||
+        zoneOptions.find((z) => String(z.value) === String(policy.zoneId))?.label ||
+        null;
       return {
         id: policy.id,
         sl: (pagination.page - 1) * (pagination.limit || limit) + index + 1,
         name: policy.name,
+        zoneId: policy.zoneId ?? null,
+        zoneName,
         description: policy.description,
         isActive: policy.isActive,
         isDefault: policy.isDefault,
@@ -431,7 +490,8 @@ export default function ReschedulePolicyContent({ onAddButtonRef }) {
 
   const handleAdd = () => {
     setEditingPolicy(null);
-    reset(rescheduleFormDefaults);
+    const nextVersionName = getNextVersionName();
+    reset({ ...rescheduleFormDefaults, name: nextVersionName, zoneId: "" });
     setModalOpen(true);
   };
 
@@ -453,6 +513,7 @@ export default function ReschedulePolicyContent({ onAddButtonRef }) {
     reset({
       name: policy.name || "",
       description: policy.description || "",
+      zoneId: policy.zoneId ? String(policy.zoneId) : "",
       effectiveFrom: policy.effectiveFrom
         ? dayjs(policy.effectiveFrom)
         : (policy.createdAt ? dayjs(policy.createdAt) : dayjs()),
@@ -524,6 +585,7 @@ export default function ReschedulePolicyContent({ onAddButtonRef }) {
       const payload = {
         name: data.name,
         description: data.description,
+        zoneId: data.zoneId ? parseInt(String(data.zoneId), 10) : null,
         effectiveFrom: effectiveFromUtc,
         effectiveTo: effectiveToUtc,
         isActive: !!data.isActive,
@@ -601,6 +663,78 @@ export default function ReschedulePolicyContent({ onAddButtonRef }) {
   return (
     <Box>
       <Box sx={{ width: "100%", overflow: "visible" }}>
+        {showZoneFilter && (
+          <Box
+            className="flex items-center gap-3 flex-wrap"
+            sx={{ mb: 2, justifyContent: "flex-end" }}
+          >
+            <Tooltip
+              title={
+                selectedZoneLabel
+                  ? `Zone: ${selectedZoneLabel}`
+                  : "Filter by zone"
+              }
+            >
+              <Button
+                variant="outlined"
+                onClick={(e) => setZoneMenuAnchor(e.currentTarget)}
+                startIcon={<TbFilter size={18} />}
+                sx={{
+                  height: 40,
+                  minWidth: 0,
+                  px: 1.5,
+                  borderRadius: "8px",
+                  textTransform: "none",
+                  fontFamily: "Inter",
+                  bgcolor: "white",
+                  border: selectedZoneId
+                    ? "2px solid #000099"
+                    : "1px solid #E5E7EB",
+                  color: selectedZoneId ? "#000099" : "#64748B",
+                  "&:hover": {
+                    bgcolor: "#F8FAFC",
+                    borderColor: selectedZoneId ? "#000099" : "#CBD5E1",
+                  },
+                  "& .MuiButton-startIcon": { mr: 0.5 },
+                }}
+              >
+                Zone
+              </Button>
+            </Tooltip>
+            <Menu
+              anchorEl={zoneMenuAnchor}
+              open={Boolean(zoneMenuAnchor)}
+              onClose={() => setZoneMenuAnchor(null)}
+              anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+              transformOrigin={{ vertical: "top", horizontal: "right" }}
+              PaperProps={{
+                sx: { minWidth: 220, borderRadius: 2, mt: 1 },
+              }}
+            >
+              <MenuItem
+                onClick={() => {
+                  setSelectedZoneId("");
+                  setZoneMenuAnchor(null);
+                }}
+                selected={selectedZoneId === ""}
+              >
+                All zones
+              </MenuItem>
+              {zoneOptions.map((z) => (
+                <MenuItem
+                  key={z.value}
+                  onClick={() => {
+                    setSelectedZoneId(z.value);
+                    setZoneMenuAnchor(null);
+                  }}
+                  selected={String(selectedZoneId) === String(z.value)}
+                >
+                  {z.label}
+                </MenuItem>
+              ))}
+            </Menu>
+          </Box>
+        )}
         <DataTable
           data={policiesData}
           columns={columns}
@@ -655,6 +789,12 @@ export default function ReschedulePolicyContent({ onAddButtonRef }) {
                     value={value || ""}
                     onChange={(e) => onChange(e.target.value)}
                     error={errors.name?.message}
+                    disabled={!editingPolicy}
+                    tooltipText={
+                      editingPolicy
+                        ? "Policy name/identifier. This is a required field and must be unique."
+                        : "Policy name is auto-generated and cannot be edited."
+                    }
                   />
                 )}
               />
@@ -670,6 +810,32 @@ export default function ReschedulePolicyContent({ onAddButtonRef }) {
                     onChange={(e) => onChange(e.target.value)}
                     error={errors.description?.message}
                   />
+                )}
+              />
+              <Controller
+                name="zoneId"
+                control={control}
+                rules={{ required: "Zone is required" }}
+                render={({ field: { onChange, value } }) => (
+                  <Box>
+                    <SelectField
+                      title="Zone*"
+                      value={value || ""}
+                      onChange={(e) => onChange(e.target.value)}
+                      options={zoneOptions}
+                      placeholder="Select zone"
+                      fullWidth
+                      tooltipText="Select which zone this policy applies to."
+                    />
+                    {errors.zoneId && (
+                      <Typography
+                        variant="caption"
+                        sx={{ color: "error.main", mt: 1, display: "block" }}
+                      >
+                        {errors.zoneId.message}
+                      </Typography>
+                    )}
+                  </Box>
                 )}
               />
               <Controller

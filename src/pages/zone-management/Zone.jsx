@@ -17,7 +17,6 @@ import {
   useGetCitiesByCountryIdQuery,
   useGetAllCitiesQuery,
   useGetUnitsDistanceAndCurrencyQuery,
-  useGetActivePoliciesQuery,
   useAddZoneByPostcodesMutation,
   useEditZoneByPostcodesMutation,
   useDeleteZoneMutation,
@@ -199,9 +198,6 @@ export default function ZoneManagement() {
     deliveryCharges: "",
     ExDeliveryCharges: " ",
     zoneAdminId: "",
-    cancellationPolicyId: "",
-    noShowPolicyId: "",
-    reschedulePolicyId: "",
     distanceUnitId: "",
   });
   const [isEditMode, setIsEditMode] = useState(false);
@@ -243,48 +239,6 @@ export default function ZoneManagement() {
       skip: !add.countryId, // Skip the query if no country is selected
     }
   );
-
-  // Fetch active policies when Add Zone modal is open
-  const { data: activePoliciesData } = useGetActivePoliciesQuery(undefined, {
-    skip: !add.open,
-  });
-  const policiesData = activePoliciesData?.data || {};
-  const cancellationPolicyOptions = policiesData.activeCancellationPolicy
-    ? (Array.isArray(policiesData.activeCancellationPolicy)
-        ? policiesData.activeCancellationPolicy
-        : [policiesData.activeCancellationPolicy]
-      ).map((p) => ({ value: String(p.id), label: p.name }))
-    : [];
-  const reschedulePolicyOptions = policiesData.activeReschedulePolicy
-    ? (Array.isArray(policiesData.activeReschedulePolicy)
-        ? policiesData.activeReschedulePolicy
-        : [policiesData.activeReschedulePolicy]
-      ).map((p) => ({ value: String(p.id), label: p.name }))
-    : [];
-  const noShowPolicyOptions = policiesData.activeNoShowPolicy
-    ? (Array.isArray(policiesData.activeNoShowPolicy)
-        ? policiesData.activeNoShowPolicy
-        : [policiesData.activeNoShowPolicy]
-      ).map((p) => ({ value: String(p.id), label: p.name }))
-    : [];
-
-  // When Add Zone modal opens and active policies load, select the first policy for each type
-  useEffect(() => {
-    if (!add.open || !activePoliciesData?.data) return;
-    const data = activePoliciesData.data;
-    const cancel = data.activeCancellationPolicy;
-    const reschedule = data.activeReschedulePolicy;
-    const noShow = data.activeNoShowPolicy;
-    const cancelId = cancel ? String(Array.isArray(cancel) ? cancel[0].id : cancel.id) : null;
-    const rescheduleId = reschedule ? String(Array.isArray(reschedule) ? reschedule[0].id : reschedule.id) : null;
-    const noShowId = noShow ? String(Array.isArray(noShow) ? noShow[0].id : noShow.id) : null;
-    setAdd((prev) => ({
-      ...prev,
-      ...(cancelId && !prev.cancellationPolicyId && { cancellationPolicyId: cancelId }),
-      ...(rescheduleId && !prev.reschedulePolicyId && { reschedulePolicyId: rescheduleId }),
-      ...(noShowId && !prev.noShowPolicyId && { noShowPolicyId: noShowId }),
-    }));
-  }, [add.open, activePoliciesData]);
 
   // In edit mode, if city is known but country isn't, derive country from full city list
   useEffect(() => {
@@ -663,13 +617,6 @@ export default function ZoneManagement() {
         deliveryCharges: zone.serviceCharge ?? "",
         ExDeliveryCharges: "",
         zoneAdminId: zone.zoneAdminId ? String(zone.zoneAdminId) : "",
-        cancellationPolicyId: zone.cancellationPolicyId
-          ? String(zone.cancellationPolicyId)
-          : "",
-        noShowPolicyId: zone.noShowPolicyId ? String(zone.noShowPolicyId) : "",
-        reschedulePolicyId: zone.reschedulePolicyId
-          ? String(zone.reschedulePolicyId)
-          : "",
         distanceUnitId: zone.distanceUnitId ? String(zone.distanceUnitId) : "2",
       }));
 
@@ -901,9 +848,6 @@ export default function ZoneManagement() {
         deliveryCharges: "",
         ExDeliveryCharges: "",
         zoneAdminId: "",
-        cancellationPolicyId: "",
-        noShowPolicyId: "",
-        reschedulePolicyId: "",
         distanceUnitId: "",
       });
       // Clear coordinates and reset map
@@ -1002,9 +946,6 @@ export default function ZoneManagement() {
         zoneAdminComission: zoneCommissionNum,
         zoneAdminId: add.zoneAdminId && add.zoneAdminId.trim() !== "" ? parseInt(add.zoneAdminId) : null,
         status: true, // Default to active
-        ...(add.cancellationPolicyId && { cancellationPolicyId: parseInt(add.cancellationPolicyId) }),
-        ...(add.noShowPolicyId && { noShowPolicyId: parseInt(add.noShowPolicyId) }),
-        ...(add.reschedulePolicyId && { reschedulePolicyId: parseInt(add.reschedulePolicyId) }),
       };
 
       console.log("Zone data being sent:", zoneData);
@@ -2010,58 +1951,6 @@ export default function ZoneManagement() {
                     value={add.deliveryCharges}
                     onChange={handleChange}
                     placeholder="Enter delivery charges"
-                  />
-                </Box>
-
-                <Box className="flex flex-col gap-y-3">
-                  <label htmlFor="cancellationPolicyId" className="text-grey40">
-                    Cancellation Policy
-                  </label>
-                  <SelectField
-                    title=""
-                    value={add.cancellationPolicyId || ""}
-                    onChange={(e) =>
-                      setAdd((prev) => ({ ...prev, cancellationPolicyId: e.target.value }))
-                    }
-                    options={cancellationPolicyOptions}
-                    placeholder="Select cancellation policy"
-                    fullWidth
-                    bgcolor={"grey.200"}
-                    disabled={!isEditMode}
-                  />
-                </Box>
-                <Box className="flex flex-col gap-y-3">
-                  <label htmlFor="reschedulePolicyId" className="text-grey40">
-                    Reschedule Policy
-                  </label>
-                  <SelectField
-                    title=""
-                    value={add.reschedulePolicyId || ""}
-                    onChange={(e) =>
-                      setAdd((prev) => ({ ...prev, reschedulePolicyId: e.target.value }))
-                    }
-                    options={reschedulePolicyOptions}
-                    placeholder="Select reschedule policy"
-                    fullWidth
-                    bgcolor={"grey.200"}
-                    disabled={!isEditMode}
-                  />
-                </Box>
-                <Box className="flex flex-col gap-y-3">
-                  <label htmlFor="noShowPolicyId" className="text-grey40">
-                    No Show Policy
-                  </label>
-                  <SelectField
-                    title=""
-                    value={add.noShowPolicyId || ""}
-                    onChange={(e) =>
-                      setAdd((prev) => ({ ...prev, noShowPolicyId: e.target.value }))
-                    }
-                    options={noShowPolicyOptions}
-                    placeholder="Select no show policy"
-                    fullWidth
-                    bgcolor={"grey.200"}
-                    disabled={!isEditMode}
                   />
                 </Box>
 

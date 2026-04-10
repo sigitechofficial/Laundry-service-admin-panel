@@ -1,15 +1,37 @@
 import { useState, useEffect } from "react";
-import { Box, Typography, Divider } from "@mui/material";
-import { BsCardList, TbPlus, TbCalendar, TbTrash } from "../../shared/icons/index";
+import {
+  Box,
+  Typography,
+  Divider,
+  Button,
+  Menu,
+  MenuItem,
+  Tooltip,
+} from "@mui/material";
+import {
+  BsCardList,
+  TbPlus,
+  TbCalendar,
+  TbTrash,
+  TbFilter,
+} from "../../shared/icons/index";
 import DataTable from "../../components/ui/DataTable";
 import ModalComponent from "../../components/shared/Modal";
 import InputFieldModal from "../../components/ui/InputFieldModal";
 import SelectField from "../../components/ui/SelectField";
-import FiltersButton from "../../components/ui/FiltersButton";
 import { useForm, Controller } from "react-hook-form";
 import ButtonBlueLight from "../../components/ui/ButtonBlueLight";
 import useToaster from "../../components/ui/Toaster";
-import { useAddCancellationPolicyMutation, useGetCancellationPoliciesQuery, useUpdateCancellationPolicyMutation, useDeleteCancellationPolicyMutation, useCreateReasonMutation, useGetAllReasonsQuery, useDeleteReasonMutation } from "../../store/services/api";
+import {
+  useAddCancellationPolicyMutation,
+  useGetCancellationPoliciesQuery,
+  useUpdateCancellationPolicyMutation,
+  useDeleteCancellationPolicyMutation,
+  useCreateReasonMutation,
+  useGetAllReasonsQuery,
+  useDeleteReasonMutation,
+  useGetAllZonesQuery,
+} from "../../store/services/api";
 import { Delay } from "../../components/shared/Loaders";
 import StyledCheckbox from "../../components/ui/StyledCheckbox";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
@@ -17,33 +39,28 @@ import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import dayjs from "dayjs";
 import LabelWithTooltip from "../../components/ui/LabelWithTooltip";
-import { useGetAllZonesQuery } from "../../store/services/api";
-
 export default function CancellationPolicy() {
   const { success, error: showError } = useToaster();
   const [modalOpen, setModalOpen] = useState(false);
   const [editingPolicy, setEditingPolicy] = useState(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [policyToDelete, setPolicyToDelete] = useState(null);
-  const [filterModalOpen, setFilterModalOpen] = useState(false);
   const [reasonsModalOpen, setReasonsModalOpen] = useState(false);
   const [cancelReasons, setCancelReasons] = useState([""]);
   const [reasonIds, setReasonIds] = useState([]); // Store IDs for deletion
 
-  // Filter states
-  const [isActiveFilter, setIsActiveFilter] = useState("");
-  const [isDefaultFilter, setIsDefaultFilter] = useState("");
+  const [selectedZoneFilter, setSelectedZoneFilter] = useState("");
+  const [zoneMenuAnchor, setZoneMenuAnchor] = useState(null);
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
 
   // Reset page to 1 when filters change
   useEffect(() => {
     setPage(1);
-  }, [isActiveFilter, isDefaultFilter, limit]);
+  }, [selectedZoneFilter, limit]);
 
   const filterParams = {
-    ...(isActiveFilter !== "" && { isActive: isActiveFilter }),
-    ...(isDefaultFilter !== "" && { isDefault: isDefaultFilter }),
+    ...(selectedZoneFilter !== "" && { zoneId: selectedZoneFilter }),
     ...(page && { page }),
     ...(limit && { limit }),
   };
@@ -108,6 +125,9 @@ export default function CancellationPolicy() {
   const zoneOptions = Array.isArray(zones)
     ? zones.map((z) => ({ value: String(z.id), label: z.name }))
     : [];
+  const selectedZoneLabel = zoneOptions.find(
+    (z) => z.value === String(selectedZoneFilter)
+  )?.label;
 
   // Table columns
   const columns = [
@@ -141,6 +161,18 @@ export default function CancellationPolicy() {
       renderCell: (row) => (
         <Typography sx={{ fontWeight: 500, fontSize: "13px" }}>
           {row.type || "N/A"}
+        </Typography>
+      ),
+    },
+    {
+      field: "zoneName",
+      headerName: "Zone",
+      flex: 0.12,
+      minWidth: 160,
+      sortable: true,
+      renderCell: (row) => (
+        <Typography sx={{ fontWeight: 400, fontSize: "13px" }}>
+          {row.zoneName || "—"}
         </Typography>
       ),
     },
@@ -528,12 +560,18 @@ export default function CancellationPolicy() {
   // Prepare table data
   const policiesData = policies?.map((policy, index) => {
     const config = policy.cancellationConfig || {};
+    const zoneName =
+      policy.zone?.name ||
+      zoneOptions.find((z) => String(z.value) === String(policy.zoneId))?.label ||
+      null;
     return {
       id: policy.id,
       sl: (pagination.page - 1) * pagination.limit + index + 1,
       name: policy.name,
       type: policy.type,
       description: policy.description,
+      zoneId: policy.zoneId ?? null,
+      zoneName,
       isActive: policy.isActive,
       isDefault: policy.isDefault,
       createdBy: policy.createdBy,
@@ -1006,11 +1044,72 @@ export default function CancellationPolicy() {
               </Typography>
             </Box>
 
-            <Box className="flex items-center gap-x-3">
-              <FiltersButton
-                text="Filters"
-                onClick={() => setFilterModalOpen(true)}
-              />
+            <Box className="flex items-center gap-x-3 flex-wrap">
+              <Tooltip
+                title={
+                  selectedZoneLabel
+                    ? `Zone: ${selectedZoneLabel}`
+                    : "Filter by zone"
+                }
+              >
+                <Button
+                  variant="outlined"
+                  onClick={(e) => setZoneMenuAnchor(e.currentTarget)}
+                  startIcon={<TbFilter size={18} />}
+                  sx={{
+                    height: 40,
+                    minWidth: 0,
+                    px: 1.5,
+                    borderRadius: "8px",
+                    textTransform: "none",
+                    fontFamily: "Inter",
+                    bgcolor: "white",
+                    border: selectedZoneFilter
+                      ? "2px solid #000099"
+                      : "1px solid #E5E7EB",
+                    color: selectedZoneFilter ? "#000099" : "#64748B",
+                    "&:hover": {
+                      bgcolor: "#F8FAFC",
+                      borderColor: selectedZoneFilter ? "#000099" : "#CBD5E1",
+                    },
+                    "& .MuiButton-startIcon": { mr: 0.5 },
+                  }}
+                >
+                  Zone
+                </Button>
+              </Tooltip>
+              <Menu
+                anchorEl={zoneMenuAnchor}
+                open={Boolean(zoneMenuAnchor)}
+                onClose={() => setZoneMenuAnchor(null)}
+                anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+                transformOrigin={{ vertical: "top", horizontal: "right" }}
+                PaperProps={{
+                  sx: { minWidth: 220, borderRadius: 2, mt: 1 },
+                }}
+              >
+                <MenuItem
+                  onClick={() => {
+                    setSelectedZoneFilter("");
+                    setZoneMenuAnchor(null);
+                  }}
+                  selected={selectedZoneFilter === ""}
+                >
+                  All zones
+                </MenuItem>
+                {zoneOptions.map((z) => (
+                  <MenuItem
+                    key={z.value}
+                    onClick={() => {
+                      setSelectedZoneFilter(z.value);
+                      setZoneMenuAnchor(null);
+                    }}
+                    selected={String(selectedZoneFilter) === String(z.value)}
+                  >
+                    {z.label}
+                  </MenuItem>
+                ))}
+              </Menu>
               <ButtonBlueLight
                 variant="outlined"
                 bgColor="#8B5CF6"
@@ -1051,6 +1150,7 @@ export default function CancellationPolicy() {
                 data={policiesData}
                 columns={columns}
                 height={600}
+                showFilters={false}
               />
             </Box>
           )}
@@ -1632,63 +1732,6 @@ export default function CancellationPolicy() {
               >
                 This action cannot be undone.
               </Typography>
-            </Box>
-          </ModalComponent>
-
-          {/* Filter Modal */}
-          <ModalComponent
-            open={filterModalOpen}
-            title="FILTERS"
-            onClose={() => setFilterModalOpen(false)}
-            width={600}
-            primaryAction={{
-              label: "Apply",
-              onClick: () => {
-                setFilterModalOpen(false);
-                refetch();
-              },
-            }}
-            secondaryAction={{
-              label: "Reset",
-              onClick: () => {
-                setIsActiveFilter("");
-                setIsDefaultFilter("");
-                setPage(1);
-                setLimit(10);
-              },
-            }}
-          >
-            <Box className="flex flex-col gap-4">
-              <Box>
-                <SelectField
-                  title="Status"
-                  value={isActiveFilter}
-                  onChange={(e) => setIsActiveFilter(e.target.value)}
-                  options={[
-                    { value: "", label: "All Status" },
-                    { value: "1", label: "Active" },
-                    { value: "0", label: "Inactive" },
-                  ]}
-                  placeholder="Select Status"
-                  fullWidth
-                  bgcolor="grey.60"
-                />
-              </Box>
-              <Box>
-                <SelectField
-                  title="Default"
-                  value={isDefaultFilter}
-                  onChange={(e) => setIsDefaultFilter(e.target.value)}
-                  options={[
-                    { value: "", label: "All Default" },
-                    { value: "1", label: "Default" },
-                    { value: "0", label: "Not Default" },
-                  ]}
-                  placeholder="Select Default"
-                  fullWidth
-                  bgcolor="grey.60"
-                />
-              </Box>
             </Box>
           </ModalComponent>
 

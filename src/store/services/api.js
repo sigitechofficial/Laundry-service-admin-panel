@@ -66,12 +66,11 @@ export const api = createApi({
       }),
     }),
 
-    /** Body: { serviceIds: number[] } — IDs in the desired display order (customer-facing). */
-    reorderServices: builder.mutation({
-      query: (serviceIds) => ({
-        url: "admin/reorderServices",
-        method: "POST",
-        body: { serviceIds },
+    updateServicesSortOrder: builder.mutation({
+      query: (body) => ({
+        url: "admin/updateServicesSortOrder",
+        method: "PATCH",
+        body,
       }),
     }),
 
@@ -824,7 +823,7 @@ export const api = createApi({
 
     getCancellationPolicies: builder.query({
       query: (params = {}) => {
-        const { isActive, isDefault, page, limit } = params;
+        const { isActive, isDefault, page, limit, zoneId } = params;
         const queryParams = new URLSearchParams();
         
         if (isActive !== undefined && isActive !== null && isActive !== "") {
@@ -832,6 +831,9 @@ export const api = createApi({
         }
         if (isDefault !== undefined && isDefault !== null && isDefault !== "") {
           queryParams.append("isDefault", isDefault);
+        }
+        if (zoneId !== undefined && zoneId !== null && zoneId !== "") {
+          queryParams.append("zoneId", zoneId);
         }
         if (page !== undefined && page !== null && page !== "") {
           queryParams.append("page", page);
@@ -899,7 +901,7 @@ export const api = createApi({
 
     getNoShowPolicies: builder.query({
       query: (params = {}) => {
-        const { isActive, isDefault, page, limit } = params;
+        const { isActive, isDefault, page, limit, zoneId } = params;
         const queryParams = new URLSearchParams();
         
         if (isActive !== undefined && isActive !== null && isActive !== "") {
@@ -907,6 +909,9 @@ export const api = createApi({
         }
         if (isDefault !== undefined && isDefault !== null && isDefault !== "") {
           queryParams.append("isDefault", isDefault);
+        }
+        if (zoneId !== undefined && zoneId !== null && zoneId !== "") {
+          queryParams.append("zoneId", zoneId);
         }
         if (page !== undefined && page !== null && page !== "") {
           queryParams.append("page", page);
@@ -952,13 +957,16 @@ export const api = createApi({
 
     getReschedulePolicies: builder.query({
       query: (params = {}) => {
-        const { isActive, isDefault, page, limit } = params;
+        const { isActive, isDefault, page, limit, zoneId } = params;
         const queryParams = new URLSearchParams();
         if (isActive !== undefined && isActive !== null && isActive !== "") {
           queryParams.append("isActive", isActive);
         }
         if (isDefault !== undefined && isDefault !== null && isDefault !== "") {
           queryParams.append("isDefault", isDefault);
+        }
+        if (zoneId !== undefined && zoneId !== null && zoneId !== "") {
+          queryParams.append("zoneId", zoneId);
         }
         if (page !== undefined && page !== null && page !== "") {
           queryParams.append("page", page);
@@ -1089,7 +1097,7 @@ export const {
   useEditCategoryMutation,
   useAddSubCategoryMutation,
   useDeleteServiceMutation,
-  useReorderServicesMutation,
+  useUpdateServicesSortOrderMutation,
   useDeletePreferenceMutation,
   useDeleteCategoryMutation,
   useDeletePreferenceValueMutation,

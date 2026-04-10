@@ -16,7 +16,7 @@ import {
   useDeleteServiceMutation,
   useEditServiceMutation,
   useGetAllServicesQuery,
-  useReorderServicesMutation,
+  useUpdateServicesSortOrderMutation,
 } from "../../store/services/api";
 import { useDispatch } from "react-redux";
 import { setServices } from "../../store/services/apiReducer";
@@ -34,8 +34,8 @@ export default function ServicesCard({ triggerAdd }) {
   const dispatch = useDispatch();
   const services = useSelector((state) => state?.apiData?.services);
   const { isLoading, refetch } = useGetAllServicesQuery();
-  const [reorderServices, { isLoading: reorderLoading }] =
-    useReorderServicesMutation();
+  const [updateServicesSortOrder, { isLoading: reorderLoading }] =
+    useUpdateServicesSortOrderMutation();
   const [dragOrder, setDragOrder] = useState(null);
   const [dragOverId, setDragOverId] = useState(null);
   const [deletService, { isLoading: deleteLoading }] =
@@ -147,16 +147,19 @@ export default function ServicesCard({ triggerAdd }) {
       next.splice(toIdx, 0, removed);
       setDragOrder(next);
       try {
-        await reorderServices(next.map((s) => s.id)).unwrap();
+        await updateServicesSortOrder({
+          services: next.map((s, i) => ({
+            serviceId: Number(s.id),
+            sortOrder: i + 1,
+          })),
+        }).unwrap();
         dispatch(setServices(next));
         setDragOrder(null);
         success("Service order updated.");
         void refetch();
       } catch {
         setDragOrder(null);
-        error(
-          "Could not save order. Confirm the admin/reorderServices endpoint exists."
-        );
+        error("Could not save order. Please try again.");
       }
     },
     [
@@ -165,7 +168,7 @@ export default function ServicesCard({ triggerAdd }) {
       dispatch,
       error,
       refetch,
-      reorderServices,
+      updateServicesSortOrder,
       success,
     ]
   );

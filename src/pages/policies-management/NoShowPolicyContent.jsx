@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { Box, Typography, Divider } from "@mui/material";
-import { TbPlus, TbCalendar } from "../../shared/icons/index";
+import { Box, Typography, Divider, Button, Menu, MenuItem, Tooltip } from "@mui/material";
+import { TbPlus, TbCalendar, TbFilter } from "../../shared/icons/index";
 import StyledCheckbox from "../../components/ui/StyledCheckbox";
 import LabelWithTooltip from "../../components/ui/LabelWithTooltip";
 import DataTable from "../../components/ui/DataTable";
@@ -10,14 +10,20 @@ import SelectField from "../../components/ui/SelectField";
 import { useForm, Controller } from "react-hook-form";
 import ButtonBlueLight from "../../components/ui/ButtonBlueLight";
 import useToaster from "../../components/ui/Toaster";
-import { useAddNoShowPolicyMutation, useGetNoShowPoliciesQuery, useUpdateNoShowPolicyMutation, useDeleteNoShowPolicyMutation } from "../../store/services/api";
+import { useAddNoShowPolicyMutation, useGetNoShowPoliciesQuery, useUpdateNoShowPolicyMutation, useDeleteNoShowPolicyMutation, useGetAllZonesQuery } from "../../store/services/api";
 import { Delay } from "../../components/shared/Loaders";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import dayjs from "dayjs";
+import { useSelector } from "react-redux";
 
-export default function NoShowPolicyContent({ onAddButtonRef }) {
+export default function NoShowPolicyContent({
+  onAddButtonRef,
+  zoneId: externalZoneId,
+  onZoneIdChange,
+  showZoneFilter = true,
+}) {
   const { success, error: showError } = useToaster();
   const [modalOpen, setModalOpen] = useState(false);
   const [editingPolicy, setEditingPolicy] = useState(null);
@@ -28,17 +34,29 @@ export default function NoShowPolicyContent({ onAddButtonRef }) {
   // Filter states
   const [isActiveFilter, setIsActiveFilter] = useState("");
   const [isDefaultFilter, setIsDefaultFilter] = useState("");
+  const [selectedZoneIdLocal, setSelectedZoneIdLocal] = useState("");
+  const selectedZoneId =
+    externalZoneId !== undefined ? externalZoneId : selectedZoneIdLocal;
+  const setSelectedZoneId =
+    typeof onZoneIdChange === "function" ? onZoneIdChange : setSelectedZoneIdLocal;
+  const [zoneMenuAnchor, setZoneMenuAnchor] = useState(null);
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
 
   // Reset page to 1 when filters change
   useEffect(() => {
     setPage(1);
-  }, [isActiveFilter, isDefaultFilter, limit]);
+  }, [isActiveFilter, isDefaultFilter, selectedZoneId, limit]);
+
+  const zones = useSelector((state) => state?.apiData?.zones?.zones || []);
+  useGetAllZonesQuery(undefined, { refetchOnMountOrArgChange: false });
+  const zoneOptions = zones?.map((z) => ({ value: String(z.id), label: z.name })) || [];
+  const selectedZoneLabel = zoneOptions.find((z) => z.value === String(selectedZoneId))?.label;
 
   const filterParams = {
     ...(isActiveFilter !== "" && { isActive: isActiveFilter }),
     ...(isDefaultFilter !== "" && { isDefault: isDefaultFilter }),
+    ...(selectedZoneId !== "" && { zoneId: selectedZoneId }),
     ...(page && { page }),
     ...(limit && { limit }),
   };
@@ -54,6 +72,27 @@ export default function NoShowPolicyContent({ onAddButtonRef }) {
   const pagination = policiesResponse?.data?.pagination || {};
   const totalPages = pagination.pages || 1;
 
+  const getNextVersionName = () => {
+    const versions = policies
+      .map((p) => String(p?.name || ""))
+      .map((name) => {
+        const m = name.match(/version\s+(\d+)(?:\.(\d+))?/i);
+        if (!m) return null;
+        const major = parseInt(m[1], 10);
+        const minor = m[2] ? parseInt(m[2], 10) : 0;
+        if (Number.isNaN(major) || Number.isNaN(minor)) return null;
+        return { major, minor, full: major * 100 + minor };
+      })
+      .filter(Boolean)
+      .sort((a, b) => b.full - a.full);
+
+    if (versions.length === 0) return "Version 1";
+    const highest = versions[0];
+    if (highest.minor === 0) return `Version ${highest.major}.01`;
+    const nextMinor = highest.minor + 1;
+    return `Version ${highest.major}.${nextMinor.toString().padStart(2, "0")}`;
+  };
+
   const {
     control,
     handleSubmit,
@@ -64,6 +103,7 @@ export default function NoShowPolicyContent({ onAddButtonRef }) {
     defaultValues: {
       name: "",
       description: "",
+      zoneId: "",
       effectiveFrom: dayjs(),
       effectiveTo: null,
       isActive: true,
@@ -81,11 +121,7 @@ export default function NoShowPolicyContent({ onAddButtonRef }) {
       driverLateSLA: "",
       callsMinutes: "",
       smsMinutes: "",
-      pickupBagAtDoor: true,
-      deliveryLeaveAtDoor: true,
-      concierge: true,
-      locker: true,
-      requirePhoto: true,
+      // Delivery Options section removed from UI
       waiverType: "absolute",
       absoluteWaiverAmount: "",
       percentageWaiverAmount: "",
@@ -117,6 +153,18 @@ export default function NoShowPolicyContent({ onAddButtonRef }) {
       flex: 0.12,
       minWidth: 150,
       sortable: true,
+    },
+    {
+      field: "zoneName",
+      headerName: "Zone",
+      flex: 0.12,
+      minWidth: 160,
+      sortable: true,
+      renderCell: (row) => (
+        <Typography sx={{ fontWeight: 400, fontSize: "13px" }}>
+          {row.zoneName || "—"}
+        </Typography>
+      ),
     },
     {
       field: "description",
@@ -323,96 +371,7 @@ export default function NoShowPolicyContent({ onAddButtonRef }) {
         </Typography>
       ),
     },
-    {
-      field: "pickupBagAtDoor",
-      headerName: "Bag At Door",
-      flex: 0.08,
-      minWidth: 100,
-      sortable: true,
-      renderCell: (row) => (
-        <Typography
-          sx={{
-            color: row.pickupBagAtDoor ? "success.main" : "text.secondary",
-            fontWeight: 500,
-            fontSize: "13px",
-          }}
-        >
-          {row.pickupBagAtDoor ? "Yes" : "No"}
-        </Typography>
-      ),
-    },
-    {
-      field: "deliveryLeaveAtDoor",
-      headerName: "Leave At Door",
-      flex: 0.09,
-      minWidth: 110,
-      sortable: true,
-      renderCell: (row) => (
-        <Typography
-          sx={{
-            color: row.deliveryLeaveAtDoor ? "success.main" : "text.secondary",
-            fontWeight: 500,
-            fontSize: "13px",
-          }}
-        >
-          {row.deliveryLeaveAtDoor ? "Yes" : "No"}
-        </Typography>
-      ),
-    },
-    {
-      field: "concierge",
-      headerName: "Concierge",
-      flex: 0.08,
-      minWidth: 90,
-      sortable: true,
-      renderCell: (row) => (
-        <Typography
-          sx={{
-            color: row.concierge ? "success.main" : "text.secondary",
-            fontWeight: 500,
-            fontSize: "13px",
-          }}
-        >
-          {row.concierge ? "Yes" : "No"}
-        </Typography>
-      ),
-    },
-    {
-      field: "locker",
-      headerName: "Locker",
-      flex: 0.07,
-      minWidth: 70,
-      sortable: true,
-      renderCell: (row) => (
-        <Typography
-          sx={{
-            color: row.locker ? "success.main" : "text.secondary",
-            fontWeight: 500,
-            fontSize: "13px",
-          }}
-        >
-          {row.locker ? "Yes" : "No"}
-        </Typography>
-      ),
-    },
-    {
-      field: "requirePhoto",
-      headerName: "Require Photo",
-      flex: 0.09,
-      minWidth: 110,
-      sortable: true,
-      renderCell: (row) => (
-        <Typography
-          sx={{
-            color: row.requirePhoto ? "success.main" : "text.secondary",
-            fontWeight: 500,
-            fontSize: "13px",
-          }}
-        >
-          {row.requirePhoto ? "Yes" : "No"}
-        </Typography>
-      ),
-    },
+    // Delivery Options columns removed
     {
       field: "waiverType",
       headerName: "Waiver Type",
@@ -594,10 +553,16 @@ export default function NoShowPolicyContent({ onAddButtonRef }) {
   // Prepare table data
   const policiesData = policies?.map((policy, index) => {
     const config = policy.noShowPolicyConfig || {};
+    const zoneName =
+      policy.zone?.name ||
+      zoneOptions.find((z) => String(z.value) === String(policy.zoneId))?.label ||
+      null;
     return {
       id: policy.id,
       sl: (pagination.page - 1) * pagination.limit + index + 1,
       name: policy.name,
+      zoneId: policy.zoneId ?? null,
+      zoneName,
       description: policy.description,
       isActive: policy.isActive,
       isDefault: policy.isDefault,
@@ -624,12 +589,7 @@ export default function NoShowPolicyContent({ onAddButtonRef }) {
       driverLateSLA: config.driverLateSLA || 0,
       callsMinutes: config.callsMinutes || 0,
       smsMinutes: config.smsMinutes || 0,
-      // Delivery Options
-      pickupBagAtDoor: config.pickupBagAtDoor ?? false,
-      deliveryLeaveAtDoor: config.deliveryLeaveAtDoor ?? false,
-      concierge: config.concierge ?? false,
-      locker: config.locker ?? false,
-      requirePhoto: config.requirePhoto ?? false,
+      // Delivery Options (removed)
       // Waiver Settings
       waiverType: config.waiverType || "N/A",
       absoluteWaiverAmount: config.absoluteWaiverAmount || null,
@@ -655,9 +615,11 @@ export default function NoShowPolicyContent({ onAddButtonRef }) {
 
   const handleAdd = () => {
     setEditingPolicy(null);
+    const nextVersionName = getNextVersionName();
     reset({
-      name: "",
+      name: nextVersionName,
       description: "",
+      zoneId: "",
       effectiveFrom: dayjs(),
       effectiveTo: null,
       isActive: true,
@@ -675,11 +637,7 @@ export default function NoShowPolicyContent({ onAddButtonRef }) {
       driverLateSLA: "",
       callsMinutes: "",
       smsMinutes: "",
-      pickupBagAtDoor: true,
-      deliveryLeaveAtDoor: true,
-      concierge: true,
-      locker: true,
-      requirePhoto: true,
+      // Delivery Options section removed from UI
       waiverType: "absolute",
       absoluteWaiverAmount: "",
       percentageWaiverAmount: "",
@@ -707,6 +665,7 @@ export default function NoShowPolicyContent({ onAddButtonRef }) {
     reset({
       name: policy.name || "",
       description: policy.description || "",
+      zoneId: policy.zoneId ? String(policy.zoneId) : "",
       effectiveFrom: policy.effectiveFrom
         ? dayjs(policy.effectiveFrom)
         : (policy.createdAt ? dayjs(policy.createdAt) : dayjs()),
@@ -728,11 +687,7 @@ export default function NoShowPolicyContent({ onAddButtonRef }) {
       driverLateSLA: config.driverLateSLA?.toString() || "",
       callsMinutes: config.callsMinutes?.toString() || "",
       smsMinutes: config.smsMinutes?.toString() || "",
-      pickupBagAtDoor: config.pickupBagAtDoor ?? true,
-      deliveryLeaveAtDoor: config.deliveryLeaveAtDoor ?? true,
-      concierge: config.concierge ?? true,
-      locker: config.locker ?? true,
-      requirePhoto: config.requirePhoto ?? true,
+      // Delivery Options section removed from UI
       waiverType: config.waiverType || "absolute",
       absoluteWaiverAmount: config.absoluteWaiverAmount?.toString() || "",
       percentageWaiverAmount: config.percentageWaiverAmount?.toString() || "",
@@ -785,6 +740,7 @@ export default function NoShowPolicyContent({ onAddButtonRef }) {
       const payload = {
         name: data.name,
         description: data.description,
+        zoneId: data.zoneId ? parseInt(String(data.zoneId), 10) : null,
         effectiveFrom: effectiveFromUtc,
         effectiveTo: effectiveToUtc,
         isActive: !!data.isActive,
@@ -802,11 +758,7 @@ export default function NoShowPolicyContent({ onAddButtonRef }) {
         driverLateSLA: data.driverLateSLA ? parseInt(data.driverLateSLA) : 0,
         callsMinutes: data.callsMinutes ? parseInt(data.callsMinutes) : 0,
         smsMinutes: data.smsMinutes ? parseInt(data.smsMinutes) : 0,
-        pickupBagAtDoor: data.pickupBagAtDoor,
-        deliveryLeaveAtDoor: data.deliveryLeaveAtDoor,
-        concierge: data.concierge,
-        locker: data.locker,
-        requirePhoto: data.requirePhoto,
+        // Delivery Options removed from UI (not sent)
         waiverType: data.waiverType,
         absoluteWaiverAmount: data.absoluteWaiverAmount ? parseFloat(data.absoluteWaiverAmount) : 0,
         percentageWaiverAmount: data.percentageWaiverAmount ? parseFloat(data.percentageWaiverAmount) : 0,
@@ -856,6 +808,78 @@ export default function NoShowPolicyContent({ onAddButtonRef }) {
     <Box>
       {/* Data Table */}
       <Box sx={{ width: "100%", overflow: "visible" }}>
+        {showZoneFilter && (
+          <Box
+            className="flex items-center gap-3 flex-wrap"
+            sx={{ mb: 2, justifyContent: "flex-end" }}
+          >
+            <Tooltip
+              title={
+                selectedZoneLabel
+                  ? `Zone: ${selectedZoneLabel}`
+                  : "Filter by zone"
+              }
+            >
+              <Button
+                variant="outlined"
+                onClick={(e) => setZoneMenuAnchor(e.currentTarget)}
+                startIcon={<TbFilter size={18} />}
+                sx={{
+                  height: 40,
+                  minWidth: 0,
+                  px: 1.5,
+                  borderRadius: "8px",
+                  textTransform: "none",
+                  fontFamily: "Inter",
+                  bgcolor: "white",
+                  border: selectedZoneId
+                    ? "2px solid #000099"
+                    : "1px solid #E5E7EB",
+                  color: selectedZoneId ? "#000099" : "#64748B",
+                  "&:hover": {
+                    bgcolor: "#F8FAFC",
+                    borderColor: selectedZoneId ? "#000099" : "#CBD5E1",
+                  },
+                  "& .MuiButton-startIcon": { mr: 0.5 },
+                }}
+              >
+                Zone
+              </Button>
+            </Tooltip>
+            <Menu
+              anchorEl={zoneMenuAnchor}
+              open={Boolean(zoneMenuAnchor)}
+              onClose={() => setZoneMenuAnchor(null)}
+              anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+              transformOrigin={{ vertical: "top", horizontal: "right" }}
+              PaperProps={{
+                sx: { minWidth: 220, borderRadius: 2, mt: 1 },
+              }}
+            >
+              <MenuItem
+                onClick={() => {
+                  setSelectedZoneId("");
+                  setZoneMenuAnchor(null);
+                }}
+                selected={selectedZoneId === ""}
+              >
+                All zones
+              </MenuItem>
+              {zoneOptions.map((z) => (
+                <MenuItem
+                  key={z.value}
+                  onClick={() => {
+                    setSelectedZoneId(z.value);
+                    setZoneMenuAnchor(null);
+                  }}
+                  selected={String(selectedZoneId) === String(z.value)}
+                >
+                  {z.label}
+                </MenuItem>
+              ))}
+            </Menu>
+          </Box>
+        )}
         <DataTable
           data={policiesData}
           columns={columns}
@@ -913,7 +937,12 @@ export default function NoShowPolicyContent({ onAddButtonRef }) {
                     value={value || ""}
                     onChange={(e) => onChange(e.target.value)}
                     error={errors.name?.message}
-                    tooltipText="Policy name/identifier. This is a required field and must be unique."
+                    disabled={!editingPolicy}
+                    tooltipText={
+                      editingPolicy
+                        ? "Policy name/identifier. This is a required field and must be unique."
+                        : "Policy name is auto-generated and cannot be edited."
+                    }
                   />
                 )}
               />
@@ -930,6 +959,32 @@ export default function NoShowPolicyContent({ onAddButtonRef }) {
                     error={errors.description?.message}
                     tooltipText="Policy description or notes. Optional field to provide additional context about the policy."
                   />
+                )}
+              />
+              <Controller
+                name="zoneId"
+                control={control}
+                rules={{ required: "Zone is required" }}
+                render={({ field: { onChange, value } }) => (
+                  <Box>
+                    <SelectField
+                      title="Zone*"
+                      value={value || ""}
+                      onChange={(e) => onChange(e.target.value)}
+                      options={zoneOptions}
+                      placeholder="Select zone"
+                      fullWidth
+                      tooltipText="Select which zone this policy applies to."
+                    />
+                    {errors.zoneId && (
+                      <Typography
+                        variant="caption"
+                        sx={{ color: "error.main", mt: 1, display: "block" }}
+                      >
+                        {errors.zoneId.message}
+                      </Typography>
+                    )}
+                  </Box>
                 )}
               />
               <Box className="grid grid-cols-2 gap-4">
@@ -1303,100 +1358,6 @@ export default function NoShowPolicyContent({ onAddButtonRef }) {
                     onChange={(e) => onChange(e.target.value)}
                     tooltipText="Minutes to wait before no-show applies for SMS. Time to wait after sending an SMS before considering it a no-show. Default: 5"
                   />
-                )}
-              />
-            </Box>
-          </Box>
-
-          <Divider />
-
-          {/* Delivery Options */}
-          <Box>
-            <Typography variant="h6" sx={{ mb: 1, fontFamily: "Switzer", fontWeight: 600 }}>
-              Delivery Options
-            </Typography>
-            <Typography variant="body2" sx={{ mb: 2, color: "grey.80", fontFamily: "Switzer", fontSize: "12px" }}>
-              Enable unattended delivery and pickup options to provide flexibility for customers. Configure options such as leaving items at door, concierge service, lockers, and photo requirements.
-            </Typography>
-            <Box className="flex flex-col gap-4">
-              <Controller
-                name="pickupBagAtDoor"
-                control={control}
-                render={({ field: { onChange, value } }) => (
-                  <Box className="flex items-center gap-2">
-                    <StyledCheckbox
-                      checked={value}
-                      onChange={(e) => onChange(e.target.checked)}
-                    />
-                    <LabelWithTooltip
-                      label="Pickup Bag At Door"
-                      tooltipText="Allow pickup bag at door. When enabled, customers can leave their bag at the door for pickup."
-                    />
-                  </Box>
-                )}
-              />
-              <Controller
-                name="deliveryLeaveAtDoor"
-                control={control}
-                render={({ field: { onChange, value } }) => (
-                  <Box className="flex items-center gap-2">
-                    <StyledCheckbox
-                      checked={value}
-                      onChange={(e) => onChange(e.target.checked)}
-                    />
-                    <LabelWithTooltip
-                      label="Delivery Leave At Door"
-                      tooltipText="Allow delivery to be left at door. When enabled, deliveries can be left at the door without customer presence."
-                    />
-                  </Box>
-                )}
-              />
-              <Controller
-                name="concierge"
-                control={control}
-                render={({ field: { onChange, value } }) => (
-                  <Box className="flex items-center gap-2">
-                    <StyledCheckbox
-                      checked={value}
-                      onChange={(e) => onChange(e.target.checked)}
-                    />
-                    <LabelWithTooltip
-                      label="Concierge"
-                      tooltipText="Allow concierge service. When enabled, concierge services are available for unattended deliveries."
-                    />
-                  </Box>
-                )}
-              />
-              <Controller
-                name="locker"
-                control={control}
-                render={({ field: { onChange, value } }) => (
-                  <Box className="flex items-center gap-2">
-                    <StyledCheckbox
-                      checked={value}
-                      onChange={(e) => onChange(e.target.checked)}
-                    />
-                    <LabelWithTooltip
-                      label="Locker"
-                      tooltipText="Allow locker service. When enabled, deliveries can be placed in lockers for customer pickup."
-                    />
-                  </Box>
-                )}
-              />
-              <Controller
-                name="requirePhoto"
-                control={control}
-                render={({ field: { onChange, value } }) => (
-                  <Box className="flex items-center gap-2">
-                    <StyledCheckbox
-                      checked={value}
-                      onChange={(e) => onChange(e.target.checked)}
-                    />
-                    <LabelWithTooltip
-                      label="Require Photo"
-                      tooltipText="Require photo proof for unattended deliveries. When enabled, drivers must provide a photo as proof of delivery."
-                    />
-                  </Box>
                 )}
               />
             </Box>

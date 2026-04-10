@@ -31,6 +31,14 @@ import {
 import { getSidebarPermissionSelectOptions } from "../../components/shared/constants";
 
 const ACTION_OPTIONS = ["create", "read", "update", "delete"];
+
+/** `featureOf` values for POST /admin/addfeatures (must match API exactly) */
+const FEATURE_OF_OPTIONS = [
+  { label: "Admin", value: "Admin" },
+  { label: "Agent", value: "Agent" },
+  { label: "Both", value: "both" },
+  { label: "Agent Employee", value: "Agent Employee" },
+];
 const DEFAULT_FEATURE_OF = "Agent Employee";
 
 const pretty = (value = "") =>
@@ -100,6 +108,7 @@ export default function RolePermission() {
   const [editingRoleId, setEditingRoleId] = useState(null);
 
   const [permissionPath, setPermissionPath] = useState("");
+  const [featureOf, setFeatureOf] = useState(DEFAULT_FEATURE_OF);
 
   const sidebarPermissionOptions = useMemo(() => getSidebarPermissionSelectOptions(), []);
 
@@ -143,6 +152,7 @@ export default function RolePermission() {
   const closePermissionModal = () => {
     setPermissionModal(false);
     setPermissionPath("");
+    setFeatureOf(DEFAULT_FEATURE_OF);
   };
 
   const closeRoleModal = () => {
@@ -171,7 +181,7 @@ export default function RolePermission() {
       await addFeature({
         title: normalized,
         status: true,
-        featureOf: DEFAULT_FEATURE_OF,
+        featureOf,
         key: normalized,
       }).unwrap();
       success("Feature added successfully.");
@@ -434,6 +444,44 @@ export default function RolePermission() {
                 {sidebarPermissionOptions.map((opt) => (
                   <MenuItem key={opt.value} value={opt.value}>
                     {opt.menuLabel}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Box>
+
+          <Box className="w-full">
+            <Typography variant="body2" sx={{ color: "#374151", mb: "8px" }}>
+              Feature of
+            </Typography>
+            <FormControl fullWidth>
+              <Select
+                id="permission-feature-of-select"
+                inputProps={{ "aria-label": "Feature of" }}
+                value={featureOf}
+                onChange={(e) => setFeatureOf(e.target.value)}
+                renderValue={(selected) => {
+                  const opt = FEATURE_OF_OPTIONS.find((o) => o.value === selected);
+                  return (
+                    <Typography component="span" variant="body1" sx={{ fontFamily: "Switzer", fontWeight: 400 }}>
+                      {opt?.label ?? selected}
+                    </Typography>
+                  );
+                }}
+                sx={{
+                  height: 52,
+                  borderRadius: "8px",
+                  bgcolor: "#F4F7FF",
+                  fontFamily: "Switzer",
+                  fontWeight: 400,
+                  "& .MuiOutlinedInput-notchedOutline": { border: "none" },
+                  "&:hover .MuiOutlinedInput-notchedOutline": { border: "none" },
+                  "&.Mui-focused .MuiOutlinedInput-notchedOutline": { border: "none" },
+                }}
+              >
+                {FEATURE_OF_OPTIONS.map((opt) => (
+                  <MenuItem key={opt.value} value={opt.value}>
+                    {opt.label}
                   </MenuItem>
                 ))}
               </Select>
