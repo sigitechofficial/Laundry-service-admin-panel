@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
-import { Box, Typography, Divider, Button, Menu, MenuItem, Tooltip } from "@mui/material";
+import { Box, Typography, Divider, Button, Menu, MenuItem, Tooltip, CircularProgress } from "@mui/material";
 import { TbPlus, TbCalendar, TbFilter } from "../../shared/icons/index";
 import StyledCheckbox from "../../components/ui/StyledCheckbox";
+import ChangeStatus from "../../components/ui/Switch";
 import LabelWithTooltip from "../../components/ui/LabelWithTooltip";
 import DataTable from "../../components/ui/DataTable";
 import ModalComponent from "../../components/shared/Modal";
@@ -10,7 +11,15 @@ import SelectField from "../../components/ui/SelectField";
 import { useForm, Controller } from "react-hook-form";
 import ButtonBlueLight from "../../components/ui/ButtonBlueLight";
 import useToaster from "../../components/ui/Toaster";
-import { useAddNoShowPolicyMutation, useGetNoShowPoliciesQuery, useUpdateNoShowPolicyMutation, useDeleteNoShowPolicyMutation, useGetAllZonesQuery } from "../../store/services/api";
+import {
+  useAddNoShowPolicyMutation,
+  useGetNoShowPoliciesQuery,
+  useLazyGetNoShowPoliciesQuery,
+  useUpdateNoShowPolicyMutation,
+  useDeleteNoShowPolicyMutation,
+  useGetAllZonesQuery,
+} from "../../store/services/api";
+import { parsePoliciesListPayload, isPolicyConsideredActive } from "../../utilities/policyOverlapHelpers";
 import { Delay } from "../../components/shared/Loaders";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
@@ -42,6 +51,12 @@ export default function NoShowPolicyContent({
   const [zoneMenuAnchor, setZoneMenuAnchor] = useState(null);
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
+  const [togglingActiveId, setTogglingActiveId] = useState(null);
+  const [overlapModalOpen, setOverlapModalOpen] = useState(false);
+  const [overlapZoneId, setOverlapZoneId] = useState(null);
+  const [pendingAddPayload, setPendingAddPayload] = useState(null);
+  const [overlapTogglingId, setOverlapTogglingId] = useState(null);
+  const [overlapPolicyFetchAll, setOverlapPolicyFetchAll] = useState(false);
 
   // Reset page to 1 when filters change
   useEffect(() => {
@@ -65,7 +80,9 @@ export default function NoShowPolicyContent({
   const [addNoShowPolicy, { isLoading: isAdding }] = useAddNoShowPolicyMutation();
   const [updateNoShowPolicy, { isLoading: isUpdating }] = useUpdateNoShowPolicyMutation();
   const [deleteNoShowPolicy, { isLoading: isDeleting }] = useDeleteNoShowPolicyMutation();
-  
+  const [fetchOverlapPolicies, { data: overlapPoliciesResponse, isFetching: overlapPoliciesLoading }] =
+    useLazyGetNoShowPoliciesQuery();
+
   const isSubmitting = isAdding || isUpdating;
 
   const policies = policiesResponse?.data?.policies || [];
@@ -174,21 +191,29 @@ export default function NoShowPolicyContent({
       sortable: true,
     },
     {
-      field: "isActive",
-      headerName: "Status",
-      flex: 0.08,
-      minWidth: 90,
-      sortable: true,
+      field: "policyStatusAction",
+      headerName: "Status / Action",
+      flex: 0.11,
+      minWidth: 160,
+      sortable: false,
       renderCell: (row) => (
-        <Typography
-          sx={{
-            color: row.isActive ? "success.main" : "text.secondary",
-            fontWeight: 500,
-            fontSize: "13px",
-          }}
-        >
-          {row.isActive ? "Active" : "Inactive"}
-        </Typography>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+          <ChangeStatus
+            width="45px"
+            checked={isPolicyConsideredActive(row)}
+            disabled={togglingActiveId !== null}
+            onChange={(e) => handleTogglePolicyActive(row, e.target.checked)}
+          />
+          <Typography
+            sx={{
+              color: isPolicyConsideredActive(row) ? "success.main" : "text.secondary",
+              fontWeight: 500,
+              fontSize: "13px",
+            }}
+          >
+            {isPolicyConsideredActive(row) ? "Active" : "Inactive"}
+          </Typography>
+        </Box>
       ),
     },
     {
@@ -728,7 +753,105 @@ export default function NoShowPolicyContent({
     setPolicyToDelete(null);
   };
 
+  const handleTogglePolicyActive = async (row, nextActive) => {
+    if (togglingActiveId !== null) return;
+    if (isPolicyConsideredActive(row) === nextActive) return;
+    setTogglingActiveId(row.id);
+    try {
+      await updateNoShowPolicy({
+        id: row.id,
+        body: { isActive: nextActive },
+      }).unwrap();
+      success(
+        nextActive ? "No-show policy activated" : "No-show policy deactivated"
+      );
+      refetch();
+    } catch (error) {
+      console.error("Error updating no-show policy status:", error);
+      showError(
+        error?.data?.message ||
+          "Failed to update policy status. Please try again."
+      );
+    } finally {
+      setTogglingActiveId(null);
+    }
+  };
+
+  const handleCloseOverlapModal = () => {
+    setOverlapModalOpen(false);
+    setPendingAddPayload(null);
+    setOverlapZoneId(null);
+    setOverlapTogglingId(null);
+    setOverlapPolicyFetchAll(false);
+  };
+
+  const refetchOverlapPoliciesList = () => {
+    if (overlapZoneId == null) return;
+    fetchOverlapPolicies({
+      zoneId: String(overlapZoneId),
+      limit: 50,
+      page: 1,
+      ...(overlapPolicyFetchAll ? {} : { isActive: "1" }),
+    });
+  };
+
+  const handleOverlapPolicyToggle = async (policy, nextActive) => {
+    if (overlapTogglingId !== null) return;
+    if (isPolicyConsideredActive(policy) === nextActive) return;
+    setOverlapTogglingId(policy.id);
+    try {
+      await updateNoShowPolicy({
+        id: policy.id,
+        body: { isActive: nextActive },
+      }).unwrap();
+      success(
+        nextActive
+          ? "Policy activated"
+          : "Policy deactivated. You can retry saving the new policy."
+      );
+      refetch();
+      refetchOverlapPoliciesList();
+    } catch (error) {
+      console.error("Error updating overlapping no-show policy:", error);
+      showError(
+        error?.data?.message || "Failed to update policy status. Please try again."
+      );
+    } finally {
+      setOverlapTogglingId(null);
+    }
+  };
+
+  const handleRetryPendingAdd = async () => {
+    if (!pendingAddPayload) return;
+    try {
+      await addNoShowPolicy(pendingAddPayload).unwrap();
+      success("No-show policy added successfully!");
+      handleCloseOverlapModal();
+      setModalOpen(false);
+      reset();
+      setEditingPolicy(null);
+      refetch();
+    } catch (error) {
+      console.error("Error retrying add no-show policy:", error);
+      const status = error?.status ?? error?.data?.statusCode;
+      const msg = String(error?.data?.message || error?.data?.error || "");
+      if (status === 409 && /overlap/i.test(msg) && overlapZoneId != null) {
+        showError(
+          msg ||
+            "Still overlapping — turn off Active for the policies listed below, then try again."
+        );
+        refetchOverlapPoliciesList();
+      } else {
+        showError(
+          error?.data?.message ||
+            "Failed to add no-show policy. Please try again."
+        );
+      }
+    }
+  };
+
   const onSubmit = async (data) => {
+    let payload;
     try {
       const effectiveFromUtc = data.effectiveFrom
         ? dayjs(data.effectiveFrom).toDate().toISOString()
@@ -737,7 +860,7 @@ export default function NoShowPolicyContent({
         ? dayjs(data.effectiveTo).toDate().toISOString()
         : null;
 
-      const payload = {
+      payload = {
         name: data.name,
         description: data.description,
         zoneId: data.zoneId ? parseInt(String(data.zoneId), 10) : null,
@@ -784,7 +907,33 @@ export default function NoShowPolicyContent({
       refetch();
     } catch (error) {
       console.error("Error saving no-show policy:", error);
-      showError(error?.data?.message || `Failed to ${editingPolicy ? 'update' : 'add'} no-show policy. Please try again.`);
+      const status = error?.status ?? error?.data?.statusCode;
+      const msg = String(error?.data?.message || error?.data?.error || "");
+      const isOverlapConflict =
+        !editingPolicy &&
+        status === 409 &&
+        /overlap/i.test(msg) &&
+        payload &&
+        payload.zoneId != null;
+
+      if (isOverlapConflict) {
+        setPendingAddPayload(payload);
+        setOverlapZoneId(payload.zoneId);
+        setOverlapPolicyFetchAll(false);
+        setOverlapModalOpen(true);
+        fetchOverlapPolicies({
+          zoneId: String(payload.zoneId),
+          isActive: "1",
+          limit: 50,
+          page: 1,
+        });
+        return;
+      }
+
+      showError(
+        error?.data?.message ||
+          `Failed to ${editingPolicy ? "update" : "add"} no-show policy. Please try again.`
+      );
     }
   };
 
@@ -799,6 +948,16 @@ export default function NoShowPolicyContent({
     { value: "EUR", label: "EUR" },
     { value: "GBP", label: "GBP" },
   ];
+
+  const overlapPoliciesRaw = parsePoliciesListPayload(overlapPoliciesResponse);
+  const overlapPoliciesList = overlapPolicyFetchAll
+    ? overlapPoliciesRaw
+    : overlapPoliciesRaw.filter(isPolicyConsideredActive);
+  const overlapZoneLabel =
+    overlapZoneId != null
+      ? zoneOptions.find((z) => String(z.value) === String(overlapZoneId))?.label ||
+        `Zone #${overlapZoneId}`
+      : "";
 
   if (isLoading) {
     return <Delay />;
@@ -1544,6 +1703,122 @@ export default function NoShowPolicyContent({
           </Box>
         </Box>
         </LocalizationProvider>
+      </ModalComponent>
+
+      <ModalComponent
+        open={overlapModalOpen}
+        title="ACTIVE NO-SHOW POLICY IN THIS ZONE"
+        onClose={handleCloseOverlapModal}
+        width={640}
+        primaryAction={{
+          label: "Retry saving new policy",
+          onClick: handleRetryPendingAdd,
+          isLoading: isAdding,
+        }}
+        secondaryAction={{
+          label: "Close",
+          onClick: handleCloseOverlapModal,
+        }}
+      >
+        <Box className="flex flex-col gap-3">
+          <Typography variant="body2" sx={{ color: "grey.80", fontFamily: "Switzer" }}>
+            Another active no-show policy in{" "}
+            <Typography component="span" sx={{ fontWeight: 600 }}>
+              {overlapZoneLabel || "this zone"}
+            </Typography>{" "}
+            overlaps the dates you chose. Deactivate it below, then retry saving your new policy.
+          </Typography>
+          {overlapPoliciesLoading ? (
+            <Box sx={{ display: "flex", justifyContent: "center", py: 3 }}>
+              <CircularProgress size={32} />
+            </Box>
+          ) : overlapPoliciesList.length === 0 ? (
+            <Box className="flex flex-col gap-2">
+              <Typography variant="body2" color="text.secondary">
+                {overlapPolicyFetchAll
+                  ? "No policies were returned for this zone. Check the zone or try again later."
+                  : "We could not list active policies for this zone. Load all policies for the zone below, then switch off Active on the overlapping policy."}
+              </Typography>
+              {!overlapPolicyFetchAll && overlapZoneId != null && (
+                <Button
+                  variant="outlined"
+                  onClick={() => {
+                    setOverlapPolicyFetchAll(true);
+                    fetchOverlapPolicies({
+                      zoneId: String(overlapZoneId),
+                      limit: 50,
+                      page: 1,
+                    });
+                  }}
+                >
+                  Load all policies in this zone
+                </Button>
+              )}
+              {overlapPolicyFetchAll && overlapZoneId != null && (
+                <Button variant="text" size="small" onClick={refetchOverlapPoliciesList}>
+                  Refresh list
+                </Button>
+              )}
+            </Box>
+          ) : (
+            <Box className="flex flex-col gap-2">
+              {overlapPoliciesList.map((policy) => {
+                const from =
+                  policy.effectiveFrom || policy.created_date || policy.createdAt;
+                const to = policy.effectiveTo || policy.expiry_date || policy.expiryDate;
+                const fromLabel = from ? new Date(from).toLocaleDateString() : "—";
+                const toLabel = to ? new Date(to).toLocaleDateString() : "Open-ended";
+                return (
+                  <Box
+                    key={policy.id}
+                    sx={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: 2,
+                      flexWrap: "wrap",
+                      p: 1.5,
+                      borderRadius: 1,
+                      bgcolor: "grey.50",
+                      border: "1px solid",
+                      borderColor: "grey.200",
+                    }}
+                  >
+                    <Box sx={{ minWidth: 0, flex: 1 }}>
+                      <Typography sx={{ fontWeight: 600, fontSize: "14px" }}>
+                        {policy.name || `Policy #${policy.id}`}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary" display="block">
+                        ID {policy.id} · {fromLabel} → {toLabel}
+                      </Typography>
+                    </Box>
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                      <ChangeStatus
+                        width="45px"
+                        checked={isPolicyConsideredActive(policy)}
+                        disabled={overlapTogglingId !== null}
+                        onChange={(e) =>
+                          handleOverlapPolicyToggle(policy, e.target.checked)
+                        }
+                      />
+                      <Typography
+                        sx={{
+                          fontSize: "13px",
+                          fontWeight: 500,
+                          color: isPolicyConsideredActive(policy)
+                            ? "success.main"
+                            : "text.secondary",
+                        }}
+                      >
+                        {isPolicyConsideredActive(policy) ? "Active" : "Inactive"}
+                      </Typography>
+                    </Box>
+                  </Box>
+                );
+              })}
+            </Box>
+          )}
+        </Box>
       </ModalComponent>
 
       {/* Delete Confirmation Modal */}

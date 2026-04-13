@@ -7,9 +7,11 @@ import {
   Menu,
   MenuItem,
   Tooltip,
+  CircularProgress,
 } from "@mui/material";
 import { TbPlus, TbCalendar, TbTrash, TbFilter } from "../../shared/icons/index";
 import StyledCheckbox from "../../components/ui/StyledCheckbox";
+import ChangeStatus from "../../components/ui/Switch";
 import LabelWithTooltip from "../../components/ui/LabelWithTooltip";
 import DataTable from "../../components/ui/DataTable";
 import ModalComponent from "../../components/shared/Modal";
@@ -18,13 +20,31 @@ import SelectField from "../../components/ui/SelectField";
 import { useForm, Controller } from "react-hook-form";
 import ButtonBlueLight from "../../components/ui/ButtonBlueLight";
 import useToaster from "../../components/ui/Toaster";
-import { useAddCancellationPolicyMutation, useGetCancellationPoliciesQuery, useUpdateCancellationPolicyMutation, useDeleteCancellationPolicyMutation, useCreateReasonMutation, useGetAllReasonsQuery, useDeleteReasonMutation, useGetAllZonesQuery } from "../../store/services/api";
+import { useAddCancellationPolicyMutation, useGetCancellationPoliciesQuery, useLazyGetCancellationPoliciesQuery, useUpdateCancellationPolicyMutation, useDeleteCancellationPolicyMutation, useCreateReasonMutation, useGetAllReasonsQuery, useDeleteReasonMutation, useGetAllZonesQuery } from "../../store/services/api";
 import { Delay } from "../../components/shared/Loaders";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import dayjs from "dayjs";
 import { useSelector } from "react-redux";
+
+function parseCancellationPoliciesPayload(response) {
+  if (!response) return [];
+  const inner = response.data !== undefined ? response.data : response;
+  if (Array.isArray(inner)) return inner;
+  if (Array.isArray(inner?.policies)) return inner.policies;
+  return [];
+}
+
+function isPolicyConsideredActive(p) {
+  const v = p?.isActive;
+  if (v === true || v === 1) return true;
+  if (v === false || v === 0) return false;
+  if (v === undefined || v === null) return true;
+  const s = String(v).toLowerCase();
+  if (s === "0" || s === "false" || s === "no") return false;
+  return s === "1" || s === "true" || s === "yes";
+}
 
 export default function CancellationPolicyContent() {
   const { success, error: showError } = useToaster();
@@ -44,6 +64,12 @@ export default function CancellationPolicyContent() {
   const [zoneMenuAnchor, setZoneMenuAnchor] = useState(null);
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
+  const [togglingActiveId, setTogglingActiveId] = useState(null);
+  const [overlapModalOpen, setOverlapModalOpen] = useState(false);
+  const [overlapZoneId, setOverlapZoneId] = useState(null);
+  const [pendingAddPayload, setPendingAddPayload] = useState(null);
+  const [overlapTogglingId, setOverlapTogglingId] = useState(null);
+  const [overlapPolicyFetchAll, setOverlapPolicyFetchAll] = useState(false);
 
   // Reset page to 1 when filters change
   useEffect(() => {
@@ -75,6 +101,8 @@ export default function CancellationPolicyContent() {
   const { data: reasonsResponse, refetch: refetchReasons } = useGetAllReasonsQuery(undefined, {
     skip: !reasonsModalOpen, // Only fetch when modal is open
   });
+  const [fetchOverlapPolicies, { data: overlapPoliciesResponse, isFetching: overlapPoliciesLoading }] =
+    useLazyGetCancellationPoliciesQuery();
 
   const isSubmitting = isAdding || isUpdating;
 
@@ -91,6 +119,7 @@ export default function CancellationPolicyContent() {
     defaultValues: {
       name: "",
       description: "",
+      zoneId: "",
       createdDate: dayjs(),
       expiryDate: null,
       isActive: true,
@@ -168,21 +197,29 @@ export default function CancellationPolicyContent() {
       sortable: true,
     },
     {
-      field: "isActive",
-      headerName: "Status",
-      flex: 0.08,
-      minWidth: 90,
-      sortable: true,
+      field: "policyStatusAction",
+      headerName: "Status / Action",
+      flex: 0.11,
+      minWidth: 160,
+      sortable: false,
       renderCell: (row) => (
-        <Typography
-          sx={{
-            color: row.isActive ? "success.main" : "text.secondary",
-            fontWeight: 500,
-            fontSize: "13px",
-          }}
-        >
-          {row.isActive ? "Active" : "Inactive"}
-        </Typography>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+          <ChangeStatus
+            width="45px"
+            checked={Boolean(row.isActive)}
+            disabled={togglingActiveId !== null}
+            onChange={(e) => handleTogglePolicyActive(row, e.target.checked)}
+          />
+          <Typography
+            sx={{
+              color: row.isActive ? "success.main" : "text.secondary",
+              fontWeight: 500,
+              fontSize: "13px",
+            }}
+          >
+            {row.isActive ? "Active" : "Inactive"}
+          </Typography>
+        </Box>
       ),
     },
     {
@@ -617,6 +654,7 @@ export default function CancellationPolicyContent() {
     reset({
       name: "",
       description: "",
+      zoneId: selectedZoneId || "",
       createdDate: dayjs(),
       expiryDate: null,
       isActive: true,
@@ -641,10 +679,16 @@ export default function CancellationPolicyContent() {
   };
 
   const handleAddTestPolicies = async () => {
+    const defaultZoneId = zones[0]?.id;
+    if (!defaultZoneId) {
+      showError("Add at least one zone before seeding test policies.");
+      return;
+    }
     const testPolicies = [
       {
         name: "Standard Cancellation Policy",
         description: "Standard policy for handling cancellations with moderate fees",
+        zoneId: defaultZoneId,
         isActive: true,
         isDefault: false,
         prePickupAbsoluteCurrency: "USD",
@@ -666,6 +710,7 @@ export default function CancellationPolicyContent() {
       {
         name: "Premium Cancellation Policy",
         description: "Premium policy with higher fees and stricter rules",
+        zoneId: defaultZoneId,
         isActive: true,
         isDefault: false,
         prePickupAbsoluteCurrency: "USD",
@@ -687,6 +732,7 @@ export default function CancellationPolicyContent() {
       {
         name: "Flexible Cancellation Policy",
         description: "Flexible policy with lenient rules and lower fees",
+        zoneId: defaultZoneId,
         isActive: true,
         isDefault: true,
         prePickupAbsoluteCurrency: "USD",
@@ -708,6 +754,7 @@ export default function CancellationPolicyContent() {
       {
         name: "Strict Cancellation Policy",
         description: "Strict policy with high fees and no leniency",
+        zoneId: defaultZoneId,
         isActive: true,
         isDefault: false,
         prePickupAbsoluteCurrency: "USD",
@@ -729,6 +776,7 @@ export default function CancellationPolicyContent() {
       {
         name: "Test Cancellation Policy EUR",
         description: "Test policy with EUR currency and mixed settings",
+        zoneId: defaultZoneId,
         isActive: true,
         isDefault: false,
         prePickupAbsoluteCurrency: "EUR",
@@ -783,6 +831,7 @@ export default function CancellationPolicyContent() {
     reset({
       name: policy.name || "",
       description: policy.description || "",
+      zoneId: policy.zoneId != null ? String(policy.zoneId) : "",
       createdDate: policy.createdAt ? dayjs(policy.createdAt) : dayjs(),
       expiryDate: policy.expiry_date ? dayjs(policy.expiry_date) : null,
       isActive: true,
@@ -835,6 +884,104 @@ export default function CancellationPolicyContent() {
   const handleCancelDelete = () => {
     setDeleteConfirmOpen(false);
     setPolicyToDelete(null);
+  };
+
+  const handleTogglePolicyActive = async (row, nextActive) => {
+    if (togglingActiveId !== null) return;
+    if (Boolean(row.isActive) === nextActive) return;
+    setTogglingActiveId(row.id);
+    try {
+      await updateCancellationPolicy({
+        id: row.id,
+        body: { isActive: nextActive },
+      }).unwrap();
+      success(
+        nextActive
+          ? "Cancellation policy activated"
+          : "Cancellation policy deactivated"
+      );
+      refetch();
+    } catch (error) {
+      console.error("Error updating policy status:", error);
+      showError(
+        error?.data?.message ||
+          "Failed to update policy status. Please try again."
+      );
+    } finally {
+      setTogglingActiveId(null);
+    }
+  };
+
+  const handleCloseOverlapModal = () => {
+    setOverlapModalOpen(false);
+    setPendingAddPayload(null);
+    setOverlapZoneId(null);
+    setOverlapTogglingId(null);
+    setOverlapPolicyFetchAll(false);
+  };
+
+  const refetchOverlapPoliciesList = () => {
+    if (overlapZoneId == null) return;
+    fetchOverlapPolicies({
+      zoneId: String(overlapZoneId),
+      limit: 50,
+      page: 1,
+      ...(overlapPolicyFetchAll ? {} : { isActive: "1" }),
+    });
+  };
+
+  const handleOverlapPolicyToggle = async (policy, nextActive) => {
+    if (overlapTogglingId !== null) return;
+    if (isPolicyConsideredActive(policy) === nextActive) return;
+    setOverlapTogglingId(policy.id);
+    try {
+      await updateCancellationPolicy({
+        id: policy.id,
+        body: { isActive: nextActive },
+      }).unwrap();
+      success(
+        nextActive
+          ? "Policy activated"
+          : "Policy deactivated. You can retry saving the new policy."
+      );
+      refetch();
+      refetchOverlapPoliciesList();
+    } catch (error) {
+      console.error("Error updating overlapping policy:", error);
+      showError(
+        error?.data?.message || "Failed to update policy status. Please try again."
+      );
+    } finally {
+      setOverlapTogglingId(null);
+    }
+  };
+
+  const handleRetryPendingAdd = async () => {
+    if (!pendingAddPayload) return;
+    try {
+      await addCancellationPolicy(pendingAddPayload).unwrap();
+      success("Cancellation policy added successfully!");
+      handleCloseOverlapModal();
+      setModalOpen(false);
+      reset();
+      setEditingPolicy(null);
+      refetch();
+    } catch (error) {
+      console.error("Error retrying add cancellation policy:", error);
+      const status = error?.status ?? error?.data?.statusCode;
+      const msg = String(error?.data?.message || error?.data?.error || "");
+      if (status === 409 && /overlap/i.test(msg) && overlapZoneId != null) {
+        showError(
+          msg || "Still overlapping — turn off Active for the policies listed below, then try again."
+        );
+        refetchOverlapPoliciesList();
+      } else {
+        showError(
+          error?.data?.message ||
+            "Failed to add cancellation policy. Please try again."
+        );
+      }
+    }
   };
 
   // Cancellation Reasons Management
@@ -981,10 +1128,12 @@ export default function CancellationPolicyContent() {
   }, [reasonsModalOpen, reasonsResponse]);
 
   const onSubmit = async (data) => {
+    let payload;
     try {
-      const payload = {
+      payload = {
         name: data.name,
         description: data.description,
+        ...(data.zoneId ? { zoneId: parseInt(data.zoneId, 10) } : {}),
         created_date: data.createdDate ? data.createdDate.format("YYYY-MM-DD") : dayjs().format("YYYY-MM-DD"),
         expiry_date: data.expiryDate ? data.expiryDate.format("YYYY-MM-DD") : null,
         isActive: true,
@@ -1011,11 +1160,9 @@ export default function CancellationPolicyContent() {
       };
 
       if (editingPolicy) {
-        // Update existing policy
         await updateCancellationPolicy({ id: editingPolicy.id, body: payload }).unwrap();
         success("Cancellation policy updated successfully!");
       } else {
-        // Add new policy
         await addCancellationPolicy(payload).unwrap();
         success("Cancellation policy added successfully!");
       }
@@ -1026,7 +1173,30 @@ export default function CancellationPolicyContent() {
       refetch();
     } catch (error) {
       console.error("Error saving cancellation policy:", error);
-      showError(error?.data?.message || `Failed to ${editingPolicy ? 'update' : 'add'} cancellation policy. Please try again.`);
+      const status = error?.status ?? error?.data?.statusCode;
+      const msg = String(error?.data?.message || error?.data?.error || "");
+      const isOverlapConflict =
+        !editingPolicy &&
+        status === 409 &&
+        /overlap/i.test(msg) &&
+        payload &&
+        payload.zoneId != null;
+
+      if (isOverlapConflict) {
+        setPendingAddPayload(payload);
+        setOverlapZoneId(payload.zoneId);
+        setOverlapPolicyFetchAll(false);
+        setOverlapModalOpen(true);
+        fetchOverlapPolicies({
+          zoneId: String(payload.zoneId),
+          isActive: "1",
+          limit: 50,
+          page: 1,
+        });
+        return;
+      }
+
+      showError(error?.data?.message || `Failed to ${editingPolicy ? "update" : "add"} cancellation policy. Please try again.`);
     }
   };
 
@@ -1035,6 +1205,16 @@ export default function CancellationPolicyContent() {
     setEditingPolicy(null);
     reset();
   };
+
+  const overlapPoliciesRaw = parseCancellationPoliciesPayload(overlapPoliciesResponse);
+  const overlapPoliciesList = overlapPolicyFetchAll
+    ? overlapPoliciesRaw
+    : overlapPoliciesRaw.filter(isPolicyConsideredActive);
+  const overlapZoneLabel =
+    overlapZoneId != null
+      ? zoneOptions.find((z) => String(z.value) === String(overlapZoneId))?.label ||
+        `Zone #${overlapZoneId}`
+      : "";
 
   const currencyOptions = [
     { value: "USD", label: "USD" },
@@ -1263,6 +1443,36 @@ export default function CancellationPolicyContent() {
                     </Box>
                   )}
                 />
+
+                <Controller
+                  name="zoneId"
+                  control={control}
+                  rules={{
+                    validate: (v) => {
+                      if (editingPolicy) return true;
+                      return v ? true : "Zone is required";
+                    },
+                  }}
+                  render={({ field: { onChange, value } }) => (
+                    <Box>
+                      <SelectField
+                        title="Zone*"
+                        value={value || ""}
+                        onChange={(e) => onChange(e.target.value)}
+                        options={zoneOptions}
+                        placeholder="Select zone"
+                        fullWidth
+                        tooltipText="Zone this policy applies to. Required when adding a policy so overlaps can be detected per zone."
+                      />
+                      {errors.zoneId && (
+                        <Typography variant="caption" sx={{ color: "error.main", mt: 1, display: "block" }}>
+                          {errors.zoneId.message}
+                        </Typography>
+                      )}
+                    </Box>
+                  )}
+                />
+
                 <Box className="grid grid-cols-2 gap-4">
                   <Controller
                     name="createdDate"
@@ -1653,6 +1863,122 @@ export default function CancellationPolicyContent() {
             </Box>
           </Box>
         </LocalizationProvider>
+      </ModalComponent>
+
+      <ModalComponent
+        open={overlapModalOpen}
+        title="ACTIVE POLICY IN THIS ZONE"
+        onClose={handleCloseOverlapModal}
+        width={640}
+        primaryAction={{
+          label: "Retry saving new policy",
+          onClick: handleRetryPendingAdd,
+          isLoading: isAdding,
+        }}
+        secondaryAction={{
+          label: "Close",
+          onClick: handleCloseOverlapModal,
+        }}
+      >
+        <Box className="flex flex-col gap-3">
+          <Typography variant="body2" sx={{ color: "grey.80", fontFamily: "Switzer" }}>
+            Another active cancellation policy in{" "}
+            <Typography component="span" sx={{ fontWeight: 600 }}>
+              {overlapZoneLabel || "this zone"}
+            </Typography>{" "}
+            overlaps the dates you chose. Deactivate it below, then retry saving your new policy.
+          </Typography>
+          {overlapPoliciesLoading ? (
+            <Box sx={{ display: "flex", justifyContent: "center", py: 3 }}>
+              <CircularProgress size={32} />
+            </Box>
+          ) : overlapPoliciesList.length === 0 ? (
+            <Box className="flex flex-col gap-2">
+              <Typography variant="body2" color="text.secondary">
+                {overlapPolicyFetchAll
+                  ? "No policies were returned for this zone. Check the zone or try again later."
+                  : "We could not list active policies for this zone. Load all policies for the zone below, then switch off Active on the overlapping policy."}
+              </Typography>
+              {!overlapPolicyFetchAll && overlapZoneId != null && (
+                <Button
+                  variant="outlined"
+                  onClick={() => {
+                    setOverlapPolicyFetchAll(true);
+                    fetchOverlapPolicies({
+                      zoneId: String(overlapZoneId),
+                      limit: 50,
+                      page: 1,
+                    });
+                  }}
+                >
+                  Load all policies in this zone
+                </Button>
+              )}
+              {overlapPolicyFetchAll && overlapZoneId != null && (
+                <Button variant="text" size="small" onClick={refetchOverlapPoliciesList}>
+                  Refresh list
+                </Button>
+              )}
+            </Box>
+          ) : (
+            <Box className="flex flex-col gap-2">
+              {overlapPoliciesList.map((policy) => {
+                const from =
+                  policy.effectiveFrom || policy.created_date || policy.createdAt;
+                const to = policy.effectiveTo || policy.expiry_date || policy.expiryDate;
+                const fromLabel = from ? new Date(from).toLocaleDateString() : "—";
+                const toLabel = to ? new Date(to).toLocaleDateString() : "Open-ended";
+                return (
+                  <Box
+                    key={policy.id}
+                    sx={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: 2,
+                      flexWrap: "wrap",
+                      p: 1.5,
+                      borderRadius: 1,
+                      bgcolor: "grey.50",
+                      border: "1px solid",
+                      borderColor: "grey.200",
+                    }}
+                  >
+                    <Box sx={{ minWidth: 0, flex: 1 }}>
+                      <Typography sx={{ fontWeight: 600, fontSize: "14px" }}>
+                        {policy.name || `Policy #${policy.id}`}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary" display="block">
+                        ID {policy.id} · {fromLabel} → {toLabel}
+                      </Typography>
+                    </Box>
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                      <ChangeStatus
+                        width="45px"
+                        checked={isPolicyConsideredActive(policy)}
+                        disabled={overlapTogglingId !== null}
+                        onChange={(e) =>
+                          handleOverlapPolicyToggle(policy, e.target.checked)
+                        }
+                      />
+                      <Typography
+                        sx={{
+                          fontSize: "13px",
+                          fontWeight: 500,
+                          color: isPolicyConsideredActive(policy)
+                            ? "success.main"
+                            : "text.secondary",
+                        }}
+                      >
+                        {isPolicyConsideredActive(policy) ? "Active" : "Inactive"}
+                      </Typography>
+                    </Box>
+                  </Box>
+                );
+              })}
+            </Box>
+          )}
+        </Box>
       </ModalComponent>
 
       {/* Delete Confirmation Modal */}
