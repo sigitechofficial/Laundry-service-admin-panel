@@ -3,19 +3,14 @@ import { Box, Typography } from "@mui/material";
 import { BsCardList } from "../../shared/icons/index";
 import DataTable from "../../components/ui/DataTable";
 import StatCard from "../../components/ui/StatCard";
-import Search from "../../components/ui/Search";
-import FiltersButton from "../../components/ui/FiltersButton";
 import DateRangeSelector from "../../components/ui/DateRangeSelector";
 import SelectField from "../../components/ui/SelectField";
 import { useSelector } from "react-redux";
 import { useGetAllZonesQuery } from "../../store/services/api";
 import { Delay } from "../../components/shared/Loaders";
-import { TbFileDownload } from "../../shared/icons/index";
-import ButtonBlueLight from "../../components/ui/ButtonBlueLight";
 
 export default function OverallPolicies() {
   const [dateRange, setDateRange] = useState(null);
-  const [searchTerm, setSearchTerm] = useState("");
   const [selectedZone, setSelectedZone] = useState("");
   const [selectedCity, setSelectedCity] = useState("");
   const [selectedCountry, setSelectedCountry] = useState("");
@@ -106,12 +101,6 @@ export default function OverallPolicies() {
   const handleDateChange = (selectedRange) => {
     setDateRange(selectedRange);
     console.log("Selected Date Range:", selectedRange);
-  };
-
-  const handleSearchChange = (e) => {
-    const value = e?.target?.value || "";
-    setSearchTerm(value);
-    console.log("Search term:", value);
   };
 
   const handleFilter = () => {
@@ -273,46 +262,13 @@ export default function OverallPolicies() {
               />
             </Box>
 
-            {/* Search and Action Bar */}
-            <Box
-              className="flex items-center gap-x-3 mb-4"
-              sx={{
-                flexWrap: "wrap",
-                gap: 2,
-              }}
-            >
-              <Box sx={{ flex: 1, minWidth: "300px" }}>
-                <Search
-                  placeholder="Search by ID, product, or others..."
-                  onChange={handleSearchChange}
-                />
-              </Box>
-              <FiltersButton text="Filters" onClick={handleFilter} />
-              <DateRangeSelector
-                value={dateRange}
-                onChange={handleDateChange}
-                placeholder="April 11 - April 24"
-              />
-              <ButtonBlueLight
-                variant="outlined"
-                bgColor="blue.200"
-                color="white"
-                radius="8px"
-                startIcon={<TbFileDownload size={"20px"} />}
-                onClick={handleDownload}
-              >
-                Download
-              </ButtonBlueLight>
-            </Box>
-
             {/* Data Table */}
             <Box sx={{ width: "100%", overflow: "auto" }}>
               <DataTable
                 data={policiesData}
                 columns={columns}
                 searchPlaceholder="Search by ID, product, or others..."
-                onSearch={handleSearchChange}
-                onFilter={handleFilter}
+                onFiltersClick={handleFilter}
                 onDateRangeChange={handleDateChange}
                 onDownload={handleDownload}
                 onRowAction={handleRowAction}
