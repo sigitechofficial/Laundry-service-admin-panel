@@ -30,15 +30,6 @@ export default function NoShowPolicy() {
               </Typography>
             </Box>
             <Box className="flex items-center gap-3">
-              <ButtonBlueLight
-                variant="outlined"
-                bgColor="#10b981"
-                color="white"
-                radius="8px"
-                onClick={() => navigate("/policies-management/no-show-policy/test-cases")}
-              >
-                Test Cases
-              </ButtonBlueLight>
               <Tooltip
                 title={
                   selectedZoneLabel ? `Zone: ${selectedZoneLabel}` : "Filter by zone"

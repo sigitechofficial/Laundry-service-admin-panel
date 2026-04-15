@@ -73,102 +73,89 @@ export default function OnHoldOrders() {
     refetchCounts();
   };
 
-  const customersData = data?.data?.allCompletedOrders?.map(
-    (booking, index) => {
-      return {
-        id: booking?.id,
-        sl: index + 1,
-        orderId: booking?.id,
-        orderDateTime: dayjs(booking?.created_at).format(dateTimeFormat),
-        serviceType: booking?.customerSelectedServices
-          ?.map((ser) => ser?.service?.name)
-          .join(","),
-        totalItems: booking?.totalItems,
-        pickupDateTime: dayjs(booking?.collectionDate).format(dateTimeFormat),
-        deliveryDateTime: dayjs(booking?.deliveryDate).format(dateTimeFormat),
-        OrderStatus: booking?.bookingStatus?.title,
-        OnHold: booking?.OnHoldConfirmations?.length,
-        pickupDriver: `${booking?.driver?.firstName || ""} ${
-          booking?.driver?.lastName || ""
-        }`,
-        deliveryDriver: `${booking?.driver?.firstName || ""} ${
-          booking?.driver?.lastName || ""
-        }`,
-        shopName: booking?.laundryShop?.name,
-        cost: booking?.orderAmount,
-        actions: "actions",
-      };
-    }
-  );
+  const customersData = data?.data?.data?.onHoldBookings?.map((booking, index) => {
+    const pickupDate = booking?.collectionDate
+      ? dayjs(booking.collectionDate).format("DD/MM/YYYY")
+      : "—";
+    const pickupTime = booking?.collectionTimeFrom && booking?.collectionTimeTo
+      ? `${booking.collectionTimeFrom.slice(0, 5)} – ${booking.collectionTimeTo.slice(0, 5)}`
+      : "—";
+    const deliveryDate = booking?.deliveryDate
+      ? dayjs(booking.deliveryDate).format("DD/MM/YYYY")
+      : "—";
+    const deliveryTime = booking?.deliveryTimeFrom && booking?.deliveryTimeTo
+      ? `${booking.deliveryTimeFrom.slice(0, 5)} – ${booking.deliveryTimeTo.slice(0, 5)}`
+      : "—";
+
+    return {
+      id: booking?.id,
+      sl: index + 1,
+      orderId: booking?.orderTrackId || booking?.id,
+      orderDateTime: booking?.createdAt
+        ? dayjs(booking.createdAt).format(dateTimeFormat)
+        : "—",
+      frequency: booking?.frequency || "—",
+      totalItems: booking?.totalItems ?? "—",
+      pickupDateTime: `${pickupDate} ${pickupTime}`,
+      deliveryDateTime: `${deliveryDate} ${deliveryTime}`,
+      onHoldReason: booking?.onHoldReason || booking?.OnHoldOtherReason || "—",
+      cost: booking?.orderAmount != null ? `£${booking.orderAmount}` : "—",
+      noOfBags: booking?.noOfBags ?? "—",
+      actions: "actions",
+    };
+  });
 
   const customerColumns = [
     {
       field: "sl",
       headerName: "SL",
-      minWidth: 100,
+      minWidth: 80,
     },
     {
       field: "orderId",
-      headerName: "Order Id",
-      minWidth: 140,
-    },
-    {
-      field: "orderDateTime",
-      headerName: "Order date & time",
-      minWidth: 200,
-    },
-    {
-      field: "serviceType",
-      headerName: "Service type",
-      minWidth: 170,
-    },
-    {
-      field: "totalItems",
-      headerName: "Total items",
-      minWidth: 170,
-    },
-    {
-      field: "pickupDateTime",
-      headerName: "Pickup date/time",
-      minWidth: 200,
-      type: "number",
-    },
-    {
-      field: "deliveryDateTime",
-      headerName: "Delivery Date/Time",
-      minWidth: 240,
-    },
-    {
-      field: "OnHold ",
-      headerName: "On-hold ",
-      minWidth: 140,
-    },
-    {
-      field: "pickupDriver ",
-      headerName: "Pickup Driver ",
-      minWidth: 170,
-    },
-    {
-      field: "deliveryDriver",
-      headerName: "Delivery driver",
-      minWidth: 180,
-    },
-    {
-      field: "shopName",
-      headerName: "Shop Name",
+      headerName: "Order ID",
       minWidth: 160,
     },
     {
-      field: "cost",
-      headerName: "Total cost",
-      minWidth: 150,
+      field: "orderDateTime",
+      headerName: "Order Date & Time",
+      minWidth: 200,
     },
     {
-      field: "OrderStatus",
-      headerName: "Status",
-      minWidth: 100,
+      field: "frequency",
+      headerName: "Frequency",
+      minWidth: 140,
     },
-
+    {
+      field: "totalItems",
+      headerName: "Total Items",
+      minWidth: 120,
+    },
+    {
+      field: "noOfBags",
+      headerName: "No. of Bags",
+      minWidth: 130,
+    },
+    {
+      field: "pickupDateTime",
+      headerName: "Pickup Date / Time",
+      minWidth: 210,
+    },
+    {
+      field: "deliveryDateTime",
+      headerName: "Delivery Date / Time",
+      minWidth: 210,
+    },
+    {
+      field: "onHoldReason",
+      headerName: "On-Hold Reason",
+      minWidth: 180,
+    },
+    {
+      field: "cost",
+      headerName: "Order Amount",
+      minWidth: 140,
+    },
     {
       field: "actions",
       headerName: "Actions",

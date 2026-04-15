@@ -499,6 +499,7 @@ export default function OrderDetailsPage() {
             <Button
               variant="contained"
               size="small"
+              onClick={() => navigate(`/orders/edit/${orderId}`)}
               sx={{
                 textTransform: "uppercase",
                 fontSize: 11,
@@ -1254,6 +1255,7 @@ export default function OrderDetailsPage() {
                 fullWidth
                 variant="contained"
                 size="small"
+                onClick={() => navigate(`/orders/edit/${orderId}`)}
                 sx={{
                   textTransform: "uppercase",
                   fontSize: 11,

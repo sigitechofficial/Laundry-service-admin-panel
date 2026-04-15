@@ -197,13 +197,7 @@ export default function CustomerDetails() {
           <Typography sx={{ fontSize: 13, fontWeight: 600, color: "#334155" }}>{fullName}</Typography>
         </Box>
         <Box className="flex items-center gap-2">
-          <Button size="small" sx={{ textTransform: "none", bgcolor: "#F1F5F9", color: "#475569", border: "1px solid #E2E8F0" }}>
-            Export
-          </Button>
-          <Button size="small" variant="outlined" sx={{ textTransform: "none", borderColor: "#E2E8F0", color: "#475569" }}>
-            Message
-          </Button>
-          <Button size="small" variant="contained" sx={{ textTransform: "none", bgcolor: PRIMARY, "&:hover": { bgcolor: "#00016F" } }}>
+          <Button size="small" variant="contained" onClick={() => navigate(`/customer-management/edit/${id}`)} sx={{ textTransform: "none", bgcolor: PRIMARY, "&:hover": { bgcolor: "#00016F" } }}>
             Edit Customer
           </Button>
         </Box>
@@ -461,7 +455,7 @@ export default function CustomerDetails() {
               <Paper sx={{ ...CARD_SX, p: 2.5 }}>
                 <Typography sx={{ fontSize: 14, fontWeight: 600, color: "#0F172A", mb: 1.5 }}>Quick Actions</Typography>
                 <Box sx={{ display: "flex", flexDirection: "column", rowGap: 1 }}>
-                  <Button sx={{ justifyContent: "flex-start", textTransform: "none", bgcolor: "#F8FAFC", color: "#475569", borderRadius: "12px", px: 1.6, py: 1.1 }}>Edit Customer</Button>
+                  <Button onClick={() => navigate(`/customer-management/edit/${id}`)} sx={{ justifyContent: "flex-start", textTransform: "none", bgcolor: "#F8FAFC", color: "#475569", borderRadius: "12px", px: 1.6, py: 1.1 }}>Edit Customer</Button>
                   <Button sx={{ justifyContent: "flex-start", textTransform: "none", bgcolor: "#F8FAFC", color: "#475569", borderRadius: "12px", px: 1.6, py: 1.1 }}>Send Email</Button>
                   <Button sx={{ justifyContent: "flex-start", textTransform: "none", bgcolor: "#FEF2F2", color: "#DC2626", borderRadius: "12px", px: 1.6, py: 1.1 }}>Suspend Account</Button>
                 </Box>
