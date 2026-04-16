@@ -56,16 +56,25 @@ const apiDataSlice = createSlice({
         const { id, body } = meta.arg.originalArgs;
 
         if (id) {
-          state.services = state.services.map((service) =>
-            service.id === id
-              ? {
-                ...service,
-                name: body.get?.("name") ?? service.name,
-                description: body.get?.("description") ?? service.description,
-                image: body.get?.("serviceImg") ?? service.image,
+          state.services = state.services.map((service) => {
+            if (service.id !== id) return service;
+            let nextImage = service.image;
+            if (body instanceof FormData) {
+              if (body.get("deleteImage") === "true") {
+                nextImage = null;
+              } else if (body.has("serviceImg")) {
+                const v = body.get("serviceImg");
+                if (v instanceof File) nextImage = v;
+                else nextImage = v ?? service.image;
               }
-              : service
-          );
+            }
+            return {
+              ...service,
+              name: body.get?.("name") ?? service.name,
+              description: body.get?.("description") ?? service.description,
+              image: nextImage,
+            };
+          });
         }
       }
     );

@@ -17,7 +17,6 @@ import {
   EmployeeManagement,
   EmployeeDetails,
   EditEmployee,
-  Configurations,
   RolePermission,
   Blogs,
   FAQ,
@@ -126,11 +125,6 @@ export const privateRoutes = [
     path: "/role-permission",
     element: RolePermission,
     resourceKey: "role_permission_page",
-  },
-  {
-    path: "/configurations",
-    element: Configurations,
-    resourceKey: "configurations_Page",
   },
   {
     path: "/blogs",

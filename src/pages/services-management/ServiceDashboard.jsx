@@ -238,8 +238,10 @@ export default function ServiceDashboard() {
       const formData = new FormData();
       formData.append("name", serviceModal.name);
       formData.append("description", serviceModal.description);
-      if (serviceModal.image && typeof serviceModal.image !== "string") {
+      if (serviceModal.image instanceof File) {
         formData.append("serviceImg", serviceModal.image);
+      } else if (serviceModal.image === null) {
+        formData.append("deleteImage", "true");
       }
       const res = await editService({
         id: serviceModal.id,

@@ -252,8 +252,10 @@ export default function ServicesCard({ triggerAdd }) {
       formData.append("name", add.name);
       formData.append("description", add.description);
       formData.append("pricingBasis", add.pricedByWeight ? "weight" : "item");
-      if (add.image && typeof add.image !== "string") {
+      if (add.image instanceof File) {
         formData.append("serviceImg", add.image);
+      } else if (add.image === null) {
+        formData.append("deleteImage", "true");
       }
       if (add.turnaroundTime) {
         formData.append("timeRequired", add.turnaroundTime);

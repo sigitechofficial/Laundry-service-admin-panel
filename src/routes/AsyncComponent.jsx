@@ -83,9 +83,6 @@ export const ShopManagementLayout = lazy(() =>
   import("../pages/shop-management/ShopManagementLayout")
 );
 
-export const Configurations = lazy(() =>
-  import("../pages/configurations/Configurations")
-);
 export const RolePermission = lazy(() =>
   import("../pages/role-permission/RolePermission")
 );
