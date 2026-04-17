@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   Box,
   Typography,
@@ -20,7 +20,25 @@ import SelectField from "../../components/ui/SelectField";
 import { useForm, Controller } from "react-hook-form";
 import ButtonBlueLight from "../../components/ui/ButtonBlueLight";
 import useToaster from "../../components/ui/Toaster";
-import { useAddCancellationPolicyMutation, useGetCancellationPoliciesQuery, useLazyGetCancellationPoliciesQuery, useUpdateCancellationPolicyMutation, useDeleteCancellationPolicyMutation, useCreateReasonMutation, useGetAllReasonsQuery, useDeleteReasonMutation, useGetAllZonesQuery } from "../../store/services/api";
+import {
+  useAddCancellationPolicyMutation,
+  useGetCancellationPoliciesQuery,
+  useLazyGetCancellationPoliciesQuery,
+  useUpdateCancellationPolicyMutation,
+  useDeleteCancellationPolicyMutation,
+  useCreateReasonMutation,
+  useGetAllReasonsQuery,
+  useDeleteReasonMutation,
+  useGetAllZonesQuery,
+  useLazyGetZoneByIdQuery,
+  useGetUnitsDistanceAndCurrencyQuery,
+} from "../../store/services/api";
+import {
+  mergedZonesList,
+  currencyCodeFromZone,
+  buildCurrencyUnitsList,
+  unwrapZoneFromApiResponse,
+} from "../../utilities/zonesList";
 import { Delay } from "../../components/shared/Loaders";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
@@ -76,10 +94,25 @@ export default function CancellationPolicyContent() {
     setPage(1);
   }, [isActiveFilter, isDefaultFilter, selectedZoneId, limit]);
 
-  const zones = useSelector((state) => state?.apiData?.zones?.zones || []);
-  useGetAllZonesQuery(undefined, { refetchOnMountOrArgChange: false });
+  const { data: zonesQueryData } = useGetAllZonesQuery(undefined, {
+    refetchOnMountOrArgChange: false,
+  });
+  const zonesReduxNode = useSelector((state) => state?.apiData?.zones);
+  const zonesList = useMemo(
+    () => mergedZonesList(zonesQueryData, zonesReduxNode),
+    [zonesQueryData, zonesReduxNode]
+  );
   const zoneOptions =
-    zones?.map((z) => ({ value: String(z.id), label: z.name })) || [];
+    zonesList.map((z) => ({ value: String(z.id), label: z.name })) || [];
+  const [fetchZoneById] = useLazyGetZoneByIdQuery();
+
+  const { data: currencyUnitsPayload } = useGetUnitsDistanceAndCurrencyQuery("currency");
+  const currencyUnitsRedux = useSelector((state) => state?.apiData?.units?.currency);
+  const currencyUnitsList = useMemo(
+    () => buildCurrencyUnitsList(currencyUnitsPayload, currencyUnitsRedux),
+    [currencyUnitsPayload, currencyUnitsRedux]
+  );
+
   const selectedZoneLabel = zoneOptions.find(
     (z) => z.value === String(selectedZoneId)
   )?.label;
@@ -114,6 +147,8 @@ export default function CancellationPolicyContent() {
     control,
     handleSubmit,
     reset,
+    setValue,
+    watch,
     formState: { errors },
   } = useForm({
     defaultValues: {
@@ -141,6 +176,22 @@ export default function CancellationPolicyContent() {
       customerLeniencyEnabled: true,
     },
   });
+
+  const watchedZoneId = watch("zoneId");
+
+  const currencyOptions = useMemo(() => {
+    const base = [
+      { value: "USD", label: "USD" },
+      { value: "EUR", label: "EUR" },
+      { value: "GBP", label: "GBP" },
+    ];
+    const z = zonesList.find((zone) => String(zone.id) === String(watchedZoneId));
+    const code = currencyCodeFromZone(z, currencyUnitsList);
+    if (code && !base.some((o) => o.value === code)) {
+      return [...base, { value: code, label: code }];
+    }
+    return base;
+  }, [zonesList, watchedZoneId, currencyUnitsList]);
 
   // Table columns
   const columns = [
@@ -1216,12 +1267,6 @@ export default function CancellationPolicyContent() {
         `Zone #${overlapZoneId}`
       : "";
 
-  const currencyOptions = [
-    { value: "USD", label: "USD" },
-    { value: "EUR", label: "EUR" },
-    { value: "GBP", label: "GBP" },
-  ];
-
   if (isLoading) {
     return <Delay />;
   }
@@ -1458,7 +1503,34 @@ export default function CancellationPolicyContent() {
                       <SelectField
                         title="Zone*"
                         value={value || ""}
-                        onChange={(e) => onChange(e.target.value)}
+                        onChange={(e) => {
+                          const newZoneId = String(e?.target?.value ?? e ?? "");
+                          onChange(newZoneId);
+                          if (!newZoneId) return;
+                          const z = zonesList.find((zone) => String(zone.id) === String(newZoneId));
+                          let code = currencyCodeFromZone(z, currencyUnitsList);
+                          const apply = (c) => {
+                            if (!c) return;
+                            const opts = {
+                              shouldDirty: true,
+                              shouldTouch: true,
+                              shouldValidate: true,
+                            };
+                            setValue("prePickupAbsoluteCurrency", c, opts);
+                            setValue("unprocessedAbsoluteCurrency", c, opts);
+                          };
+                          if (code) {
+                            apply(code);
+                            return;
+                          }
+                          fetchZoneById(newZoneId)
+                            .unwrap()
+                            .then((res) => {
+                              const detail = unwrapZoneFromApiResponse(res);
+                              apply(currencyCodeFromZone(detail, currencyUnitsList));
+                            })
+                            .catch(() => {});
+                        }}
                         options={zoneOptions}
                         placeholder="Select zone"
                         fullWidth
@@ -1595,15 +1667,16 @@ export default function CancellationPolicyContent() {
                   <Controller
                     name="prePickupAbsoluteCurrency"
                     control={control}
-                    render={({ field: { onChange, value } }) => (
+                    render={({ field: { value } }) => (
                       <SelectField
                         title="Currency"
-                        value={value}
-                        onChange={(e) => onChange(e.target.value)}
+                        value={value ?? ""}
+                        onChange={() => {}}
                         options={currencyOptions}
-                        placeholder="Select currency"
+                        placeholder={watchedZoneId ? "Set from zone" : "Select zone first"}
                         fullWidth
-                        tooltipText="Currency code for pre-pickup cancellation charges (e.g., USD, EUR, GBP)."
+                        disabled
+                        tooltipText="Currency follows the selected zone. Change the zone to change currency."
                       />
                     )}
                   />
@@ -1685,15 +1758,16 @@ export default function CancellationPolicyContent() {
                   <Controller
                     name="unprocessedAbsoluteCurrency"
                     control={control}
-                    render={({ field: { onChange, value } }) => (
+                    render={({ field: { value } }) => (
                       <SelectField
                         title="Currency"
-                        value={value}
-                        onChange={(e) => onChange(e.target.value)}
+                        value={value ?? ""}
+                        onChange={() => {}}
                         options={currencyOptions}
-                        placeholder="Select currency"
+                        placeholder={watchedZoneId ? "Set from zone" : "Select zone first"}
                         fullWidth
-                        tooltipText="Currency code for unprocessed order cancellation charges (e.g., USD, EUR, GBP)."
+                        disabled
+                        tooltipText="Currency follows the selected zone. Change the zone to change currency."
                       />
                     )}
                   />

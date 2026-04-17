@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   Box,
   Typography,
@@ -33,13 +33,22 @@ import {
   useGetAllReasonsQuery,
   useDeleteReasonMutation,
   useGetAllZonesQuery,
+  useLazyGetZoneByIdQuery,
+  useGetUnitsDistanceAndCurrencyQuery,
 } from "../../store/services/api";
+import {
+  mergedZonesList,
+  currencyCodeFromZone,
+  buildCurrencyUnitsList,
+  unwrapZoneFromApiResponse,
+} from "../../utilities/zonesList";
 import { Delay } from "../../components/shared/Loaders";
 import StyledCheckbox from "../../components/ui/StyledCheckbox";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import dayjs from "dayjs";
+import { useSelector } from "react-redux";
 import LabelWithTooltip from "../../components/ui/LabelWithTooltip";
 import ChangeStatus from "../../components/ui/Switch";
 
@@ -99,7 +108,23 @@ export default function CancellationPolicy() {
   const [addCancellationPolicy, { isLoading: isAdding }] = useAddCancellationPolicyMutation();
   const [updateCancellationPolicy, { isLoading: isUpdating }] = useUpdateCancellationPolicyMutation();
   const [deleteCancellationPolicy, { isLoading: isDeleting }] = useDeleteCancellationPolicyMutation();
-  const { data: zonesResponse } = useGetAllZonesQuery();
+  const { data: zonesQueryData } = useGetAllZonesQuery();
+  const [fetchZoneById] = useLazyGetZoneByIdQuery();
+  const { data: currencyUnitsPayload } = useGetUnitsDistanceAndCurrencyQuery("currency");
+  const zonesReduxNode = useSelector((state) => state?.apiData?.zones);
+  const currencyUnitsRedux = useSelector((state) => state?.apiData?.units?.currency);
+  const zonesList = useMemo(
+    () => mergedZonesList(zonesQueryData, zonesReduxNode),
+    [zonesQueryData, zonesReduxNode]
+  );
+  const zoneOptions = useMemo(
+    () => zonesList.map((z) => ({ value: String(z.id), label: z.name })),
+    [zonesList]
+  );
+  const currencyUnitsList = useMemo(
+    () => buildCurrencyUnitsList(currencyUnitsPayload, currencyUnitsRedux),
+    [currencyUnitsPayload, currencyUnitsRedux]
+  );
   const [createReason, { isLoading: isCreatingReason }] = useCreateReasonMutation();
   const [deleteReason] = useDeleteReasonMutation();
   const { data: reasonsResponse, refetch: refetchReasons } = useGetAllReasonsQuery(undefined, {
@@ -119,6 +144,7 @@ export default function CancellationPolicy() {
     handleSubmit,
     reset,
     watch,
+    setValue,
     formState: { errors },
   } = useForm({
     defaultValues: {
@@ -153,10 +179,22 @@ export default function CancellationPolicy() {
   // Watch the fee types to show/hide appropriate inputs
   const prePickupFeeType = watch("prePickupFeeType");
   const unprocessedFeeType = watch("unprocessedFeeType");
-  const zones = zonesResponse?.zones || zonesResponse?.data?.zones || [];
-  const zoneOptions = Array.isArray(zones)
-    ? zones.map((z) => ({ value: String(z.id), label: z.name }))
-    : [];
+  const watchedZoneId = watch("zoneId");
+
+  const currencyOptions = useMemo(() => {
+    const base = [
+      { value: "USD", label: "USD" },
+      { value: "EUR", label: "EUR" },
+      { value: "GBP", label: "GBP" },
+    ];
+    const z = zonesList.find((zone) => String(zone.id) === String(watchedZoneId));
+    const code = currencyCodeFromZone(z, currencyUnitsList);
+    if (code && !base.some((o) => o.value === code)) {
+      return [...base, { value: code, label: code }];
+    }
+    return base;
+  }, [zonesList, watchedZoneId, currencyUnitsList]);
+
   const selectedZoneLabel = zoneOptions.find(
     (z) => z.value === String(selectedZoneFilter)
   )?.label;
@@ -1195,12 +1233,6 @@ export default function CancellationPolicy() {
         `Zone #${overlapZoneId}`
       : "";
 
-  const currencyOptions = [
-    { value: "USD", label: "USD" },
-    { value: "EUR", label: "EUR" },
-    { value: "GBP", label: "GBP" },
-  ];
-
   return (
     <Box>
           {/* Header Section */}
@@ -1405,7 +1437,33 @@ export default function CancellationPolicy() {
                           <SelectField
                             title="Zone*"
                             value={value || ""}
-                            onChange={(e) => onChange(e.target.value)}
+                            onChange={(e) => {
+                              const newZoneId = String(e?.target?.value ?? e ?? "");
+                              onChange(newZoneId);
+                              if (!newZoneId) return;
+                              const z = zonesList.find((zone) => String(zone.id) === String(newZoneId));
+                              let code = currencyCodeFromZone(z, currencyUnitsList);
+                              const apply = (c) => {
+                                if (c) {
+                                  setValue("currency", c, {
+                                    shouldDirty: true,
+                                    shouldTouch: true,
+                                    shouldValidate: true,
+                                  });
+                                }
+                              };
+                              if (code) {
+                                apply(code);
+                                return;
+                              }
+                              fetchZoneById(newZoneId)
+                                .unwrap()
+                                .then((res) => {
+                                  const detail = unwrapZoneFromApiResponse(res);
+                                  apply(currencyCodeFromZone(detail, currencyUnitsList));
+                                })
+                                .catch(() => {});
+                            }}
                             options={zoneOptions}
                             placeholder="Select zone"
                             fullWidth
@@ -1425,15 +1483,16 @@ export default function CancellationPolicy() {
                     <Controller
                       name="currency"
                       control={control}
-                      render={({ field: { onChange, value } }) => (
+                      render={({ field: { value } }) => (
                         <SelectField
                           title="Currency"
-                          value={value}
-                          onChange={(e) => onChange(e.target.value)}
+                          value={value ?? ""}
+                          onChange={() => {}}
                           options={currencyOptions}
-                          placeholder="Select currency"
+                          placeholder={watchedZoneId ? "Set from zone" : "Select zone first"}
                           fullWidth
-                          tooltipText="Currency for all cancellation charges (Pre-Pickup and Unprocessed). Select once to apply across the policy."
+                          disabled
+                          tooltipText="Currency follows the selected zone. Change the zone to change currency."
                         />
                       )}
                     />

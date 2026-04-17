@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Box, Typography, Divider, Button, Menu, MenuItem, Tooltip, CircularProgress } from "@mui/material";
 import { TbCalendar, TbTrash, TbFilter } from "../../shared/icons/index";
 import StyledCheckbox from "../../components/ui/StyledCheckbox";
@@ -17,8 +17,16 @@ import {
   useUpdateReschedulePolicyMutation,
   useDeleteReschedulePolicyMutation,
   useGetAllZonesQuery,
+  useLazyGetZoneByIdQuery,
+  useGetUnitsDistanceAndCurrencyQuery,
 } from "../../store/services/api";
 import { parsePoliciesListPayload, isPolicyConsideredActive } from "../../utilities/policyOverlapHelpers";
+import {
+  mergedZonesList,
+  currencyCodeFromZone,
+  buildCurrencyUnitsList,
+  unwrapZoneFromApiResponse,
+} from "../../utilities/zonesList";
 import { Delay } from "../../components/shared/Loaders";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
@@ -60,10 +68,26 @@ export default function ReschedulePolicyContent({
     setPage(1);
   }, [isActiveFilter, isDefaultFilter, selectedZoneId, limit]);
 
-  const zones = useSelector((state) => state?.apiData?.zones?.zones || []);
-  useGetAllZonesQuery(undefined, { refetchOnMountOrArgChange: false });
-  const zoneOptions = zones?.map((z) => ({ value: String(z.id), label: z.name })) || [];
+  const { data: zonesQueryData } = useGetAllZonesQuery(undefined, {
+    refetchOnMountOrArgChange: false,
+  });
+  const zonesReduxNode = useSelector((state) => state?.apiData?.zones);
+  const zonesList = useMemo(
+    () => mergedZonesList(zonesQueryData, zonesReduxNode),
+    [zonesQueryData, zonesReduxNode]
+  );
+  const zoneOptions =
+    zonesList.map((z) => ({ value: String(z.id), label: z.name })) || [];
   const selectedZoneLabel = zoneOptions.find((z) => z.value === String(selectedZoneId))?.label;
+
+  const [fetchZoneById] = useLazyGetZoneByIdQuery();
+
+  const { data: currencyUnitsPayload } = useGetUnitsDistanceAndCurrencyQuery("currency");
+  const currencyUnitsRedux = useSelector((state) => state?.apiData?.units?.currency);
+  const currencyUnitsList = useMemo(
+    () => buildCurrencyUnitsList(currencyUnitsPayload, currencyUnitsRedux),
+    [currencyUnitsPayload, currencyUnitsRedux]
+  );
 
   const filterParams = {
     ...(isActiveFilter !== "" && { isActive: isActiveFilter }),
@@ -138,10 +162,28 @@ export default function ReschedulePolicyContent({
     control,
     handleSubmit,
     reset,
+    setValue,
+    watch,
     formState: { errors },
   } = useForm({
     defaultValues: rescheduleFormDefaults,
   });
+
+  const watchedZoneId = watch("zoneId");
+
+  const currencyOptions = useMemo(() => {
+    const base = [
+      { value: "USD", label: "USD" },
+      { value: "EUR", label: "EUR" },
+      { value: "GBP", label: "GBP" },
+    ];
+    const z = zonesList.find((zone) => String(zone.id) === String(watchedZoneId));
+    const code = currencyCodeFromZone(z, currencyUnitsList);
+    if (code && !base.some((o) => o.value === code)) {
+      return [...base, { value: code, label: code }];
+    }
+    return base;
+  }, [zonesList, watchedZoneId, currencyUnitsList]);
 
   const columns = [
     {
@@ -792,12 +834,6 @@ export default function ReschedulePolicyContent({
     reset();
   };
 
-  const currencyOptions = [
-    { value: "USD", label: "USD" },
-    { value: "EUR", label: "EUR" },
-    { value: "GBP", label: "GBP" },
-  ];
-
   const overlapPoliciesRaw = parsePoliciesListPayload(overlapPoliciesResponse);
   const overlapPoliciesList = overlapPolicyFetchAll
     ? overlapPoliciesRaw
@@ -973,7 +1009,33 @@ export default function ReschedulePolicyContent({
                     <SelectField
                       title="Zone*"
                       value={value || ""}
-                      onChange={(e) => onChange(e.target.value)}
+                      onChange={(e) => {
+                        const newZoneId = String(e?.target?.value ?? e ?? "");
+                        onChange(newZoneId);
+                        if (!newZoneId) return;
+                        const z = zonesList.find((zone) => String(zone.id) === String(newZoneId));
+                        let code = currencyCodeFromZone(z, currencyUnitsList);
+                        const apply = (c) => {
+                          if (c) {
+                            setValue("currency", c, {
+                              shouldDirty: true,
+                              shouldTouch: true,
+                              shouldValidate: true,
+                            });
+                          }
+                        };
+                        if (code) {
+                          apply(code);
+                          return;
+                        }
+                        fetchZoneById(newZoneId)
+                          .unwrap()
+                          .then((res) => {
+                            const detail = unwrapZoneFromApiResponse(res);
+                            apply(currencyCodeFromZone(detail, currencyUnitsList));
+                          })
+                          .catch(() => {});
+                      }}
                       options={zoneOptions}
                       placeholder="Select zone"
                       fullWidth
@@ -993,14 +1055,16 @@ export default function ReschedulePolicyContent({
               <Controller
                 name="currency"
                 control={control}
-                render={({ field: { onChange, value } }) => (
+                render={({ field: { value } }) => (
                   <SelectField
                     title="Currency"
-                    value={value}
-                    onChange={(e) => onChange(e.target.value)}
+                    value={value ?? ""}
+                    onChange={() => {}}
                     options={currencyOptions}
-                    placeholder="Select currency"
+                    placeholder={watchedZoneId ? "Set from zone" : "Select zone first"}
                     fullWidth
+                    disabled
+                    tooltipText="Currency follows the selected zone. Change the zone to change currency."
                   />
                 )}
               />

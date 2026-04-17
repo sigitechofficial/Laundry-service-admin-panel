@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useLoadScript, Autocomplete } from "@react-google-maps/api";
 import InputFieldBordered from "../../components/ui/InputFieldBordered";
@@ -20,6 +20,7 @@ import {
   useGetAllCountriesQuery,
   useGetCitiesByCountryIdQuery,
   useGetAllZonesQuery,
+  useGetUnitsDistanceAndCurrencyQuery,
   useRegisterAgentMutation,
   useAddAgentAddressMutation,
   useAddAgentBusinessInfoMutation,
@@ -28,6 +29,7 @@ import {
 import { useSelector } from "react-redux";
 import useToaster from "../../components/ui/Toaster";
 import { googleApiKey } from "../../utilities/URL";
+import { buildCurrencyUnitsList } from "../../utilities/zonesList";
 
 const MACHINERY_COUNT_OPTIONS = ["0", "1-2", "3-5", "5+"];
 // Map radio value to API numeric total
@@ -66,6 +68,7 @@ export default function ShopProfile() {
     cityId: "",
     noOfEmployee: "",
     zone: "",
+    currencyUnitId: "",
     // Step 2 - Address
     streetAddress: "",
     district: "",
@@ -89,6 +92,12 @@ export default function ShopProfile() {
 
   const { data: countriesData } = useGetAllCountriesQuery();
   const { data: zonesResponse } = useGetAllZonesQuery();
+  const { data: currencyUnitsPayload } = useGetUnitsDistanceAndCurrencyQuery("currency");
+  const currencyUnitsRedux = useSelector((state) => state?.apiData?.units?.currency);
+  const currencyUnitsList = useMemo(
+    () => buildCurrencyUnitsList(currencyUnitsPayload, currencyUnitsRedux),
+    [currencyUnitsPayload, currencyUnitsRedux]
+  );
   const { data: citiesData } = useGetCitiesByCountryIdQuery(formData.countryId, {
     skip: !formData.countryId,
   });
@@ -136,18 +145,62 @@ export default function ShopProfile() {
     label: c.name ?? String(c.id),
   }));
 
-  const zoneOptions = zones
-    .map((z) => ({
-      value: String(z.id ?? z.zoneId ?? ""),
-      label: z.name ?? z.zoneName ?? String(z.id ?? z.zoneId ?? ""),
-    }))
-    .filter((opt) => opt.value !== "");
+  const zoneOptions = useMemo(() => {
+    return zones
+      .filter((z) => {
+        if (!formData.cityId) return true;
+        const zCity = z.cityId ?? z.city?.id;
+        return zCity == null || String(zCity) === String(formData.cityId);
+      })
+      .map((z) => ({
+        value: String(z.id ?? z.zoneId ?? ""),
+        label: z.name ?? z.zoneName ?? String(z.id ?? z.zoneId ?? ""),
+      }))
+      .filter((opt) => opt.value !== "");
+  }, [zones, formData.cityId]);
+
+  const selectedZone = useMemo(
+    () => zones.find((z) => String(z.id ?? z.zoneId) === String(formData.zone)),
+    [zones, formData.zone]
+  );
+
+  const zoneCurrencyOptions = useMemo(() => {
+    if (!selectedZone) return [];
+    const unit = selectedZone.currencyUnitZ ?? selectedZone.currencyUnit;
+    const id = selectedZone.currencyUnitId ?? unit?.id;
+    if (id === undefined || id === null || id === "") return [];
+    const fromList = currencyUnitsList.find((u) => String(u?.id) === String(id));
+    const name = unit?.name ?? fromList?.name ?? fromList?.code ?? String(id);
+    const sym = unit?.symbol != null && unit.symbol !== "" ? String(unit.symbol) : "";
+    const label = sym ? `${name} (${sym})` : name;
+    return [{ value: String(id), label }];
+  }, [selectedZone, currencyUnitsList]);
 
   const handleChange = (field) => (e) => {
     const value = e?.target?.value ?? e;
     setFormData((s) => {
-      if (field === "countryId") return { ...s, countryId: value, cityId: "" };
+      if (field === "countryId") {
+        return { ...s, countryId: value, cityId: "", zone: "", currencyUnitId: "" };
+      }
+      if (field === "cityId") {
+        return { ...s, cityId: value, zone: "", currencyUnitId: "" };
+      }
       return { ...s, [field]: value };
+    });
+  };
+
+  const handleZoneChange = (e) => {
+    const zoneId = String(e?.target?.value ?? "");
+    setFormData((s) => {
+      if (!zoneId) {
+        return { ...s, zone: "", currencyUnitId: "" };
+      }
+      const z = zones.find((x) => String(x.id ?? x.zoneId) === zoneId);
+      const unit = z?.currencyUnitZ ?? z?.currencyUnit;
+      const cid = z?.currencyUnitId ?? unit?.id;
+      const currencyUnitId =
+        cid !== undefined && cid !== null && cid !== "" ? String(cid) : "";
+      return { ...s, zone: zoneId, currencyUnitId };
     });
   };
 
@@ -199,9 +252,30 @@ export default function ShopProfile() {
   };
 
   const isStep1Complete = () => {
-    const { firstName, lastName, email, password, phoneNum, countryId, cityId, noOfEmployee, zone } =
-      formData;
-    if (!firstName || !lastName || !email || !password || !phoneNum || !countryId || !cityId || !noOfEmployee || !zone)
+    const {
+      firstName,
+      lastName,
+      email,
+      password,
+      phoneNum,
+      countryId,
+      cityId,
+      noOfEmployee,
+      zone,
+      currencyUnitId,
+    } = formData;
+    if (
+      !firstName ||
+      !lastName ||
+      !email ||
+      !password ||
+      !phoneNum ||
+      !countryId ||
+      !cityId ||
+      !noOfEmployee ||
+      !zone ||
+      !currencyUnitId
+    )
       return false;
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
   };
@@ -222,6 +296,10 @@ export default function ShopProfile() {
         countryCode: formData.countryCode || "+92",
         countryId: Number(formData.countryId) || formData.countryId,
         cityId: Number(formData.cityId) || formData.cityId,
+        zoneId: formData.zone ? Number(formData.zone) : undefined,
+        currencyUnitId: formData.currencyUnitId
+          ? Number(formData.currencyUnitId)
+          : undefined,
       }).unwrap();
       const userId = res?.data?.id ?? res?.data?.userId ?? res?.userId ?? res?.id;
       if (userId) {
@@ -408,13 +486,31 @@ export default function ShopProfile() {
           />
           <SelectField
             title="Zone"
-            placeholder="Select zone"
+            placeholder={formData.cityId ? "Select zone" : "Select city first"}
             value={formData.zone}
-            onChange={handleChange("zone")}
+            onChange={handleZoneChange}
             options={zoneOptions}
             bgcolor="none"
             border="1px solid #00000033"
             labelColor="black"
+            disabled={!formData.cityId}
+          />
+          <SelectField
+            title="Currency"
+            placeholder={
+              !formData.zone
+                ? "Select zone first"
+                : zoneCurrencyOptions.length === 0
+                  ? "No currency on this zone"
+                  : "Currency"
+            }
+            value={formData.zone ? formData.currencyUnitId || "" : ""}
+            onChange={() => {}}
+            options={zoneCurrencyOptions}
+            bgcolor="none"
+            border="1px solid #00000033"
+            labelColor="black"
+            disabled
           />
           <div className="sm:col-span-2 flex justify-end pt-4">
             <button

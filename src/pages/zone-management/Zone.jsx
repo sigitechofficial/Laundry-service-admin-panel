@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, Fragment } from "react";
+import { useState, useEffect, useMemo, Fragment } from "react";
 import { Box, Button, IconButton, Typography } from "@mui/material";
 import { BsCardList, TbPlus } from "../../shared/icons/index";
 import Search from "../../components/ui/Search";
@@ -30,7 +30,6 @@ import { googleApiKey } from "../../utilities/URL";
 import {
   GoogleMap,
   useLoadScript,
-  Autocomplete,
   DrawingManager,
   Marker,
   Polygon,
@@ -50,6 +49,22 @@ import useToaster from "../../components/ui/Toaster";
 const UK_POSTCODE_AREA_GEOJSON_BASE =
   "https://cdn.jsdelivr.net/gh/missinglink/uk-postcode-polygons@master/geojson";
 const ukPostcodeAreaGeojsonCache = new Map();
+
+/** Fixed zone payment methods sent to add/edit zone APIs (`paymentMethod`). */
+const ZONE_PAYMENT_METHOD_OPTIONS = [
+  { value: "cash", label: "Cash" },
+  { value: "strip", label: "Stripe" },
+  { value: "paypal", label: "PayPal" },
+];
+
+function normalizeZonePaymentMethod(raw) {
+  const s = String(raw ?? "").trim().toLowerCase();
+  if (!s) return "";
+  if (s === "cash") return "cash";
+  if (s === "stripe" || s === "strip") return "strip";
+  if (s === "paypal") return "paypal";
+  return "";
+}
 
 /** If Google’s viewport is larger than this for a full unit postcode, it’s closer to sector than unit — use tight hex. */
 const FULL_UNIT_MAX_VIEWPORT_DIAGONAL_KM = 1.15;
@@ -163,7 +178,6 @@ export default function ZoneManagement() {
   const [map, setMap] = useState(null);
   const [drawingMode, setDrawingMode] = useState(null);
   const [_coordinates, setCoordinates] = useState([]);
-  const autocompleteRef = useRef(null);
 
   // Postal code highlight state
   const [postalCodeHighlight, setPostalCodeHighlight] = useState(null);
@@ -172,7 +186,6 @@ export default function ZoneManagement() {
   const [addedPostcodes, setAddedPostcodes] = useState([]); // Store list of added postal codes with their data
   const [newPostcodeInput, setNewPostcodeInput] = useState("");
   const [isAddingPostcode, setIsAddingPostcode] = useState(false);
-  const [showPostcodeInput, setShowPostcodeInput] = useState(false);
   /** Set when edit modal hydrates postcodes; effect pans map once instance is ready */
   const [editPendingMapCenter, setEditPendingMapCenter] = useState(null);
 
@@ -220,12 +233,8 @@ export default function ZoneManagement() {
   const { data: currenciesData } = useGetUnitsDistanceAndCurrencyQuery("currency", {
     skip: false,
   });
-  const { data: paymentMethodsData } = useGetUnitsDistanceAndCurrencyQuery("paymentMethod", {
-    skip: false,
-  });
 
   const currencies = currenciesData?.data || units?.currency || [];
-  const paymentMethods = paymentMethodsData?.data || units?.paymentMethod || [];
   const allCities = Array.isArray(allCitiesData?.data)
     ? allCitiesData.data
     : Array.isArray(allCitiesData?.data?.cities)
@@ -280,7 +289,7 @@ export default function ZoneManagement() {
         )}, ${zone.coordinates.coordinates[0][0][1].toFixed(2)}`
         : "N/A",
       currency: zone.currencyUnitId || "N/A",
-      paymentMethod: "N/A",
+      paymentMethod: zone.paymentMethod || "N/A",
       deliveryCharges: zone.serviceCharge || 0,
       noOfShops: "N/A",
       expressDelivery: "N/A",
@@ -613,7 +622,9 @@ export default function ZoneManagement() {
         zoneCommission: zone.zoneAdminComission ?? "",
         zoneCurrency: selectedCurrency?.name || "",
         currencyUnitId: zone.currencyUnitId ? String(zone.currencyUnitId) : "",
-        paymentMethod: "",
+        paymentMethod: normalizeZonePaymentMethod(
+          zone.paymentMethod ?? zone.payment_method
+        ),
         deliveryCharges: zone.serviceCharge ?? "",
         ExDeliveryCharges: "",
         zoneAdminId: zone.zoneAdminId ? String(zone.zoneAdminId) : "",
@@ -630,7 +641,6 @@ export default function ZoneManagement() {
 
       setPostalCodeHighlight(null);
       setNewPostcodeInput("");
-      setShowPostcodeInput(false);
 
       const seenPc = new Set();
       const uniquePostcodes = [];
@@ -858,7 +868,6 @@ export default function ZoneManagement() {
       setMultiplePostcodeHighlights([]);
       setAddedPostcodes([]);
       setNewPostcodeInput("");
-      setShowPostcodeInput(false);
       setEditPendingMapCenter(null);
       if (map) {
         map.setOptions({ draggableCursor: "pointer" });
@@ -922,6 +931,10 @@ export default function ZoneManagement() {
         showError("Enter a valid zone commission percentage.");
         return;
       }
+      if (!add.paymentMethod || String(add.paymentMethod).trim() === "") {
+        showError("Please select a payment method.");
+        return;
+      }
 
       // Extract postcodes array from addedPostcodes
       const postcodes = addedPostcodes.map((pc) => pc.postcode);
@@ -946,6 +959,7 @@ export default function ZoneManagement() {
         zoneAdminComission: zoneCommissionNum,
         zoneAdminId: add.zoneAdminId && add.zoneAdminId.trim() !== "" ? parseInt(add.zoneAdminId) : null,
         status: true, // Default to active
+        paymentMethod: add.paymentMethod,
       };
 
       console.log("Zone data being sent:", zoneData);
@@ -1135,37 +1149,6 @@ export default function ZoneManagement() {
     ];
   };
 
-  const handlePlaceChanged = async () => {
-    if (autocompleteRef.current) {
-      const place = autocompleteRef.current.getPlace();
-
-      if (place && place.geometry) {
-        const location = place.geometry.location;
-        const newCenter = { lat: location.lat(), lng: location.lng() };
-        setCenter(newCenter);
-
-        if (map) {
-          map.setCenter(location);
-          map.setZoom(15);
-        }
-
-        // Check if the place contains a postal code (UK postcode)
-        const postalCodeComponent = place.address_components?.find(
-          (component) => component.types.includes("postal_code")
-        );
-
-        if (postalCodeComponent) {
-          const postalCode = postalCodeComponent.long_name || postalCodeComponent.short_name;
-          await highlightPostalCodeArea(postalCode, location);
-        } else {
-          // Clear postal code highlights if no postal code found
-          setPostalCodeHighlight(null);
-          setPostalCodeMarkers([]);
-        }
-      }
-    }
-  };
-
   // Helper function to fetch postal code boundary for the map.
   // UK full unit (e.g. SW1A 1AA): postcodes.io gives outcode SW1A + incode — open GeoJSON is **sector** SW1A
   // (huge, wrong vs Google’s unit outline). Skip GeoJSON for those; use Geocoding viewport if tight enough,
@@ -1270,74 +1253,6 @@ export default function ZoneManagement() {
     return null;
   };
 
-  // Highlight postal code area using Google Geocoding API for accurate boundaries
-  const highlightPostalCodeArea = async (postalCode, fallbackLocation) => {
-    try {
-      // Use helper function to get actual boundary
-      const boundaryData = await fetchPostalCodeBoundary(postalCode);
-
-      if (boundaryData) {
-        setPostalCodeHighlight({
-          paths: boundaryData.polygonPath,
-          postcode: boundaryData.postcode,
-          center: boundaryData.centerPoint,
-        });
-
-        setPostalCodeMarkers([
-          {
-            position: boundaryData.centerPoint,
-            postcode: boundaryData.postcode,
-            label: boundaryData.postcode,
-          },
-        ]);
-
-        if (map) {
-          map.setCenter(boundaryData.centerPoint);
-          map.setZoom(14);
-        }
-        setCenter(boundaryData.centerPoint);
-        return;
-      }
-
-      // Final fallback: use Google Places location with hexagon
-      if (fallbackLocation) {
-        const centerPoint = { lat: fallbackLocation.lat(), lng: fallbackLocation.lng() };
-        const polygonPath = createHexagon(centerPoint.lat, centerPoint.lng, 0.005);
-        setPostalCodeHighlight({
-          paths: polygonPath,
-          center: centerPoint,
-          postcode: postalCode,
-        });
-        setPostalCodeMarkers([
-          {
-            position: centerPoint,
-            postcode: postalCode,
-            label: postalCode,
-          },
-        ]);
-      }
-    } catch (error) {
-      console.error("Error fetching postal code data:", error);
-      // Fallback to Google Places location
-      if (fallbackLocation) {
-        const centerPoint = { lat: fallbackLocation.lat(), lng: fallbackLocation.lng() };
-        const polygonPath = createHexagon(centerPoint.lat, centerPoint.lng, 0.005);
-        setPostalCodeHighlight({
-          paths: polygonPath,
-          center: centerPoint,
-          postcode: postalCode,
-        });
-        setPostalCodeMarkers([
-          {
-            position: centerPoint,
-            postcode: postalCode,
-            label: postalCode,
-          },
-        ]);
-      }
-    }
-  };
-
   const onPolygonComplete = (polygon) => {
     const path = polygon.getPath();
     const coordinatesArray = [];
@@ -1374,7 +1289,6 @@ export default function ZoneManagement() {
     setPostalCodeMarkers([]);
     setMultiplePostcodeHighlights([]);
     setAddedPostcodes([]);
-    setShowPostcodeInput(false);
     setNewPostcodeInput("");
     // Remove all polygons from the map
     if (map) {
@@ -1514,8 +1428,6 @@ export default function ZoneManagement() {
           setCenter(lastCenterPoint);
         }
 
-        // Close input and clear
-        setShowPostcodeInput(false);
         setNewPostcodeInput("");
         success(`Successfully added ${newHighlights.length} postal code(s)`);
       } else if (cityRejectedCount === 0) {
@@ -1566,6 +1478,38 @@ export default function ZoneManagement() {
     setMap(mapInstance);
   };
 
+  /** Same rules as `handleAddZone` — primary button stays disabled until all required fields are valid. */
+  const canSubmitZone = useMemo(() => {
+    if (!add.countryId || String(add.countryId).trim() === "") return false;
+    if (!add.cityId || String(add.cityId).trim() === "") return false;
+    if (!addedPostcodes?.length) return false;
+    if (!String(add.zoneName ?? "").trim()) return false;
+
+    const minRaw = add.zoneMinimumAmount;
+    if (minRaw === "" || minRaw === null || minRaw === undefined) return false;
+    const zoneMinimumNum = parseFloat(String(minRaw).trim());
+    if (!Number.isFinite(zoneMinimumNum) || zoneMinimumNum < 0) return false;
+
+    const commRaw = add.zoneCommission;
+    if (commRaw === "" || commRaw === null || commRaw === undefined) return false;
+    const zoneCommissionNum = parseFloat(String(commRaw).trim());
+    if (!Number.isFinite(zoneCommissionNum) || zoneCommissionNum < 0) return false;
+
+    if (!add.paymentMethod || String(add.paymentMethod).trim() === "") return false;
+    if (!add.zoneCurrency || String(add.zoneCurrency).trim() === "") return false;
+
+    return true;
+  }, [
+    add.countryId,
+    add.cityId,
+    add.zoneName,
+    add.zoneMinimumAmount,
+    add.zoneCommission,
+    add.paymentMethod,
+    add.zoneCurrency,
+    addedPostcodes.length,
+  ]);
+
   if (isLoading) return <Delay />;
 
   return (
@@ -1579,6 +1523,7 @@ export default function ZoneManagement() {
                 label: isEditMode ? "Update Zone" : "Add Zone",
                 onClick: handleAddZone,
                 isLoading: isAddingZone || isEditingZone,
+                disabled: !canSubmitZone,
               }}
             >
               <Box className="flex flex-col gap-5">
@@ -1629,44 +1574,9 @@ export default function ZoneManagement() {
                 </Box>
                 <Box className="flex flex-col gap-y-3">
                   <div className="mt-4 relative">
-                    {/* Search bar at the top */}
                     <div className="absolute top-4 left-1/2 -translate-x-1/2 w-full px-4 max-w-[500px] mx-auto z-[100] flex flex-col gap-2">
-                      <style>
-                        {`
-                          .pac-container {
-                            z-index: 9999 !important;
-                            border-radius: 8px;
-                            margin-top: 4px;
-                            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
-                          }
-                          .pac-item {
-                            padding: 12px;
-                            cursor: pointer;
-                          }
-                          .pac-item:hover {
-                            background-color: #f3f4f6;
-                          }
-                        `}
-                      </style>
-                      <Autocomplete
-                        onLoad={(autocomplete) => {
-                          autocompleteRef.current = autocomplete;
-                        }}
-                        onPlaceChanged={handlePlaceChanged}
-                      >
-                        <div className="w-full relative">
-                          <input
-                            type="text"
-                            placeholder="Search location"
-                            className="bg-white rounded-md w-full h-12 !pl-4 px-4 shadow-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          />
-                        </div>
-                      </Autocomplete>
-
-                      {/* Added Postal Codes Display */}
-                      {!showPostcodeInput && (
+                      {addedPostcodes.length > 0 && (
                         <div className="flex flex-wrap gap-2 items-center z-[101]">
-                          {/* Display added postal codes as removable buttons */}
                           {addedPostcodes.map((postcodeData, index) => (
                             <div
                               key={index}
@@ -1677,6 +1587,7 @@ export default function ZoneManagement() {
                                 {postcodeData.postcode}
                               </span>
                               <button
+                                type="button"
                                 onClick={(e) => handleRemovePostcode(postcodeData.postcode, e)}
                                 className="text-gray-500 hover:text-red-600 transition-colors ml-1"
                                 title="Remove postal code"
@@ -1685,47 +1596,36 @@ export default function ZoneManagement() {
                               </button>
                             </div>
                           ))}
+                        </div>
+                      )}
 
-                          {/* Add Postal Code button */}
+                      <div className="w-full z-[101] flex flex-col gap-2">
+                        <textarea
+                          value={newPostcodeInput}
+                          onChange={(e) => setNewPostcodeInput(e.target.value)}
+                          placeholder="Enter postal codes separated by comma: SW1A 1AA, SW1A 1AB, SW1A 1AC"
+                          className="w-full h-32 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none text-sm bg-white"
+                          rows={4}
+                        />
+                        <div className="flex gap-3">
                           <button
-                            onClick={() => setShowPostcodeInput(true)}
-                            className="flex items-center justify-center bg-blue-500 hover:bg-blue-600 text-white rounded-lg px-4 py-2 shadow-md min-w-[120px] h-[40px] text-sm font-medium transition-colors"
+                            type="button"
+                            onClick={handleAddPostcode}
+                            disabled={isAddingPostcode || !newPostcodeInput.trim()}
+                            className="flex-1 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-400 disabled:cursor-not-allowed text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-colors shadow-md min-w-[120px] h-[40px] flex items-center justify-center"
                           >
-                            + Post Code
+                            {isAddingPostcode ? "Adding..." : "Add Postal Codes"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setNewPostcodeInput("")}
+                            disabled={!newPostcodeInput.trim()}
+                            className="bg-white hover:bg-gray-100 text-gray-700 border border-gray-300 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors shadow-md min-w-[120px] h-[40px] flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            Clear
                           </button>
                         </div>
-                      )}
-
-                      {/* Postcode Input Textarea (shown when button is clicked) */}
-                      {showPostcodeInput && (
-                        <div className="w-full z-[101]">
-                          <textarea
-                            value={newPostcodeInput}
-                            onChange={(e) => setNewPostcodeInput(e.target.value)}
-                            placeholder="Enter postal codes separated by comma: SW1A 1AA, SW1A 1AB, SW1A 1AC"
-                            className="w-full h-32 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none text-sm bg-white"
-                            rows={4}
-                          />
-                          <div className="flex gap-3 mt-3">
-                            <button
-                              onClick={handleAddPostcode}
-                              disabled={isAddingPostcode || !newPostcodeInput.trim()}
-                              className="flex-1 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-400 disabled:cursor-not-allowed text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-colors shadow-md min-w-[120px] h-[40px] flex items-center justify-center"
-                            >
-                              {isAddingPostcode ? "Adding..." : "Add Postal Codes"}
-                            </button>
-                            <button
-                              onClick={() => {
-                                setShowPostcodeInput(false);
-                                setNewPostcodeInput("");
-                              }}
-                              className="bg-white hover:bg-gray-100 text-gray-700 border border-gray-300 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors shadow-md min-w-[120px] h-[40px] flex items-center justify-center"
-                            >
-                              Cancel
-                            </button>
-                          </div>
-                        </div>
-                      )}
+                      </div>
                     </div>
 
                     {/* Action buttons at bottom left */}
@@ -1928,14 +1828,7 @@ export default function ZoneManagement() {
                         paymentMethod: e.target.value,
                       }));
                     }}
-                    options={
-                      Array.isArray(paymentMethods)
-                        ? paymentMethods.map((method) => ({
-                          value: method.name,
-                          label: method.name,
-                        }))
-                        : []
-                    }
+                    options={ZONE_PAYMENT_METHOD_OPTIONS}
                     placeholder="Select payment method"
                     fullWidth
                     bgcolor={"grey.200"}
