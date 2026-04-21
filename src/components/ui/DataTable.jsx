@@ -48,6 +48,8 @@ const DataTable = ({
   onPageSizeChange,
   // Filter click handler
   onFiltersClick,
+  /** Field names (e.g. `sl`, `zoneName`) that stay pinned on the left when scrolling horizontally */
+  stickyLeftFields,
 }) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [dateRange, setDateRange] = useState(null);
@@ -135,6 +137,26 @@ const DataTable = ({
     });
   };
 
+  /** Left offset for a sticky column: sum widths of **previous sticky-only** columns (scrollable columns between them do not add). */
+  const stickyLeftOffsetPx = (colIndex) => {
+    if (!stickyLeftFields?.length) return 0;
+    const pad = 40; // pl + pr from "& .MuiTableCell-root"
+    let left = 0;
+    for (let i = 0; i < colIndex; i++) {
+      if (!stickyLeftFields.includes(columns[i]?.field)) continue;
+      const w = columns[i]?.minWidth;
+      const num =
+        typeof w === "number" ? w : parseInt(String(w ?? "80"), 10) || 80;
+      left += num + pad;
+    }
+    return left;
+  };
+
+  const stickyRank = (field) => {
+    if (!stickyLeftFields?.length) return -1;
+    return stickyLeftFields.indexOf(field);
+  };
+
   return (
     <Box sx={{ width: "100%", maxWidth: "100%", overflow: "visible" }}>
       <Paper
@@ -209,6 +231,7 @@ const DataTable = ({
             overflowY: "auto", 
             overflowX: "auto", 
             width: "100%",
+            backgroundColor: "#fff",
             "&::-webkit-scrollbar": {
               height: "8px",
               width: "8px",
@@ -250,9 +273,11 @@ const DataTable = ({
           >
             <TableHead>
               <TableRow>
-                {columns.map((col) => {
+                {columns.map((col, colIndex) => {
                   const isSorted = sortConfig.field === col.field;
                   const isSortable = col.sortable !== false; // default true
+                  const rank = stickyRank(col.field);
+                  const isStickyLeft = rank >= 0;
 
                   return (
                     <TableCell
@@ -274,6 +299,12 @@ const DataTable = ({
                         borderBottom: "none",
                         overflow: "hidden",
                         textOverflow: "ellipsis",
+                        ...(isStickyLeft && {
+                          position: "sticky",
+                          left: stickyLeftOffsetPx(colIndex),
+                          top: 0,
+                          zIndex: 11 + rank,
+                        }),
                       }}
                     >
                       <Box 
@@ -308,7 +339,12 @@ const DataTable = ({
                     // "&:hover": { backgroundColor: "#fff !important" },
                   }}
                 >
-                  {columns.map((col) => (
+                  {columns.map((col, colIndex) => {
+                    const rank = stickyRank(col.field);
+                    const isStickyLeft = rank >= 0;
+                    const rowBg = idx % 2 === 0 ? "#fff" : "#FAFAFA";
+
+                    return (
                     <TableCell
                       key={col.field}
                       align={col.align || "left"}
@@ -319,13 +355,20 @@ const DataTable = ({
                         whiteSpace: "nowrap",
                         overflow: "hidden",
                         textOverflow: "ellipsis",
+                        backgroundColor: rowBg,
+                        ...(isStickyLeft && {
+                          position: "sticky",
+                          left: stickyLeftOffsetPx(colIndex),
+                          zIndex: 2 + rank,
+                        }),
                       }}
                     >
                       {/* {row[col.field]} */}
 
                       {col.renderCell ? col.renderCell(row) : row[col.field]}
                     </TableCell>
-                  ))}
+                  );
+                  })}
                 </TableRow>
               ))}
             </TableBody>

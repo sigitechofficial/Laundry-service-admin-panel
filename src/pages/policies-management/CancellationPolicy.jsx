@@ -1353,6 +1353,7 @@ export default function CancellationPolicy() {
                 columns={columns}
                 height={600}
                 showFilters={false}
+                stickyLeftFields={["sl", "zoneName"]}
               />
             </Box>
           )}

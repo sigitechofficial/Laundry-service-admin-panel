@@ -1407,6 +1407,7 @@ export default function CancellationPolicyContent() {
           columns={columns}
           height={700}
           showFilters={false}
+          stickyLeftFields={["sl", "zoneName"]}
           serverSidePagination={true}
           totalRows={pagination.total || 0}
           currentPage={page}
