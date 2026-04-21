@@ -12,8 +12,16 @@ import {
   Switch,
   Select,
   MenuItem,
+  IconButton,
+  Checkbox,
 } from "@mui/material";
-import { useGetOrderForEditQuery, useGetAllServicesQuery, useEditOrderMutation, useGetPreferencesQuery } from "../../../store/services/api";
+import {
+  useGetOrderForEditQuery,
+  useGetAllServicesQuery,
+  useEditOrderMutation,
+  useGetPreferencesQuery,
+  useGetAllAddOnServicesQuery,
+} from "../../../store/services/api";
 import baseQueryWithReauth from "../../../store/services/baseQueryWithReauth";
 import useToaster from "../../../components/ui/Toaster";
 import { Delay } from "../../../components/shared/Loaders";
@@ -29,6 +37,7 @@ import ButtonBlue from "../../../components/ui/ButtonBlue";
 import ButtonWhite from "../../../components/ui/ButtonWhite";
 import AddItemModal from "./AddItemModal";
 import { TbPlus } from "../../../shared/icons/index";
+import ModalComponent from "../../../components/shared/Modal";
 
 export default function EditOrder() {
   const { id } = useParams();
@@ -74,6 +83,17 @@ export default function EditOrder() {
   const [addItemModal, setAddItemModal] = useState({
     open: false,
   });
+  const [addOnModal, setAddOnModal] = useState({
+    open: false,
+    serviceId: null,
+    itemId: null,
+    itemName: "",
+    selectedIds: [],
+  });
+  const { data: addOnServicesResponse, isLoading: isLoadingAddOnServices } =
+    useGetAllAddOnServicesQuery(undefined, {
+      skip: !addOnModal.open,
+    });
 
   const [settings, setSettings] = useState({
     notifyCustomer: true,
@@ -418,9 +438,13 @@ export default function EditOrder() {
       }
 
       // Double-check: Don't add if item with same subCategoryId already exists in this service
-      const existingItem = newState[serviceId].items.find(
-        (existing) => existing.subCategoryId === subCategoryId && existing.id?.startsWith('new-')
-      );
+      const existingItem = newState[serviceId].items.find((existing) => {
+        const existingId = String(existing?.id ?? "");
+        return (
+          String(existing?.subCategoryId) === String(subCategoryId) &&
+          existingId.startsWith("new-")
+        );
+      });
 
       if (existingItem) {
         return newState; // Item already exists, don't add duplicate
@@ -548,6 +572,64 @@ export default function EditOrder() {
       ),
     0
   );
+
+  const addOnServices =
+    addOnServicesResponse?.data?.addOnServices || addOnServicesResponse?.data || [];
+
+  const handleOpenAddOnModal = (serviceId, item) => {
+    setAddOnModal({
+      open: true,
+      serviceId,
+      itemId: item.id,
+      itemName: item.itemName || "Item",
+      selectedIds: (item.addOnServices || []).map((a) => a.id),
+    });
+  };
+
+  const handleCloseAddOnModal = () => {
+    setAddOnModal({
+      open: false,
+      serviceId: null,
+      itemId: null,
+      itemName: "",
+      selectedIds: [],
+    });
+  };
+
+  const handleToggleAddOnSelection = (addOnId) => {
+    setAddOnModal((prev) => {
+      const hasId = prev.selectedIds.includes(addOnId);
+      return {
+        ...prev,
+        selectedIds: hasId
+          ? prev.selectedIds.filter((id) => id !== addOnId)
+          : [...prev.selectedIds, addOnId],
+      };
+    });
+  };
+
+  const handleApplyAddOns = () => {
+    const selected = addOnServices.filter((s) => addOnModal.selectedIds.includes(s.id));
+    setServiceItems((prev) => {
+      const newState = { ...prev };
+      const service = newState[addOnModal.serviceId];
+      if (!service) return prev;
+      const itemIndex = service.items.findIndex(
+        (i) => String(i.id) === String(addOnModal.itemId)
+      );
+      if (itemIndex === -1) return prev;
+      service.items[itemIndex] = {
+        ...service.items[itemIndex],
+        addOnServices: selected.map((s) => ({
+          id: s.id,
+          name: s.name,
+          price: Number(s.price) || 0,
+        })),
+      };
+      return newState;
+    });
+    handleCloseAddOnModal();
+  };
 
   // Format address
   const formatAddress = (address) => {
@@ -888,6 +970,7 @@ export default function EditOrder() {
                             <TableCell sx={{ fontFamily: "Switzer", fontWeight: 700, fontSize: "11px", color: "#64748B", textTransform: "uppercase", letterSpacing: "0.06em", borderBottom: "1px solid #E5E7EB" }}>Price ($)</TableCell>
                             <TableCell sx={{ fontFamily: "Switzer", fontWeight: 700, fontSize: "11px", color: "#64748B", textTransform: "uppercase", letterSpacing: "0.06em", borderBottom: "1px solid #E5E7EB" }}>Qty</TableCell>
                             <TableCell sx={{ fontFamily: "Switzer", fontWeight: 700, fontSize: "11px", color: "#64748B", textTransform: "uppercase", letterSpacing: "0.06em", borderBottom: "1px solid #E5E7EB" }}>Amount</TableCell>
+                            <TableCell sx={{ fontFamily: "Switzer", fontWeight: 700, fontSize: "11px", color: "#64748B", textTransform: "uppercase", letterSpacing: "0.06em", borderBottom: "1px solid #E5E7EB", width: "10%" }}>Add-on</TableCell>
                           </TableRow>
                         </TableHead>
                         <TableBody>
@@ -957,12 +1040,30 @@ export default function EditOrder() {
                                   <TableCell sx={{ borderBottom: "1px solid #E5E7EB", fontWeight: 600, color: "#334155" }}>
                                     ${amount.toFixed(2)}
                                   </TableCell>
+                                  <TableCell sx={{ borderBottom: "1px solid #E5E7EB", textAlign: "center" }}>
+                                    <IconButton
+                                      size="small"
+                                      onClick={() => handleOpenAddOnModal(serviceId, item)}
+                                      sx={{
+                                        border: "1px solid #BFDBFE",
+                                        borderRadius: "8px",
+                                        color: "#2563EB",
+                                      }}
+                                    >
+                                      <TbPlus size={16} />
+                                    </IconButton>
+                                    {(item.addOnServices || []).length > 0 && (
+                                      <Typography sx={{ mt: 0.5, fontSize: 11, color: "#64748B" }}>
+                                        {(item.addOnServices || []).length} selected
+                                      </Typography>
+                                    )}
+                                  </TableCell>
                                 </TableRow>
                               );
                             })
                           ) : (
                             <TableRow>
-                              <TableCell colSpan={5} sx={{ fontSize: "14px", color: "#6B7280", textAlign: "center", py: 3 }}>
+                              <TableCell colSpan={6} sx={{ fontSize: "14px", color: "#6B7280", textAlign: "center", py: 3 }}>
                                 No items available for this service
                               </TableCell>
                             </TableRow>
@@ -1237,6 +1338,66 @@ export default function EditOrder() {
         onAddItems={handleAddItems}
         orderData={orderData}
       />
+
+      <ModalComponent
+        open={addOnModal.open}
+        title={addOnModal.itemName}
+        onClose={handleCloseAddOnModal}
+        secondaryAction={{ label: "Skip", onClick: handleCloseAddOnModal }}
+        primaryAction={{
+          label: "Add to invoice",
+          onClick: handleApplyAddOns,
+        }}
+        width={520}
+      >
+        <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+          <Typography sx={{ color: "#94A3B8", fontSize: 12 }}>
+            Select add-on services (optional)
+          </Typography>
+
+          {isLoadingAddOnServices ? (
+            <Box display="flex" justifyContent="center" alignItems="center" minHeight="140px">
+              <Delay />
+            </Box>
+          ) : addOnServices.length === 0 ? (
+            <Typography sx={{ color: "#64748B", fontSize: 14 }}>
+              No add-on services available.
+            </Typography>
+          ) : (
+            <Box sx={{ maxHeight: "280px", overflowY: "auto", pr: 0.5 }}>
+              {addOnServices.map((addOn) => {
+                const checked = addOnModal.selectedIds.includes(addOn.id);
+                return (
+                  <Box
+                    key={addOn.id}
+                    sx={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      py: 0.8,
+                      borderBottom: "1px solid #F1F5F9",
+                    }}
+                  >
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                      <Checkbox
+                        checked={checked}
+                        onChange={() => handleToggleAddOnSelection(addOn.id)}
+                        size="small"
+                      />
+                      <Typography sx={{ color: "#1E293B", fontSize: 14 }}>
+                        {addOn.name}
+                      </Typography>
+                    </Box>
+                    <Typography sx={{ color: "#94A3B8", fontWeight: 500, fontSize: 13 }}>
+                      +£{Number(addOn.price || 0).toFixed(2)}
+                    </Typography>
+                  </Box>
+                );
+              })}
+            </Box>
+          )}
+        </Box>
+      </ModalComponent>
     </LocalizationProvider>
   );
 }

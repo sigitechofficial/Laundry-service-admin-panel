@@ -263,7 +263,9 @@ export default function ConfigureModal({ open, onClose, selectedServiceId }) {
       const linkedCategoryIds =
         serviceCategoriesData?.map((cat) => cat?.categoryId) || [];
       const linkedPreferenceIds =
-        preferencesData?.map((pref) => pref?.preferenceTypeId) || [];
+        preferencesData?.map(
+          (pref) => pref?.preferenceTypeId ?? pref?.id
+        ) || [];
 
       // Store original linked items
       setOriginalLinkedCategories(linkedCategoryIds);

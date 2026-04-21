@@ -45,6 +45,7 @@ export default function ModalComponent({
   };
 
   const headerStyle = {
+    position: "relative",
     display: "flex",
     justifyContent: "center",
     alignItems: "center",
@@ -105,10 +106,15 @@ export default function ModalComponent({
             {title}
           </Typography>
           <IconButton
-            onClick={onClose}
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onClose?.(e);
+            }}
             sx={{
               padding: "4px",
               color: "#000",
+              zIndex: 1,
               "&:hover": {
                 bgcolor: "#F2F4F7",
               },

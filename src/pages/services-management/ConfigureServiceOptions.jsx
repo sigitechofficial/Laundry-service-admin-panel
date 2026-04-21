@@ -46,7 +46,7 @@ export default function ConfigureServiceOptions({ serviceId }) {
               >
                 {data?.data?.preferencesData.map((item, idx) => (
                   <Box
-                    key={idx}
+                    key={item?.id ?? item?.preferenceTypeId ?? idx}
                     sx={{
                       display: "flex",
                       alignItems: "center",
@@ -54,7 +54,9 @@ export default function ConfigureServiceOptions({ serviceId }) {
                     }}
                   >
                     <Checkbox
-                      checked={item.status}
+                      checked={
+                        item?.status === undefined ? true : Boolean(item.status)
+                      }
                       size="medium"
                       disabled
                       sx={{
@@ -70,7 +72,7 @@ export default function ConfigureServiceOptions({ serviceId }) {
                         fontFamily: "Inter, sans-serif",
                       }}
                     >
-                      {item?.preferenceType?.name}
+                      {item?.name || item?.preferenceType?.name}
                     </Typography>
                   </Box>
                 ))}
@@ -129,7 +131,7 @@ export default function ConfigureServiceOptions({ serviceId }) {
                   >
                     {serviceCat.category.subCategories.map((sub, idx) => (
                       <Box
-                        key={idx}
+                        key={sub?.id ?? `${serviceCat?.id}-${sub?.name}-${idx}`}
                         sx={{
                           display: "flex",
                           alignItems: "center",

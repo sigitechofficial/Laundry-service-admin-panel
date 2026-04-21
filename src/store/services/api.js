@@ -36,6 +36,43 @@ export const api = createApi({
       }),
     }),
 
+    getAllAddOnServices: builder.query({
+      query: () => ({
+        url: "admin/getAllAddOnServices",
+        method: "GET",
+      }),
+    }),
+
+    getAddOnServiceById: builder.query({
+      query: (addOnServiceId) => ({
+        url: `admin/getAddOnServiceById/${addOnServiceId}`,
+        method: "GET",
+      }),
+    }),
+
+    createAddOnService: builder.mutation({
+      query: (body) => ({
+        url: "admin/createAddOnService",
+        method: "POST",
+        body,
+      }),
+    }),
+
+    updateAddOnService: builder.mutation({
+      query: ({ addOnServiceId, body }) => ({
+        url: `admin/updateAddOnService/${addOnServiceId}`,
+        method: "PATCH",
+        body,
+      }),
+    }),
+
+    deleteAddOnService: builder.mutation({
+      query: (addOnServiceId) => ({
+        url: `admin/deleteAddOnService/${addOnServiceId}`,
+        method: "DELETE",
+      }),
+    }),
+
     dashboardData: builder.query({
       query: () => ({
         url: `admin/adminDashboard`,
@@ -90,10 +127,18 @@ export const api = createApi({
     }),
 
     editPreferenceType: builder.mutation({
-      query: ({ id, name }) => ({
+      query: ({ id, name, parentPreferenceTypeId }) => ({
         url: `admin/editPreferenceType/${id}`,
         method: "PATCH",
-        body: { name },
+        body: {
+          name,
+          parentPreferenceTypeId:
+            parentPreferenceTypeId === null ||
+            parentPreferenceTypeId === "" ||
+            parentPreferenceTypeId === undefined
+              ? null
+              : Number(parentPreferenceTypeId),
+        },
       }),
     }),
 
@@ -1087,10 +1132,15 @@ export const {
   useAdminLoginMutation,
   useZoneAdminLoginMutation,
   useGetAllServicesQuery,
+  useGetAllAddOnServicesQuery,
+  useGetAddOnServiceByIdQuery,
   useGetPreferencesQuery,
   useGetCategoriesQuery,
   useGetSubCategoriesQuery,
   useAddServiceMutation,
+  useCreateAddOnServiceMutation,
+  useUpdateAddOnServiceMutation,
+  useDeleteAddOnServiceMutation,
   useAddPreferenceMutation,
   useAddPreferenceValueMutation,
   useAddCategoryMutation,

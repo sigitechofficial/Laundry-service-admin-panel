@@ -2,6 +2,7 @@
 
 export const INITIAL_STATE_API = {
   services: [],
+  addOnServices: [],
   preferences: [],
   categories: [],
   subCategories: [],

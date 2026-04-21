@@ -8,6 +8,9 @@ export const ServiceManagement = lazy(() =>
 export const ServicesPage = lazy(() =>
   import("../pages/services-management/ServicesPage")
 );
+export const AddOnServicesPage = lazy(() =>
+  import("../pages/services-management/AddOnServicesPage")
+);
 export const CategoriesPage = lazy(() =>
   import("../pages/services-management/CategoriesPage")
 );

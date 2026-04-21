@@ -78,6 +78,11 @@ export const sidebarList = [
         size: "22px",
       },
       {
+        label: "Add-on Services",
+        path: "/services-management/add-on-services",
+        size: "22px",
+      },
+      {
         label: "Categories",
         path: "/services-management/categories",
         size: "24px",

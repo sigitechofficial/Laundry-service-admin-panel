@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   Box,
   Typography,
@@ -9,6 +9,8 @@ import {
   Checkbox,
   Menu,
   MenuItem,
+  FormControl,
+  Select,
 } from "@mui/material";
 import {
   TbPlus,
@@ -31,6 +33,21 @@ import { useSelector } from "react-redux";
 import ModalComponent from "../../components/shared/Modal";
 import InputFieldModal from "../../components/ui/InputFieldModal";
 import useToaster from "../../components/ui/Toaster";
+
+function readParentPreferenceTypeId(pref) {
+  if (!pref || typeof pref !== "object") return "";
+  const v =
+    pref.parentPreferenceTypeId ?? pref.parentId ?? pref.parent?.id;
+  if (v == null || v === "") return "";
+  return Number(v);
+}
+
+/** Wash Type must stay top-level — no parent preference. */
+function isWashTypePreferenceName(name) {
+  if (name == null || typeof name !== "string") return false;
+  const n = name.trim().toLowerCase().replace(/\s+/g, " ");
+  return n === "wash type";
+}
 
 export default function PreferencesCard({ triggerAdd }) {
   const { success, error } = useToaster();
@@ -61,12 +78,39 @@ export default function PreferencesCard({ triggerAdd }) {
     subPreference: "",
     subPreferenceId: "",
     type: "",
+    parentPreferenceTypeId: "",
   });
+
+  const parentSelectOptions = useMemo(() => {
+    if (!preferences?.length) return [];
+    if (
+      preferenceData.type === "preference" &&
+      preferenceData.preferenceId !== "" &&
+      preferenceData.preferenceId != null
+    ) {
+      return preferences.filter(
+        (p) => String(p.id) !== String(preferenceData.preferenceId)
+      );
+    }
+    return preferences;
+  }, [
+    preferences,
+    preferenceData.type,
+    preferenceData.preferenceId,
+  ]);
+
+  const parentSelectDisabled = isWashTypePreferenceName(preferenceData.name);
 
   // Handle external trigger to open add modal
   useEffect(() => {
     if (triggerAdd && triggerAdd > 0 && !preferenceData.open) {
-      setPreferenceData((prev) => ({ ...prev, open: true }));
+      setPreferenceData((prev) => ({
+        ...prev,
+        open: true,
+        parentPreferenceTypeId: "",
+        type: "",
+        valueModal: false,
+      }));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [triggerAdd]);
@@ -102,9 +146,17 @@ export default function PreferencesCard({ triggerAdd }) {
 
   const handleAddPreference = async () => {
     try {
-      let res = await addPreference({
-        name: preferenceData.name,
-      }).unwrap();
+      const body = { name: preferenceData.name };
+      if (
+        !isWashTypePreferenceName(preferenceData.name) &&
+        preferenceData.parentPreferenceTypeId !== "" &&
+        preferenceData.parentPreferenceTypeId != null
+      ) {
+        body.parentPreferenceTypeId = Number(
+          preferenceData.parentPreferenceTypeId
+        );
+      }
+      let res = await addPreference(body).unwrap();
       if (res?.status === "1") {
         success("Preference added successfully!");
         handleToggle(false);
@@ -116,6 +168,7 @@ export default function PreferencesCard({ triggerAdd }) {
           subPreference: "",
           subPreferenceId: "",
           type: "",
+          parentPreferenceTypeId: "",
         });
       } else {
         error(res?.message || "Something went wrong");
@@ -130,9 +183,15 @@ export default function PreferencesCard({ triggerAdd }) {
       let res = await editPreferenceType({
         id: preferenceData.preferenceId,
         name: preferenceData.name,
+        parentPreferenceTypeId: isWashTypePreferenceName(preferenceData.name)
+          ? null
+          : preferenceData.parentPreferenceTypeId === "" ||
+              preferenceData.parentPreferenceTypeId == null
+            ? null
+            : Number(preferenceData.parentPreferenceTypeId),
       }).unwrap();
       if (res?.status === "1") {
-        success("Preference added successfully!");
+        success("Preference updated successfully!");
         handleToggle(false);
         setPreferenceData({
           name: "",
@@ -142,6 +201,7 @@ export default function PreferencesCard({ triggerAdd }) {
           subPreference: "",
           subPreferenceId: "",
           type: "",
+          parentPreferenceTypeId: "",
         });
       } else {
         error(res?.message || "Something went wrong");
@@ -151,13 +211,24 @@ export default function PreferencesCard({ triggerAdd }) {
     }
   };
 
+  const isExplicitMutationFailure = (res) =>
+    res &&
+    (res.status === "0" ||
+      res.status === 0 ||
+      res.success === false);
+
   const handleAddPreferenceValue = async () => {
+    const trimmed = String(preferenceData.subPreference || "").trim();
+    if (!trimmed) {
+      error("Enter a sub preference name.");
+      return;
+    }
     try {
-      let res = await addPreferenceValue({
-        value: [preferenceData.subPreference],
+      const res = await addPreferenceValue({
+        value: [trimmed],
         preferenceTypeId: preferenceData.preferenceId,
       }).unwrap();
-      if (res?.status === "1") {
+      if (!isExplicitMutationFailure(res)) {
         success("Preference value added successfully!");
         handleToggle(true);
         setPreferenceData({
@@ -168,22 +239,32 @@ export default function PreferencesCard({ triggerAdd }) {
           subPreference: "",
           subPreferenceId: "",
           type: "",
+          parentPreferenceTypeId: "",
         });
       } else {
-        error(res?.error);
+        error(res?.message || res?.error || "Something went wrong");
       }
     } catch (err) {
-      error(err?.data?.error || "Failed to add preference value");
+      error(err?.data?.error || err?.data?.message || "Failed to add preference value");
     }
   };
 
   const handleUpdatePreferenceValue = async () => {
+    if (!preferenceData.subPreferenceId) {
+      error("Missing sub preference. Close the modal and try again.");
+      return;
+    }
+    const trimmed = String(preferenceData.subPreference || "").trim();
+    if (!trimmed) {
+      error("Enter a sub preference name.");
+      return;
+    }
     try {
-      let res = await editPreferenceValue({
+      const res = await editPreferenceValue({
         id: preferenceData.subPreferenceId,
-        value: preferenceData.subPreference,
+        value: trimmed,
       }).unwrap();
-      if (res?.status === "1") {
+      if (!isExplicitMutationFailure(res)) {
         success("Preference value updated successfully!");
         handleToggle(true);
         setPreferenceData({
@@ -194,9 +275,10 @@ export default function PreferencesCard({ triggerAdd }) {
           subPreference: "",
           subPreferenceId: "",
           type: "",
+          parentPreferenceTypeId: "",
         });
       } else {
-        error(res?.message || "Something went wrong");
+        error(res?.message || res?.error || "Something went wrong");
       }
     } catch (err) {
       error(err?.data?.message || "Failed to update preference value");
@@ -215,6 +297,15 @@ export default function PreferencesCard({ triggerAdd }) {
       error(err?.data?.message || "Failed to delete preference");
     }
   };
+
+  const primaryModalLoading =
+    preferenceData.valueModal
+      ? preferenceData.type === "update"
+        ? editPrefValLoading
+        : preferenceValLoading
+      : preferenceData.type === "preference"
+        ? editPrefTypeLoading
+        : preferenceLoading;
 
   const deletePrefValue = async (id) => {
     try {
@@ -307,12 +398,17 @@ export default function PreferencesCard({ triggerAdd }) {
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        setPreferenceData({
-                          ...preferenceData,
+                        setPreferenceData((prev) => ({
+                          ...prev,
                           name: preference?.name,
                           preferenceId: preference?.id,
+                          type: "",
+                          subPreference: "",
+                          subPreferenceId: "",
                           valueModal: true,
-                        });
+                          open: false,
+                          parentPreferenceTypeId: "",
+                        }));
                       }}
                       className="bg-gray-500 hover:bg-gray-600 text-white px-5 py-1 rounded-lg font-medium text-xs transition-all duration-200 shadow-sm hover:shadow-md flex items-center justify-center h-9 min-w-[140px]"
                     >
@@ -327,6 +423,10 @@ export default function PreferencesCard({ triggerAdd }) {
                           preferenceId: preference?.id,
                           name: preference?.name,
                           open: true,
+                          parentPreferenceTypeId:
+                            isWashTypePreferenceName(preference?.name)
+                              ? ""
+                              : readParentPreferenceTypeId(preference),
                         });
                       }}
                       size="small"
@@ -411,13 +511,15 @@ export default function PreferencesCard({ triggerAdd }) {
                           onClick={(e) => {
                             handleMenuClick(e, option);
 
-                            setPreferenceData({
+                            setPreferenceData((prev) => ({
+                              ...prev,
                               name: preference.name,
                               subPreference: option?.value,
                               preferenceId: preference?.id,
                               subPreferenceId: option?.id,
                               type: "update",
-                            });
+                              parentPreferenceTypeId: "",
+                            }));
                           }}
                           sx={{ color: "#667085" }}
                         >
@@ -448,7 +550,11 @@ export default function PreferencesCard({ triggerAdd }) {
       >
         <MenuItem
           onClick={() => {
-            setPreferenceData({ ...preferenceData, valueModal: true });
+            setPreferenceData((prev) => ({
+              ...prev,
+              valueModal: true,
+              parentPreferenceTypeId: "",
+            }));
             handleMenuClose();
           }}
           className="flex items-center gap-x-2 font-sm font-Inter !px-2 !mx-2 !rounded-sm border-b"
@@ -503,11 +609,7 @@ export default function PreferencesCard({ triggerAdd }) {
             : preferenceData.type === "preference"
             ? handleEditPreference
             : handleAddPreference,
-          isLoading:
-            preferenceLoading ||
-            preferenceValLoading ||
-            editPrefValLoading ||
-            editPrefTypeLoading,
+          isLoading: primaryModalLoading,
         }}
       >
         <Box className="flex flex-col gap-5">
@@ -518,9 +620,123 @@ export default function PreferencesCard({ triggerAdd }) {
             disabled={preferenceData.valueModal}
             value={preferenceData?.name}
             onChange={(e) => {
-              setPreferenceData({ ...preferenceData, name: e.target.value });
+              const name = e.target.value;
+              const wash = isWashTypePreferenceName(name);
+              setPreferenceData({
+                ...preferenceData,
+                name,
+                ...(wash ? { parentPreferenceTypeId: "" } : {}),
+              });
             }}
           />
+          {!preferenceData.valueModal && (
+              <Box className="w-full">
+                <Typography
+                  variant="body2"
+                  sx={{ color: "#374151", mb: "8px" }}
+                >
+                  Parent preference
+                </Typography>
+                <FormControl fullWidth>
+                  <Select
+                    displayEmpty
+                    disabled={parentSelectDisabled}
+                    value={
+                      parentSelectDisabled
+                        ? ""
+                        : preferenceData.parentPreferenceTypeId === "" ||
+                            preferenceData.parentPreferenceTypeId == null
+                          ? ""
+                          : String(preferenceData.parentPreferenceTypeId)
+                    }
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setPreferenceData({
+                        ...preferenceData,
+                        parentPreferenceTypeId:
+                          v === "" ? "" : Number(v),
+                      });
+                    }}
+                    renderValue={(selected) => {
+                      if (parentSelectDisabled) {
+                        return (
+                          <Typography
+                            component="span"
+                            variant="body1"
+                            sx={{
+                              color: "#94A3B8",
+                              fontFamily: "Switzer",
+                            }}
+                          >
+                            Not applicable (Wash Type is top-level)
+                          </Typography>
+                        );
+                      }
+                      if (selected === "") {
+                        return (
+                          <Typography
+                            component="span"
+                            variant="body1"
+                            sx={{
+                              color: "#94A3B8",
+                              fontFamily: "Switzer",
+                            }}
+                          >
+                            Select parent preference
+                          </Typography>
+                        );
+                      }
+                      const p = preferences?.find(
+                        (pref) => String(pref.id) === selected
+                      );
+                      return (
+                        <Typography
+                          component="span"
+                          variant="body1"
+                          sx={{ fontFamily: "Switzer", fontWeight: 400 }}
+                        >
+                          {p?.name ?? selected}
+                        </Typography>
+                      );
+                    }}
+                    sx={{
+                      height: 52,
+                      borderRadius: "8px",
+                      bgcolor: parentSelectDisabled ? "#F2F4F7" : "#F4F7FF",
+                      fontFamily: "Switzer",
+                      fontWeight: 400,
+                      "& .MuiOutlinedInput-notchedOutline": {
+                        border: "none",
+                      },
+                      "&:hover .MuiOutlinedInput-notchedOutline": {
+                        border: "none",
+                      },
+                      "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
+                        border: "none",
+                      },
+                    }}
+                    MenuProps={{
+                      PaperProps: { sx: { maxHeight: 360 } },
+                    }}
+                  >
+                    <MenuItem value="">
+                      <Typography
+                        component="span"
+                        variant="body2"
+                        sx={{ color: "#94A3B8", fontStyle: "italic" }}
+                      >
+                        None (top-level)
+                      </Typography>
+                    </MenuItem>
+                    {parentSelectOptions?.map((p) => (
+                      <MenuItem key={p.id} value={String(p.id)}>
+                        {p.name}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Box>
+            )}
           {preferenceData.valueModal && (
             <InputFieldModal
               title="Name (Sub Preferences)"

@@ -3,6 +3,7 @@ import {
   LoginPage,
   ServiceManagement,
   ServicesPage,
+  AddOnServicesPage,
   CategoriesPage,
   PreferencesPage,
   ServiceDashboardPage,
@@ -55,6 +56,11 @@ export const privateRoutes = [
     path: "/services-management/services",
     element: ServicesPage,
     resourceKey: "services_page",
+  },
+  {
+    path: "/services-management/add-on-services",
+    element: AddOnServicesPage,
+    resourceKey: "add_on_services_page",
   },
   {
     path: "/services-management/categories",

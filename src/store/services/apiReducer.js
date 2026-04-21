@@ -10,6 +10,9 @@ const apiDataSlice = createSlice({
     setServices: (state, action) => {
       state.services = action.payload;
     },
+    setAddOnServices: (state, action) => {
+      state.addOnServices = action.payload;
+    },
     setPreferences: (state, action) => {
       state.preferences = action.payload;
     },
@@ -21,6 +24,9 @@ const apiDataSlice = createSlice({
     },
     clearServices: (state) => {
       state.services = [];
+    },
+    clearAddOnServices: (state) => {
+      state.addOnServices = [];
     },
     clearPreferences: (state) => {
       state.preferences = [];
@@ -47,6 +53,53 @@ const apiDataSlice = createSlice({
         if (payload?.data) {
           state.services.push(payload.data);
         }
+      }
+    );
+
+    builder.addMatcher(
+      api.endpoints.getAllAddOnServices.matchFulfilled,
+      (state, { payload }) => {
+        state.addOnServices = payload?.data?.addOnServices || payload?.data || [];
+      }
+    );
+
+    builder.addMatcher(
+      api.endpoints.createAddOnService.matchFulfilled,
+      (state, { payload }) => {
+        const created = payload?.data;
+        if (created) {
+          if (!Array.isArray(state.addOnServices)) {
+            state.addOnServices = [];
+          }
+          state.addOnServices.push(created);
+        }
+      }
+    );
+
+    builder.addMatcher(
+      api.endpoints.updateAddOnService.matchFulfilled,
+      (state, { payload, meta }) => {
+        const { addOnServiceId, body } = meta.arg.originalArgs || {};
+        const updatedFromPayload = payload?.data;
+        state.addOnServices = (state.addOnServices || []).map((item) => {
+          if (item.id !== addOnServiceId) return item;
+          if (updatedFromPayload) return { ...item, ...updatedFromPayload };
+          return {
+            ...item,
+            name: body?.name ?? item.name,
+            price: body?.price ?? item.price,
+          };
+        });
+      }
+    );
+
+    builder.addMatcher(
+      api.endpoints.deleteAddOnService.matchFulfilled,
+      (state, { meta }) => {
+        const deletedId = meta.arg.originalArgs;
+        state.addOnServices = (state.addOnServices || []).filter(
+          (item) => item.id !== deletedId
+        );
       }
     );
 
@@ -118,15 +171,21 @@ const apiDataSlice = createSlice({
     builder.addMatcher(
       api.endpoints.editPreferenceType.matchFulfilled,
       (state, { meta }) => {
-        const { id, name } = meta.arg.originalArgs;
+        const { id, name, parentPreferenceTypeId } = meta.arg.originalArgs;
 
         state.preferences = state.preferences.map((pref) => {
-          return pref.id === id
-            ? {
-              ...pref,
-              name,
-            }
-            : pref;
+          if (pref.id !== id) return pref;
+          const nextParent =
+            parentPreferenceTypeId === null ||
+            parentPreferenceTypeId === "" ||
+            parentPreferenceTypeId === undefined
+              ? null
+              : Number(parentPreferenceTypeId);
+          return {
+            ...pref,
+            name,
+            parentPreferenceTypeId: nextParent,
+          };
         });
       }
     );
@@ -452,10 +511,12 @@ const apiDataSlice = createSlice({
 
 export const {
   setServices,
+  setAddOnServices,
   setPreferences,
   setCategories,
   setSubCategories,
   clearServices,
+  clearAddOnServices,
   clearPreferences,
   clearCategories,
   clearSubCategories,

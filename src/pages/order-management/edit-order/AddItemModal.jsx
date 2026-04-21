@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import {
   Box,
   Typography,
@@ -21,12 +21,10 @@ import { useSelector } from "react-redux";
 export default function AddItemModal({ open, onClose, onAddItems, orderData }) {
   const [selectedServiceId, setSelectedServiceId] = useState("");
   
-  const { data: serviceData, isLoading: isLoadingService } = useGetServiceWitPreferencesQuery(
-    selectedServiceId,
-    {
+  const { data: serviceData, isFetching: isFetchingService } =
+    useGetServiceWitPreferencesQuery(selectedServiceId, {
       skip: !selectedServiceId || !open,
-    }
-  );
+    });
   const { data: subCategoriesResponse, isLoading: isLoadingSubCategories } =
     useGetSubCategoriesQuery();
   const { data: servicesResponse } = useGetAllServicesQuery();
@@ -44,6 +42,17 @@ export default function AddItemModal({ open, onClose, onAddItems, orderData }) {
   const serviceCategories = serviceData?.data?.serviceCategoriesData || [];
   const servicePreferences = serviceData?.data?.preferencesData || [];
   const allPreferences = preferencesResponse?.data || [];
+
+  /** Service config API returns `id`; older payloads used `preferenceTypeId`. */
+  const preferenceTypeIdFromServicePref = (sp) =>
+    sp?.preferenceTypeId ?? sp?.id;
+
+  const isActivePreferenceValue = (pv) => {
+    if (pv == null) return false;
+    if (pv.status === false || pv.status === 0 || pv.status === "0")
+      return false;
+    return true;
+  };
   
   // Log API responses for debugging
   useEffect(() => {
@@ -100,49 +109,77 @@ export default function AddItemModal({ open, onClose, onAddItems, orderData }) {
     label: sc.category?.name || "Unknown",
   }));
 
-  // Get available subcategories for selected category
-  const availableSubCategories = allSubCategories
-    .filter((sub) => sub.categoryId === parseInt(formData.categoryName))
-    .map((sub) => ({
-      value: sub.id,
-      label: sub.name,
-      price: sub.price,
-    }));
+  // Prefer subcategories embedded on service config; merge id from global list when missing.
+  const availableSubCategories = useMemo(() => {
+    const catKey = formData.categoryName;
+    if (catKey === "" || catKey == null) return [];
+
+    const serviceCat = serviceCategories.find(
+      (sc) => String(sc.categoryId) === String(catKey)
+    );
+    const embedded = serviceCat?.category?.subCategories;
+
+    if (Array.isArray(embedded) && embedded.length > 0) {
+      return embedded.map((sub) => {
+        const globalMatch = allSubCategories.find(
+          (s) =>
+            String(s.categoryId) === String(catKey) && s.name === sub.name
+        );
+        return {
+          value: sub.id ?? globalMatch?.id ?? sub.name,
+          label: sub.name,
+          price: sub.price,
+        };
+      });
+    }
+
+    return allSubCategories
+      .filter((sub) => String(sub.categoryId) === String(catKey))
+      .map((sub) => ({
+        value: sub.id,
+        label: sub.name,
+        price: sub.price,
+      }));
+  }, [serviceCategories, formData.categoryName, allSubCategories]);
 
   // Get preference values from API by name (case-insensitive)
   // IMPORTANT: Only return preferences that are configured for the selected service
   const getPreferenceValues = (preferenceName) => {
-    console.log(`🔍 AddItemModal: getPreferenceValues called for:`, preferenceName);
-    console.log(`🔍 AddItemModal: servicePreferences (configured for service):`, servicePreferences);
-    console.log(`🔍 AddItemModal: allPreferences:`, allPreferences);
-    
-    // First, check if this preference type is configured for the selected service
-    const servicePreferenceType = servicePreferences.find(
-      (sp) => {
-        // Find the preference type in allPreferences to match by name
-        const pref = allPreferences.find(p => p.id === sp.preferenceTypeId);
-        return pref?.name?.toLowerCase() === preferenceName.toLowerCase();
-      }
+    const key = preferenceName.toLowerCase();
+
+    // New API: each entry in preferencesData has `id`, `name`, `preferenceValues`
+    const direct = servicePreferences.find(
+      (p) => p?.name?.toLowerCase?.() === key
     );
-    
+    if (direct?.preferenceValues?.length) {
+      return direct.preferenceValues.filter(isActivePreferenceValue);
+    }
+
+    // Legacy: match via global catalog using preferenceTypeId on service row
+    const servicePreferenceType = servicePreferences.find((sp) => {
+      const typeId = preferenceTypeIdFromServicePref(sp);
+      const pref = allPreferences.find((p) => p.id === typeId);
+      return pref?.name?.toLowerCase() === key;
+    });
+
     if (!servicePreferenceType) {
-      console.warn(`⚠️ AddItemModal: Preference "${preferenceName}" is NOT configured for service ${selectedServiceId}`);
+      console.warn(
+        `⚠️ AddItemModal: Preference "${preferenceName}" is NOT configured for service ${selectedServiceId}`
+      );
       return [];
     }
-    
-    // Now get the preference from allPreferences using the preferenceTypeId
-    const preference = allPreferences.find(
-      (p) => p.id === servicePreferenceType.preferenceTypeId
-    );
-    
+
+    const typeId = preferenceTypeIdFromServicePref(servicePreferenceType);
+    const preference = allPreferences.find((p) => p.id === typeId);
+
     if (!preference) {
-      console.warn(`⚠️ AddItemModal: Preference type ${servicePreferenceType.preferenceTypeId} not found in allPreferences`);
+      console.warn(
+        `⚠️ AddItemModal: Preference type ${typeId} not found in allPreferences`
+      );
       return [];
     }
-    
-    const values = preference?.preferenceValues?.filter((pv) => pv.status) || [];
-    console.log(`✅ AddItemModal: Found ${values.length} active values for "${preferenceName}" (configured for service):`, values);
-    return values;
+
+    return (preference.preferenceValues || []).filter(isActivePreferenceValue);
   };
 
   // Get options for each preference type
@@ -199,93 +236,66 @@ export default function AddItemModal({ open, onClose, onAddItems, orderData }) {
       [field]: value,
       // Reset subcategory when category changes
       ...(field === "categoryName" && { subCategory: "" }),
+      // Reset category chain when service changes (avoid stale picks + full-modal loader on refetch)
+      ...(field === "serviceType" && { categoryName: "", subCategory: "" }),
     }));
   };
 
   const handleSaveRef = useRef(false);
 
-  // Helper function to find preference type and value IDs
-  // IMPORTANT: Only find preferences that are configured for the selected service
+  // Resolve preference type/value IDs for the selected service (supports new + legacy API shapes).
   const findPreferenceIds = (preferenceName, preferenceValue) => {
-    console.log(`🔎 AddItemModal: findPreferenceIds called with:`, { preferenceName, preferenceValue });
-    console.log(`🔎 AddItemModal: servicePreferences (configured for service):`, servicePreferences);
-    console.log(`🔎 AddItemModal: Available preferences count:`, allPreferences.length);
-    
-    if (!allPreferences || allPreferences.length === 0) {
-      console.error(`❌ AddItemModal: allPreferences is empty! Check API response.`);
+    if (preferenceValue === "" || preferenceValue == null) {
       return { preferenceTypeId: null, preferenceValueId: null };
     }
-    
-    if (!servicePreferences || servicePreferences.length === 0) {
-      console.warn(`⚠️ AddItemModal: No preferences configured for service ${selectedServiceId}`);
-      console.warn(`⚠️ AddItemModal: Service must have preferences configured in Configure Service modal`);
-      return { preferenceTypeId: null, preferenceValueId: null };
-    }
-    
-    // First, check if this preference type is configured for the selected service
-    const servicePreferenceType = servicePreferences.find(
-      (sp) => {
-        // Find the preference type in allPreferences to match by name
-        const pref = allPreferences.find(p => p.id === sp.preferenceTypeId);
-        return pref?.name?.toLowerCase() === preferenceName.toLowerCase();
-      }
+
+    const key = preferenceName.toLowerCase();
+    const searchValue = String(preferenceValue).toLowerCase().trim();
+
+    const direct = servicePreferences.find(
+      (p) => p?.name?.toLowerCase?.() === key
     );
-    
+    if (direct?.preferenceValues?.length) {
+      const preferenceValueObj = direct.preferenceValues.find((pv) => {
+        const pvValue = pv.value?.toLowerCase?.().trim();
+        return pvValue === searchValue;
+      });
+      return {
+        preferenceTypeId: preferenceTypeIdFromServicePref(direct),
+        preferenceValueId: preferenceValueObj?.id ?? null,
+      };
+    }
+
+    if (!servicePreferences?.length || !allPreferences?.length) {
+      return { preferenceTypeId: null, preferenceValueId: null };
+    }
+
+    const servicePreferenceType = servicePreferences.find((sp) => {
+      const typeId = preferenceTypeIdFromServicePref(sp);
+      const pref = allPreferences.find((p) => p.id === typeId);
+      return pref?.name?.toLowerCase() === key;
+    });
+
     if (!servicePreferenceType) {
-      console.warn(`⚠️ AddItemModal: Preference type "${preferenceName}" is NOT configured for service ${selectedServiceId}`);
-      console.warn(`⚠️ AddItemModal: Configured preference types for this service:`, 
-        servicePreferences.map(sp => {
-          const pref = allPreferences.find(p => p.id === sp.preferenceTypeId);
-          return pref?.name || `ID: ${sp.preferenceTypeId}`;
-        })
-      );
       return { preferenceTypeId: null, preferenceValueId: null };
     }
-    
-    // Now get the preference from allPreferences using the preferenceTypeId
-    const preference = allPreferences.find(
-      (p) => p.id === servicePreferenceType.preferenceTypeId
-    );
-    
-    if (!preference) {
-      console.warn(`⚠️ AddItemModal: Preference type ${servicePreferenceType.preferenceTypeId} not found in allPreferences`);
-      return { preferenceTypeId: null, preferenceValueId: null };
-    }
-    
-    console.log(`✅ AddItemModal: Found preference type (configured for service):`, preference);
-    console.log(`🔎 AddItemModal: Looking for value "${preferenceValue}" in preference values:`, preference.preferenceValues);
 
-    if (!preference.preferenceValues || preference.preferenceValues.length === 0) {
-      console.warn(`⚠️ AddItemModal: Preference "${preferenceName}" has no preferenceValues`);
-      return { preferenceTypeId: preference.id, preferenceValueId: null };
+    const typeId = preferenceTypeIdFromServicePref(servicePreferenceType);
+    const preference = allPreferences.find((p) => p.id === typeId);
+
+    if (!preference?.preferenceValues?.length) {
+      return { preferenceTypeId: typeId, preferenceValueId: null };
     }
 
-    const preferenceValueObj = preference.preferenceValues.find(
-      (pv) => {
-        const pvValue = pv.value?.toLowerCase().trim();
-        const searchValue = preferenceValue?.toLowerCase().trim();
-        const match = pvValue === searchValue;
-        if (!match) {
-          console.log(`🔍 AddItemModal: Comparing "${pvValue}" with "${searchValue}" - no match`);
-        }
-        return match;
-      }
-    );
+    const preferenceValueObj = preference.preferenceValues.find((pv) => {
+      const pvValue = pv.value?.toLowerCase?.().trim();
+      return pvValue === searchValue;
+    });
 
-    if (!preferenceValueObj) {
-      console.warn(`⚠️ AddItemModal: Preference value "${preferenceValue}" not found in preference "${preferenceName}"`);
-      console.warn(`⚠️ AddItemModal: Available values:`, preference.preferenceValues.map(pv => pv.value));
-    } else {
-      console.log(`✅ AddItemModal: Found preference value:`, preferenceValueObj);
-    }
-
-    const result = {
+    return {
       preferenceTypeId: preference.id,
-      preferenceValueId: preferenceValueObj?.id || null,
+      preferenceValueId: preferenceValueObj?.id ?? null,
     };
-    
-    console.log(`📋 AddItemModal: Returning preference IDs:`, result);
-    return result;
   };
 
   const handleSave = (e) => {
@@ -297,7 +307,7 @@ export default function AddItemModal({ open, onClose, onAddItems, orderData }) {
     }
 
     const selectedSubCategory = availableSubCategories.find(
-      (sub) => sub.value === parseInt(formData.subCategory)
+      (sub) => String(sub.value) === String(formData.subCategory)
     );
 
     if (!selectedSubCategory || !formData.serviceType) {
@@ -458,7 +468,10 @@ export default function AddItemModal({ open, onClose, onAddItems, orderData }) {
       name: selectedSubCategory.label,
       price: selectedSubCategory.price,
       categoryId: parseInt(formData.categoryName),
-      categoryName: availableCategories.find((c) => c.value === parseInt(formData.categoryName))?.label || "",
+      categoryName:
+        availableCategories.find(
+          (c) => String(c.value) === String(formData.categoryName)
+        )?.label || "",
       subCategoryId: selectedSubCategory.value,
       preferences: preferences,
     };
@@ -535,7 +548,8 @@ export default function AddItemModal({ open, onClose, onAddItems, orderData }) {
       width={600}
       hideActions={true}
     >
-      {isLoadingService || isLoadingSubCategories || isLoadingPreferences ? (
+      {/* Do not gate on service-with-preferences fetch: selecting service type refetches and would hide the whole modal behind Delay. */}
+      {isLoadingSubCategories || isLoadingPreferences ? (
         <Box display="flex" justifyContent="center" alignItems="center" minHeight="300px">
           <Delay />
         </Box>
@@ -571,7 +585,12 @@ export default function AddItemModal({ open, onClose, onAddItems, orderData }) {
               value={formData.categoryName}
               onChange={(e) => handleInputChange("categoryName", e.target.value)}
               options={availableCategories}
-              placeholder="Select Category"
+              placeholder={
+                formData.serviceType && isFetchingService
+                  ? "Loading categories…"
+                  : "Select Category"
+              }
+              disabled={!formData.serviceType || isFetchingService}
             />
           </Box>
 
