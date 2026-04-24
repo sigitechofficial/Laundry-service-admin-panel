@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import {
   Box,
   Typography,
@@ -21,6 +21,9 @@ import {
   useEditOrderMutation,
   useGetPreferencesQuery,
   useGetAllAddOnServicesQuery,
+  useGetShopsDataQuery,
+  useGetAllOrderStatusesQuery,
+  useGetAllDriverMiniDetailsQuery,
 } from "../../../store/services/api";
 import baseQueryWithReauth from "../../../store/services/baseQueryWithReauth";
 import useToaster from "../../../components/ui/Toaster";
@@ -39,6 +42,38 @@ import AddItemModal from "./AddItemModal";
 import { TbPlus } from "../../../shared/icons/index";
 import ModalComponent from "../../../components/shared/Modal";
 
+/** Booking FK `laundryShopId` is authoritative; never use `laundryShop.userId` (agent id) as shop id. */
+function getOrderLaundryShopId(order) {
+  if (!order) return "";
+  const ls = order.laundryShop;
+  const raw =
+    order.laundryShopId ?? order.laundaryShopId ?? ls?.id;
+  return raw !== undefined && raw !== null && raw !== "" ? String(raw) : "";
+}
+
+const COLLECTION_METHOD_OPTIONS = [
+  "Collect from me in person",
+  "Collect from Outside",
+  "Collect from reception/Porter",
+  "Collect from the reception",
+];
+
+const DELIVERY_METHOD_OPTIONS = [
+  "Deliver to me in person",
+  "Leave at the door",
+  "Deliver to the Reception/Porter",
+];
+
+function coerceSelectValue(value, options, fallback) {
+  if (value && options.includes(value)) return value;
+  if (value) {
+    const lower = String(value).trim().toLowerCase();
+    const hit = options.find((o) => o.toLowerCase() === lower);
+    if (hit) return hit;
+  }
+  return fallback;
+}
+
 export default function EditOrder() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -47,6 +82,9 @@ export default function EditOrder() {
   });
   const { data: servicesResponse } = useGetAllServicesQuery();
   const { data: preferencesResponse } = useGetPreferencesQuery();
+  const { data: statusesResponse } = useGetAllOrderStatusesQuery();
+  const { data: shopsResponse, isLoading: shopsLoading } = useGetShopsDataQuery();
+  const { data: driversResponse, isLoading: driversLoading } = useGetAllDriverMiniDetailsQuery();
   const [editOrder, { isLoading: isSaving }] = useEditOrderMutation();
   const { success, error: showError } = useToaster();
 
@@ -56,8 +94,61 @@ export default function EditOrder() {
     orderData?.laundryShop?.shopName ||
     orderData?.laundryShop?.name ||
     "";
+  const shopSelectOptions = useMemo(() => {
+    const raw = shopsResponse?.data?.AllShopsData;
+    const list = Array.isArray(raw)
+      ? raw.map((s) => ({
+          value: String(s.id),
+          label: s?.shopName ?? s?.name ?? `Shop ${s.id}`,
+        }))
+      : [];
+    const sid = getOrderLaundryShopId(orderData);
+    const expectedName = (shopName || "").trim().toLowerCase();
+    if (sid) {
+      const idx = list.findIndex((o) => o.value === sid);
+      if (idx !== -1) {
+        const actualName = (list[idx].label || "").trim().toLowerCase();
+        if (expectedName && actualName && actualName !== expectedName) {
+          list[idx] = { value: list[idx].value, label: shopName };
+        }
+      } else {
+        list.unshift({ value: sid, label: shopName || `Shop ${sid}` });
+      }
+    }
+    return list;
+  }, [shopsResponse, orderData, shopName]);
+
   const allServices = servicesResponse?.data?.services || [];
   const allPreferences = preferencesResponse?.data || [];
+  const orderStatusOptions = Array.isArray(statusesResponse?.data)
+    ? statusesResponse.data
+    : [];
+  const driverSelectOptions = useMemo(() => {
+    const raw = Array.isArray(driversResponse?.data) ? driversResponse.data : [];
+    const list = raw.map((d) => {
+      const fullName = `${d?.firstName || ""} ${d?.lastName || ""}`.trim();
+      return {
+        value: String(d.id),
+        label: fullName || d?.email || `Driver ${d?.id}`,
+      };
+    });
+
+    const ensureCurrentDriver = (driverObj) => {
+      if (!driverObj?.id) return;
+      const id = String(driverObj.id);
+      if (list.some((o) => o.value === id)) return;
+      const fallbackName = `${driverObj?.firstName || ""} ${driverObj?.lastName || ""}`.trim();
+      list.unshift({
+        value: id,
+        label: fallbackName || driverObj?.email || `Driver ${id}`,
+      });
+    };
+
+    ensureCurrentDriver(orderData?.driver);
+    ensureCurrentDriver(orderData?.deliveryDriver);
+
+    return list;
+  }, [driversResponse, orderData]);
 
   const [formData, setFormData] = useState({
     orderNumber: "",
@@ -67,7 +158,7 @@ export default function EditOrder() {
     pickupTime: null,
     deliveryDate: null,
     deliveryTime: null,
-    shopName: "",
+    laundryShopId: "",
     driverInstruction: "",
     addressLine1: "",
     addressLine2: "",
@@ -101,11 +192,12 @@ export default function EditOrder() {
     priorityOrder: false,
   });
   const [dropdowns, setDropdowns] = useState({
-    status: "Completed",
+    status: "",
     frequency: "Just Once",
-    collectionMethod: "Collect from me in person",
-    collectionDriver: "Unassigned",
-    deliveryDriver: "Unassigned",
+    collectionMethod: COLLECTION_METHOD_OPTIONS[0],
+    deliveryMethod: DELIVERY_METHOD_OPTIONS[0],
+    collectionDriverId: "",
+    deliveryDriverId: "",
   });
 
   // State to manage items for each service (including newly added ones)
@@ -140,7 +232,7 @@ export default function EditOrder() {
         pickupTime: pickupTime,
         deliveryDate: orderData.deliveryDate ? dayjs(orderData.deliveryDate) : null,
         deliveryTime: deliveryTime,
-        shopName: shopName,
+        laundryShopId: getOrderLaundryShopId(orderData),
         driverInstruction: orderData?.driverInstruction || "",
         addressLine1: orderData?.dropOffAddress?.streetAddress || "",
         addressLine2: orderData?.dropOffAddress?.district || "",
@@ -153,23 +245,35 @@ export default function EditOrder() {
         serviceCharge: "0.00",
       });
 
-      const collectionDriverName = orderData?.driver
-        ? `${orderData.driver.firstName} ${orderData.driver.lastName}`.trim()
-        : "Unassigned";
-      const deliveryDriverName = orderData?.deliveryDriver
-        ? `${orderData.deliveryDriver.firstName} ${orderData.deliveryDriver.lastName}`.trim()
-        : collectionDriverName;
-
       setDropdowns({
-        status: orderData?.bookingStatus?.title || "Completed",
+        status:
+          orderData?.bookingStatusId !== undefined &&
+          orderData?.bookingStatusId !== null
+            ? String(orderData.bookingStatusId)
+            : "",
         frequency: orderData?.frequency || "Just Once",
-        collectionMethod:
-          orderData?.driverInstructionOptions || "Collect from me in person",
-        collectionDriver: collectionDriverName || "Unassigned",
-        deliveryDriver: deliveryDriverName || "Unassigned",
+        collectionMethod: coerceSelectValue(
+          orderData?.driverInstructionOptions,
+          COLLECTION_METHOD_OPTIONS,
+          COLLECTION_METHOD_OPTIONS[0]
+        ),
+        deliveryMethod: coerceSelectValue(
+          orderData?.driverInstructionOptions1,
+          DELIVERY_METHOD_OPTIONS,
+          DELIVERY_METHOD_OPTIONS[0]
+        ),
+        collectionDriverId:
+          orderData?.driverId !== undefined && orderData?.driverId !== null
+            ? String(orderData.driverId)
+            : "",
+        deliveryDriverId:
+          orderData?.deliveryDriverId !== undefined &&
+          orderData?.deliveryDriverId !== null
+            ? String(orderData.deliveryDriverId)
+            : "",
       });
     }
-  }, [orderData, shopName]);
+  }, [orderData]);
 
   const handleInputChange = (field, value) => {
     setFormData((prev) => ({
@@ -301,8 +405,9 @@ export default function EditOrder() {
         deliveryTimeTo: deliveryTimeTo,
         driverInstruction: formData.driverInstruction || "",
         driverInstructionOptions:
-          dropdowns.collectionMethod || "Collect from me in person",
-        driverInstructionOptions1: orderData?.driverInstructionOptions1 || "Deliver to me in person",
+          dropdowns.collectionMethod || COLLECTION_METHOD_OPTIONS[0],
+        driverInstructionOptions1:
+          dropdowns.deliveryMethod || DELIVERY_METHOD_OPTIONS[0],
         frequency: dropdowns.frequency || "Just Once",
         addressId: "",
         pickUpAddress: orderData?.pickupAddress
@@ -351,6 +456,18 @@ export default function EditOrder() {
         services: services,
         totalItems: totalItems,
         tipAmount: formData.driverTip || "0.00",
+        ...(dropdowns.status
+          ? { bookingStatusId: Number(dropdowns.status) }
+          : {}),
+        ...(dropdowns.collectionDriverId
+          ? { driverId: Number(dropdowns.collectionDriverId) }
+          : { driverId: null }),
+        ...(dropdowns.deliveryDriverId
+          ? { deliveryDriverId: Number(dropdowns.deliveryDriverId) }
+          : { deliveryDriverId: null }),
+        ...(formData.laundryShopId
+          ? { laundryShopId: Number(formData.laundryShopId) }
+          : {}),
       };
 
       console.log('📤 EditOrder: Sending API request with body:', JSON.stringify(body, null, 2));
@@ -745,30 +862,12 @@ export default function EditOrder() {
       border: "none",
     },
   };
-  const statusOptions = ["Pending", "Completed", "Cancelled", "On Hold"];
   const frequencyOptions = [
     "Just Once",
     "Every week",
     "Every two weeks",
     "Every four weeks",
   ];
-  const collectionMethodOptions = [
-    "Collect from me in person",
-    "Leave at door",
-    "Collect from reception",
-  ];
-  const driverOptions = Array.from(
-    new Set([
-      "Unassigned",
-      orderData?.driver
-        ? `${orderData.driver.firstName} ${orderData.driver.lastName}`.trim()
-        : "",
-      orderData?.deliveryDriver
-        ? `${orderData.deliveryDriver.firstName} ${orderData.deliveryDriver.lastName}`.trim()
-        : "",
-    ].filter(Boolean))
-  );
-
   return (
     <LocalizationProvider dateAdapter={AdapterDayjs}>
       {isLoading ? (
@@ -798,10 +897,10 @@ export default function EditOrder() {
                 </Box>
               </Box>
               <Box className="flex items-center gap-2">
-                <ButtonWhite onClick={handleCancel} disabled={isSaving}>
+                <ButtonWhite onClick={handleCancel} disabled={isSaving} size="medium">
                   Cancel
                 </ButtonWhite>
-                <ButtonBlue onClick={handleSave} disabled={isSaving}>
+                <ButtonBlue onClick={handleSave} disabled={isSaving} size="medium">
                   {isSaving ? "Saving..." : "Save Changes"}
                 </ButtonBlue>
               </Box>
@@ -836,13 +935,25 @@ export default function EditOrder() {
                         setDropdowns((prev) => ({ ...prev, status: e.target.value }))
                       }
                       size="small"
+                      displayEmpty
                       sx={SELECT_FIELD_SX}
+                      MenuProps={{
+                        PaperProps: {
+                          sx: { maxHeight: 280 },
+                        },
+                      }}
                     >
-                      {statusOptions.map((option) => (
-                        <MenuItem key={option} value={option}>
-                          {option}
+                      {orderStatusOptions.length ? (
+                        orderStatusOptions.map((option) => (
+                          <MenuItem key={option.id} value={String(option.id)}>
+                            {option.title}
+                          </MenuItem>
+                        ))
+                      ) : (
+                        <MenuItem value="" disabled>
+                          No status available
                         </MenuItem>
-                      ))}
+                      )}
                     </Select>
                   </Box>
                   <Box>
@@ -863,15 +974,34 @@ export default function EditOrder() {
                     </Select>
                   </Box>
                   <Box>
-                    <Typography sx={FIELD_LABEL_SX}>Shop Name</Typography>
-                    <InputFieldBordered
-                      value={formData.shopName}
-                      onChange={(e) => handleInputChange("shopName", e.target.value)}
-                      placeholder="Assign a shop..."
-                    />
+                    <Typography sx={FIELD_LABEL_SX}>Shop</Typography>
+                    <Select
+                      value={formData.laundryShopId}
+                      onChange={(e) =>
+                        handleInputChange("laundryShopId", e.target.value)
+                      }
+                      size="small"
+                      displayEmpty
+                      disabled={shopsLoading && shopSelectOptions.length === 0}
+                      sx={SELECT_FIELD_SX}
+                      MenuProps={{
+                        PaperProps: {
+                          sx: { maxHeight: 280 },
+                        },
+                      }}
+                    >
+                      <MenuItem value="" disabled>
+                        Select shop
+                      </MenuItem>
+                      {shopSelectOptions.map((opt) => (
+                        <MenuItem key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </MenuItem>
+                      ))}
+                    </Select>
                   </Box>
                   <Box>
-                    <Typography sx={FIELD_LABEL_SX}>Collection Method</Typography>
+                    <Typography sx={FIELD_LABEL_SX}>Collection method</Typography>
                     <Select
                       value={dropdowns.collectionMethod}
                       onChange={(e) =>
@@ -882,8 +1012,13 @@ export default function EditOrder() {
                       }
                       size="small"
                       sx={SELECT_FIELD_SX}
+                      MenuProps={{
+                        PaperProps: {
+                          sx: { maxHeight: 280 },
+                        },
+                      }}
                     >
-                      {collectionMethodOptions.map((option) => (
+                      {COLLECTION_METHOD_OPTIONS.map((option) => (
                         <MenuItem key={option} value={option}>
                           {option}
                         </MenuItem>
@@ -891,6 +1026,31 @@ export default function EditOrder() {
                     </Select>
                   </Box>
                   <Box>
+                    <Typography sx={FIELD_LABEL_SX}>Delivery method</Typography>
+                    <Select
+                      value={dropdowns.deliveryMethod}
+                      onChange={(e) =>
+                        setDropdowns((prev) => ({
+                          ...prev,
+                          deliveryMethod: e.target.value,
+                        }))
+                      }
+                      size="small"
+                      sx={SELECT_FIELD_SX}
+                      MenuProps={{
+                        PaperProps: {
+                          sx: { maxHeight: 280 },
+                        },
+                      }}
+                    >
+                      {DELIVERY_METHOD_OPTIONS.map((option) => (
+                        <MenuItem key={option} value={option}>
+                          {option}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </Box>
+                  <Box sx={{ gridColumn: { xs: "1", md: "span 2" } }}>
                     <Typography sx={FIELD_LABEL_SX}>Driver Instruction</Typography>
                     <InputFieldBordered
                       value={formData.driverInstruction}
@@ -1179,19 +1339,26 @@ export default function EditOrder() {
                   <Box>
                     <Typography sx={{ ...FIELD_LABEL_SX, mb: 0.4, color: "#2563EB" }}>Collection Driver</Typography>
                     <Select
-                      value={dropdowns.collectionDriver}
+                      value={dropdowns.collectionDriverId}
                       onChange={(e) =>
                         setDropdowns((prev) => ({
                           ...prev,
-                          collectionDriver: e.target.value,
+                          collectionDriverId: e.target.value,
                         }))
                       }
                       size="small"
+                      disabled={driversLoading && driverSelectOptions.length === 0}
                       sx={SELECT_FIELD_SX}
+                      MenuProps={{
+                        PaperProps: {
+                          sx: { maxHeight: 280 },
+                        },
+                      }}
                     >
-                      {driverOptions.map((option) => (
-                        <MenuItem key={option} value={option}>
-                          {option}
+                      <MenuItem value="">Unassigned</MenuItem>
+                      {driverSelectOptions.map((option) => (
+                        <MenuItem key={option.value} value={option.value}>
+                          {option.label}
                         </MenuItem>
                       ))}
                     </Select>
@@ -1199,19 +1366,26 @@ export default function EditOrder() {
                   <Box>
                     <Typography sx={{ ...FIELD_LABEL_SX, mb: 0.4, color: "#059669" }}>Delivery Driver</Typography>
                     <Select
-                      value={dropdowns.deliveryDriver}
+                      value={dropdowns.deliveryDriverId}
                       onChange={(e) =>
                         setDropdowns((prev) => ({
                           ...prev,
-                          deliveryDriver: e.target.value,
+                          deliveryDriverId: e.target.value,
                         }))
                       }
                       size="small"
+                      disabled={driversLoading && driverSelectOptions.length === 0}
                       sx={SELECT_FIELD_SX}
+                      MenuProps={{
+                        PaperProps: {
+                          sx: { maxHeight: 280 },
+                        },
+                      }}
                     >
-                      {driverOptions.map((option) => (
-                        <MenuItem key={option} value={option}>
-                          {option}
+                      <MenuItem value="">Unassigned</MenuItem>
+                      {driverSelectOptions.map((option) => (
+                        <MenuItem key={option.value} value={option.value}>
+                          {option.label}
                         </MenuItem>
                       ))}
                     </Select>

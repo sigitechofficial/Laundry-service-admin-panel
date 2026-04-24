@@ -165,4 +165,8 @@ export const ReschedulePolicy = lazy(() =>
   import("../pages/policies-management/ReschedulePolicy")
 );
 
+export const PromoCodesPage = lazy(() =>
+  import("../pages/promotion/PromoCodesPage")
+);
+
 export const LoginPage = lazy(() => import("../pages/auth/LoginPage"));

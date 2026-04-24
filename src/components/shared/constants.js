@@ -13,6 +13,7 @@ import {
   TbHelp,
   BsCardList,
   TbX,
+  TbSparkles,
 } from "../../shared/icons/index";
 
 export const sidebarList = [
@@ -208,6 +209,19 @@ export const sidebarList = [
     Icon: TbHelp,
     path: "/faq",
     size: "24px",
+  },
+  {
+    label: "Promotion",
+    Icon: TbSparkles,
+    path: "/promotion",
+    size: "24px",
+    children: [
+      {
+        label: "Coupons",
+        path: "/promotion/promo-codes",
+        size: "24px",
+      },
+    ],
   },
   {
     label: "Reports",

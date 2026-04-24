@@ -4,7 +4,7 @@ import baseQueryWithReauth from "./baseQueryWithReauth";
 export const api = createApi({
   reducerPath: "api",
   baseQuery: baseQueryWithReauth,
-  tagTypes: ["ServiceConfig", "SupportContact"],
+  tagTypes: ["ServiceConfig", "SupportContact", "Coupons"],
 
   endpoints: (builder) => ({
     // Report query helper
@@ -352,6 +352,13 @@ export const api = createApi({
     getOnHoldBookings: builder.query({
       query: () => ({
         url: "admin/getOnHoldBookings",
+        method: "GET",
+      }),
+    }),
+
+    getAllOrderStatuses: builder.query({
+      query: () => ({
+        url: "admin/allOrderStatuses",
         method: "GET",
       }),
     }),
@@ -1125,6 +1132,23 @@ export const api = createApi({
       }),
       providesTags: ["SupportContact"],
     }),
+
+    getAllCoupons: builder.query({
+      query: ({ page = 1, limit = 10, isActive = true } = {}) => ({
+        url: `admin/getAllCoupons?page=${page}&limit=${limit}&isActive=${isActive}`,
+        method: "GET",
+      }),
+      providesTags: ["Coupons"],
+    }),
+
+    addCoupon: builder.mutation({
+      query: (body) => ({
+        url: "admin/addCoupon",
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: ["Coupons"],
+    }),
   }),
 });
 
@@ -1171,6 +1195,7 @@ export const {
   useGetAllOrderQuery,
   useGetAllCompleteOrdersQuery,
   useGetOnHoldBookingsQuery,
+  useGetAllOrderStatusesQuery,
   useGetShopsDataQuery,
   useGetShopDetailsQuery,
   useAddShopMutation,
@@ -1256,5 +1281,7 @@ export const {
   useCreateBlogMutation,
   useUpdateBlogMutation,
   useUpdateSupportContactMutation,
-  useGetSupportContactQuery
+  useGetSupportContactQuery,
+  useGetAllCouponsQuery,
+  useAddCouponMutation,
 } = api;

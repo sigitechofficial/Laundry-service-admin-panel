@@ -67,7 +67,7 @@ export default function PreferencesCard({ triggerAdd }) {
   const [editPreferenceType, { isLoading: editPrefTypeLoading }] =
     useEditPreferenceTypeMutation();
 
-  const { isLoading } = useGetPreferencesQuery();
+  const { isLoading, refetch: refetchPreferences } = useGetPreferencesQuery();
   const [expandedPrefs, setExpandedPrefs] = useState({});
   const [anchorEl, setAnchorEl] = useState(null);
   const [preferenceData, setPreferenceData] = useState({
@@ -80,6 +80,8 @@ export default function PreferencesCard({ triggerAdd }) {
     type: "",
     parentPreferenceTypeId: "",
   });
+  const [isSubmittingSubPreference, setIsSubmittingSubPreference] =
+    useState(false);
 
   const parentSelectOptions = useMemo(() => {
     if (!preferences?.length) return [];
@@ -217,18 +219,32 @@ export default function PreferencesCard({ triggerAdd }) {
       res.status === 0 ||
       res.success === false);
 
+  const hasPreferenceValue = (prefList, prefId, rawValue) => {
+    const value = String(rawValue || "").trim().toLowerCase();
+    if (!value) return false;
+    const pref = (prefList || []).find(
+      (p) => String(p?.id) === String(prefId)
+    );
+    if (!pref || !Array.isArray(pref.preferenceValues)) return false;
+    return pref.preferenceValues.some(
+      (v) => String(v?.value || "").trim().toLowerCase() === value
+    );
+  };
+
   const handleAddPreferenceValue = async () => {
     const trimmed = String(preferenceData.subPreference || "").trim();
     if (!trimmed) {
       error("Enter a sub preference name.");
       return;
     }
+    setIsSubmittingSubPreference(true);
     try {
-      const res = await addPreferenceValue({
+      const mutationResult = await addPreferenceValue({
         value: [trimmed],
         preferenceTypeId: preferenceData.preferenceId,
-      }).unwrap();
-      if (!isExplicitMutationFailure(res)) {
+      });
+
+      if (mutationResult?.data && !isExplicitMutationFailure(mutationResult.data)) {
         success("Preference value added successfully!");
         handleToggle(true);
         setPreferenceData({
@@ -242,10 +258,44 @@ export default function PreferencesCard({ triggerAdd }) {
           parentPreferenceTypeId: "",
         });
       } else {
-        error(res?.message || res?.error || "Something went wrong");
+        const refetchResult = await refetchPreferences();
+        const refreshedPrefs = Array.isArray(refetchResult?.data?.data)
+          ? refetchResult.data.data
+          : preferences;
+        if (
+          hasPreferenceValue(
+            refreshedPrefs,
+            preferenceData.preferenceId,
+            trimmed
+          )
+        ) {
+          success("Preference value added successfully!");
+          handleToggle(true);
+          setPreferenceData({
+            name: "",
+            preferenceId: "",
+            open: false,
+            valueModal: false,
+            subPreference: "",
+            subPreferenceId: "",
+            type: "",
+            parentPreferenceTypeId: "",
+          });
+        } else {
+          const errData = mutationResult?.error?.data;
+          error(
+            errData?.error ||
+              errData?.message ||
+              mutationResult?.data?.message ||
+              mutationResult?.data?.error ||
+              "Failed to add preference value"
+          );
+        }
       }
     } catch (err) {
       error(err?.data?.error || err?.data?.message || "Failed to add preference value");
+    } finally {
+      setIsSubmittingSubPreference(false);
     }
   };
 
@@ -259,6 +309,7 @@ export default function PreferencesCard({ triggerAdd }) {
       error("Enter a sub preference name.");
       return;
     }
+    setIsSubmittingSubPreference(true);
     try {
       const res = await editPreferenceValue({
         id: preferenceData.subPreferenceId,
@@ -282,6 +333,8 @@ export default function PreferencesCard({ triggerAdd }) {
       }
     } catch (err) {
       error(err?.data?.message || "Failed to update preference value");
+    } finally {
+      setIsSubmittingSubPreference(false);
     }
   };
 
@@ -301,8 +354,8 @@ export default function PreferencesCard({ triggerAdd }) {
   const primaryModalLoading =
     preferenceData.valueModal
       ? preferenceData.type === "update"
-        ? editPrefValLoading
-        : preferenceValLoading
+        ? isSubmittingSubPreference || editPrefValLoading
+        : isSubmittingSubPreference || preferenceValLoading
       : preferenceData.type === "preference"
         ? editPrefTypeLoading
         : preferenceLoading;
@@ -398,6 +451,7 @@ export default function PreferencesCard({ triggerAdd }) {
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
+                        setIsSubmittingSubPreference(false);
                         setPreferenceData((prev) => ({
                           ...prev,
                           name: preference?.name,
@@ -589,10 +643,16 @@ export default function PreferencesCard({ triggerAdd }) {
             ? "Update Preference"
             : "ADD PREFERENCE"
         }
-        onClose={() => handleToggle(Boolean(preferenceData.valueModal))}
+        onClose={() => {
+          setIsSubmittingSubPreference(false);
+          handleToggle(Boolean(preferenceData.valueModal));
+        }}
         secondaryAction={{
           label: "Cancel",
-          onClick: () => handleToggle(Boolean(preferenceData.valueModal)),
+          onClick: () => {
+            setIsSubmittingSubPreference(false);
+            handleToggle(Boolean(preferenceData.valueModal));
+          },
         }}
         primaryAction={{
           label: preferenceData.valueModal

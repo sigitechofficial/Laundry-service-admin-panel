@@ -37,7 +37,8 @@ import {
   OverallPolicies,
   NoShowPolicy,
   NoShowPolicyTestCases,
-  ReschedulePolicy
+  ReschedulePolicy,
+  PromoCodesPage
 } from "../routes/AsyncComponent";
 
 export const privateRoutes = [
@@ -221,6 +222,11 @@ export const privateRoutes = [
     path: "/policies-management/reschedule-policy",
     element: ReschedulePolicy,
     resourceKey: "reschedule_policy_page",
+  },
+  {
+    path: "/promotion/promo-codes",
+    element: PromoCodesPage,
+    resourceKey: "promotion_promo_codes_page",
   },
 ];
 
