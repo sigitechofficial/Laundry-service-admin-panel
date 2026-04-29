@@ -1350,29 +1350,50 @@ export default function ZoneManagement() {
   };
 
 
-  // Handle adding postal codes (supports multiple)
-  // Returns true if the postcode belongs to the given city name (case-insensitive partial match)
-  const validatePostcodeCity = async (postcode, cityName) => {
+  /** postcodes.io must recognise the string as a valid UK postcode (e.g. sector-only “HP2” → 404, must not add). */
+  const lookupPostcodesIoStrict = async (postcode) => {
+    const cleanPostcode = postcode.replace(/\s+/g, "");
     try {
-      const cleanPostcode = postcode.replace(/\s+/g, "");
       const response = await fetch(
         `https://api.postcodes.io/postcodes/${encodeURIComponent(cleanPostcode)}`
       );
-      if (!response.ok) return true; // Can't validate → allow
-      const data = await response.json();
-      if (!data.result) return true;
-
-      const { admin_district, admin_county, region, nuts } = data.result;
-      const candidates = [admin_district, admin_county, region, nuts]
-        .filter(Boolean)
-        .map((f) => f.toLowerCase());
-      const city = cityName.toLowerCase();
-
-      // Pass if any candidate contains the city name OR city name contains the candidate
-      return candidates.some((f) => f.includes(city) || city.includes(f));
+      let body = null;
+      try {
+        body = await response.json();
+      } catch {
+        body = null;
+      }
+      if (response.ok && body?.result) {
+        return { ok: true, result: body.result };
+      }
+      const errText =
+        typeof body?.error === "string"
+          ? body.error
+          : body?.error != null
+            ? String(body.error)
+            : "";
+      const message = errText
+        ? `"${postcode}" — ${errText}`
+        : `Could not validate "${postcode}". Use a full UK postcode (e.g. HP1 1AA).`;
+      return { ok: false, message };
     } catch {
-      return true; // Network error → allow gracefully
+      return {
+        ok: false,
+        message: `Network error while validating "${postcode}". Please try again.`,
+      };
     }
+  };
+
+  /** City check using a postcodes.io result (same rules as previous async validate). */
+  const postcodeResultBelongsToCity = (result, cityName) => {
+    if (!cityName || !result) return true;
+    const { admin_district, admin_county, region, nuts } = result;
+    const candidates = [admin_district, admin_county, region, nuts]
+      .filter(Boolean)
+      .map((f) => String(f).toLowerCase());
+    if (candidates.length === 0) return true;
+    const city = cityName.toLowerCase();
+    return candidates.some((f) => f.includes(city) || city.includes(f));
   };
 
   const handleAddPostcode = async () => {
@@ -1412,6 +1433,7 @@ export default function ZoneManagement() {
       const newPostcodeDataList = [];
       let lastCenterPoint = null;
       let cityRejectedCount = 0;
+      let postcodesIoRejectedCount = 0;
 
       // Validate and fetch each postal code
       for (const postcode of postcodes) {
@@ -1420,16 +1442,19 @@ export default function ZoneManagement() {
           continue; // Skip already added postal codes
         }
 
-        // City validation: reject postcodes outside the selected city
-        if (selectedCityName) {
-          const belongsToCity = await validatePostcodeCity(postcode, selectedCityName);
-          if (!belongsToCity) {
-            showError(
-              `"${postcode}" is outside of ${selectedCityName}. Only postal codes within the selected city can be added.`
-            );
-            cityRejectedCount++;
-            continue;
-          }
+        const ioLookup = await lookupPostcodesIoStrict(postcode);
+        if (!ioLookup.ok) {
+          showError(ioLookup.message);
+          postcodesIoRejectedCount++;
+          continue;
+        }
+
+        if (selectedCityName && !postcodeResultBelongsToCity(ioLookup.result, selectedCityName)) {
+          showError(
+            `"${postcode}" is outside of ${selectedCityName}. Only postal codes within the selected city can be added.`
+          );
+          cityRejectedCount++;
+          continue;
         }
 
         try {
@@ -1482,9 +1507,8 @@ export default function ZoneManagement() {
 
         setNewPostcodeInput("");
         success(`Successfully added ${newHighlights.length} postal code(s)`);
-      } else if (cityRejectedCount === 0) {
-        // Only show the generic fallback if nothing was rejected by city validation
-        // (city rejections already showed their own specific toast)
+      } else if (cityRejectedCount === 0 && postcodesIoRejectedCount === 0) {
+        // Generic fallback only when nothing was rejected with a specific toast above
         showError("No valid postal codes could be found or all are already added");
       }
     } catch (error) {
