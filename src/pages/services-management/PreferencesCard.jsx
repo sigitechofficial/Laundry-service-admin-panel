@@ -56,14 +56,12 @@ export default function PreferencesCard({ triggerAdd }) {
 
   const [addPreference, { isLoading: preferenceLoading }] =
     useAddPreferenceMutation();
-  const [addPreferenceValue, { isLoading: preferenceValLoading }] =
-    useAddPreferenceValueMutation();
+  const [addPreferenceValue] = useAddPreferenceValueMutation();
   const [deletePreferenceValue, { isLoading: deletePrefValueLoading }] =
     useDeletePreferenceValueMutation();
   const [deletePreference, { isLoading: preferenceDeleteLoading }] =
     useDeletePreferenceMutation();
-  const [editPreferenceValue, { isLoading: editPrefValLoading }] =
-    useEditPreferenceValueMutation();
+  const [editPreferenceValue] = useEditPreferenceValueMutation();
   const [editPreferenceType, { isLoading: editPrefTypeLoading }] =
     useEditPreferenceTypeMutation();
 
@@ -246,7 +244,6 @@ export default function PreferencesCard({ triggerAdd }) {
 
       if (mutationResult?.data && !isExplicitMutationFailure(mutationResult.data)) {
         success("Preference value added successfully!");
-        handleToggle(true);
         setPreferenceData({
           name: "",
           preferenceId: "",
@@ -270,7 +267,6 @@ export default function PreferencesCard({ triggerAdd }) {
           )
         ) {
           success("Preference value added successfully!");
-          handleToggle(true);
           setPreferenceData({
             name: "",
             preferenceId: "",
@@ -317,7 +313,6 @@ export default function PreferencesCard({ triggerAdd }) {
       }).unwrap();
       if (!isExplicitMutationFailure(res)) {
         success("Preference value updated successfully!");
-        handleToggle(true);
         setPreferenceData({
           name: "",
           preferenceId: "",
@@ -351,14 +346,12 @@ export default function PreferencesCard({ triggerAdd }) {
     }
   };
 
-  const primaryModalLoading =
-    preferenceData.valueModal
-      ? preferenceData.type === "update"
-        ? isSubmittingSubPreference || editPrefValLoading
-        : isSubmittingSubPreference || preferenceValLoading
-      : preferenceData.type === "preference"
-        ? editPrefTypeLoading
-        : preferenceLoading;
+  // Sub-preference UI: rely on local submit flag only (RTK mutation `isLoading` can stick across repeats).
+  const primaryModalLoading = preferenceData.valueModal
+    ? isSubmittingSubPreference
+    : preferenceData.type === "preference"
+      ? editPrefTypeLoading
+      : preferenceLoading;
 
   const deletePrefValue = async (id) => {
     try {

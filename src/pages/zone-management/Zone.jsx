@@ -1,5 +1,5 @@
-import { useState, useEffect, useMemo, Fragment } from "react";
-import { Box, Button, IconButton, Typography } from "@mui/material";
+import { useState, useEffect, useMemo, Fragment, useRef, useCallback } from "react";
+import { Box, Button, CircularProgress, IconButton, Typography } from "@mui/material";
 import { BsCardList, TbPlus } from "../../shared/icons/index";
 import Search from "../../components/ui/Search";
 import FiltersButton from "../../components/ui/FiltersButton";
@@ -36,7 +36,7 @@ import {
   Polyline,
 } from "@react-google-maps/api";
 import { LiaHandPointerSolid } from "react-icons/lia";
-import { TbLassoPolygon } from "react-icons/tb";
+import { TbLassoPolygon, TbChevronLeft, TbChevronRight, TbChevronUp, TbChevronDown } from "react-icons/tb";
 import { RxCross2 } from "react-icons/rx";
 import InputFieldModal from "../../components/ui/InputFieldModal";
 import useToaster from "../../components/ui/Toaster";
@@ -188,6 +188,13 @@ export default function ZoneManagement() {
   const [isAddingPostcode, setIsAddingPostcode] = useState(false);
   /** Set when edit modal hydrates postcodes; effect pans map once instance is ready */
   const [editPendingMapCenter, setEditPendingMapCenter] = useState(null);
+  /** True while edit flow fetches zone + postcode boundaries (many postcodes = noticeable delay) */
+  const [isEditPostcodesLoading, setIsEditPostcodesLoading] = useState(false);
+  /** Toggles the manual postcode textarea + Add/Clear row on the map overlay */
+  const [postcodeAddSectionVisible, setPostcodeAddSectionVisible] = useState(true);
+  const postcodeChipsScrollRef = useRef(null);
+  const [chipsCanScrollLeft, setChipsCanScrollLeft] = useState(false);
+  const [chipsCanScrollRight, setChipsCanScrollRight] = useState(false);
 
   // Map container style
   const containerStyle = {
@@ -270,6 +277,46 @@ export default function ZoneManagement() {
     map.setZoom(14);
     setEditPendingMapCenter(null);
   }, [editPendingMapCenter, map, add.open]);
+
+  const updateChipsScrollState = useCallback(() => {
+    const el = postcodeChipsScrollRef.current;
+    if (!el) {
+      setChipsCanScrollLeft(false);
+      setChipsCanScrollRight(false);
+      return;
+    }
+    const { scrollLeft, scrollWidth, clientWidth } = el;
+    setChipsCanScrollLeft(scrollLeft > 2);
+    setChipsCanScrollRight(scrollLeft < scrollWidth - clientWidth - 2);
+  }, []);
+
+  useEffect(() => {
+    updateChipsScrollState();
+  }, [addedPostcodes, isEditPostcodesLoading, updateChipsScrollState]);
+
+  useEffect(() => {
+    const el = postcodeChipsScrollRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => {
+      requestAnimationFrame(updateChipsScrollState);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [updateChipsScrollState, addedPostcodes.length]);
+
+  /** Arrows + hide/show live only for 5+ chips; re-expand input when count drops so it cannot stay stuck hidden */
+  useEffect(() => {
+    if (addedPostcodes.length <= 4) {
+      setPostcodeAddSectionVisible(true);
+    }
+  }, [addedPostcodes.length]);
+
+  const scrollPostcodeChips = (dir) => {
+    const el = postcodeChipsScrollRef.current;
+    if (!el) return;
+    const amount = Math.min(240, el.clientWidth * 0.85);
+    el.scrollBy({ left: dir === "left" ? -amount : amount, behavior: "smooth" });
+  };
 
   console.log("🚀 ~ ZoneManagement ~ countries:", countries);
   console.log("🚀 ~ ZoneManagement ~ cities:", cities);
@@ -574,6 +621,7 @@ export default function ZoneManagement() {
   };
 
   const handleEditZone = async (row) => {
+    setIsEditPostcodesLoading(true);
     try {
       setEditPendingMapCenter(null);
       const rowZone = row?.rawZone || row || {};
@@ -706,6 +754,8 @@ export default function ZoneManagement() {
     } catch (error) {
       console.error("Error opening edit modal:", error);
       showError("Failed to open edit modal.");
+    } finally {
+      setIsEditPostcodesLoading(false);
     }
   };
 
@@ -869,6 +919,8 @@ export default function ZoneManagement() {
       setAddedPostcodes([]);
       setNewPostcodeInput("");
       setEditPendingMapCenter(null);
+      setIsEditPostcodesLoading(false);
+      setPostcodeAddSectionVisible(true);
       if (map) {
         map.setOptions({ draggableCursor: "pointer" });
       }
@@ -1574,57 +1626,138 @@ export default function ZoneManagement() {
                 </Box>
                 <Box className="flex flex-col gap-y-3">
                   <div className="mt-4 relative">
-                    <div className="absolute top-4 left-1/2 -translate-x-1/2 w-full px-4 max-w-[500px] mx-auto z-[100] flex flex-col gap-2">
+                    {isEditPostcodesLoading && (
+                      <div
+                        className="absolute inset-0 z-[200] flex items-center justify-center bg-white/75 backdrop-blur-[1px] pointer-events-auto"
+                        aria-live="polite"
+                        aria-busy="true"
+                      >
+                        <Box display="flex" flexDirection="column" alignItems="center" gap={1}>
+                          <CircularProgress size={40} />
+                          <Typography variant="body2" color="text.secondary">
+                            Loading postcodes…
+                          </Typography>
+                        </Box>
+                      </div>
+                    )}
+                    <div className="absolute top-4 left-1/2 -translate-x-1/2 w-full px-4 max-w-[500px] mx-auto z-[100] flex flex-col gap-2 min-w-0">
                       {addedPostcodes.length > 0 && (
-                        <div className="flex flex-wrap gap-2 items-center z-[101]">
-                          {addedPostcodes.map((postcodeData, index) => (
-                            <div
-                              key={index}
-                              onClick={() => handlePostcodeClick(postcodeData)}
-                              className="flex items-center justify-center gap-1 bg-white rounded-lg px-4 py-2 shadow-md min-w-[120px] h-[40px] cursor-pointer hover:bg-gray-50 transition-colors"
-                            >
-                              <span className="text-sm font-medium text-gray-800">
-                                {postcodeData.postcode}
-                              </span>
+                        <div className="z-[101] w-full min-w-0 flex flex-col gap-1">
+                          <div
+                            ref={postcodeChipsScrollRef}
+                            onScroll={updateChipsScrollState}
+                            className="flex flex-nowrap gap-2 items-center overflow-x-auto overflow-y-hidden w-full min-w-0 py-0.5 [scrollbar-width:thin]"
+                          >
+                            {addedPostcodes.map((postcodeData, index) => (
+                              <div
+                                key={index}
+                                onClick={() => handlePostcodeClick(postcodeData)}
+                                className="flex flex-shrink-0 items-center justify-center gap-1 bg-white rounded-lg px-4 py-2 shadow-md min-w-[120px] h-[40px] cursor-pointer hover:bg-gray-50 transition-colors"
+                              >
+                                <span className="text-sm font-medium text-gray-800">
+                                  {postcodeData.postcode}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={(e) => handleRemovePostcode(postcodeData.postcode, e)}
+                                  className="text-gray-500 hover:text-red-600 transition-colors ml-1"
+                                  title="Remove postal code"
+                                >
+                                  <RxCross2 size={16} />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {addedPostcodes.length > 4 && (
+                        <div className="flex w-full min-w-0 items-center justify-between gap-2 z-[101]">
+                          <div className="flex min-w-0 flex-1 items-center gap-2">
+                            <div className="flex shrink-0 items-center gap-2">
                               <button
                                 type="button"
-                                onClick={(e) => handleRemovePostcode(postcodeData.postcode, e)}
-                                className="text-gray-500 hover:text-red-600 transition-colors ml-1"
-                                title="Remove postal code"
+                                onClick={() => scrollPostcodeChips("left")}
+                                disabled={!chipsCanScrollLeft}
+                                className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-700 shadow-sm hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-30"
+                                title="Scroll postcodes left"
+                                aria-label="Scroll postcodes left"
                               >
-                                <RxCross2 size={16} />
+                                <TbChevronLeft size={20} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => scrollPostcodeChips("right")}
+                                disabled={!chipsCanScrollRight}
+                                className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-700 shadow-sm hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-30"
+                                title="Scroll postcodes right"
+                                aria-label="Scroll postcodes right"
+                              >
+                                <TbChevronRight size={20} />
                               </button>
                             </div>
-                          ))}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setPostcodeAddSectionVisible((v) => !v)}
+                            className="inline-flex h-9 min-w-24 shrink-0 items-center justify-center gap-2 rounded-md border border-gray-300 bg-white px-6 text-xs font-semibold text-gray-800 shadow-sm transition-colors hover:bg-gray-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-1"
+                            title={
+                              postcodeAddSectionVisible
+                                ? "Hide postal code field and add/clear actions"
+                                : "Show postal code field and add/clear actions"
+                            }
+                            aria-expanded={postcodeAddSectionVisible}
+                            aria-label={
+                              postcodeAddSectionVisible
+                                ? "Hide postal code input"
+                                : "Show postal code input"
+                            }
+                          >
+                            {postcodeAddSectionVisible ? (
+                              <>
+                                <TbChevronUp className="size-3.5 shrink-0 opacity-80" aria-hidden />
+                                <span className="whitespace-nowrap">Hide</span>
+                              </>
+                            ) : (
+                              <>
+                                <TbChevronDown className="size-3.5 shrink-0 opacity-80" aria-hidden />
+                                <span className="whitespace-nowrap">Show</span>
+                              </>
+                            )}
+                          </button>
                         </div>
                       )}
 
                       <div className="w-full z-[101] flex flex-col gap-2">
-                        <textarea
-                          value={newPostcodeInput}
-                          onChange={(e) => setNewPostcodeInput(e.target.value)}
-                          placeholder="Enter postal codes separated by comma: SW1A 1AA, SW1A 1AB, SW1A 1AC"
-                          className="w-full h-32 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none text-sm bg-white"
-                          rows={4}
-                        />
-                        <div className="flex gap-3">
-                          <button
-                            type="button"
-                            onClick={handleAddPostcode}
-                            disabled={isAddingPostcode || !newPostcodeInput.trim()}
-                            className="flex-1 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-400 disabled:cursor-not-allowed text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-colors shadow-md min-w-[120px] h-[40px] flex items-center justify-center"
-                          >
-                            {isAddingPostcode ? "Adding..." : "Add Postal Codes"}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setNewPostcodeInput("")}
-                            disabled={!newPostcodeInput.trim()}
-                            className="bg-white hover:bg-gray-100 text-gray-700 border border-gray-300 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors shadow-md min-w-[120px] h-[40px] flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            Clear
-                          </button>
-                        </div>
+                        {postcodeAddSectionVisible && (
+                          <>
+                            <textarea
+                              value={newPostcodeInput}
+                              onChange={(e) => setNewPostcodeInput(e.target.value)}
+                              placeholder="Enter postal codes separated by comma: SW1A 1AA, SW1A 1AB, SW1A 1AC"
+                              className="w-full h-32 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none text-sm bg-white"
+                              rows={4}
+                            />
+                            <div className="flex gap-3">
+                              <button
+                                type="button"
+                                onClick={handleAddPostcode}
+                                disabled={isAddingPostcode || !newPostcodeInput.trim()}
+                                className="flex-1 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-400 disabled:cursor-not-allowed text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-colors shadow-md min-w-[120px] h-[40px] flex items-center justify-center"
+                              >
+                                {isAddingPostcode ? "Adding..." : "Add Postal Codes"}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setNewPostcodeInput("")}
+                                disabled={!newPostcodeInput.trim()}
+                                className="bg-white hover:bg-gray-100 text-gray-700 border border-gray-300 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors shadow-md min-w-[120px] h-[40px] flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                Clear
+                              </button>
+                            </div>
+                          </>
+                        )}
                       </div>
                     </div>
 
