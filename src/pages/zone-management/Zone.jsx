@@ -162,6 +162,52 @@ async function fetchUkPostcodeDistrictPolygon(outcode) {
   }
 }
 
+/** Map postcodes.io jargon to user-facing copy (API says "outcode"; UI should say "postcode"). */
+function userFacingPostcodesIoError(message) {
+  if (typeof message !== "string") return message;
+  return message.replace(/\boutcode\b/gi, "postcode");
+}
+
+/**
+ * postcodes.io `/postcodes/{pc}` accepts full UK postcodes; `/outcodes/{oc}` accepts outward codes (e.g. NW1).
+ */
+async function lookupPostcodesIoPostcodeOrOutcode(cleanPostcode) {
+  const encoded = encodeURIComponent(cleanPostcode);
+  const read = async (url) => {
+    const response = await fetch(url);
+    let body = null;
+    try {
+      body = await response.json();
+    } catch {
+      body = null;
+    }
+    return { response, body };
+  };
+
+  const first = await read(`https://api.postcodes.io/postcodes/${encoded}`);
+  if (first.response.ok && first.body?.result) {
+    return { ok: true, result: first.body.result };
+  }
+  const postcodeError = first.body?.error;
+
+  const second = await read(`https://api.postcodes.io/outcodes/${encoded}`);
+  if (second.response.ok && second.body?.result) {
+    return { ok: true, result: second.body.result };
+  }
+
+  const errText =
+    typeof second.body?.error === "string"
+      ? second.body.error
+      : typeof postcodeError === "string"
+        ? postcodeError
+        : second.body?.error != null
+          ? String(second.body.error)
+          : postcodeError != null
+            ? String(postcodeError)
+            : "";
+  return { ok: false, errText };
+}
+
 export default function ZoneManagement() {
   const navigate = useNavigate();
   const libraries = ["places", "drawing"];
@@ -1237,6 +1283,25 @@ export default function ZoneManagement() {
         }
       }
 
+      if (!centerPoint) {
+        const outcodeRes = await fetch(
+          `https://api.postcodes.io/outcodes/${encodeURIComponent(cleanPostcode)}`
+        );
+        if (outcodeRes.ok) {
+          const outcodeData = await outcodeRes.json();
+          const r = outcodeData?.result;
+          if (r) {
+            centerPoint = {
+              lat: r.latitude,
+              lng: r.longitude,
+            };
+            outcode = r.outcode || cleanPostcode;
+            normalizedPostcode = r.outcode || postalCode.trim();
+            hasFullUkUnit = false;
+          }
+        }
+      }
+
       // ── 1. Sector polygon (only when we are not targeting one specific unit) ──
       if (outcode && centerPoint && !hasFullUkUnit) {
         const districtPath = await fetchUkPostcodeDistrictPolygon(outcode);
@@ -1350,31 +1415,18 @@ export default function ZoneManagement() {
   };
 
 
-  /** postcodes.io must recognise the string as a valid UK postcode (e.g. sector-only “HP2” → 404, must not add). */
+  /** Full UK postcode via `/postcodes/…`, else UK outward code via `/outcodes/…` (e.g. NW1). */
   const lookupPostcodesIoStrict = async (postcode) => {
     const cleanPostcode = postcode.replace(/\s+/g, "");
     try {
-      const response = await fetch(
-        `https://api.postcodes.io/postcodes/${encodeURIComponent(cleanPostcode)}`
-      );
-      let body = null;
-      try {
-        body = await response.json();
-      } catch {
-        body = null;
+      const { ok, result, errText } = await lookupPostcodesIoPostcodeOrOutcode(cleanPostcode);
+      if (ok && result) {
+        return { ok: true, result };
       }
-      if (response.ok && body?.result) {
-        return { ok: true, result: body.result };
-      }
-      const errText =
-        typeof body?.error === "string"
-          ? body.error
-          : body?.error != null
-            ? String(body.error)
-            : "";
-      const message = errText
-        ? `"${postcode}" — ${errText}`
-        : `Could not validate "${postcode}". Use a full UK postcode (e.g. HP1 1AA).`;
+      const friendlyErr = userFacingPostcodesIoError(errText);
+      const message = friendlyErr
+        ? `"${postcode}" — ${friendlyErr}`
+        : `Could not validate "${postcode}". Use a full UK postcode (e.g. HP1 1AA) or a valid postcode area (e.g. NW1).`;
       return { ok: false, message };
     } catch {
       return {
@@ -1384,15 +1436,35 @@ export default function ZoneManagement() {
     }
   };
 
-  /** City check using a postcodes.io result (same rules as previous async validate). */
+  /** City check using a postcodes.io postcode or outcode result. */
   const postcodeResultBelongsToCity = (result, cityName) => {
     if (!cityName || !result) return true;
-    const { admin_district, admin_county, region, nuts } = result;
-    const candidates = [admin_district, admin_county, region, nuts]
-      .filter(Boolean)
-      .map((f) => String(f).toLowerCase());
+    const city = cityName.toLowerCase().trim();
+    if (!city) return true;
+
+    const rawFields = [
+      result.admin_district,
+      result.admin_county,
+      result.region,
+      result.nuts,
+      result.parliamentary_constituency,
+      result.admin_ward,
+      result.parish,
+    ];
+    const candidates = [];
+    for (const field of rawFields) {
+      if (field == null) continue;
+      if (Array.isArray(field)) {
+        for (const item of field) {
+          if (typeof item === "string" && item.trim()) {
+            candidates.push(item.toLowerCase());
+          }
+        }
+      } else if (typeof field === "string" && field.trim()) {
+        candidates.push(field.toLowerCase());
+      }
+    }
     if (candidates.length === 0) return true;
-    const city = cityName.toLowerCase();
     return candidates.some((f) => f.includes(city) || city.includes(f));
   };
 
