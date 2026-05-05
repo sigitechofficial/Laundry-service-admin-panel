@@ -57,6 +57,12 @@ export const categorySubValidationSchema = yup.object().shape({
     .required("Price is required")
     .positive("Price must be a positive number")
     .min(1, "Price must be at least 1"),
+  unitCount: yup
+    .number()
+    .typeError("Unit count must be a number")
+    .required("Unit count is required")
+    .integer("Unit count must be a whole number")
+    .min(1, "Unit count must be at least 1"),
 });
 // Default form values
 export const defaultCategoryValues = {
@@ -70,4 +76,5 @@ export const defaultSubCategoryValues = {
   subCategory: "",
   description: "",
   price: "",
+  unitCount: "",
 };

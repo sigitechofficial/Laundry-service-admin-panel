@@ -206,6 +206,7 @@ export default function ItemCategoriesCard({ triggerAdd }) {
                             setIsModalOpen({
                               ...isModalOpen,
                               isSubModalOpen: true,
+                              type: "",
                               data: category,
                             });
                           }}
@@ -283,6 +284,17 @@ export default function ItemCategoriesCard({ triggerAdd }) {
                                 <Typography variant="body2" fontFamily="Inter">
                                   £{item?.price}
                                 </Typography>
+                                {(() => {
+                                  const uc = item?.unitCount ?? item?.unit_count;
+                                  if (uc === undefined || uc === null || uc === "") {
+                                    return null;
+                                  }
+                                  return (
+                                    <Typography variant="caption" color="grey.40">
+                                      Unit count: {uc}
+                                    </Typography>
+                                  );
+                                })()}
                               </Box>
                               <IconButton
                                 size="small"
@@ -328,6 +340,7 @@ export default function ItemCategoriesCard({ triggerAdd }) {
           onClick={(e) => {
             setIsModalOpen({
               ...isModalOpen,
+              isSubModalOpen: true,
               type: "update",
             });
             handleMenuClose(e);

@@ -3,21 +3,31 @@ import { BsCardList } from "../../../shared/icons/index";
 import { Delay } from "../../../components/shared/Loaders";
 import StatCard from "../../../components/ui/StatCard";
 import DataTable from "../../../components/ui/DataTable";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import dayjs from "dayjs";
 import { useNavigate } from "react-router-dom";
 import ActionButtons from "../../../components/ui/ActionButtons";
 import {
   useGetAllOrderQuery,
   useGetOrdersCountQuery,
+  useGetAllOrderStatusesQuery,
 } from "../../../store/services/api";
 import { dateTimeFormat } from "../../../shared/constants";
+import {
+  canEditOrderFromBooking,
+  resolveOrderStatusTitle,
+} from "../../../shared/orderEditStatusGate";
 import DeleteOrderModal from "../order-modals/DeleteOrderModal";
 
 export default function CancelledOrders() {
   const navigate = useNavigate();
   const { data, isLoading, refetch } = useGetAllOrderQuery();
   const { data: OrderCounts, refetch: refetchCounts } = useGetOrdersCountQuery();
+  const { data: statusesResponse } = useGetAllOrderStatusesQuery();
+  const orderStatuses = useMemo(
+    () => (Array.isArray(statusesResponse?.data) ? statusesResponse.data : []),
+    [statusesResponse?.data]
+  );
   const [dateRange, setDateRange] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [deleteModal, setDeleteModal] = useState({ open: false, orderId: null });
@@ -89,7 +99,8 @@ export default function CancelledOrders() {
     totalItems: booking?.totalItems,
     pickupDateTime: dayjs(booking?.collectionDate).format(dateTimeFormat),
     deliveryDateTime: dayjs(booking?.deliveryDate).format(dateTimeFormat),
-    OrderStatus: booking?.bookingStatus?.title,
+    OrderStatus: resolveOrderStatusTitle(booking),
+    _booking: booking,
     OnHold: booking?.OnHoldConfirmations?.length,
     pickupDriver: `${booking?.driver?.firstName ?? ""} ${booking?.driver?.lastName ?? ""}`.trim(),
     deliveryDriver: `${booking?.driver?.firstName ?? ""} ${booking?.driver?.lastName ?? ""}`.trim(),
@@ -173,6 +184,7 @@ export default function CancelledOrders() {
       sortable: false,
       renderCell: (row) => (
         <ActionButtons
+          showEdit={canEditOrderFromBooking(row._booking, orderStatuses)}
           onView={() => navigate(`/orders/details/${row.id}`)}
           onEdit={() => navigate(`/orders/edit/${row.id}`)}
           onDelete={() => setDeleteModal({ open: true, orderId: row.id })}

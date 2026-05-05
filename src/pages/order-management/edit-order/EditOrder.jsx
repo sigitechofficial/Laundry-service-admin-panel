@@ -2,12 +2,6 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import {
   Box,
   Typography,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
   Paper,
   Switch,
   Select,
@@ -41,6 +35,8 @@ import ButtonWhite from "../../../components/ui/ButtonWhite";
 import AddItemModal from "./AddItemModal";
 import { TbPlus } from "../../../shared/icons/index";
 import ModalComponent from "../../../components/shared/Modal";
+import { canEditOrderFromBooking } from "../../../shared/orderEditStatusGate";
+import { BASE_URL } from "../../../utilities/URL";
 
 /** Booking FK `laundryShopId` is authoritative; never use `laundryShop.userId` (agent id) as shop id. */
 function getOrderLaundryShopId(order) {
@@ -72,6 +68,35 @@ function coerceSelectValue(value, options, fallback) {
     if (hit) return hit;
   }
   return fallback;
+}
+
+function editOrderItemCategoryKey(item) {
+  if (item.categoryId != null && item.categoryId !== "") return `c-${item.categoryId}`;
+  const raw = String(item.itemName || "item")
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, "-")
+    .slice(0, 48);
+  return `n-${raw}`;
+}
+
+function editOrderCategoryTabLabel(item, serviceId, allServicesList) {
+  const sid = Number(serviceId);
+  const svc = Array.isArray(allServicesList)
+    ? allServicesList.find((s) => Number(s.id) === sid)
+    : null;
+  const cat = svc?.categories?.find((c) => Number(c.id) === Number(item.categoryId));
+  return (cat?.name || item.itemName || "Items").trim();
+}
+
+function resolveEditOrderItemServiceId(item, serviceItemsMap) {
+  if (item.sourceServiceId != null && item.sourceServiceId !== "") {
+    return String(item.sourceServiceId);
+  }
+  for (const [sid, data] of Object.entries(serviceItemsMap)) {
+    if (data.items.some((i) => i.id === item.id)) return String(sid);
+  }
+  return "";
 }
 
 export default function EditOrder() {
@@ -120,9 +145,10 @@ export default function EditOrder() {
 
   const allServices = servicesResponse?.data?.services || [];
   const allPreferences = preferencesResponse?.data || [];
-  const orderStatusOptions = Array.isArray(statusesResponse?.data)
-    ? statusesResponse.data
-    : [];
+  const orderStatusOptions = useMemo(
+    () => (Array.isArray(statusesResponse?.data) ? statusesResponse.data : []),
+    [statusesResponse?.data]
+  );
   const driverSelectOptions = useMemo(() => {
     const raw = Array.isArray(driversResponse?.data) ? driversResponse.data : [];
     const list = raw.map((d) => {
@@ -202,8 +228,27 @@ export default function EditOrder() {
 
   // State to manage items for each service (including newly added ones)
   const [serviceItems, setServiceItems] = useState({});
+  /** Order Items panel: which service / category tab is active (mobile-style UI). */
+  const [selectedItemsServiceId, setSelectedItemsServiceId] = useState("");
+  const [selectedItemsCategoryKey, setSelectedItemsCategoryKey] = useState("all");
   const isInitialized = useRef(false);
   const lastAddedItemRef = useRef({ subCategoryId: null, timestamp: 0 });
+  const editStatusRedirected = useRef(false);
+
+  useEffect(() => {
+    if (isLoading || !orderData || editStatusRedirected.current) return;
+    const statusesReady =
+      orderStatusOptions.length > 0 ||
+      Boolean(orderData?.bookingStatus?.title ?? orderData?.bookingStatusId);
+    if (!statusesReady) return;
+    if (!canEditOrderFromBooking(orderData, orderStatusOptions)) {
+      editStatusRedirected.current = true;
+      showError(
+        "This order can only be edited after the status reaches Invoice Generated."
+      );
+      navigate(`/orders/details/${id}`, { replace: true });
+    }
+  }, [isLoading, orderData, id, navigate, showError, orderStatusOptions]);
 
   useEffect(() => {
     if (orderData) {
@@ -570,6 +615,7 @@ export default function EditOrder() {
       // Add the new item
       const newItem = {
         id: `new-${now}-${Math.random()}`, // Unique ID for new items
+        sourceServiceId: serviceId,
         itemName: categoryName || name,
         quantity: 1,
         unitPrice: parseFloat(price || 0),
@@ -652,6 +698,7 @@ export default function EditOrder() {
 
         items[serviceId].items.push({
           id: service.id,
+          sourceServiceId: serviceId,
           itemName: service.category?.name || service.service?.name || "Item",
           quantity: service.items !== null && service.items !== undefined ? service.items : 0,
           unitPrice: parseFloat(service.categoryPrice || service.servicePrice || 0),
@@ -667,18 +714,59 @@ export default function EditOrder() {
     }
   }, [orderData]);
 
-  // Group services for display
-  const groupedServices = {};
-  Object.entries(serviceItems).forEach(([serviceId, serviceData]) => {
-    const serviceName = serviceData.serviceName;
-    if (!groupedServices[serviceName]) {
-      groupedServices[serviceName] = {
-        serviceId: parseInt(serviceId),
-        items: [],
-      };
+  const serviceIdsOrdered = useMemo(() => Object.keys(serviceItems), [serviceItems]);
+
+  useEffect(() => {
+    if (!serviceIdsOrdered.length) {
+      setSelectedItemsServiceId("");
+      return;
     }
-    groupedServices[serviceName].items.push(...serviceData.items);
-  });
+    setSelectedItemsServiceId((prev) =>
+      prev && serviceIdsOrdered.includes(String(prev)) ? prev : serviceIdsOrdered[0]
+    );
+  }, [serviceIdsOrdered]);
+
+  useEffect(() => {
+    setSelectedItemsCategoryKey("all");
+  }, [selectedItemsServiceId]);
+
+  const categoryTabsForSelectedService = useMemo(() => {
+    const sid = selectedItemsServiceId;
+    const list = sid ? serviceItems[sid]?.items ?? [] : [];
+    const seen = new Map();
+    list.forEach((it) => {
+      const k = editOrderItemCategoryKey(it);
+      if (!seen.has(k)) {
+        seen.set(k, {
+          key: k,
+          label: editOrderCategoryTabLabel(it, sid, allServices),
+        });
+      }
+    });
+    return Array.from(seen.values());
+  }, [selectedItemsServiceId, serviceItems, allServices]);
+
+  const visibleOrderItems = useMemo(() => {
+    const sid = selectedItemsServiceId;
+    const list = sid ? serviceItems[sid]?.items ?? [] : [];
+    if (selectedItemsCategoryKey === "all") return list;
+    return list.filter((it) => editOrderItemCategoryKey(it) === selectedItemsCategoryKey);
+  }, [selectedItemsServiceId, selectedItemsCategoryKey, serviceItems]);
+
+  const serviceImageById = useMemo(() => {
+    const map = {};
+    const list = Array.isArray(allServices) ? allServices : [];
+    for (const s of list) {
+      if (s?.id == null) continue;
+      const raw = s.image || s.serviceImg;
+      if (!raw) continue;
+      const path = String(raw).trim();
+      map[String(s.id)] = path.startsWith("http")
+        ? path
+        : `${BASE_URL}${path.replace(/^\//, "")}`;
+    }
+    return map;
+  }, [allServices]);
 
   const subtotal = Object.values(serviceItems).reduce(
     (sum, serviceData) =>
@@ -696,7 +784,7 @@ export default function EditOrder() {
   const handleOpenAddOnModal = (serviceId, item) => {
     setAddOnModal({
       open: true,
-      serviceId,
+      serviceId: String(serviceId),
       itemId: item.id,
       itemName: item.itemName || "Item",
       selectedIds: (item.addOnServices || []).map((a) => a.id),
@@ -710,6 +798,21 @@ export default function EditOrder() {
       itemId: null,
       itemName: "",
       selectedIds: [],
+    });
+  };
+
+  const bumpOrderItemQuantity = (item, serviceSid, delta) => {
+    setServiceItems((prev) => {
+      const sid = String(
+        serviceSid || item.sourceServiceId || resolveEditOrderItemServiceId(item, prev) || ""
+      );
+      if (!sid || !prev[sid]) return prev;
+      const next = { ...prev, [sid]: { ...prev[sid], items: [...prev[sid].items] } };
+      const ii = next[sid].items.findIndex((i) => i.id === item.id);
+      if (ii === -1) return prev;
+      const q = Math.max(0, (Number(next[sid].items[ii].quantity) || 0) + delta);
+      next[sid].items[ii] = { ...next[sid].items[ii], quantity: q };
+      return next;
     });
   };
 
@@ -729,20 +832,23 @@ export default function EditOrder() {
     const selected = addOnServices.filter((s) => addOnModal.selectedIds.includes(s.id));
     setServiceItems((prev) => {
       const newState = { ...prev };
-      const service = newState[addOnModal.serviceId];
+      const sid = String(addOnModal.serviceId);
+      const service = newState[sid];
       if (!service) return prev;
       const itemIndex = service.items.findIndex(
         (i) => String(i.id) === String(addOnModal.itemId)
       );
       if (itemIndex === -1) return prev;
-      service.items[itemIndex] = {
-        ...service.items[itemIndex],
+      const nextItems = [...service.items];
+      nextItems[itemIndex] = {
+        ...nextItems[itemIndex],
         addOnServices: selected.map((s) => ({
           id: s.id,
           name: s.name,
           price: Number(s.price) || 0,
         })),
       };
+      newState[sid] = { ...service, items: nextItems };
       return newState;
     });
     handleCloseAddOnModal();
@@ -1114,125 +1220,363 @@ export default function EditOrder() {
                   </Typography>
                 </Box>
 
-                {Object.entries(groupedServices).map(([serviceName, serviceData]) => {
-                  const serviceId = serviceData.serviceId;
-                  const services = serviceData.items;
-                  return (
-                    <Box key={serviceName} sx={{ borderTop: "1px solid #F1F5F9" }}>
-                      <Box sx={{ px: 2.5, py: 1.3 }}>
-                        <Typography sx={{ fontWeight: 700, fontSize: 12, color: "#334155" }}>{serviceName}</Typography>
+                <Box sx={{ borderTop: "1px solid #F1F5F9" }}>
+                  <Box sx={{ px: 2.5, pt: 2.5, pb: 1.5 }}>
+                    <Typography sx={{ ...FIELD_LABEL_SX, mb: 1.25 }}>Select service</Typography>
+                    <Box
+                      sx={{
+                        display: "flex",
+                        gap: 1.25,
+                        overflowX: "auto",
+                        pb: 0.5,
+                        scrollbarWidth: "thin",
+                      }}
+                    >
+                      {Object.entries(serviceItems).map(([serviceId, serviceData]) => {
+                        const active = String(serviceId) === String(selectedItemsServiceId);
+                        const imgUrl = serviceImageById[String(serviceId)] || "";
+                        const initial = (serviceData.serviceName || "?").trim().charAt(0).toUpperCase();
+                        return (
+                          <Box
+                            key={serviceId}
+                            component="button"
+                            type="button"
+                            onClick={() => setSelectedItemsServiceId(String(serviceId))}
+                            sx={{
+                              flex: "0 0 auto",
+                              minWidth: 92,
+                              maxWidth: 112,
+                              px: 1.25,
+                              py: 1.25,
+                              borderRadius: "12px",
+                              border: active ? "1px solid #93C5FD" : "1px solid #E2E8F0",
+                              bgcolor: active ? "#EFF6FF" : "#F8FAFC",
+                              cursor: "pointer",
+                              fontFamily: "Switzer",
+                              transition: "background-color 0.15s ease, border-color 0.15s ease",
+                              "&:hover": {
+                                bgcolor: active ? "#DBEAFE" : "#F1F5F9",
+                                borderColor: active ? "#60A5FA" : "#CBD5E1",
+                              },
+                            }}
+                          >
+                            <Box
+                              sx={{
+                                position: "relative",
+                                width: 48,
+                                height: 48,
+                                mx: "auto",
+                                mb: 1,
+                                borderRadius: "10px",
+                                overflow: "hidden",
+                                bgcolor: "#EEF2FF",
+                                border: "1px solid #E2E8F0",
+                              }}
+                            >
+                              <Typography
+                                sx={{
+                                  position: "absolute",
+                                  inset: 0,
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  fontSize: 15,
+                                  fontWeight: 400,
+                                  color: "#94A3B8",
+                                  zIndex: 0,
+                                }}
+                              >
+                                {initial}
+                              </Typography>
+                              {imgUrl ? (
+                                <Box
+                                  component="img"
+                                  src={imgUrl}
+                                  alt=""
+                                  sx={{
+                                    position: "absolute",
+                                    inset: 0,
+                                    width: "100%",
+                                    height: "100%",
+                                    objectFit: "cover",
+                                    zIndex: 1,
+                                  }}
+                                  onError={(e) => {
+                                    e.currentTarget.style.display = "none";
+                                  }}
+                                />
+                              ) : null}
+                            </Box>
+                            <Typography
+                              sx={{
+                                fontSize: 12,
+                                fontWeight: 400,
+                                lineHeight: 1.25,
+                                textAlign: "center",
+                                color: active ? "#2563EB" : "#64748B",
+                                display: "-webkit-box",
+                                WebkitLineClamp: 2,
+                                WebkitBoxOrient: "vertical",
+                                overflow: "hidden",
+                              }}
+                            >
+                              {serviceData.serviceName}
+                            </Typography>
+                          </Box>
+                        );
+                      })}
+                    </Box>
+                  </Box>
+
+                  <Box sx={{ px: 2.5, pb: 1.5 }}>
+                    <Typography sx={{ ...FIELD_LABEL_SX, mb: 1 }}>Category</Typography>
+                    <Box
+                      sx={{
+                        display: "flex",
+                        gap: 2.25,
+                        overflowX: "auto",
+                        borderBottom: "1px solid #E5E7EB",
+                      }}
+                    >
+                      <Box
+                        component="button"
+                        type="button"
+                        onClick={() => setSelectedItemsCategoryKey("all")}
+                        sx={{
+                          flex: "0 0 auto",
+                          pb: 1.25,
+                          border: "none",
+                          bgcolor: "transparent",
+                          cursor: "pointer",
+                          fontFamily: "Switzer",
+                          fontWeight: 700,
+                          fontSize: 14,
+                          color: selectedItemsCategoryKey === "all" ? "#2563EB" : "#64748B",
+                          borderBottom: "2px solid",
+                          borderBottomColor:
+                            selectedItemsCategoryKey === "all" ? "#2563EB" : "transparent",
+                          mb: "-1px",
+                        }}
+                      >
+                        All
                       </Box>
-                      <Table>
-                        <TableHead>
-                          <TableRow sx={{ bgcolor: "#F8FAFC" }}>
-                            <TableCell sx={{ fontFamily: "Switzer", fontWeight: 700, fontSize: "11px", color: "#64748B", textTransform: "uppercase", letterSpacing: "0.06em", borderBottom: "1px solid #E5E7EB" }}>Item Name</TableCell>
-                            <TableCell sx={{ fontFamily: "Switzer", fontWeight: 700, fontSize: "11px", color: "#64748B", textTransform: "uppercase", letterSpacing: "0.06em", borderBottom: "1px solid #E5E7EB" }}>Category</TableCell>
-                            <TableCell sx={{ fontFamily: "Switzer", fontWeight: 700, fontSize: "11px", color: "#64748B", textTransform: "uppercase", letterSpacing: "0.06em", borderBottom: "1px solid #E5E7EB" }}>Price ($)</TableCell>
-                            <TableCell sx={{ fontFamily: "Switzer", fontWeight: 700, fontSize: "11px", color: "#64748B", textTransform: "uppercase", letterSpacing: "0.06em", borderBottom: "1px solid #E5E7EB" }}>Qty</TableCell>
-                            <TableCell sx={{ fontFamily: "Switzer", fontWeight: 700, fontSize: "11px", color: "#64748B", textTransform: "uppercase", letterSpacing: "0.06em", borderBottom: "1px solid #E5E7EB" }}>Amount</TableCell>
-                            <TableCell sx={{ fontFamily: "Switzer", fontWeight: 700, fontSize: "11px", color: "#64748B", textTransform: "uppercase", letterSpacing: "0.06em", borderBottom: "1px solid #E5E7EB", width: "10%" }}>Add-on</TableCell>
-                          </TableRow>
-                        </TableHead>
-                        <TableBody>
-                          {services.length > 0 ? (
-                            services.map((item, index) => {
-                              const amount = item.quantity * item.unitPrice;
-                              return (
-                                <TableRow key={item.id || index}>
-                                  <TableCell sx={{ borderBottom: "1px solid #E5E7EB", width: "28%" }}>
-                                    <InputFieldBordered
-                                      value={item.itemName}
-                                      onChange={(e) => {
-                                        setServiceItems((prev) => {
-                                          const newState = { ...prev };
-                                          const currentServiceData = newState[serviceId];
-                                          if (currentServiceData) {
-                                            const itemIndex = currentServiceData.items.findIndex((i) => i.id === item.id);
-                                            if (itemIndex !== -1) currentServiceData.items[itemIndex].itemName = e.target.value;
-                                          }
-                                          return newState;
-                                        });
-                                      }}
-                                      placeholder="Item name"
-                                    />
-                                  </TableCell>
-                                  <TableCell sx={{ borderBottom: "1px solid #E5E7EB", color: "#334155", fontSize: 13 }}>
-                                    {serviceName}
-                                  </TableCell>
-                                  <TableCell sx={{ borderBottom: "1px solid #E5E7EB", width: "18%" }}>
-                                    <InputFieldBordered
-                                      type="number"
-                                      value={item.unitPrice > 0 ? item.unitPrice.toFixed(2) : ""}
-                                      onChange={(e) => {
-                                        const newPrice = parseFloat(e.target.value) || 0;
-                                        setServiceItems((prev) => {
-                                          const newState = { ...prev };
-                                          const currentServiceData = newState[serviceId];
-                                          if (currentServiceData) {
-                                            const itemIndex = currentServiceData.items.findIndex((i) => i.id === item.id);
-                                            if (itemIndex !== -1) currentServiceData.items[itemIndex].unitPrice = newPrice;
-                                          }
-                                          return newState;
-                                        });
-                                      }}
-                                      placeholder="0.00"
-                                    />
-                                  </TableCell>
-                                  <TableCell sx={{ borderBottom: "1px solid #E5E7EB", width: "14%" }}>
+                      {categoryTabsForSelectedService.map((tab) => (
+                        <Box
+                          key={tab.key}
+                          component="button"
+                          type="button"
+                          onClick={() => setSelectedItemsCategoryKey(tab.key)}
+                          sx={{
+                            flex: "0 0 auto",
+                            pb: 1.25,
+                            border: "none",
+                            bgcolor: "transparent",
+                            cursor: "pointer",
+                            fontFamily: "Switzer",
+                            fontWeight: 700,
+                            fontSize: 14,
+                            whiteSpace: "nowrap",
+                            color:
+                              selectedItemsCategoryKey === tab.key ? "#2563EB" : "#64748B",
+                            borderBottom: "2px solid",
+                            borderBottomColor:
+                              selectedItemsCategoryKey === tab.key ? "#2563EB" : "transparent",
+                            mb: "-1px",
+                          }}
+                        >
+                          {tab.label}
+                        </Box>
+                      ))}
+                    </Box>
+                  </Box>
+
+                  <Box sx={{ px: 2.5, pb: 2.5 }}>
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2 }}>
+                      <Box sx={{ width: 4, height: 22, bgcolor: "#2563EB", borderRadius: 1 }} />
+                      <Typography sx={{ fontWeight: 700, fontSize: 16, color: "#0F172A" }}>
+                        {selectedItemsCategoryKey === "all"
+                          ? "Items"
+                          : categoryTabsForSelectedService.find((t) => t.key === selectedItemsCategoryKey)
+                              ?.label || "Items"}
+                      </Typography>
+                    </Box>
+
+                    {!Object.keys(serviceItems).length ? (
+                      <Typography sx={{ color: "#64748B", py: 3, textAlign: "center", fontSize: 14 }}>
+                        No services on this order yet.
+                      </Typography>
+                    ) : visibleOrderItems.length === 0 ? (
+                      <Typography sx={{ color: "#64748B", py: 3, textAlign: "center", fontSize: 14 }}>
+                        No items in this category.
+                      </Typography>
+                    ) : (
+                      <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
+                        {visibleOrderItems.map((item, index) => {
+                          const rowServiceId =
+                            resolveEditOrderItemServiceId(item, serviceItems) ||
+                            selectedItemsServiceId;
+                          const amount =
+                            (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0);
+                          const svcName = serviceItems[String(rowServiceId)]?.serviceName || "";
+                          return (
+                            <Box
+                              key={item.id || index}
+                              sx={{
+                                display: "flex",
+                                flexWrap: "wrap",
+                                alignItems: "stretch",
+                                gap: 2,
+                                p: 2,
+                                borderRadius: "12px",
+                                border: "1px solid #E5E7EB",
+                                bgcolor: "#fff",
+                                boxShadow: "0 1px 2px rgb(0 0 0 / 0.04)",
+                              }}
+                            >
+                              <Box sx={{ flex: "1 1 220px", minWidth: 0 }}>
+                                <InputFieldBordered
+                                  value={item.itemName}
+                                  onChange={(e) => {
+                                    const sidUpd = String(rowServiceId);
+                                    setServiceItems((prev) => {
+                                      const newState = { ...prev };
+                                      const bucket = newState[sidUpd];
+                                      if (!bucket) return prev;
+                                      const ii = bucket.items.findIndex((i) => i.id === item.id);
+                                      if (ii !== -1) bucket.items[ii].itemName = e.target.value;
+                                      return newState;
+                                    });
+                                  }}
+                                  placeholder="Item name"
+                                />
+                                <Typography sx={{ mt: 1, fontSize: 13, color: "#64748B" }}>
+                                  {svcName}
+                                </Typography>
+                                <Box sx={{ mt: 0.75, display: "flex", alignItems: "baseline", gap: 0.5 }}>
+                                  <InputFieldBordered
+                                    type="number"
+                                    value={item.unitPrice > 0 ? item.unitPrice.toFixed(2) : ""}
+                                    onChange={(e) => {
+                                      const newPrice = parseFloat(e.target.value) || 0;
+                                      const sidUpd = String(rowServiceId);
+                                      setServiceItems((prev) => {
+                                        const newState = { ...prev };
+                                        const bucket = newState[sidUpd];
+                                        if (!bucket) return prev;
+                                        const ii = bucket.items.findIndex((i) => i.id === item.id);
+                                        if (ii !== -1) bucket.items[ii].unitPrice = newPrice;
+                                        return newState;
+                                      });
+                                    }}
+                                    placeholder="0.00"
+                                  />
+                                  <Typography sx={{ fontSize: 13, color: "#94A3B8", flexShrink: 0 }}>
+                                    / piece
+                                  </Typography>
+                                </Box>
+                                <Box sx={{ mt: 1.5 }}>
+                                  <Box
+                                    component="button"
+                                    type="button"
+                                    onClick={() => handleOpenAddOnModal(rowServiceId, item)}
+                                    sx={{
+                                      display: "inline-flex",
+                                      alignItems: "center",
+                                      gap: 0.75,
+                                      px: 1.5,
+                                      py: 0.65,
+                                      borderRadius: "999px",
+                                      border: "1px solid #CBD5E1",
+                                      bgcolor: "#fff",
+                                      color: "#2563EB",
+                                      fontFamily: "Switzer",
+                                      fontSize: 12,
+                                      fontWeight: 600,
+                                      cursor: "pointer",
+                                      "&:hover": { bgcolor: "#F8FAFC" },
+                                    }}
+                                  >
+                                    <TbPlus size={14} />
+                                    Add-ons
+                                  </Box>
+                                  {(item.addOnServices || []).length > 0 && (
+                                    <Typography sx={{ mt: 0.75, fontSize: 11, color: "#64748B" }}>
+                                      {(item.addOnServices || []).length} add-on
+                                      {(item.addOnServices || []).length === 1 ? "" : "s"} selected
+                                    </Typography>
+                                  )}
+                                </Box>
+                              </Box>
+                              <Box
+                                sx={{
+                                  flex: "0 0 auto",
+                                  display: "flex",
+                                  flexDirection: "column",
+                                  alignItems: "flex-end",
+                                  justifyContent: "space-between",
+                                  gap: 1.25,
+                                  minWidth: 140,
+                                }}
+                              >
+                                <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                                  <IconButton
+                                    size="small"
+                                    onClick={() => bumpOrderItemQuantity(item, rowServiceId, -1)}
+                                    sx={{
+                                      border: "1px solid #E2E8F0",
+                                      borderRadius: "10px",
+                                      width: 36,
+                                      height: 36,
+                                    }}
+                                  >
+                                    <Typography sx={{ fontSize: 18, fontWeight: 600, color: "#64748B", lineHeight: 1 }}>
+                                      −
+                                    </Typography>
+                                  </IconButton>
+                                  <Box sx={{ width: 56 }}>
                                     <InputFieldBordered
                                       type="number"
                                       value={item.quantity}
                                       onChange={(e) => {
-                                        const newQuantity = parseInt(e.target.value) || 0;
+                                        const newQuantity = parseInt(e.target.value, 10) || 0;
+                                        const sidUpd = String(rowServiceId);
                                         setServiceItems((prev) => {
                                           const newState = { ...prev };
-                                          const currentServiceData = newState[serviceId];
-                                          if (currentServiceData) {
-                                            const itemIndex = currentServiceData.items.findIndex((i) => i.id === item.id);
-                                            if (itemIndex !== -1) currentServiceData.items[itemIndex].quantity = newQuantity;
-                                          }
+                                          const bucket = newState[sidUpd];
+                                          if (!bucket) return prev;
+                                          const ii = bucket.items.findIndex((i) => i.id === item.id);
+                                          if (ii !== -1) bucket.items[ii].quantity = newQuantity;
                                           return newState;
                                         });
                                       }}
                                       placeholder="0"
                                     />
-                                  </TableCell>
-                                  <TableCell sx={{ borderBottom: "1px solid #E5E7EB", fontWeight: 600, color: "#334155" }}>
-                                    ${amount.toFixed(2)}
-                                  </TableCell>
-                                  <TableCell sx={{ borderBottom: "1px solid #E5E7EB", textAlign: "center" }}>
-                                    <IconButton
-                                      size="small"
-                                      onClick={() => handleOpenAddOnModal(serviceId, item)}
-                                      sx={{
-                                        border: "1px solid #BFDBFE",
-                                        borderRadius: "8px",
-                                        color: "#2563EB",
-                                      }}
-                                    >
-                                      <TbPlus size={16} />
-                                    </IconButton>
-                                    {(item.addOnServices || []).length > 0 && (
-                                      <Typography sx={{ mt: 0.5, fontSize: 11, color: "#64748B" }}>
-                                        {(item.addOnServices || []).length} selected
-                                      </Typography>
-                                    )}
-                                  </TableCell>
-                                </TableRow>
-                              );
-                            })
-                          ) : (
-                            <TableRow>
-                              <TableCell colSpan={6} sx={{ fontSize: "14px", color: "#6B7280", textAlign: "center", py: 3 }}>
-                                No items available for this service
-                              </TableCell>
-                            </TableRow>
-                          )}
-                        </TableBody>
-                      </Table>
-                    </Box>
-                  );
-                })}
+                                  </Box>
+                                  <IconButton
+                                    size="small"
+                                    onClick={() => bumpOrderItemQuantity(item, rowServiceId, 1)}
+                                    sx={{
+                                      border: "1px solid #BFDBFE",
+                                      borderRadius: "10px",
+                                      width: 36,
+                                      height: 36,
+                                      color: "#2563EB",
+                                    }}
+                                  >
+                                    <TbPlus size={18} />
+                                  </IconButton>
+                                </Box>
+                                <Typography sx={{ fontWeight: 700, fontSize: 16, color: "#0F172A" }}>
+                                  ${amount.toFixed(2)}
+                                </Typography>
+                              </Box>
+                            </Box>
+                          );
+                        })}
+                      </Box>
+                    )}
+                  </Box>
+                </Box>
 
                 <Box sx={{ p: 2.5, borderTop: "1px solid #F1F5F9" }}>
                   <Box

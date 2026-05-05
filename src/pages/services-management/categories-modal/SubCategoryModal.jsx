@@ -65,6 +65,7 @@ export default function SubCategoryModal({
         name: data.subCategory,
         description: cleanDescription,
         price: parseFloat(data.price),
+        unitCount: Number.parseInt(String(data.unitCount), 10),
         status: true,
         categoryId: categoryData?.id,
       };
@@ -89,6 +90,7 @@ export default function SubCategoryModal({
         name: data.subCategory,
         description: cleanDescription,
         price: parseFloat(data.price),
+        unitCount: Number.parseInt(String(data.unitCount), 10),
         status: true,
       };
 
@@ -120,6 +122,12 @@ export default function SubCategoryModal({
 
       setValue("description", isUpdate ? categoryData?.description || "" : "");
       setValue("price", categoryData?.price || "");
+      setValue(
+        "unitCount",
+        isUpdate
+          ? categoryData?.unitCount ?? categoryData?.unit_count ?? ""
+          : ""
+      );
     }
   }, [categoryData, open, setValue, isUpdate]);
 
@@ -204,6 +212,31 @@ export default function SubCategoryModal({
                   sx={{ color: "error.main", mt: 1, display: "block" }}
                 >
                   {errors.price.message}
+                </Typography>
+              )}
+            </Box>
+          )}
+        />
+
+        <Controller
+          name="unitCount"
+          control={control}
+          render={({ field: { onChange, value } }) => (
+            <Box>
+              <InputFieldModal
+                title="Unit count"
+                type="number"
+                name="unitCount"
+                placeholder="e.g. items per unit"
+                value={value}
+                onChange={(e) => onChange(e.target.value)}
+              />
+              {errors.unitCount && (
+                <Typography
+                  variant="caption"
+                  sx={{ color: "error.main", mt: 1, display: "block" }}
+                >
+                  {errors.unitCount.message}
                 </Typography>
               )}
             </Box>

@@ -208,6 +208,37 @@ async function lookupPostcodesIoPostcodeOrOutcode(cleanPostcode) {
   return { ok: false, errText };
 }
 
+/**
+ * `/outcodes/{code}` results omit `region` (e.g. NW4 → Barnet only). City matching uses substring
+ * checks against "London", so enrich from the outcode centroid via reverse lookup.
+ */
+async function enrichPostcodesIoResultForCityCheck(result) {
+  if (!result) return result;
+  const hasRegion = typeof result.region === "string" && result.region.trim() !== "";
+  if (hasRegion) return result;
+  const lat = result.latitude;
+  const lng = result.longitude;
+  if (lat == null || lng == null) return result;
+  try {
+    const url = `https://api.postcodes.io/postcodes?lon=${encodeURIComponent(
+      String(lng)
+    )}&lat=${encodeURIComponent(String(lat))}&limit=1`;
+    const response = await fetch(url);
+    if (!response.ok) return result;
+    const data = await response.json();
+    const nearest = data?.result?.[0];
+    if (!nearest) return result;
+    return {
+      ...result,
+      region: nearest.region ?? result.region,
+      european_electoral_region:
+        nearest.european_electoral_region ?? result.european_electoral_region,
+    };
+  } catch {
+    return result;
+  }
+}
+
 export default function ZoneManagement() {
   const navigate = useNavigate();
   const libraries = ["places", "drawing"];
@@ -1521,7 +1552,11 @@ export default function ZoneManagement() {
           continue;
         }
 
-        if (selectedCityName && !postcodeResultBelongsToCity(ioLookup.result, selectedCityName)) {
+        const ioResultForCity = selectedCityName
+          ? await enrichPostcodesIoResultForCityCheck(ioLookup.result)
+          : ioLookup.result;
+
+        if (selectedCityName && !postcodeResultBelongsToCity(ioResultForCity, selectedCityName)) {
           showError(
             `"${postcode}" is outside of ${selectedCityName}. Only postal codes within the selected city can be added.`
           );
