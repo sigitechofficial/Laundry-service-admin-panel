@@ -19,7 +19,7 @@ import DataTable from "../../components/ui/DataTable";
 import StatCard from "../../components/ui/StatCard";
 import ModalComponent from "../../components/shared/Modal";
 import { useAddCouponMutation, useGetAllCouponsQuery } from "../../store/services/api";
-import { TbCalendar, TbPlus } from "../../shared/icons/index";
+import { BsCardList, TbCalendar, TbPlus } from "../../shared/icons/index";
 
 const SECTION_CARD_SX = {
   borderRadius: "12px",
@@ -560,9 +560,14 @@ export default function PromoCodesPage() {
             flexWrap: "wrap",
           }}
         >
-          <Typography sx={{ fontSize: 22, fontWeight: 700, color: "#0F172A", letterSpacing: "-0.02em" }}>
-            Coupons
-          </Typography>
+          <Box className="flex items-center gap-x-5">
+            <Typography color="blue.50">
+              <BsCardList size="24px" color="blue.50" />
+            </Typography>
+            <Typography variant="h4" fontFamily={"Switzer"} color="grey.20">
+              Coupons
+            </Typography>
+          </Box>
           <ButtonBlue size="medium" startIcon={<TbPlus size={20} />} onClick={() => setCreateOpen(true)}>
             Create code
           </ButtonBlue>

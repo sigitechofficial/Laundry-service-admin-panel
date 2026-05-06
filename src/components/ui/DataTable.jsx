@@ -310,7 +310,7 @@ const DataTable = ({
                 height: 56, // Specifically for header
                 position: "sticky",
                 top: 0,
-                zIndex: 1200,
+                zIndex: 120,
                 backgroundColor: "#FAFAFA",
               },
               "& .MuiTableCell-stickyHeader": {
@@ -331,7 +331,7 @@ const DataTable = ({
                     <TableCell
                       key={col.field}
                       {...(isStickyLeft
-                        ? { style: { zIndex: 1400 + rank } }
+                        ? { style: { zIndex: 130 + rank } }
                         : {})}
                       onClick={() => handleSort(col.field)}
                       align={col.align || "left"}
@@ -409,7 +409,7 @@ const DataTable = ({
                         ...(isStickyLeft && {
                           position: "sticky",
                           left: stickyLeftOffsetPx(colIndex),
-                          zIndex: 1100 + rank,
+                          zIndex: 110 + rank,
                         }),
                       }}
                     >
