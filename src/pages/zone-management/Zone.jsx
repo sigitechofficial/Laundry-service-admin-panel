@@ -714,7 +714,11 @@ export default function ZoneManagement() {
       if (zoneId) {
         try {
           const zoneResponse = await fetchZoneById(zoneId, true).unwrap();
-          zone = zoneResponse?.data || rowZone;
+          // Keep row values as fallback because getZoneById can omit some optional fields.
+          zone = {
+            ...(rowZone || {}),
+            ...(zoneResponse?.data || {}),
+          };
         } catch (error) {
           console.error("Failed to fetch zone by id for edit:", error);
         }
@@ -748,7 +752,13 @@ export default function ZoneManagement() {
         zoneCurrency: selectedCurrency?.name || "",
         currencyUnitId: zone.currencyUnitId ? String(zone.currencyUnitId) : "",
         paymentMethod: normalizeZonePaymentMethod(
-          zone.paymentMethod ?? zone.payment_method
+          zone.paymentMethod ??
+            zone.payment_method ??
+            zone.paymentMehtod ??
+            zone.paymentMethods ??
+            zone.defaultPaymentMethod ??
+            rowZone?.paymentMethod ??
+            rowZone?.payment_method
         ),
         deliveryCharges: zone.serviceCharge ?? "",
         ExDeliveryCharges: "",
@@ -1060,11 +1070,6 @@ export default function ZoneManagement() {
         showError("Enter a valid zone commission percentage.");
         return;
       }
-      if (!add.paymentMethod || String(add.paymentMethod).trim() === "") {
-        showError("Please select a payment method.");
-        return;
-      }
-
       // Extract postcodes array from addedPostcodes
       const postcodes = addedPostcodes.map((pc) => pc.postcode);
 
@@ -1077,6 +1082,7 @@ export default function ZoneManagement() {
       // Keep existing distance unit in edit mode; default to 2 for new zones
       const distanceUnitId = parseInt(add.distanceUnitId) || 2;
 
+      const paymentMethodNormalized = normalizeZonePaymentMethod(add.paymentMethod);
       const zoneData = {
         name: zoneNameTrimmed,
         postcodes: postcodes,
@@ -1087,15 +1093,23 @@ export default function ZoneManagement() {
         serviceCharge: parseFloat(add.deliveryCharges) || 0,
         zoneAdminComission: zoneCommissionNum,
         zoneAdminId: add.zoneAdminId && add.zoneAdminId.trim() !== "" ? parseInt(add.zoneAdminId) : null,
-        status: true, // Default to active
-        paymentMethod: add.paymentMethod,
+        status: true, // create as active
+        ...(paymentMethodNormalized
+          ? { paymentMethod: paymentMethodNormalized }
+          : {}),
       };
 
       console.log("Zone data being sent:", zoneData);
       if (isEditMode && editingZoneId) {
+        // Any edit should reactivate the zone.
+        const editPayload = {
+          ...zoneData,
+          status: true,
+          isActive: true,
+        };
         const result = await editZoneByPostcodes({
           id: editingZoneId,
-          body: zoneData,
+          body: editPayload,
         }).unwrap();
         console.log("Zone updated successfully:", result);
         success("Zone updated successfully!");
@@ -1678,7 +1692,6 @@ export default function ZoneManagement() {
     const zoneCommissionNum = parseFloat(String(commRaw).trim());
     if (!Number.isFinite(zoneCommissionNum) || zoneCommissionNum < 0) return false;
 
-    if (!add.paymentMethod || String(add.paymentMethod).trim() === "") return false;
     if (!add.zoneCurrency || String(add.zoneCurrency).trim() === "") return false;
 
     return true;
@@ -1688,7 +1701,6 @@ export default function ZoneManagement() {
     add.zoneName,
     add.zoneMinimumAmount,
     add.zoneCommission,
-    add.paymentMethod,
     add.zoneCurrency,
     addedPostcodes.length,
   ]);
