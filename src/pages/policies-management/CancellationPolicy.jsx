@@ -1485,13 +1485,11 @@ export default function CancellationPolicy() {
                       name="currency"
                       control={control}
                       render={({ field: { value } }) => (
-                        <SelectField
+                        <InputFieldModal
                           title="Currency"
                           value={value ?? ""}
                           onChange={() => {}}
-                          options={currencyOptions}
                           placeholder={watchedZoneId ? "Set from zone" : "Select zone first"}
-                          fullWidth
                           disabled
                           tooltipText="Currency follows the selected zone. Change the zone to change currency."
                         />

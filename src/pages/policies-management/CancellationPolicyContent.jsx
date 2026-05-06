@@ -1669,13 +1669,11 @@ export default function CancellationPolicyContent() {
                     name="prePickupAbsoluteCurrency"
                     control={control}
                     render={({ field: { value } }) => (
-                      <SelectField
+                      <InputFieldModal
                         title="Currency"
                         value={value ?? ""}
                         onChange={() => {}}
-                        options={currencyOptions}
                         placeholder={watchedZoneId ? "Set from zone" : "Select zone first"}
-                        fullWidth
                         disabled
                         tooltipText="Currency follows the selected zone. Change the zone to change currency."
                       />
@@ -1760,13 +1758,11 @@ export default function CancellationPolicyContent() {
                     name="unprocessedAbsoluteCurrency"
                     control={control}
                     render={({ field: { value } }) => (
-                      <SelectField
+                      <InputFieldModal
                         title="Currency"
                         value={value ?? ""}
                         onChange={() => {}}
-                        options={currencyOptions}
                         placeholder={watchedZoneId ? "Set from zone" : "Select zone first"}
-                        fullWidth
                         disabled
                         tooltipText="Currency follows the selected zone. Change the zone to change currency."
                       />
