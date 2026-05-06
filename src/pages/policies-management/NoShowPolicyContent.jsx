@@ -623,7 +623,7 @@ export default function NoShowPolicyContent({
       null;
     return {
       id: policy.id,
-      sl: (pagination.page - 1) * pagination.limit + index + 1,
+      sl: (pagination.page - 1) * (pagination.limit || limit) + index + 1,
       name: policy.name,
       zoneId: policy.zoneId ?? null,
       zoneName,
@@ -1088,6 +1088,7 @@ export default function NoShowPolicyContent({
             setPage(1);
           }}
           onFiltersClick={() => setFilterModalOpen(true)}
+          stickyLeftFields={["sl", "zoneName"]}
         />
       </Box>
 

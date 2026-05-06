@@ -937,6 +937,7 @@ export default function ReschedulePolicyContent({
             setPage(1);
           }}
           onFiltersClick={() => setFilterModalOpen(true)}
+          stickyLeftFields={["sl", "zoneName"]}
         />
       </Box>
 

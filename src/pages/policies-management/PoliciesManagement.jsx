@@ -310,6 +310,7 @@ export default function PoliciesManagement() {
                     onDateRangeChange={handleDateChange}
                     onDownload={handleDownload}
                     height={600}
+                    stickyLeftFields={["sl", "zoneName"]}
                   />
                 </Box>
               </>

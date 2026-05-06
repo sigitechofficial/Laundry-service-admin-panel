@@ -51,6 +51,10 @@ const DataTable = ({
   /** Field names (e.g. `sl`, `zoneName`) that stay pinned on the left when scrolling horizontally */
   stickyLeftFields,
 }) => {
+  const tableRef = React.useRef(null);
+  /** Measured `<th>` width per sticky column field (includes padding); avoids overlap when layout is wider than `minWidth`. */
+  const [stickyColumnWidths, setStickyColumnWidths] = useState({});
+
   const [searchTerm, setSearchTerm] = useState("");
   const [dateRange, setDateRange] = useState(null);
   const [page, setPage] = useState(currentPage);
@@ -80,6 +84,44 @@ const DataTable = ({
       setDateRange(dateRangeValue);
     }
   }, [dateRangeValue]);
+
+  const fallbackStickyColumnWidthPx = (col) => {
+    const pad = 40; // pl + pr from "& .MuiTableCell-root"
+    const w = col?.minWidth;
+    const num =
+      typeof w === "number" ? w : parseInt(String(w ?? "80"), 10) || 80;
+    return num + pad;
+  };
+
+  const measureStickyHeaderWidths = React.useCallback(() => {
+    if (!stickyLeftFields?.length || !tableRef.current) return;
+    const theadTh = tableRef.current.querySelectorAll("thead tr th");
+    if (!theadTh.length) return;
+    setStickyColumnWidths((prev) => {
+      const merged = { ...prev };
+      let updated = false;
+      columns.forEach((col, i) => {
+        if (!stickyLeftFields.includes(col.field)) return;
+        const cell = theadTh[i];
+        const w = cell ? Math.round(cell.getBoundingClientRect().width) : 0;
+        if (w > 0 && merged[col.field] !== w) {
+          merged[col.field] = w;
+          updated = true;
+        }
+      });
+      return updated ? merged : prev;
+    });
+  }, [columns, stickyLeftFields]);
+
+  React.useLayoutEffect(() => {
+    if (!stickyLeftFields?.length) return;
+    const table = tableRef.current;
+    if (!table) return;
+    measureStickyHeaderWidths();
+    const ro = new ResizeObserver(() => measureStickyHeaderWidths());
+    ro.observe(table);
+    return () => ro.disconnect();
+  }, [measureStickyHeaderWidths, sortConfig.field, sortConfig.direction]);
 
   // filtering
   const filteredData = useMemo(() => {
@@ -137,17 +179,18 @@ const DataTable = ({
     });
   };
 
-  /** Left offset for a sticky column: sum widths of **previous sticky-only** columns (scrollable columns between them do not add). */
+  /** Left offset for a sticky column: sum **rendered** widths of previous sticky columns (from measured `<th>`, else fallback). */
   const stickyLeftOffsetPx = (colIndex) => {
     if (!stickyLeftFields?.length) return 0;
-    const pad = 40; // pl + pr from "& .MuiTableCell-root"
     let left = 0;
     for (let i = 0; i < colIndex; i++) {
       if (!stickyLeftFields.includes(columns[i]?.field)) continue;
-      const w = columns[i]?.minWidth;
-      const num =
-        typeof w === "number" ? w : parseInt(String(w ?? "80"), 10) || 80;
-      left += num + pad;
+      const field = columns[i].field;
+      const measured = stickyColumnWidths[field];
+      left +=
+        typeof measured === "number" && measured > 0
+          ? measured
+          : fallbackStickyColumnWidthPx(columns[i]);
     }
     return left;
   };
@@ -249,6 +292,7 @@ const DataTable = ({
           }}
         >
           <Table
+            ref={tableRef}
             stickyHeader
             sx={{
               minWidth: "max-content",
@@ -266,7 +310,11 @@ const DataTable = ({
                 height: 56, // Specifically for header
                 position: "sticky",
                 top: 0,
-                zIndex: 10,
+                zIndex: 1200,
+                backgroundColor: "#FAFAFA",
+              },
+              "& .MuiTableCell-stickyHeader": {
+                top: 0,
                 backgroundColor: "#FAFAFA",
               },
             }}
@@ -282,6 +330,9 @@ const DataTable = ({
                   return (
                     <TableCell
                       key={col.field}
+                      {...(isStickyLeft
+                        ? { style: { zIndex: 1400 + rank } }
+                        : {})}
                       onClick={() => handleSort(col.field)}
                       align={col.align || "left"}
                       sx={{
@@ -303,7 +354,6 @@ const DataTable = ({
                           position: "sticky",
                           left: stickyLeftOffsetPx(colIndex),
                           top: 0,
-                          zIndex: 11 + rank,
                         }),
                       }}
                     >
@@ -359,7 +409,7 @@ const DataTable = ({
                         ...(isStickyLeft && {
                           position: "sticky",
                           left: stickyLeftOffsetPx(colIndex),
-                          zIndex: 2 + rank,
+                          zIndex: 1100 + rank,
                         }),
                       }}
                     >

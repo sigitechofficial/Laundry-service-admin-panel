@@ -273,6 +273,7 @@ export default function OverallPolicies() {
                 onDownload={handleDownload}
                 onRowAction={handleRowAction}
                 height={600}
+                stickyLeftFields={["sl", "zoneName"]}
               />
             </Box>
           </Box>

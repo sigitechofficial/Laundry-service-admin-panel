@@ -9,7 +9,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\eslint.config.js",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_eslint_config_js",
-      "community": 103,
+      "community": 107,
       "norm_label": "eslint.config.js"
     },
     {
@@ -18,7 +18,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\laundryadmin.js",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_laundryadmin_js",
-      "community": 104,
+      "community": 108,
       "norm_label": "laundryadmin.js"
     },
     {
@@ -27,7 +27,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\vite.config.mjs",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_vite_config_mjs",
-      "community": 105,
+      "community": 109,
       "norm_label": "vite.config.mjs"
     },
     {
@@ -36,7 +36,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\public\\firebase-messaging-sw.js",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_public_firebase_messaging_sw_js",
-      "community": 106,
+      "community": 110,
       "norm_label": "firebase-messaging-sw.js"
     },
     {
@@ -45,7 +45,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\scripts\\sync-fcm-service-worker.mjs",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_scripts_sync_fcm_service_worker_mjs",
-      "community": 26,
+      "community": 29,
       "norm_label": "sync-fcm-service-worker.mjs"
     },
     {
@@ -54,7 +54,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\scripts\\sync-fcm-service-worker.mjs",
       "source_location": "L12",
       "id": "sync_fcm_service_worker_parseenvfile",
-      "community": 26,
+      "community": 29,
       "norm_label": "parseenvfile()"
     },
     {
@@ -63,7 +63,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\App.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_app_jsx",
-      "community": 27,
+      "community": 30,
       "norm_label": "app.jsx"
     },
     {
@@ -72,7 +72,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\App.jsx",
       "source_location": "L7",
       "id": "app_app",
-      "community": 27,
+      "community": 30,
       "norm_label": "app()"
     },
     {
@@ -81,7 +81,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\main.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_main_jsx",
-      "community": 107,
+      "community": 111,
       "norm_label": "main.jsx"
     },
     {
@@ -90,34 +90,34 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\components\\shared\\constants.js",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_components_shared_constants_js",
-      "community": 4,
+      "community": 5,
       "norm_label": "constants.js"
     },
     {
       "label": "labelToFeatureKey()",
       "file_type": "code",
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\components\\shared\\constants.js",
-      "source_location": "L222",
+      "source_location": "L241",
       "id": "constants_labeltofeaturekey",
-      "community": 4,
+      "community": 5,
       "norm_label": "labeltofeaturekey()"
     },
     {
       "label": "getSidebarPermissionSelectOptions()",
       "file_type": "code",
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\components\\shared\\constants.js",
-      "source_location": "L239",
+      "source_location": "L258",
       "id": "constants_getsidebarpermissionselectoptions",
-      "community": 4,
+      "community": 5,
       "norm_label": "getsidebarpermissionselectoptions()"
     },
     {
       "label": "getInitialSubmenuOpen()",
       "file_type": "code",
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\components\\shared\\constants.js",
-      "source_location": "L264",
+      "source_location": "L283",
       "id": "constants_getinitialsubmenuopen",
-      "community": 4,
+      "community": 5,
       "norm_label": "getinitialsubmenuopen()"
     },
     {
@@ -162,7 +162,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\components\\shared\\Layout.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_components_shared_layout_jsx",
-      "community": 28,
+      "community": 31,
       "norm_label": "layout.jsx"
     },
     {
@@ -171,7 +171,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\components\\shared\\Layout.jsx",
       "source_location": "L6",
       "id": "layout_layout",
-      "community": 28,
+      "community": 31,
       "norm_label": "layout()"
     },
     {
@@ -180,7 +180,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\components\\shared\\Loaders.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_components_shared_loaders_jsx",
-      "community": 12,
+      "community": 15,
       "norm_label": "loaders.jsx"
     },
     {
@@ -189,7 +189,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\components\\shared\\Loaders.jsx",
       "source_location": "L3",
       "id": "loaders_delay",
-      "community": 12,
+      "community": 15,
       "norm_label": "delay()"
     },
     {
@@ -198,7 +198,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\components\\shared\\Loaders.jsx",
       "source_location": "L15",
       "id": "loaders_delayfull",
-      "community": 12,
+      "community": 15,
       "norm_label": "delayfull()"
     },
     {
@@ -207,7 +207,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\components\\shared\\Loaders.jsx",
       "source_location": "L27",
       "id": "loaders_miniloader",
-      "community": 12,
+      "community": 15,
       "norm_label": "miniloader()"
     },
     {
@@ -216,7 +216,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\components\\shared\\Main.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_components_shared_main_jsx",
-      "community": 29,
+      "community": 32,
       "norm_label": "main.jsx"
     },
     {
@@ -225,7 +225,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\components\\shared\\Main.jsx",
       "source_location": "L6",
       "id": "main_main",
-      "community": 29,
+      "community": 32,
       "norm_label": "main()"
     },
     {
@@ -234,7 +234,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\components\\shared\\Modal.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_components_shared_modal_jsx",
-      "community": 30,
+      "community": 33,
       "norm_label": "modal.jsx"
     },
     {
@@ -243,7 +243,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\components\\shared\\Modal.jsx",
       "source_location": "L5",
       "id": "modal_modalcomponent",
-      "community": 30,
+      "community": 33,
       "norm_label": "modalcomponent()"
     },
     {
@@ -252,7 +252,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\components\\shared\\PrivateLayout.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_components_shared_privatelayout_jsx",
-      "community": 31,
+      "community": 34,
       "norm_label": "privatelayout.jsx"
     },
     {
@@ -261,7 +261,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\components\\shared\\PrivateLayout.jsx",
       "source_location": "L6",
       "id": "privatelayout_privatelayout",
-      "community": 31,
+      "community": 34,
       "norm_label": "privatelayout()"
     },
     {
@@ -288,7 +288,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\components\\ui\\ActionButtons.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_components_ui_actionbuttons_jsx",
-      "community": 32,
+      "community": 35,
       "norm_label": "actionbuttons.jsx"
     },
     {
@@ -297,7 +297,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\components\\ui\\ActionButtons.jsx",
       "source_location": "L5",
       "id": "actionbuttons_actionbuttons",
-      "community": 32,
+      "community": 35,
       "norm_label": "actionbuttons()"
     },
     {
@@ -306,7 +306,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\components\\ui\\AreaChart.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_components_ui_areachart_jsx",
-      "community": 33,
+      "community": 36,
       "norm_label": "areachart.jsx"
     },
     {
@@ -315,7 +315,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\components\\ui\\AreaChart.jsx",
       "source_location": "L27",
       "id": "areachart_areachart",
-      "community": 33,
+      "community": 36,
       "norm_label": "areachart()"
     },
     {
@@ -324,7 +324,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\components\\ui\\BlogEditor.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_components_ui_blogeditor_jsx",
-      "community": 34,
+      "community": 37,
       "norm_label": "blogeditor.jsx"
     },
     {
@@ -333,7 +333,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\components\\ui\\BlogEditor.jsx",
       "source_location": "L3",
       "id": "blogeditor_blogeditor",
-      "community": 34,
+      "community": 37,
       "norm_label": "blogeditor()"
     },
     {
@@ -342,7 +342,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\components\\ui\\ButtonBlue.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_components_ui_buttonblue_jsx",
-      "community": 35,
+      "community": 38,
       "norm_label": "buttonblue.jsx"
     },
     {
@@ -351,7 +351,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\components\\ui\\ButtonBlue.jsx",
       "source_location": "L4",
       "id": "buttonblue_buttonblue",
-      "community": 35,
+      "community": 38,
       "norm_label": "buttonblue()"
     },
     {
@@ -360,7 +360,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\components\\ui\\ButtonBlueLight.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_components_ui_buttonbluelight_jsx",
-      "community": 36,
+      "community": 39,
       "norm_label": "buttonbluelight.jsx"
     },
     {
@@ -369,7 +369,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\components\\ui\\ButtonBlueLight.jsx",
       "source_location": "L4",
       "id": "buttonbluelight_buttonbluelight",
-      "community": 36,
+      "community": 39,
       "norm_label": "buttonbluelight()"
     },
     {
@@ -378,7 +378,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\components\\ui\\ButtonWhite.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_components_ui_buttonwhite_jsx",
-      "community": 37,
+      "community": 40,
       "norm_label": "buttonwhite.jsx"
     },
     {
@@ -387,7 +387,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\components\\ui\\ButtonWhite.jsx",
       "source_location": "L10",
       "id": "buttonwhite_buttonwhite",
-      "community": 37,
+      "community": 40,
       "norm_label": "buttonwhite()"
     },
     {
@@ -396,7 +396,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\components\\ui\\constants.js",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_components_ui_constants_js",
-      "community": 38,
+      "community": 41,
       "norm_label": "constants.js"
     },
     {
@@ -405,7 +405,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\components\\ui\\constants.js",
       "source_location": "L3",
       "id": "constants_calculatedaterange",
-      "community": 38,
+      "community": 41,
       "norm_label": "calculatedaterange()"
     },
     {
@@ -414,7 +414,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\components\\ui\\DataTable.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_components_ui_datatable_jsx",
-      "community": 39,
+      "community": 42,
       "norm_label": "datatable.jsx"
     },
     {
@@ -423,7 +423,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\components\\ui\\DataTable.jsx",
       "source_location": "L29",
       "id": "datatable_datatable",
-      "community": 39,
+      "community": 42,
       "norm_label": "datatable()"
     },
     {
@@ -432,7 +432,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\components\\ui\\DateRangeSelector.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_components_ui_daterangeselector_jsx",
-      "community": 40,
+      "community": 43,
       "norm_label": "daterangeselector.jsx"
     },
     {
@@ -441,7 +441,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\components\\ui\\DateRangeSelector.jsx",
       "source_location": "L29",
       "id": "daterangeselector_daterangeselector",
-      "community": 40,
+      "community": 43,
       "norm_label": "daterangeselector()"
     },
     {
@@ -450,7 +450,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\components\\ui\\FiltersButton.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_components_ui_filtersbutton_jsx",
-      "community": 41,
+      "community": 44,
       "norm_label": "filtersbutton.jsx"
     },
     {
@@ -459,7 +459,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\components\\ui\\FiltersButton.jsx",
       "source_location": "L5",
       "id": "filtersbutton_filtersbutton",
-      "community": 41,
+      "community": 44,
       "norm_label": "filtersbutton()"
     },
     {
@@ -468,7 +468,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\components\\ui\\FormInputField.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_components_ui_forminputfield_jsx",
-      "community": 42,
+      "community": 45,
       "norm_label": "forminputfield.jsx"
     },
     {
@@ -477,7 +477,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\components\\ui\\FormInputField.jsx",
       "source_location": "L4",
       "id": "forminputfield_forminputfield",
-      "community": 42,
+      "community": 45,
       "norm_label": "forminputfield()"
     },
     {
@@ -486,7 +486,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\components\\ui\\HomeCards.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_components_ui_homecards_jsx",
-      "community": 43,
+      "community": 46,
       "norm_label": "homecards.jsx"
     },
     {
@@ -495,7 +495,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\components\\ui\\HomeCards.jsx",
       "source_location": "L1",
       "id": "homecards_homecards",
-      "community": 43,
+      "community": 46,
       "norm_label": "homecards()"
     },
     {
@@ -504,7 +504,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\components\\ui\\HomeMiniCards.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_components_ui_homeminicards_jsx",
-      "community": 44,
+      "community": 47,
       "norm_label": "homeminicards.jsx"
     },
     {
@@ -513,7 +513,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\components\\ui\\HomeMiniCards.jsx",
       "source_location": "L3",
       "id": "homeminicards_homeminicards",
-      "community": 44,
+      "community": 47,
       "norm_label": "homeminicards()"
     },
     {
@@ -522,7 +522,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\components\\ui\\HorizontalBarChart.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_components_ui_horizontalbarchart_jsx",
-      "community": 45,
+      "community": 48,
       "norm_label": "horizontalbarchart.jsx"
     },
     {
@@ -531,7 +531,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\components\\ui\\HorizontalBarChart.jsx",
       "source_location": "L23",
       "id": "horizontalbarchart_horizontalbarchart",
-      "community": 45,
+      "community": 48,
       "norm_label": "horizontalbarchart()"
     },
     {
@@ -540,7 +540,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\components\\ui\\ImageUpload.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_components_ui_imageupload_jsx",
-      "community": 46,
+      "community": 49,
       "norm_label": "imageupload.jsx"
     },
     {
@@ -549,7 +549,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\components\\ui\\ImageUpload.jsx",
       "source_location": "L4",
       "id": "imageupload_imageupload",
-      "community": 46,
+      "community": 49,
       "norm_label": "imageupload()"
     },
     {
@@ -558,7 +558,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\components\\ui\\InfoIcon.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_components_ui_infoicon_jsx",
-      "community": 47,
+      "community": 50,
       "norm_label": "infoicon.jsx"
     },
     {
@@ -567,7 +567,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\components\\ui\\InfoIcon.jsx",
       "source_location": "L4",
       "id": "infoicon_infoicon",
-      "community": 47,
+      "community": 50,
       "norm_label": "infoicon()"
     },
     {
@@ -576,7 +576,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\components\\ui\\InputFieldBordered.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_components_ui_inputfieldbordered_jsx",
-      "community": 108,
+      "community": 112,
       "norm_label": "inputfieldbordered.jsx"
     },
     {
@@ -585,7 +585,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\components\\ui\\InputFieldModal.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_components_ui_inputfieldmodal_jsx",
-      "community": 48,
+      "community": 51,
       "norm_label": "inputfieldmodal.jsx"
     },
     {
@@ -594,7 +594,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\components\\ui\\InputFieldModal.jsx",
       "source_location": "L6",
       "id": "inputfieldmodal_inputfieldmodal",
-      "community": 48,
+      "community": 51,
       "norm_label": "inputfieldmodal()"
     },
     {
@@ -603,7 +603,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\components\\ui\\LabelWithTooltip.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_components_ui_labelwithtooltip_jsx",
-      "community": 49,
+      "community": 52,
       "norm_label": "labelwithtooltip.jsx"
     },
     {
@@ -612,7 +612,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\components\\ui\\LabelWithTooltip.jsx",
       "source_location": "L4",
       "id": "labelwithtooltip_labelwithtooltip",
-      "community": 49,
+      "community": 52,
       "norm_label": "labelwithtooltip()"
     },
     {
@@ -621,7 +621,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\components\\ui\\PhoneNumberInput.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_components_ui_phonenumberinput_jsx",
-      "community": 17,
+      "community": 20,
       "norm_label": "phonenumberinput.jsx"
     },
     {
@@ -630,7 +630,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\components\\ui\\PhoneNumberInput.jsx",
       "source_location": "L15",
       "id": "phonenumberinput_customdropdownicon",
-      "community": 17,
+      "community": 20,
       "norm_label": "customdropdownicon()"
     },
     {
@@ -639,7 +639,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\components\\ui\\PhoneNumberInput.jsx",
       "source_location": "L26",
       "id": "phonenumberinput_phonenumberinput",
-      "community": 17,
+      "community": 20,
       "norm_label": "phonenumberinput()"
     },
     {
@@ -648,7 +648,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\components\\ui\\RichTextEditor.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_components_ui_richtexteditor_jsx",
-      "community": 18,
+      "community": 21,
       "norm_label": "richtexteditor.jsx"
     },
     {
@@ -657,7 +657,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\components\\ui\\RichTextEditor.jsx",
       "source_location": "L10",
       "id": "richtexteditor_menubutton",
-      "community": 18,
+      "community": 21,
       "norm_label": "menubutton()"
     },
     {
@@ -666,7 +666,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\components\\ui\\RichTextEditor.jsx",
       "source_location": "L26",
       "id": "richtexteditor_richtexteditor",
-      "community": 18,
+      "community": 21,
       "norm_label": "richtexteditor()"
     },
     {
@@ -675,7 +675,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\components\\ui\\Search.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_components_ui_search_jsx",
-      "community": 50,
+      "community": 53,
       "norm_label": "search.jsx"
     },
     {
@@ -684,7 +684,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\components\\ui\\Search.jsx",
       "source_location": "L3",
       "id": "search_search",
-      "community": 50,
+      "community": 53,
       "norm_label": "search()"
     },
     {
@@ -693,7 +693,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\components\\ui\\SearchBar.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_components_ui_searchbar_jsx",
-      "community": 51,
+      "community": 54,
       "norm_label": "searchbar.jsx"
     },
     {
@@ -702,7 +702,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\components\\ui\\SearchBar.jsx",
       "source_location": "L13",
       "id": "searchbar_searchbar",
-      "community": 51,
+      "community": 54,
       "norm_label": "searchbar()"
     },
     {
@@ -711,7 +711,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\components\\ui\\SelectField.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_components_ui_selectfield_jsx",
-      "community": 19,
+      "community": 22,
       "norm_label": "selectfield.jsx"
     },
     {
@@ -720,7 +720,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\components\\ui\\SelectField.jsx",
       "source_location": "L12",
       "id": "selectfield_customdropdownicon",
-      "community": 19,
+      "community": 22,
       "norm_label": "customdropdownicon()"
     },
     {
@@ -729,7 +729,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\components\\ui\\SelectField.jsx",
       "source_location": "L23",
       "id": "selectfield_selectfield",
-      "community": 19,
+      "community": 22,
       "norm_label": "selectfield()"
     },
     {
@@ -738,7 +738,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\components\\ui\\StatCard.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_components_ui_statcard_jsx",
-      "community": 52,
+      "community": 55,
       "norm_label": "statcard.jsx"
     },
     {
@@ -747,7 +747,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\components\\ui\\StatCard.jsx",
       "source_location": "L1",
       "id": "statcard_statcard",
-      "community": 52,
+      "community": 55,
       "norm_label": "statcard()"
     },
     {
@@ -756,7 +756,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\components\\ui\\StatusPill.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_components_ui_statuspill_jsx",
-      "community": 20,
+      "community": 23,
       "norm_label": "statuspill.jsx"
     },
     {
@@ -765,7 +765,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\components\\ui\\StatusPill.jsx",
       "source_location": "L3",
       "id": "statuspill_getstatuspill",
-      "community": 20,
+      "community": 23,
       "norm_label": "getstatuspill()"
     },
     {
@@ -774,7 +774,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\components\\ui\\StatusPill.jsx",
       "source_location": "L38",
       "id": "statuspill_statuspill",
-      "community": 20,
+      "community": 23,
       "norm_label": "statuspill()"
     },
     {
@@ -783,7 +783,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\components\\ui\\StyledCheckbox.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_components_ui_styledcheckbox_jsx",
-      "community": 53,
+      "community": 56,
       "norm_label": "styledcheckbox.jsx"
     },
     {
@@ -792,7 +792,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\components\\ui\\StyledCheckbox.jsx",
       "source_location": "L53",
       "id": "styledcheckbox_styledcheckbox",
-      "community": 53,
+      "community": 56,
       "norm_label": "styledcheckbox()"
     },
     {
@@ -801,7 +801,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\components\\ui\\Switch.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_components_ui_switch_jsx",
-      "community": 109,
+      "community": 113,
       "norm_label": "switch.jsx"
     },
     {
@@ -810,7 +810,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\components\\ui\\TabPanel.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_components_ui_tabpanel_jsx",
-      "community": 54,
+      "community": 57,
       "norm_label": "tabpanel.jsx"
     },
     {
@@ -819,7 +819,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\components\\ui\\TabPanel.jsx",
       "source_location": "L8",
       "id": "tabpanel_customtabs",
-      "community": 54,
+      "community": 57,
       "norm_label": "customtabs()"
     },
     {
@@ -828,7 +828,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\components\\ui\\TextArea.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_components_ui_textarea_jsx",
-      "community": 55,
+      "community": 58,
       "norm_label": "textarea.jsx"
     },
     {
@@ -837,7 +837,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\components\\ui\\TextArea.jsx",
       "source_location": "L3",
       "id": "textarea_textareafield",
-      "community": 55,
+      "community": 58,
       "norm_label": "textareafield()"
     },
     {
@@ -864,7 +864,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\hooks\\useAuth.js",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_hooks_useauth_js",
-      "community": 21,
+      "community": 0,
       "norm_label": "useauth.js"
     },
     {
@@ -873,7 +873,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\hooks\\useAuth.js",
       "source_location": "L6",
       "id": "useauth_setloginstatus",
-      "community": 21,
+      "community": 0,
       "norm_label": "setloginstatus()"
     },
     {
@@ -882,7 +882,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\hooks\\useAuth.js",
       "source_location": "L12",
       "id": "useauth_authcheck",
-      "community": 21,
+      "community": 0,
       "norm_label": "authcheck()"
     },
     {
@@ -891,7 +891,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\auth\\constant.js",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_pages_auth_constant_js",
-      "community": 110,
+      "community": 114,
       "norm_label": "constant.js"
     },
     {
@@ -918,7 +918,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\blogs\\AddBlogModal.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_pages_blogs_addblogmodal_jsx",
-      "community": 13,
+      "community": 16,
       "norm_label": "addblogmodal.jsx"
     },
     {
@@ -927,7 +927,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\blogs\\AddBlogModal.jsx",
       "source_location": "L22",
       "id": "addblogmodal_getimagedisplayurl",
-      "community": 13,
+      "community": 16,
       "norm_label": "getimagedisplayurl()"
     },
     {
@@ -936,7 +936,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\blogs\\AddBlogModal.jsx",
       "source_location": "L28",
       "id": "addblogmodal_getblogschema",
-      "community": 13,
+      "community": 16,
       "norm_label": "getblogschema()"
     },
     {
@@ -945,7 +945,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\blogs\\AddBlogModal.jsx",
       "source_location": "L52",
       "id": "addblogmodal_addblogmodal",
-      "community": 13,
+      "community": 16,
       "norm_label": "addblogmodal()"
     },
     {
@@ -990,7 +990,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\countries-cities\\CountriesAndCities.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_pages_countries_cities_countriesandcities_jsx",
-      "community": 56,
+      "community": 59,
       "norm_label": "countriesandcities.jsx"
     },
     {
@@ -999,7 +999,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\countries-cities\\CountriesAndCities.jsx",
       "source_location": "L4",
       "id": "countriesandcities_countriesandcities",
-      "community": 56,
+      "community": 59,
       "norm_label": "countriesandcities()"
     },
     {
@@ -1026,7 +1026,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\customer-management\\constants.js",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_pages_customer_management_constants_js",
-      "community": 111,
+      "community": 115,
       "norm_label": "constants.js"
     },
     {
@@ -1035,7 +1035,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\customer-management\\CustomerManagement.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_pages_customer_management_customermanagement_jsx",
-      "community": 57,
+      "community": 60,
       "norm_label": "customermanagement.jsx"
     },
     {
@@ -1044,7 +1044,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\customer-management\\CustomerManagement.jsx",
       "source_location": "L22",
       "id": "customermanagement_customermanagement",
-      "community": 57,
+      "community": 60,
       "norm_label": "customermanagement()"
     },
     {
@@ -1053,7 +1053,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\customer-management\\customer-details\\CustomerDetails.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_pages_customer_management_customer_details_customerdetails_jsx",
-      "community": 14,
+      "community": 17,
       "norm_label": "customerdetails.jsx"
     },
     {
@@ -1062,7 +1062,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\customer-management\\customer-details\\CustomerDetails.jsx",
       "source_location": "L54",
       "id": "customerdetails_statuschipsx",
-      "community": 14,
+      "community": 17,
       "norm_label": "statuschipsx()"
     },
     {
@@ -1071,7 +1071,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\customer-management\\customer-details\\CustomerDetails.jsx",
       "source_location": "L61",
       "id": "customerdetails_formatdate",
-      "community": 14,
+      "community": 17,
       "norm_label": "formatdate()"
     },
     {
@@ -1080,7 +1080,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\customer-management\\customer-details\\CustomerDetails.jsx",
       "source_location": "L63",
       "id": "customerdetails_customerdetails",
-      "community": 14,
+      "community": 17,
       "norm_label": "customerdetails()"
     },
     {
@@ -1107,7 +1107,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\customer-management\\customer-modals\\OrderInvoiceModal.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_pages_customer_management_customer_modals_orderinvoicemodal_jsx",
-      "community": 22,
+      "community": 24,
       "norm_label": "orderinvoicemodal.jsx"
     },
     {
@@ -1116,7 +1116,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\customer-management\\customer-modals\\OrderInvoiceModal.jsx",
       "source_location": "L4",
       "id": "orderinvoicemodal_invoicerow",
-      "community": 22,
+      "community": 24,
       "norm_label": "invoicerow()"
     },
     {
@@ -1125,7 +1125,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\customer-management\\customer-modals\\OrderInvoiceModal.jsx",
       "source_location": "L20",
       "id": "orderinvoicemodal_orderinvoicemodal",
-      "community": 22,
+      "community": 24,
       "norm_label": "orderinvoicemodal()"
     },
     {
@@ -1179,7 +1179,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\dashboard\\Dashboard.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_pages_dashboard_dashboard_jsx",
-      "community": 58,
+      "community": 61,
       "norm_label": "dashboard.jsx"
     },
     {
@@ -1188,7 +1188,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\dashboard\\Dashboard.jsx",
       "source_location": "L19",
       "id": "dashboard_dashboard",
-      "community": 58,
+      "community": 61,
       "norm_label": "dashboard()"
     },
     {
@@ -1197,7 +1197,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\dashboard\\DashboardFilter.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_pages_dashboard_dashboardfilter_jsx",
-      "community": 10,
+      "community": 13,
       "norm_label": "dashboardfilter.jsx"
     },
     {
@@ -1206,7 +1206,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\dashboard\\DashboardFilter.jsx",
       "source_location": "L17",
       "id": "dashboardfilter_normalizezones",
-      "community": 10,
+      "community": 13,
       "norm_label": "normalizezones()"
     },
     {
@@ -1215,7 +1215,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\dashboard\\DashboardFilter.jsx",
       "source_location": "L24",
       "id": "dashboardfilter_normalizecountries",
-      "community": 10,
+      "community": 13,
       "norm_label": "normalizecountries()"
     },
     {
@@ -1224,7 +1224,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\dashboard\\DashboardFilter.jsx",
       "source_location": "L29",
       "id": "dashboardfilter_normalizecities",
-      "community": 10,
+      "community": 13,
       "norm_label": "normalizecities()"
     },
     {
@@ -1233,7 +1233,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\dashboard\\DashboardFilter.jsx",
       "source_location": "L34",
       "id": "dashboardfilter_dashboardfilter",
-      "community": 10,
+      "community": 13,
       "norm_label": "dashboardfilter()"
     },
     {
@@ -1242,7 +1242,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\dashboard\\OrderManagementChart.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_pages_dashboard_ordermanagementchart_jsx",
-      "community": 59,
+      "community": 62,
       "norm_label": "ordermanagementchart.jsx"
     },
     {
@@ -1251,7 +1251,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\dashboard\\OrderManagementChart.jsx",
       "source_location": "L39",
       "id": "ordermanagementchart_ordermanagementchart",
-      "community": 59,
+      "community": 62,
       "norm_label": "ordermanagementchart()"
     },
     {
@@ -1278,7 +1278,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\driver-management\\DriverManagement.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_pages_driver_management_drivermanagement_jsx",
-      "community": 60,
+      "community": 63,
       "norm_label": "drivermanagement.jsx"
     },
     {
@@ -1287,7 +1287,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\driver-management\\DriverManagement.jsx",
       "source_location": "L24",
       "id": "drivermanagement_drivermanagement",
-      "community": 60,
+      "community": 63,
       "norm_label": "drivermanagement()"
     },
     {
@@ -1314,7 +1314,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\driver-management\\NewDriverModal.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_pages_driver_management_newdrivermodal_jsx",
-      "community": 23,
+      "community": 0,
       "norm_label": "newdrivermodal.jsx"
     },
     {
@@ -1323,7 +1323,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\driver-management\\NewDriverModal.jsx",
       "source_location": "L15",
       "id": "newdrivermodal_createdriverschema",
-      "community": 23,
+      "community": 0,
       "norm_label": "createdriverschema()"
     },
     {
@@ -1332,7 +1332,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\driver-management\\NewDriverModal.jsx",
       "source_location": "L54",
       "id": "newdrivermodal_newdrivermodal",
-      "community": 23,
+      "community": 0,
       "norm_label": "newdrivermodal()"
     },
     {
@@ -1341,7 +1341,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\driver-management\\driver-details\\DriverDetails.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_pages_driver_management_driver_details_driverdetails_jsx",
-      "community": 61,
+      "community": 64,
       "norm_label": "driverdetails.jsx"
     },
     {
@@ -1350,7 +1350,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\driver-management\\driver-details\\DriverDetails.jsx",
       "source_location": "L26",
       "id": "driverdetails_driverdetails",
-      "community": 61,
+      "community": 64,
       "norm_label": "driverdetails()"
     },
     {
@@ -1359,7 +1359,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\employee-management\\EmployeeManagement.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_pages_employee_management_employeemanagement_jsx",
-      "community": 62,
+      "community": 65,
       "norm_label": "employeemanagement.jsx"
     },
     {
@@ -1368,7 +1368,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\employee-management\\EmployeeManagement.jsx",
       "source_location": "L17",
       "id": "employeemanagement_employeemanagement",
-      "community": 62,
+      "community": 65,
       "norm_label": "employeemanagement()"
     },
     {
@@ -1395,7 +1395,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\employee-management\\employee-details\\EmployeeDetails.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_pages_employee_management_employee_details_employeedetails_jsx",
-      "community": 63,
+      "community": 66,
       "norm_label": "employeedetails.jsx"
     },
     {
@@ -1404,7 +1404,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\employee-management\\employee-details\\EmployeeDetails.jsx",
       "source_location": "L15",
       "id": "employeedetails_employeedetails",
-      "community": 63,
+      "community": 66,
       "norm_label": "employeedetails()"
     },
     {
@@ -1413,7 +1413,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\employee-management\\employee-modals\\AddEmployeeModal.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_pages_employee_management_employee_modals_addemployeemodal_jsx",
-      "community": 0,
+      "community": 18,
       "norm_label": "addemployeemodal.jsx"
     },
     {
@@ -1422,7 +1422,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\employee-management\\employee-modals\\AddEmployeeModal.jsx",
       "source_location": "L22",
       "id": "addemployeemodal_iszoneadminrole",
-      "community": 0,
+      "community": 18,
       "norm_label": "iszoneadminrole()"
     },
     {
@@ -1431,7 +1431,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\employee-management\\employee-modals\\AddEmployeeModal.jsx",
       "source_location": "L86",
       "id": "addemployeemodal_getdefaultsfromemployee",
-      "community": 0,
+      "community": 18,
       "norm_label": "getdefaultsfromemployee()"
     },
     {
@@ -1440,7 +1440,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\employee-management\\employee-modals\\AddEmployeeModal.jsx",
       "source_location": "L111",
       "id": "addemployeemodal_addemployeemodal",
-      "community": 0,
+      "community": 18,
       "norm_label": "addemployeemodal()"
     },
     {
@@ -1467,7 +1467,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\faq\\AddFAQModal.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_pages_faq_addfaqmodal_jsx",
-      "community": 24,
+      "community": 25,
       "norm_label": "addfaqmodal.jsx"
     },
     {
@@ -1476,7 +1476,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\faq\\AddFAQModal.jsx",
       "source_location": "L43",
       "id": "addfaqmodal_geticonvalue",
-      "community": 24,
+      "community": 25,
       "norm_label": "geticonvalue()"
     },
     {
@@ -1485,7 +1485,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\faq\\AddFAQModal.jsx",
       "source_location": "L51",
       "id": "addfaqmodal_addfaqmodal",
-      "community": 24,
+      "community": 25,
       "norm_label": "addfaqmodal()"
     },
     {
@@ -1512,16 +1512,16 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\order-management\\all-orders\\AllOrders.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_pages_order_management_all_orders_allorders_jsx",
-      "community": 64,
+      "community": 67,
       "norm_label": "allorders.jsx"
     },
     {
       "label": "ShopManagement()",
       "file_type": "code",
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\order-management\\all-orders\\AllOrders.jsx",
-      "source_location": "L17",
+      "source_location": "L22",
       "id": "allorders_shopmanagement",
-      "community": 64,
+      "community": 67,
       "norm_label": "shopmanagement()"
     },
     {
@@ -1530,16 +1530,16 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\order-management\\cancelled-orders\\CancelledOrder.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_pages_order_management_cancelled_orders_cancelledorder_jsx",
-      "community": 65,
+      "community": 68,
       "norm_label": "cancelledorder.jsx"
     },
     {
       "label": "CancelledOrders()",
       "file_type": "code",
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\order-management\\cancelled-orders\\CancelledOrder.jsx",
-      "source_location": "L17",
+      "source_location": "L22",
       "id": "cancelledorder_cancelledorders",
-      "community": 65,
+      "community": 68,
       "norm_label": "cancelledorders()"
     },
     {
@@ -1548,16 +1548,16 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\order-management\\complete-orders\\CompleteOrders.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_pages_order_management_complete_orders_completeorders_jsx",
-      "community": 66,
+      "community": 69,
       "norm_label": "completeorders.jsx"
     },
     {
       "label": "CompleteOrders()",
       "file_type": "code",
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\order-management\\complete-orders\\CompleteOrders.jsx",
-      "source_location": "L17",
+      "source_location": "L22",
       "id": "completeorders_completeorders",
-      "community": 66,
+      "community": 69,
       "norm_label": "completeorders()"
     },
     {
@@ -1566,7 +1566,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\order-management\\edit-order\\AddItemModal.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_pages_order_management_edit_order_additemmodal_jsx",
-      "community": 67,
+      "community": 70,
       "norm_label": "additemmodal.jsx"
     },
     {
@@ -1575,7 +1575,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\order-management\\edit-order\\AddItemModal.jsx",
       "source_location": "L21",
       "id": "additemmodal_additemmodal",
-      "community": 67,
+      "community": 70,
       "norm_label": "additemmodal()"
     },
     {
@@ -1584,16 +1584,61 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\order-management\\edit-order\\EditOrder.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_pages_order_management_edit_order_editorder_jsx",
-      "community": 0,
+      "community": 10,
       "norm_label": "editorder.jsx"
+    },
+    {
+      "label": "getOrderLaundryShopId()",
+      "file_type": "code",
+      "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\order-management\\edit-order\\EditOrder.jsx",
+      "source_location": "L42",
+      "id": "editorder_getorderlaundryshopid",
+      "community": 10,
+      "norm_label": "getorderlaundryshopid()"
+    },
+    {
+      "label": "coerceSelectValue()",
+      "file_type": "code",
+      "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\order-management\\edit-order\\EditOrder.jsx",
+      "source_location": "L63",
+      "id": "editorder_coerceselectvalue",
+      "community": 10,
+      "norm_label": "coerceselectvalue()"
+    },
+    {
+      "label": "editOrderItemCategoryKey()",
+      "file_type": "code",
+      "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\order-management\\edit-order\\EditOrder.jsx",
+      "source_location": "L73",
+      "id": "editorder_editorderitemcategorykey",
+      "community": 10,
+      "norm_label": "editorderitemcategorykey()"
+    },
+    {
+      "label": "editOrderCategoryTabLabel()",
+      "file_type": "code",
+      "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\order-management\\edit-order\\EditOrder.jsx",
+      "source_location": "L83",
+      "id": "editorder_editordercategorytablabel",
+      "community": 10,
+      "norm_label": "editordercategorytablabel()"
+    },
+    {
+      "label": "resolveEditOrderItemServiceId()",
+      "file_type": "code",
+      "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\order-management\\edit-order\\EditOrder.jsx",
+      "source_location": "L92",
+      "id": "editorder_resolveeditorderitemserviceid",
+      "community": 10,
+      "norm_label": "resolveeditorderitemserviceid()"
     },
     {
       "label": "EditOrder()",
       "file_type": "code",
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\order-management\\edit-order\\EditOrder.jsx",
-      "source_location": "L33",
+      "source_location": "L102",
       "id": "editorder_editorder",
-      "community": 0,
+      "community": 10,
       "norm_label": "editorder()"
     },
     {
@@ -1602,16 +1647,16 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\order-management\\on-hold-orders\\OnHoldOrders.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_pages_order_management_on_hold_orders_onholdorders_jsx",
-      "community": 68,
+      "community": 71,
       "norm_label": "onholdorders.jsx"
     },
     {
       "label": "OnHoldOrders()",
       "file_type": "code",
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\order-management\\on-hold-orders\\OnHoldOrders.jsx",
-      "source_location": "L17",
+      "source_location": "L22",
       "id": "onholdorders_onholdorders",
-      "community": 68,
+      "community": 71,
       "norm_label": "onholdorders()"
     },
     {
@@ -1737,16 +1782,16 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\order-management\\pending-orders\\PendingOrders.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_pages_order_management_pending_orders_pendingorders_jsx",
-      "community": 69,
+      "community": 72,
       "norm_label": "pendingorders.jsx"
     },
     {
       "label": "PendingOrders()",
       "file_type": "code",
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\order-management\\pending-orders\\PendingOrders.jsx",
-      "source_location": "L19",
+      "source_location": "L24",
       "id": "pendingorders_pendingorders",
-      "community": 69,
+      "community": 72,
       "norm_label": "pendingorders()"
     },
     {
@@ -1755,7 +1800,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\policies-management\\CancellationPolicy.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_pages_policies_management_cancellationpolicy_jsx",
-      "community": 15,
+      "community": 0,
       "norm_label": "cancellationpolicy.jsx"
     },
     {
@@ -1764,7 +1809,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\policies-management\\CancellationPolicy.jsx",
       "source_location": "L56",
       "id": "cancellationpolicy_parsecancellationpoliciespayload",
-      "community": 15,
+      "community": 0,
       "norm_label": "parsecancellationpoliciespayload()"
     },
     {
@@ -1773,7 +1818,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\policies-management\\CancellationPolicy.jsx",
       "source_location": "L65",
       "id": "cancellationpolicy_ispolicyconsideredactive",
-      "community": 15,
+      "community": 0,
       "norm_label": "ispolicyconsideredactive()"
     },
     {
@@ -1782,7 +1827,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\policies-management\\CancellationPolicy.jsx",
       "source_location": "L75",
       "id": "cancellationpolicy_cancellationpolicy",
-      "community": 15,
+      "community": 0,
       "norm_label": "cancellationpolicy()"
     },
     {
@@ -1791,7 +1836,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\policies-management\\CancellationPolicyContent.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_pages_policies_management_cancellationpolicycontent_jsx",
-      "community": 16,
+      "community": 19,
       "norm_label": "cancellationpolicycontent.jsx"
     },
     {
@@ -1800,7 +1845,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\policies-management\\CancellationPolicyContent.jsx",
       "source_location": "L49",
       "id": "cancellationpolicycontent_parsecancellationpoliciespayload",
-      "community": 16,
+      "community": 19,
       "norm_label": "parsecancellationpoliciespayload()"
     },
     {
@@ -1809,7 +1854,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\policies-management\\CancellationPolicyContent.jsx",
       "source_location": "L57",
       "id": "cancellationpolicycontent_ispolicyconsideredactive",
-      "community": 16,
+      "community": 19,
       "norm_label": "ispolicyconsideredactive()"
     },
     {
@@ -1818,7 +1863,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\policies-management\\CancellationPolicyContent.jsx",
       "source_location": "L67",
       "id": "cancellationpolicycontent_cancellationpolicycontent",
-      "community": 16,
+      "community": 19,
       "norm_label": "cancellationpolicycontent()"
     },
     {
@@ -1827,7 +1872,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\policies-management\\NoShowPolicy.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_pages_policies_management_noshowpolicy_jsx",
-      "community": 70,
+      "community": 73,
       "norm_label": "noshowpolicy.jsx"
     },
     {
@@ -1836,7 +1881,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\policies-management\\NoShowPolicy.jsx",
       "source_location": "L10",
       "id": "noshowpolicy_noshowpolicy",
-      "community": 70,
+      "community": 73,
       "norm_label": "noshowpolicy()"
     },
     {
@@ -1845,7 +1890,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\policies-management\\NoShowPolicyContent.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_pages_policies_management_noshowpolicycontent_jsx",
-      "community": 9,
+      "community": 12,
       "norm_label": "noshowpolicycontent.jsx"
     },
     {
@@ -1854,7 +1899,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\policies-management\\NoShowPolicyContent.jsx",
       "source_location": "L38",
       "id": "noshowpolicycontent_noshowpolicycontent",
-      "community": 9,
+      "community": 12,
       "norm_label": "noshowpolicycontent()"
     },
     {
@@ -1863,7 +1908,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\policies-management\\NoShowPolicyTestCases.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_pages_policies_management_noshowpolicytestcases_jsx",
-      "community": 71,
+      "community": 74,
       "norm_label": "noshowpolicytestcases.jsx"
     },
     {
@@ -1872,7 +1917,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\policies-management\\NoShowPolicyTestCases.jsx",
       "source_location": "L23",
       "id": "noshowpolicytestcases_noshowpolicytestcases",
-      "community": 71,
+      "community": 74,
       "norm_label": "noshowpolicytestcases()"
     },
     {
@@ -1881,7 +1926,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\policies-management\\OverallPolicies.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_pages_policies_management_overallpolicies_jsx",
-      "community": 72,
+      "community": 75,
       "norm_label": "overallpolicies.jsx"
     },
     {
@@ -1890,7 +1935,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\policies-management\\OverallPolicies.jsx",
       "source_location": "L12",
       "id": "overallpolicies_overallpolicies",
-      "community": 72,
+      "community": 75,
       "norm_label": "overallpolicies()"
     },
     {
@@ -1899,7 +1944,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\policies-management\\PoliciesManagement.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_pages_policies_management_policiesmanagement_jsx",
-      "community": 73,
+      "community": 76,
       "norm_label": "policiesmanagement.jsx"
     },
     {
@@ -1908,7 +1953,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\policies-management\\PoliciesManagement.jsx",
       "source_location": "L16",
       "id": "policiesmanagement_policiesmanagement",
-      "community": 73,
+      "community": 76,
       "norm_label": "policiesmanagement()"
     },
     {
@@ -1917,7 +1962,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\policies-management\\ReschedulePolicy.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_pages_policies_management_reschedulepolicy_jsx",
-      "community": 74,
+      "community": 77,
       "norm_label": "reschedulepolicy.jsx"
     },
     {
@@ -1926,7 +1971,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\policies-management\\ReschedulePolicy.jsx",
       "source_location": "L9",
       "id": "reschedulepolicy_reschedulepolicy",
-      "community": 74,
+      "community": 77,
       "norm_label": "reschedulepolicy()"
     },
     {
@@ -1935,7 +1980,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\policies-management\\ReschedulePolicyContent.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_pages_policies_management_reschedulepolicycontent_jsx",
-      "community": 9,
+      "community": 12,
       "norm_label": "reschedulepolicycontent.jsx"
     },
     {
@@ -1944,8 +1989,89 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\policies-management\\ReschedulePolicyContent.jsx",
       "source_location": "L37",
       "id": "reschedulepolicycontent_reschedulepolicycontent",
-      "community": 9,
+      "community": 12,
       "norm_label": "reschedulepolicycontent()"
+    },
+    {
+      "label": "PromoCodesPage.jsx",
+      "file_type": "code",
+      "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\promotion\\PromoCodesPage.jsx",
+      "source_location": "L1",
+      "id": "d_laundary_admin_laundry_service_admin_panel_src_pages_promotion_promocodespage_jsx",
+      "community": 6,
+      "norm_label": "promocodespage.jsx"
+    },
+    {
+      "label": "initialPromoForm()",
+      "file_type": "code",
+      "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\promotion\\PromoCodesPage.jsx",
+      "source_location": "L77",
+      "id": "promocodespage_initialpromoform",
+      "community": 6,
+      "norm_label": "initialpromoform()"
+    },
+    {
+      "label": "parseOptionalInt()",
+      "file_type": "code",
+      "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\promotion\\PromoCodesPage.jsx",
+      "source_location": "L92",
+      "id": "promocodespage_parseoptionalint",
+      "community": 6,
+      "norm_label": "parseoptionalint()"
+    },
+    {
+      "label": "parseOptionalDecimal()",
+      "file_type": "code",
+      "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\promotion\\PromoCodesPage.jsx",
+      "source_location": "L99",
+      "id": "promocodespage_parseoptionaldecimal",
+      "community": 6,
+      "norm_label": "parseoptionaldecimal()"
+    },
+    {
+      "label": "formatMoney()",
+      "file_type": "code",
+      "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\promotion\\PromoCodesPage.jsx",
+      "source_location": "L106",
+      "id": "promocodespage_formatmoney",
+      "community": 6,
+      "norm_label": "formatmoney()"
+    },
+    {
+      "label": "rowFromPayload()",
+      "file_type": "code",
+      "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\promotion\\PromoCodesPage.jsx",
+      "source_location": "L111",
+      "id": "promocodespage_rowfrompayload",
+      "community": 6,
+      "norm_label": "rowfrompayload()"
+    },
+    {
+      "label": "extractCouponsData()",
+      "file_type": "code",
+      "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\promotion\\PromoCodesPage.jsx",
+      "source_location": "L133",
+      "id": "promocodespage_extractcouponsdata",
+      "community": 6,
+      "norm_label": "extractcouponsdata()"
+    },
+    {
+      "label": "CreatePromoCodeForm()",
+      "file_type": "code",
+      "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\promotion\\PromoCodesPage.jsx",
+      "source_location": "L165",
+      "id": "promocodespage_createpromocodeform",
+      "community": 6,
+      "norm_label": "createpromocodeform()"
+    },
+    {
+      "label": "PromoCodesPage()",
+      "file_type": "code",
+      "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\promotion\\PromoCodesPage.jsx",
+      "source_location": "L392",
+      "id": "promocodespage_promocodespage",
+      "community": 6,
+      "norm_label": "promocodespage()"
     },
     {
       "label": "DailyEarningReport.jsx",
@@ -2034,7 +2160,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\reports\\Reports.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_pages_reports_reports_jsx",
-      "community": 75,
+      "community": 78,
       "norm_label": "reports.jsx"
     },
     {
@@ -2043,7 +2169,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\reports\\Reports.jsx",
       "source_location": "L18",
       "id": "reports_reports",
-      "community": 75,
+      "community": 78,
       "norm_label": "reports()"
     },
     {
@@ -2052,7 +2178,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\reports\\ReportsLayout.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_pages_reports_reportslayout_jsx",
-      "community": 76,
+      "community": 79,
       "norm_label": "reportslayout.jsx"
     },
     {
@@ -2061,7 +2187,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\reports\\ReportsLayout.jsx",
       "source_location": "L30",
       "id": "reportslayout_reportslayout",
-      "community": 76,
+      "community": 79,
       "norm_label": "reportslayout()"
     },
     {
@@ -2124,7 +2250,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\role-permission\\RolePermission.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_pages_role_permission_rolepermission_jsx",
-      "community": 8,
+      "community": 11,
       "norm_label": "rolepermission.jsx"
     },
     {
@@ -2133,7 +2259,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\role-permission\\RolePermission.jsx",
       "source_location": "L44",
       "id": "rolepermission_pretty",
-      "community": 8,
+      "community": 11,
       "norm_label": "pretty()"
     },
     {
@@ -2142,7 +2268,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\role-permission\\RolePermission.jsx",
       "source_location": "L51",
       "id": "rolepermission_extractlist",
-      "community": 8,
+      "community": 11,
       "norm_label": "extractlist()"
     },
     {
@@ -2151,7 +2277,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\role-permission\\RolePermission.jsx",
       "source_location": "L65",
       "id": "rolepermission_normalizefeatureoptions",
-      "community": 8,
+      "community": 11,
       "norm_label": "normalizefeatureoptions()"
     },
     {
@@ -2160,7 +2286,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\role-permission\\RolePermission.jsx",
       "source_location": "L84",
       "id": "rolepermission_emptyactions",
-      "community": 8,
+      "community": 11,
       "norm_label": "emptyactions()"
     },
     {
@@ -2169,7 +2295,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\role-permission\\RolePermission.jsx",
       "source_location": "L87",
       "id": "rolepermission_pickcrud",
-      "community": 8,
+      "community": 11,
       "norm_label": "pickcrud()"
     },
     {
@@ -2178,8 +2304,53 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\role-permission\\RolePermission.jsx",
       "source_location": "L94",
       "id": "rolepermission_rolepermission",
-      "community": 8,
+      "community": 11,
       "norm_label": "rolepermission()"
+    },
+    {
+      "label": "AddOnServicesCard.jsx",
+      "file_type": "code",
+      "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\services-management\\AddOnServicesCard.jsx",
+      "source_location": "L1",
+      "id": "d_laundary_admin_laundry_service_admin_panel_src_pages_services_management_addonservicescard_jsx",
+      "community": 0,
+      "norm_label": "addonservicescard.jsx"
+    },
+    {
+      "label": "formatGbp()",
+      "file_type": "code",
+      "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\services-management\\AddOnServicesCard.jsx",
+      "source_location": "L25",
+      "id": "addonservicescard_formatgbp",
+      "community": 0,
+      "norm_label": "formatgbp()"
+    },
+    {
+      "label": "AddOnServicesCard()",
+      "file_type": "code",
+      "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\services-management\\AddOnServicesCard.jsx",
+      "source_location": "L33",
+      "id": "addonservicescard_addonservicescard",
+      "community": 0,
+      "norm_label": "addonservicescard()"
+    },
+    {
+      "label": "AddOnServicesPage.jsx",
+      "file_type": "code",
+      "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\services-management\\AddOnServicesPage.jsx",
+      "source_location": "L1",
+      "id": "d_laundary_admin_laundry_service_admin_panel_src_pages_services_management_addonservicespage_jsx",
+      "community": 80,
+      "norm_label": "addonservicespage.jsx"
+    },
+    {
+      "label": "AddOnServicesPage()",
+      "file_type": "code",
+      "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\services-management\\AddOnServicesPage.jsx",
+      "source_location": "L6",
+      "id": "addonservicespage_addonservicespage",
+      "community": 80,
+      "norm_label": "addonservicespage()"
     },
     {
       "label": "CategoriesPage.jsx",
@@ -2187,7 +2358,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\services-management\\CategoriesPage.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_pages_services_management_categoriespage_jsx",
-      "community": 77,
+      "community": 81,
       "norm_label": "categoriespage.jsx"
     },
     {
@@ -2196,7 +2367,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\services-management\\CategoriesPage.jsx",
       "source_location": "L6",
       "id": "categoriespage_categoriespage",
-      "community": 77,
+      "community": 81,
       "norm_label": "categoriespage()"
     },
     {
@@ -2205,7 +2376,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\services-management\\ConfigureService.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_pages_services_management_configureservice_jsx",
-      "community": 78,
+      "community": 82,
       "norm_label": "configureservice.jsx"
     },
     {
@@ -2214,7 +2385,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\services-management\\ConfigureService.jsx",
       "source_location": "L9",
       "id": "configureservice_configureservice",
-      "community": 78,
+      "community": 82,
       "norm_label": "configureservice()"
     },
     {
@@ -2223,7 +2394,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\services-management\\ConfigureServiceOptions.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_pages_services_management_configureserviceoptions_jsx",
-      "community": 79,
+      "community": 83,
       "norm_label": "configureserviceoptions.jsx"
     },
     {
@@ -2232,7 +2403,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\services-management\\ConfigureServiceOptions.jsx",
       "source_location": "L5",
       "id": "configureserviceoptions_configureserviceoptions",
-      "community": 79,
+      "community": 83,
       "norm_label": "configureserviceoptions()"
     },
     {
@@ -2241,7 +2412,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\services-management\\ConfigureServicesPage.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_pages_services_management_configureservicespage_jsx",
-      "community": 80,
+      "community": 84,
       "norm_label": "configureservicespage.jsx"
     },
     {
@@ -2250,7 +2421,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\services-management\\ConfigureServicesPage.jsx",
       "source_location": "L6",
       "id": "configureservicespage_configureservicespage",
-      "community": 80,
+      "community": 84,
       "norm_label": "configureservicespage()"
     },
     {
@@ -2259,7 +2430,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\services-management\\constants.js",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_pages_services_management_constants_js",
-      "community": 112,
+      "community": 116,
       "norm_label": "constants.js"
     },
     {
@@ -2290,10 +2461,28 @@
       "norm_label": "preferencescard.jsx"
     },
     {
+      "label": "readParentPreferenceTypeId()",
+      "file_type": "code",
+      "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\services-management\\PreferencesCard.jsx",
+      "source_location": "L37",
+      "id": "preferencescard_readparentpreferencetypeid",
+      "community": 0,
+      "norm_label": "readparentpreferencetypeid()"
+    },
+    {
+      "label": "isWashTypePreferenceName()",
+      "file_type": "code",
+      "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\services-management\\PreferencesCard.jsx",
+      "source_location": "L46",
+      "id": "preferencescard_iswashtypepreferencename",
+      "community": 0,
+      "norm_label": "iswashtypepreferencename()"
+    },
+    {
       "label": "PreferencesCard()",
       "file_type": "code",
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\services-management\\PreferencesCard.jsx",
-      "source_location": "L35",
+      "source_location": "L52",
       "id": "preferencescard_preferencescard",
       "community": 0,
       "norm_label": "preferencescard()"
@@ -2304,7 +2493,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\services-management\\PreferencesPage.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_pages_services_management_preferencespage_jsx",
-      "community": 81,
+      "community": 85,
       "norm_label": "preferencespage.jsx"
     },
     {
@@ -2313,7 +2502,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\services-management\\PreferencesPage.jsx",
       "source_location": "L6",
       "id": "preferencespage_preferencespage",
-      "community": 81,
+      "community": 85,
       "norm_label": "preferencespage()"
     },
     {
@@ -2322,7 +2511,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\services-management\\ServiceDashboard.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_pages_services_management_servicedashboard_jsx",
-      "community": 0,
+      "community": 26,
       "norm_label": "servicedashboard.jsx"
     },
     {
@@ -2331,7 +2520,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\services-management\\ServiceDashboard.jsx",
       "source_location": "L54",
       "id": "servicedashboard_getserviceicon",
-      "community": 0,
+      "community": 26,
       "norm_label": "getserviceicon()"
     },
     {
@@ -2340,7 +2529,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\services-management\\ServiceDashboard.jsx",
       "source_location": "L60",
       "id": "servicedashboard_servicedashboard",
-      "community": 0,
+      "community": 26,
       "norm_label": "servicedashboard()"
     },
     {
@@ -2349,7 +2538,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\services-management\\ServiceDashboardPage.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_pages_services_management_servicedashboardpage_jsx",
-      "community": 82,
+      "community": 86,
       "norm_label": "servicedashboardpage.jsx"
     },
     {
@@ -2358,7 +2547,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\services-management\\ServiceDashboardPage.jsx",
       "source_location": "L3",
       "id": "servicedashboardpage_servicedashboardpage",
-      "community": 82,
+      "community": 86,
       "norm_label": "servicedashboardpage()"
     },
     {
@@ -2367,7 +2556,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\services-management\\ServiceManagement.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_pages_services_management_servicemanagement_jsx",
-      "community": 83,
+      "community": 87,
       "norm_label": "servicemanagement.jsx"
     },
     {
@@ -2376,7 +2565,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\services-management\\ServiceManagement.jsx",
       "source_location": "L4",
       "id": "servicemanagement_servicemanagement",
-      "community": 83,
+      "community": 87,
       "norm_label": "servicemanagement()"
     },
     {
@@ -2403,7 +2592,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\services-management\\ServicesPage.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_pages_services_management_servicespage_jsx",
-      "community": 84,
+      "community": 88,
       "norm_label": "servicespage.jsx"
     },
     {
@@ -2412,7 +2601,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\services-management\\ServicesPage.jsx",
       "source_location": "L6",
       "id": "servicespage_servicespage",
-      "community": 84,
+      "community": 88,
       "norm_label": "servicespage()"
     },
     {
@@ -2421,7 +2610,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\services-management\\categories-modal\\CategoryModal.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_pages_services_management_categories_modal_categorymodal_jsx",
-      "community": 0,
+      "community": 27,
       "norm_label": "categorymodal.jsx"
     },
     {
@@ -2430,7 +2619,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\services-management\\categories-modal\\CategoryModal.jsx",
       "source_location": "L16",
       "id": "categorymodal_normalizeeditorcontent",
-      "community": 0,
+      "community": 27,
       "norm_label": "normalizeeditorcontent()"
     },
     {
@@ -2439,7 +2628,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\services-management\\categories-modal\\CategoryModal.jsx",
       "source_location": "L34",
       "id": "categorymodal_categorymodal",
-      "community": 0,
+      "community": 27,
       "norm_label": "categorymodal()"
     },
     {
@@ -2448,7 +2637,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\services-management\\categories-modal\\constants.js",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_pages_services_management_categories_modal_constants_js",
-      "community": 113,
+      "community": 117,
       "norm_label": "constants.js"
     },
     {
@@ -2520,7 +2709,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\shop-management\\AddShopPage.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_pages_shop_management_addshoppage_jsx",
-      "community": 85,
+      "community": 89,
       "norm_label": "addshoppage.jsx"
     },
     {
@@ -2529,7 +2718,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\shop-management\\AddShopPage.jsx",
       "source_location": "L5",
       "id": "addshoppage_addshoppage",
-      "community": 85,
+      "community": 89,
       "norm_label": "addshoppage()"
     },
     {
@@ -2556,7 +2745,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\shop-management\\ShopDashboard.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_pages_shop_management_shopdashboard_jsx",
-      "community": 86,
+      "community": 90,
       "norm_label": "shopdashboard.jsx"
     },
     {
@@ -2565,7 +2754,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\shop-management\\ShopDashboard.jsx",
       "source_location": "L5",
       "id": "shopdashboard_shopdashboard",
-      "community": 86,
+      "community": 90,
       "norm_label": "shopdashboard()"
     },
     {
@@ -2574,7 +2763,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\shop-management\\ShopDashboardPage.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_pages_shop_management_shopdashboardpage_jsx",
-      "community": 87,
+      "community": 91,
       "norm_label": "shopdashboardpage.jsx"
     },
     {
@@ -2583,7 +2772,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\shop-management\\ShopDashboardPage.jsx",
       "source_location": "L5",
       "id": "shopdashboardpage_shopdashboardpage",
-      "community": 87,
+      "community": 91,
       "norm_label": "shopdashboardpage()"
     },
     {
@@ -2592,7 +2781,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\shop-management\\ShopDetail.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_pages_shop_management_shopdetail_jsx",
-      "community": 11,
+      "community": 14,
       "norm_label": "shopdetail.jsx"
     },
     {
@@ -2601,7 +2790,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\shop-management\\ShopDetail.jsx",
       "source_location": "L57",
       "id": "shopdetail_tohourminute",
-      "community": 11,
+      "community": 14,
       "norm_label": "tohourminute()"
     },
     {
@@ -2610,7 +2799,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\shop-management\\ShopDetail.jsx",
       "source_location": "L63",
       "id": "shopdetail_buildopeninghours",
-      "community": 11,
+      "community": 14,
       "norm_label": "buildopeninghours()"
     },
     {
@@ -2619,7 +2808,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\shop-management\\ShopDetail.jsx",
       "source_location": "L82",
       "id": "shopdetail_label",
-      "community": 11,
+      "community": 14,
       "norm_label": "label()"
     },
     {
@@ -2628,7 +2817,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\shop-management\\ShopDetail.jsx",
       "source_location": "L97",
       "id": "shopdetail_shopdetails",
-      "community": 11,
+      "community": 14,
       "norm_label": "shopdetails()"
     },
     {
@@ -2637,7 +2826,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\shop-management\\ShopEmployeesPage.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_pages_shop_management_shopemployeespage_jsx",
-      "community": 88,
+      "community": 92,
       "norm_label": "shopemployeespage.jsx"
     },
     {
@@ -2646,7 +2835,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\shop-management\\ShopEmployeesPage.jsx",
       "source_location": "L19",
       "id": "shopemployeespage_shopemployeespage",
-      "community": 88,
+      "community": 92,
       "norm_label": "shopemployeespage()"
     },
     {
@@ -2655,7 +2844,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\shop-management\\ShopManagement.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_pages_shop_management_shopmanagement_jsx",
-      "community": 89,
+      "community": 93,
       "norm_label": "shopmanagement.jsx"
     },
     {
@@ -2664,7 +2853,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\shop-management\\ShopManagement.jsx",
       "source_location": "L4",
       "id": "shopmanagement_shopmanagement",
-      "community": 89,
+      "community": 93,
       "norm_label": "shopmanagement()"
     },
     {
@@ -2673,7 +2862,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\shop-management\\ShopManagementLayout.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_pages_shop_management_shopmanagementlayout_jsx",
-      "community": 90,
+      "community": 94,
       "norm_label": "shopmanagementlayout.jsx"
     },
     {
@@ -2682,7 +2871,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\shop-management\\ShopManagementLayout.jsx",
       "source_location": "L3",
       "id": "shopmanagementlayout_shopmanagementlayout",
-      "community": 90,
+      "community": 94,
       "norm_label": "shopmanagementlayout()"
     },
     {
@@ -2691,7 +2880,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\shop-management\\ShopOrder.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_pages_shop_management_shoporder_jsx",
-      "community": 91,
+      "community": 95,
       "norm_label": "shoporder.jsx"
     },
     {
@@ -2700,7 +2889,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\shop-management\\ShopOrder.jsx",
       "source_location": "L10",
       "id": "shoporder_shops",
-      "community": 91,
+      "community": 95,
       "norm_label": "shops()"
     },
     {
@@ -2727,7 +2916,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\shop-management\\ShopsPage.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_pages_shop_management_shopspage_jsx",
-      "community": 92,
+      "community": 96,
       "norm_label": "shopspage.jsx"
     },
     {
@@ -2736,7 +2925,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\shop-management\\ShopsPage.jsx",
       "source_location": "L5",
       "id": "shopspage_shopspage",
-      "community": 92,
+      "community": 96,
       "norm_label": "shopspage()"
     },
     {
@@ -2745,7 +2934,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\zone-management\\Zone.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_pages_zone_management_zone_jsx",
-      "community": 5,
+      "community": 4,
       "norm_label": "zone.jsx"
     },
     {
@@ -2754,7 +2943,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\zone-management\\Zone.jsx",
       "source_location": "L60",
       "id": "zone_normalizezonepaymentmethod",
-      "community": 5,
+      "community": 4,
       "norm_label": "normalizezonepaymentmethod()"
     },
     {
@@ -2763,7 +2952,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\zone-management\\Zone.jsx",
       "source_location": "L74",
       "id": "zone_extractukpostcodearealetters",
-      "community": 5,
+      "community": 4,
       "norm_label": "extractukpostcodearealetters()"
     },
     {
@@ -2772,7 +2961,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\zone-management\\Zone.jsx",
       "source_location": "L80",
       "id": "zone_geojsonringtogooglemapspath",
-      "community": 5,
+      "community": 4,
       "norm_label": "geojsonringtogooglemapspath()"
     },
     {
@@ -2781,7 +2970,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\zone-management\\Zone.jsx",
       "source_location": "L94",
       "id": "zone_googleboundsdiagonalkm",
-      "community": 5,
+      "community": 4,
       "norm_label": "googleboundsdiagonalkm()"
     },
     {
@@ -2790,7 +2979,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\zone-management\\Zone.jsx",
       "source_location": "L104",
       "id": "zone_getpostcodedottedredoutlineoptions",
-      "community": 5,
+      "community": 4,
       "norm_label": "getpostcodedottedredoutlineoptions()"
     },
     {
@@ -2799,16 +2988,43 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\zone-management\\Zone.jsx",
       "source_location": "L127",
       "id": "zone_fetchukpostcodedistrictpolygon",
-      "community": 5,
+      "community": 4,
       "norm_label": "fetchukpostcodedistrictpolygon()"
+    },
+    {
+      "label": "userFacingPostcodesIoError()",
+      "file_type": "code",
+      "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\zone-management\\Zone.jsx",
+      "source_location": "L166",
+      "id": "zone_userfacingpostcodesioerror",
+      "community": 4,
+      "norm_label": "userfacingpostcodesioerror()"
+    },
+    {
+      "label": "lookupPostcodesIoPostcodeOrOutcode()",
+      "file_type": "code",
+      "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\zone-management\\Zone.jsx",
+      "source_location": "L174",
+      "id": "zone_lookuppostcodesiopostcodeoroutcode",
+      "community": 4,
+      "norm_label": "lookuppostcodesiopostcodeoroutcode()"
+    },
+    {
+      "label": "enrichPostcodesIoResultForCityCheck()",
+      "file_type": "code",
+      "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\zone-management\\Zone.jsx",
+      "source_location": "L215",
+      "id": "zone_enrichpostcodesioresultforcitycheck",
+      "community": 4,
+      "norm_label": "enrichpostcodesioresultforcitycheck()"
     },
     {
       "label": "ZoneManagement()",
       "file_type": "code",
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\zone-management\\Zone.jsx",
-      "source_location": "L165",
+      "source_location": "L242",
       "id": "zone_zonemanagement",
-      "community": 5,
+      "community": 4,
       "norm_label": "zonemanagement()"
     },
     {
@@ -2817,7 +3033,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\zone-management\\zone-details\\ZoneDetails.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_pages_zone_management_zone_details_zonedetails_jsx",
-      "community": 93,
+      "community": 97,
       "norm_label": "zonedetails.jsx"
     },
     {
@@ -2826,7 +3042,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\zone-management\\zone-details\\ZoneDetails.jsx",
       "source_location": "L26",
       "id": "zonedetails_zonedetails",
-      "community": 93,
+      "community": 97,
       "norm_label": "zonedetails()"
     },
     {
@@ -2835,7 +3051,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\route\\privateRoutes.js",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_route_privateroutes_js",
-      "community": 114,
+      "community": 118,
       "norm_label": "privateroutes.js"
     },
     {
@@ -2844,7 +3060,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\routes\\AsyncComponent.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_routes_asynccomponent_jsx",
-      "community": 115,
+      "community": 119,
       "norm_label": "asynccomponent.jsx"
     },
     {
@@ -2853,7 +3069,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\routes\\AuthRoutes.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_routes_authroutes_jsx",
-      "community": 94,
+      "community": 98,
       "norm_label": "authroutes.jsx"
     },
     {
@@ -2862,7 +3078,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\routes\\AuthRoutes.jsx",
       "source_location": "L6",
       "id": "authroutes_authroutes",
-      "community": 94,
+      "community": 98,
       "norm_label": "authroutes()"
     },
     {
@@ -2871,7 +3087,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\routes\\Component.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_routes_component_jsx",
-      "community": 95,
+      "community": 99,
       "norm_label": "component.jsx"
     },
     {
@@ -2880,7 +3096,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\routes\\Component.jsx",
       "source_location": "L7",
       "id": "component_component",
-      "community": 95,
+      "community": 99,
       "norm_label": "component()"
     },
     {
@@ -2889,7 +3105,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\routes\\PrivateRoutes.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_routes_privateroutes_jsx",
-      "community": 96,
+      "community": 100,
       "norm_label": "privateroutes.jsx"
     },
     {
@@ -2898,7 +3114,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\routes\\PrivateRoutes.jsx",
       "source_location": "L17",
       "id": "privateroutes_privateroutes",
-      "community": 96,
+      "community": 100,
       "norm_label": "privateroutes()"
     },
     {
@@ -2907,8 +3123,89 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\shared\\constants.js",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_shared_constants_js",
-      "community": 116,
+      "community": 120,
       "norm_label": "constants.js"
+    },
+    {
+      "label": "orderEditStatusGate.js",
+      "file_type": "code",
+      "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\shared\\orderEditStatusGate.js",
+      "source_location": "L1",
+      "id": "d_laundary_admin_laundry_service_admin_panel_src_shared_ordereditstatusgate_js",
+      "community": 7,
+      "norm_label": "ordereditstatusgate.js"
+    },
+    {
+      "label": "normalizeStatusTitle()",
+      "file_type": "code",
+      "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\shared\\orderEditStatusGate.js",
+      "source_location": "L6",
+      "id": "ordereditstatusgate_normalizestatustitle",
+      "community": 7,
+      "norm_label": "normalizestatustitle()"
+    },
+    {
+      "label": "resolveOrderStatusTitle()",
+      "file_type": "code",
+      "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\shared\\orderEditStatusGate.js",
+      "source_location": "L15",
+      "id": "ordereditstatusgate_resolveorderstatustitle",
+      "community": 7,
+      "norm_label": "resolveorderstatustitle()"
+    },
+    {
+      "label": "isExplicitlyPreInvoiceExact()",
+      "file_type": "code",
+      "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\shared\\orderEditStatusGate.js",
+      "source_location": "L43",
+      "id": "ordereditstatusgate_isexplicitlypreinvoiceexact",
+      "community": 7,
+      "norm_label": "isexplicitlypreinvoiceexact()"
+    },
+    {
+      "label": "isInvoiceOrLaterByKeywords()",
+      "file_type": "code",
+      "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\shared\\orderEditStatusGate.js",
+      "source_location": "L54",
+      "id": "ordereditstatusgate_isinvoiceorlaterbykeywords",
+      "community": 7,
+      "norm_label": "isinvoiceorlaterbykeywords()"
+    },
+    {
+      "label": "rankByExactPipeline()",
+      "file_type": "code",
+      "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\shared\\orderEditStatusGate.js",
+      "source_location": "L88",
+      "id": "ordereditstatusgate_rankbyexactpipeline",
+      "community": 7,
+      "norm_label": "rankbyexactpipeline()"
+    },
+    {
+      "label": "canEditOrderByStatusTitle()",
+      "file_type": "code",
+      "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\shared\\orderEditStatusGate.js",
+      "source_location": "L101",
+      "id": "ordereditstatusgate_caneditorderbystatustitle",
+      "community": 7,
+      "norm_label": "caneditorderbystatustitle()"
+    },
+    {
+      "label": "getFirstEditableStatusIndexFromApi()",
+      "file_type": "code",
+      "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\shared\\orderEditStatusGate.js",
+      "source_location": "L117",
+      "id": "ordereditstatusgate_getfirsteditablestatusindexfromapi",
+      "community": 7,
+      "norm_label": "getfirsteditablestatusindexfromapi()"
+    },
+    {
+      "label": "canEditOrderFromBooking()",
+      "file_type": "code",
+      "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\shared\\orderEditStatusGate.js",
+      "source_location": "L133",
+      "id": "ordereditstatusgate_caneditorderfrombooking",
+      "community": 7,
+      "norm_label": "caneditorderfrombooking()"
     },
     {
       "label": "theme.js",
@@ -2916,7 +3213,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\shared\\theme.js",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_shared_theme_js",
-      "community": 117,
+      "community": 121,
       "norm_label": "theme.js"
     },
     {
@@ -2925,7 +3222,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\shared\\icons\\IconBox.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_shared_icons_iconbox_jsx",
-      "community": 97,
+      "community": 101,
       "norm_label": "iconbox.jsx"
     },
     {
@@ -2934,7 +3231,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\shared\\icons\\IconBox.jsx",
       "source_location": "L1",
       "id": "iconbox_iconbox",
-      "community": 97,
+      "community": 101,
       "norm_label": "iconbox()"
     },
     {
@@ -2943,7 +3240,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\shared\\icons\\IconDriver.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_shared_icons_icondriver_jsx",
-      "community": 98,
+      "community": 102,
       "norm_label": "icondriver.jsx"
     },
     {
@@ -2952,7 +3249,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\shared\\icons\\IconDriver.jsx",
       "source_location": "L1",
       "id": "icondriver_icondriver",
-      "community": 98,
+      "community": 102,
       "norm_label": "icondriver()"
     },
     {
@@ -2961,7 +3258,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\shared\\icons\\IconFingerHold.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_shared_icons_iconfingerhold_jsx",
-      "community": 99,
+      "community": 103,
       "norm_label": "iconfingerhold.jsx"
     },
     {
@@ -2970,7 +3267,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\shared\\icons\\IconFingerHold.jsx",
       "source_location": "L1",
       "id": "iconfingerhold_iconfingerhold",
-      "community": 99,
+      "community": 103,
       "norm_label": "iconfingerhold()"
     },
     {
@@ -2979,7 +3276,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\shared\\icons\\IconMessenger.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_shared_icons_iconmessenger_jsx",
-      "community": 100,
+      "community": 104,
       "norm_label": "iconmessenger.jsx"
     },
     {
@@ -2988,7 +3285,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\shared\\icons\\IconMessenger.jsx",
       "source_location": "L1",
       "id": "iconmessenger_iconmessenger",
-      "community": 100,
+      "community": 104,
       "norm_label": "iconmessenger()"
     },
     {
@@ -2997,7 +3294,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\shared\\icons\\IconShop.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_shared_icons_iconshop_jsx",
-      "community": 101,
+      "community": 105,
       "norm_label": "iconshop.jsx"
     },
     {
@@ -3006,7 +3303,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\shared\\icons\\IconShop.jsx",
       "source_location": "L1",
       "id": "iconshop_iconshop",
-      "community": 101,
+      "community": 105,
       "norm_label": "iconshop()"
     },
     {
@@ -3015,7 +3312,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\shared\\icons\\index.js",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_shared_icons_index_js",
-      "community": 118,
+      "community": 122,
       "norm_label": "index.js"
     },
     {
@@ -3024,7 +3321,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\store\\store.js",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_store_store_js",
-      "community": 119,
+      "community": 123,
       "norm_label": "store.js"
     },
     {
@@ -3033,7 +3330,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\store\\services\\api.js",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_store_services_api_js",
-      "community": 120,
+      "community": 124,
       "norm_label": "api.js"
     },
     {
@@ -3042,7 +3339,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\store\\services\\apiReducer.js",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_store_services_apireducer_js",
-      "community": 121,
+      "community": 125,
       "norm_label": "apireducer.js"
     },
     {
@@ -3078,7 +3375,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\store\\slices\\constants.js",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_store_slices_constants_js",
-      "community": 122,
+      "community": 126,
       "norm_label": "constants.js"
     },
     {
@@ -3087,7 +3384,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\store\\slices\\searchSlice.js",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_store_slices_searchslice_js",
-      "community": 123,
+      "community": 127,
       "norm_label": "searchslice.js"
     },
     {
@@ -3096,7 +3393,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\store\\slices\\uiSlice.js",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_store_slices_uislice_js",
-      "community": 124,
+      "community": 128,
       "norm_label": "uislice.js"
     },
     {
@@ -3150,7 +3447,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\utilities\\authStorage.js",
       "source_location": "L74",
       "id": "authstorage_getemployeepermissions",
-      "community": 1,
+      "community": 5,
       "norm_label": "getemployeepermissions()"
     },
     {
@@ -3195,7 +3492,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\utilities\\employeeFeatureAccess.js",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_utilities_employeefeatureaccess_js",
-      "community": 4,
+      "community": 5,
       "norm_label": "employeefeatureaccess.js"
     },
     {
@@ -3204,7 +3501,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\utilities\\employeeFeatureAccess.js",
       "source_location": "L7",
       "id": "employeefeatureaccess_findsidebarparentforpathname",
-      "community": 4,
+      "community": 5,
       "norm_label": "findsidebarparentforpathname()"
     },
     {
@@ -3213,7 +3510,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\utilities\\employeeFeatureAccess.js",
       "source_location": "L27",
       "id": "employeefeatureaccess_buildfeaturekeytoidmap",
-      "community": 4,
+      "community": 5,
       "norm_label": "buildfeaturekeytoidmap()"
     },
     {
@@ -3222,7 +3519,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\utilities\\employeeFeatureAccess.js",
       "source_location": "L43",
       "id": "employeefeatureaccess_getallowedfeaturekeysfrompermissions",
-      "community": 4,
+      "community": 5,
       "norm_label": "getallowedfeaturekeysfrompermissions()"
     },
     {
@@ -3231,7 +3528,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\utilities\\employeeFeatureAccess.js",
       "source_location": "L56",
       "id": "employeefeatureaccess_resolveemployeefeatureidforpathname",
-      "community": 4,
+      "community": 5,
       "norm_label": "resolveemployeefeatureidforpathname()"
     },
     {
@@ -3240,7 +3537,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\utilities\\firebase.js",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_utilities_firebase_js",
-      "community": 6,
+      "community": 8,
       "norm_label": "firebase.js"
     },
     {
@@ -3249,7 +3546,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\utilities\\firebase.js",
       "source_location": "L9",
       "id": "firebase_getfirebaseapp",
-      "community": 6,
+      "community": 8,
       "norm_label": "getfirebaseapp()"
     },
     {
@@ -3258,7 +3555,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\utilities\\firebase.js",
       "source_location": "L24",
       "id": "firebase_getmessaginginstance",
-      "community": 6,
+      "community": 8,
       "norm_label": "getmessaginginstance()"
     },
     {
@@ -3267,7 +3564,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\utilities\\firebase.js",
       "source_location": "L36",
       "id": "firebase_getmessagingwhenready",
-      "community": 6,
+      "community": 8,
       "norm_label": "getmessagingwhenready()"
     },
     {
@@ -3276,7 +3573,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\utilities\\firebaseConfig.js",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_utilities_firebaseconfig_js",
-      "community": 6,
+      "community": 8,
       "norm_label": "firebaseconfig.js"
     },
     {
@@ -3285,7 +3582,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\utilities\\firebaseConfig.js",
       "source_location": "L11",
       "id": "firebaseconfig_pickenv",
-      "community": 6,
+      "community": 8,
       "norm_label": "pickenv()"
     },
     {
@@ -3294,7 +3591,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\utilities\\firebaseConfig.js",
       "source_location": "L21",
       "id": "firebaseconfig_getfirebasewebconfig",
-      "community": 6,
+      "community": 8,
       "norm_label": "getfirebasewebconfig()"
     },
     {
@@ -3303,7 +3600,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\utilities\\firebaseConfig.js",
       "source_location": "L37",
       "id": "firebaseconfig_getfirebasevapidkey",
-      "community": 6,
+      "community": 8,
       "norm_label": "getfirebasevapidkey()"
     },
     {
@@ -3312,7 +3609,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\utilities\\geminiApi.js",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_utilities_geminiapi_js",
-      "community": 25,
+      "community": 28,
       "norm_label": "geminiapi.js"
     },
     {
@@ -3321,7 +3618,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\utilities\\geminiApi.js",
       "source_location": "L4",
       "id": "geminiapi_getmodelforgeneratecontent",
-      "community": 25,
+      "community": 28,
       "norm_label": "getmodelforgeneratecontent()"
     },
     {
@@ -3330,7 +3627,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\utilities\\geminiApi.js",
       "source_location": "L36",
       "id": "geminiapi_generatewithgemini",
-      "community": 25,
+      "community": 28,
       "norm_label": "generatewithgemini()"
     },
     {
@@ -3339,7 +3636,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\utilities\\policyOverlapHelpers.js",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_utilities_policyoverlaphelpers_js",
-      "community": 9,
+      "community": 12,
       "norm_label": "policyoverlaphelpers.js"
     },
     {
@@ -3348,7 +3645,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\utilities\\policyOverlapHelpers.js",
       "source_location": "L2",
       "id": "policyoverlaphelpers_parsepolicieslistpayload",
-      "community": 9,
+      "community": 12,
       "norm_label": "parsepolicieslistpayload()"
     },
     {
@@ -3357,7 +3654,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\utilities\\policyOverlapHelpers.js",
       "source_location": "L11",
       "id": "policyoverlaphelpers_ispolicyconsideredactive",
-      "community": 9,
+      "community": 12,
       "norm_label": "ispolicyconsideredactive()"
     },
     {
@@ -3366,7 +3663,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\utilities\\SnackbarProvider.jsx",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_utilities_snackbarprovider_jsx",
-      "community": 102,
+      "community": 106,
       "norm_label": "snackbarprovider.jsx"
     },
     {
@@ -3375,7 +3672,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\utilities\\SnackbarProvider.jsx",
       "source_location": "L5",
       "id": "snackbarprovider_snackbarproviderwrapper",
-      "community": 102,
+      "community": 106,
       "norm_label": "snackbarproviderwrapper()"
     },
     {
@@ -3384,7 +3681,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\utilities\\URL.js",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_utilities_url_js",
-      "community": 125,
+      "community": 129,
       "norm_label": "url.js"
     },
     {
@@ -3393,7 +3690,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\utilities\\zonesList.js",
       "source_location": "L1",
       "id": "d_laundary_admin_laundry_service_admin_panel_src_utilities_zoneslist_js",
-      "community": 7,
+      "community": 9,
       "norm_label": "zoneslist.js"
     },
     {
@@ -3402,7 +3699,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\utilities\\zonesList.js",
       "source_location": "L5",
       "id": "zoneslist_zonesarrayfromgetzonesresponse",
-      "community": 7,
+      "community": 9,
       "norm_label": "zonesarrayfromgetzonesresponse()"
     },
     {
@@ -3411,7 +3708,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\utilities\\zonesList.js",
       "source_location": "L18",
       "id": "zoneslist_zonesarrayfromredux",
-      "community": 7,
+      "community": 9,
       "norm_label": "zonesarrayfromredux()"
     },
     {
@@ -3420,7 +3717,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\utilities\\zonesList.js",
       "source_location": "L25",
       "id": "zoneslist_mergedzoneslist",
-      "community": 7,
+      "community": 9,
       "norm_label": "mergedzoneslist()"
     },
     {
@@ -3429,7 +3726,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\utilities\\zonesList.js",
       "source_location": "L31",
       "id": "zoneslist_normalizecurrencyunitslist",
-      "community": 7,
+      "community": 9,
       "norm_label": "normalizecurrencyunitslist()"
     },
     {
@@ -3438,7 +3735,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\utilities\\zonesList.js",
       "source_location": "L45",
       "id": "zoneslist_buildcurrencyunitslist",
-      "community": 7,
+      "community": 9,
       "norm_label": "buildcurrencyunitslist()"
     },
     {
@@ -3447,7 +3744,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\utilities\\zonesList.js",
       "source_location": "L60",
       "id": "zoneslist_unwrapzonefromapiresponse",
-      "community": 7,
+      "community": 9,
       "norm_label": "unwrapzonefromapiresponse()"
     },
     {
@@ -3456,7 +3753,7 @@
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\utilities\\zonesList.js",
       "source_location": "L77",
       "id": "zoneslist_currencycodefromzone",
-      "community": 7,
+      "community": 9,
       "norm_label": "currencycodefromzone()"
     }
   ],
@@ -3489,7 +3786,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\components\\shared\\constants.js",
-      "source_location": "L222",
+      "source_location": "L241",
       "weight": 1.0,
       "_src": "d_laundary_admin_laundry_service_admin_panel_src_components_shared_constants_js",
       "_tgt": "constants_labeltofeaturekey",
@@ -3501,7 +3798,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\components\\shared\\constants.js",
-      "source_location": "L239",
+      "source_location": "L258",
       "weight": 1.0,
       "_src": "d_laundary_admin_laundry_service_admin_panel_src_components_shared_constants_js",
       "_tgt": "constants_getsidebarpermissionselectoptions",
@@ -3513,7 +3810,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\components\\shared\\constants.js",
-      "source_location": "L264",
+      "source_location": "L283",
       "weight": 1.0,
       "_src": "d_laundary_admin_laundry_service_admin_panel_src_components_shared_constants_js",
       "_tgt": "constants_getinitialsubmenuopen",
@@ -4389,6 +4686,18 @@
       "relation": "calls",
       "confidence": "INFERRED",
       "confidence_score": 0.8,
+      "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\promotion\\PromoCodesPage.jsx",
+      "source_location": "L398",
+      "weight": 1.0,
+      "_src": "promocodespage_promocodespage",
+      "_tgt": "toaster_usetoaster",
+      "source": "toaster_usetoaster",
+      "target": "promocodespage_promocodespage"
+    },
+    {
+      "relation": "calls",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8,
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\role-permission\\RolePermission.jsx",
       "source_location": "L95",
       "weight": 1.0,
@@ -4396,6 +4705,18 @@
       "_tgt": "rolepermission_rolepermission",
       "source": "toaster_usetoaster",
       "target": "rolepermission_rolepermission"
+    },
+    {
+      "relation": "calls",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8,
+      "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\services-management\\AddOnServicesCard.jsx",
+      "source_location": "L34",
+      "weight": 1.0,
+      "_src": "addonservicescard_addonservicescard",
+      "_tgt": "toaster_usetoaster",
+      "source": "toaster_usetoaster",
+      "target": "addonservicescard_addonservicescard"
     },
     {
       "relation": "calls",
@@ -5085,7 +5406,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\order-management\\all-orders\\AllOrders.jsx",
-      "source_location": "L17",
+      "source_location": "L22",
       "weight": 1.0,
       "_src": "d_laundary_admin_laundry_service_admin_panel_src_pages_order_management_all_orders_allorders_jsx",
       "_tgt": "allorders_shopmanagement",
@@ -5097,7 +5418,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\order-management\\cancelled-orders\\CancelledOrder.jsx",
-      "source_location": "L17",
+      "source_location": "L22",
       "weight": 1.0,
       "_src": "d_laundary_admin_laundry_service_admin_panel_src_pages_order_management_cancelled_orders_cancelledorder_jsx",
       "_tgt": "cancelledorder_cancelledorders",
@@ -5109,7 +5430,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\order-management\\complete-orders\\CompleteOrders.jsx",
-      "source_location": "L17",
+      "source_location": "L22",
       "weight": 1.0,
       "_src": "d_laundary_admin_laundry_service_admin_panel_src_pages_order_management_complete_orders_completeorders_jsx",
       "_tgt": "completeorders_completeorders",
@@ -5133,7 +5454,67 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\order-management\\edit-order\\EditOrder.jsx",
-      "source_location": "L33",
+      "source_location": "L42",
+      "weight": 1.0,
+      "_src": "d_laundary_admin_laundry_service_admin_panel_src_pages_order_management_edit_order_editorder_jsx",
+      "_tgt": "editorder_getorderlaundryshopid",
+      "source": "d_laundary_admin_laundry_service_admin_panel_src_pages_order_management_edit_order_editorder_jsx",
+      "target": "editorder_getorderlaundryshopid",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\order-management\\edit-order\\EditOrder.jsx",
+      "source_location": "L63",
+      "weight": 1.0,
+      "_src": "d_laundary_admin_laundry_service_admin_panel_src_pages_order_management_edit_order_editorder_jsx",
+      "_tgt": "editorder_coerceselectvalue",
+      "source": "d_laundary_admin_laundry_service_admin_panel_src_pages_order_management_edit_order_editorder_jsx",
+      "target": "editorder_coerceselectvalue",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\order-management\\edit-order\\EditOrder.jsx",
+      "source_location": "L73",
+      "weight": 1.0,
+      "_src": "d_laundary_admin_laundry_service_admin_panel_src_pages_order_management_edit_order_editorder_jsx",
+      "_tgt": "editorder_editorderitemcategorykey",
+      "source": "d_laundary_admin_laundry_service_admin_panel_src_pages_order_management_edit_order_editorder_jsx",
+      "target": "editorder_editorderitemcategorykey",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\order-management\\edit-order\\EditOrder.jsx",
+      "source_location": "L83",
+      "weight": 1.0,
+      "_src": "d_laundary_admin_laundry_service_admin_panel_src_pages_order_management_edit_order_editorder_jsx",
+      "_tgt": "editorder_editordercategorytablabel",
+      "source": "d_laundary_admin_laundry_service_admin_panel_src_pages_order_management_edit_order_editorder_jsx",
+      "target": "editorder_editordercategorytablabel",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\order-management\\edit-order\\EditOrder.jsx",
+      "source_location": "L92",
+      "weight": 1.0,
+      "_src": "d_laundary_admin_laundry_service_admin_panel_src_pages_order_management_edit_order_editorder_jsx",
+      "_tgt": "editorder_resolveeditorderitemserviceid",
+      "source": "d_laundary_admin_laundry_service_admin_panel_src_pages_order_management_edit_order_editorder_jsx",
+      "target": "editorder_resolveeditorderitemserviceid",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\order-management\\edit-order\\EditOrder.jsx",
+      "source_location": "L102",
       "weight": 1.0,
       "_src": "d_laundary_admin_laundry_service_admin_panel_src_pages_order_management_edit_order_editorder_jsx",
       "_tgt": "editorder_editorder",
@@ -5145,7 +5526,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\order-management\\on-hold-orders\\OnHoldOrders.jsx",
-      "source_location": "L17",
+      "source_location": "L22",
       "weight": 1.0,
       "_src": "d_laundary_admin_laundry_service_admin_panel_src_pages_order_management_on_hold_orders_onholdorders_jsx",
       "_tgt": "onholdorders_onholdorders",
@@ -5361,7 +5742,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\order-management\\pending-orders\\PendingOrders.jsx",
-      "source_location": "L19",
+      "source_location": "L24",
       "weight": 1.0,
       "_src": "d_laundary_admin_laundry_service_admin_panel_src_pages_order_management_pending_orders_pendingorders_jsx",
       "_tgt": "pendingorders_pendingorders",
@@ -5572,6 +5953,114 @@
       "_tgt": "policyoverlaphelpers_parsepolicieslistpayload",
       "source": "reschedulepolicycontent_reschedulepolicycontent",
       "target": "policyoverlaphelpers_parsepolicieslistpayload"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\promotion\\PromoCodesPage.jsx",
+      "source_location": "L77",
+      "weight": 1.0,
+      "_src": "d_laundary_admin_laundry_service_admin_panel_src_pages_promotion_promocodespage_jsx",
+      "_tgt": "promocodespage_initialpromoform",
+      "source": "d_laundary_admin_laundry_service_admin_panel_src_pages_promotion_promocodespage_jsx",
+      "target": "promocodespage_initialpromoform",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\promotion\\PromoCodesPage.jsx",
+      "source_location": "L92",
+      "weight": 1.0,
+      "_src": "d_laundary_admin_laundry_service_admin_panel_src_pages_promotion_promocodespage_jsx",
+      "_tgt": "promocodespage_parseoptionalint",
+      "source": "d_laundary_admin_laundry_service_admin_panel_src_pages_promotion_promocodespage_jsx",
+      "target": "promocodespage_parseoptionalint",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\promotion\\PromoCodesPage.jsx",
+      "source_location": "L99",
+      "weight": 1.0,
+      "_src": "d_laundary_admin_laundry_service_admin_panel_src_pages_promotion_promocodespage_jsx",
+      "_tgt": "promocodespage_parseoptionaldecimal",
+      "source": "d_laundary_admin_laundry_service_admin_panel_src_pages_promotion_promocodespage_jsx",
+      "target": "promocodespage_parseoptionaldecimal",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\promotion\\PromoCodesPage.jsx",
+      "source_location": "L106",
+      "weight": 1.0,
+      "_src": "d_laundary_admin_laundry_service_admin_panel_src_pages_promotion_promocodespage_jsx",
+      "_tgt": "promocodespage_formatmoney",
+      "source": "d_laundary_admin_laundry_service_admin_panel_src_pages_promotion_promocodespage_jsx",
+      "target": "promocodespage_formatmoney",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\promotion\\PromoCodesPage.jsx",
+      "source_location": "L111",
+      "weight": 1.0,
+      "_src": "d_laundary_admin_laundry_service_admin_panel_src_pages_promotion_promocodespage_jsx",
+      "_tgt": "promocodespage_rowfrompayload",
+      "source": "d_laundary_admin_laundry_service_admin_panel_src_pages_promotion_promocodespage_jsx",
+      "target": "promocodespage_rowfrompayload",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\promotion\\PromoCodesPage.jsx",
+      "source_location": "L133",
+      "weight": 1.0,
+      "_src": "d_laundary_admin_laundry_service_admin_panel_src_pages_promotion_promocodespage_jsx",
+      "_tgt": "promocodespage_extractcouponsdata",
+      "source": "d_laundary_admin_laundry_service_admin_panel_src_pages_promotion_promocodespage_jsx",
+      "target": "promocodespage_extractcouponsdata",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\promotion\\PromoCodesPage.jsx",
+      "source_location": "L165",
+      "weight": 1.0,
+      "_src": "d_laundary_admin_laundry_service_admin_panel_src_pages_promotion_promocodespage_jsx",
+      "_tgt": "promocodespage_createpromocodeform",
+      "source": "d_laundary_admin_laundry_service_admin_panel_src_pages_promotion_promocodespage_jsx",
+      "target": "promocodespage_createpromocodeform",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\promotion\\PromoCodesPage.jsx",
+      "source_location": "L392",
+      "weight": 1.0,
+      "_src": "d_laundary_admin_laundry_service_admin_panel_src_pages_promotion_promocodespage_jsx",
+      "_tgt": "promocodespage_promocodespage",
+      "source": "d_laundary_admin_laundry_service_admin_panel_src_pages_promotion_promocodespage_jsx",
+      "target": "promocodespage_promocodespage",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\promotion\\PromoCodesPage.jsx",
+      "source_location": "L121",
+      "weight": 1.0,
+      "_src": "promocodespage_rowfrompayload",
+      "_tgt": "promocodespage_formatmoney",
+      "source": "promocodespage_formatmoney",
+      "target": "promocodespage_rowfrompayload",
+      "confidence_score": 1.0
     },
     {
       "relation": "contains",
@@ -5864,6 +6353,42 @@
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
+      "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\services-management\\AddOnServicesCard.jsx",
+      "source_location": "L25",
+      "weight": 1.0,
+      "_src": "d_laundary_admin_laundry_service_admin_panel_src_pages_services_management_addonservicescard_jsx",
+      "_tgt": "addonservicescard_formatgbp",
+      "source": "d_laundary_admin_laundry_service_admin_panel_src_pages_services_management_addonservicescard_jsx",
+      "target": "addonservicescard_formatgbp",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\services-management\\AddOnServicesCard.jsx",
+      "source_location": "L33",
+      "weight": 1.0,
+      "_src": "d_laundary_admin_laundry_service_admin_panel_src_pages_services_management_addonservicescard_jsx",
+      "_tgt": "addonservicescard_addonservicescard",
+      "source": "d_laundary_admin_laundry_service_admin_panel_src_pages_services_management_addonservicescard_jsx",
+      "target": "addonservicescard_addonservicescard",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\services-management\\AddOnServicesPage.jsx",
+      "source_location": "L6",
+      "weight": 1.0,
+      "_src": "d_laundary_admin_laundry_service_admin_panel_src_pages_services_management_addonservicespage_jsx",
+      "_tgt": "addonservicespage_addonservicespage",
+      "source": "d_laundary_admin_laundry_service_admin_panel_src_pages_services_management_addonservicespage_jsx",
+      "target": "addonservicespage_addonservicespage",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\services-management\\CategoriesPage.jsx",
       "source_location": "L6",
       "weight": 1.0,
@@ -5925,11 +6450,47 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\services-management\\PreferencesCard.jsx",
-      "source_location": "L35",
+      "source_location": "L37",
+      "weight": 1.0,
+      "_src": "d_laundary_admin_laundry_service_admin_panel_src_pages_services_management_preferencescard_jsx",
+      "_tgt": "preferencescard_readparentpreferencetypeid",
+      "source": "d_laundary_admin_laundry_service_admin_panel_src_pages_services_management_preferencescard_jsx",
+      "target": "preferencescard_readparentpreferencetypeid",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\services-management\\PreferencesCard.jsx",
+      "source_location": "L46",
+      "weight": 1.0,
+      "_src": "d_laundary_admin_laundry_service_admin_panel_src_pages_services_management_preferencescard_jsx",
+      "_tgt": "preferencescard_iswashtypepreferencename",
+      "source": "d_laundary_admin_laundry_service_admin_panel_src_pages_services_management_preferencescard_jsx",
+      "target": "preferencescard_iswashtypepreferencename",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\services-management\\PreferencesCard.jsx",
+      "source_location": "L52",
       "weight": 1.0,
       "_src": "d_laundary_admin_laundry_service_admin_panel_src_pages_services_management_preferencescard_jsx",
       "_tgt": "preferencescard_preferencescard",
       "source": "d_laundary_admin_laundry_service_admin_panel_src_pages_services_management_preferencescard_jsx",
+      "target": "preferencescard_preferencescard",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\services-management\\PreferencesCard.jsx",
+      "source_location": "L102",
+      "weight": 1.0,
+      "_src": "preferencescard_preferencescard",
+      "_tgt": "preferencescard_iswashtypepreferencename",
+      "source": "preferencescard_iswashtypepreferencename",
       "target": "preferencescard_preferencescard",
       "confidence_score": 1.0
     },
@@ -6345,7 +6906,43 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\zone-management\\Zone.jsx",
-      "source_location": "L165",
+      "source_location": "L166",
+      "weight": 1.0,
+      "_src": "d_laundary_admin_laundry_service_admin_panel_src_pages_zone_management_zone_jsx",
+      "_tgt": "zone_userfacingpostcodesioerror",
+      "source": "d_laundary_admin_laundry_service_admin_panel_src_pages_zone_management_zone_jsx",
+      "target": "zone_userfacingpostcodesioerror",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\zone-management\\Zone.jsx",
+      "source_location": "L174",
+      "weight": 1.0,
+      "_src": "d_laundary_admin_laundry_service_admin_panel_src_pages_zone_management_zone_jsx",
+      "_tgt": "zone_lookuppostcodesiopostcodeoroutcode",
+      "source": "d_laundary_admin_laundry_service_admin_panel_src_pages_zone_management_zone_jsx",
+      "target": "zone_lookuppostcodesiopostcodeoroutcode",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\zone-management\\Zone.jsx",
+      "source_location": "L215",
+      "weight": 1.0,
+      "_src": "d_laundary_admin_laundry_service_admin_panel_src_pages_zone_management_zone_jsx",
+      "_tgt": "zone_enrichpostcodesioresultforcitycheck",
+      "source": "d_laundary_admin_laundry_service_admin_panel_src_pages_zone_management_zone_jsx",
+      "target": "zone_enrichpostcodesioresultforcitycheck",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\zone-management\\Zone.jsx",
+      "source_location": "L242",
       "weight": 1.0,
       "_src": "d_laundary_admin_laundry_service_admin_panel_src_pages_zone_management_zone_jsx",
       "_tgt": "zone_zonemanagement",
@@ -6381,7 +6978,7 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\pages\\zone-management\\Zone.jsx",
-      "source_location": "L1709",
+      "source_location": "L1973",
       "weight": 1.0,
       "_src": "zone_zonemanagement",
       "_tgt": "zone_getpostcodedottedredoutlineoptions",
@@ -6435,6 +7032,186 @@
       "_tgt": "privateroutes_privateroutes",
       "source": "d_laundary_admin_laundry_service_admin_panel_src_routes_privateroutes_jsx",
       "target": "privateroutes_privateroutes",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\shared\\orderEditStatusGate.js",
+      "source_location": "L6",
+      "weight": 1.0,
+      "_src": "d_laundary_admin_laundry_service_admin_panel_src_shared_ordereditstatusgate_js",
+      "_tgt": "ordereditstatusgate_normalizestatustitle",
+      "source": "d_laundary_admin_laundry_service_admin_panel_src_shared_ordereditstatusgate_js",
+      "target": "ordereditstatusgate_normalizestatustitle",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\shared\\orderEditStatusGate.js",
+      "source_location": "L15",
+      "weight": 1.0,
+      "_src": "d_laundary_admin_laundry_service_admin_panel_src_shared_ordereditstatusgate_js",
+      "_tgt": "ordereditstatusgate_resolveorderstatustitle",
+      "source": "d_laundary_admin_laundry_service_admin_panel_src_shared_ordereditstatusgate_js",
+      "target": "ordereditstatusgate_resolveorderstatustitle",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\shared\\orderEditStatusGate.js",
+      "source_location": "L43",
+      "weight": 1.0,
+      "_src": "d_laundary_admin_laundry_service_admin_panel_src_shared_ordereditstatusgate_js",
+      "_tgt": "ordereditstatusgate_isexplicitlypreinvoiceexact",
+      "source": "d_laundary_admin_laundry_service_admin_panel_src_shared_ordereditstatusgate_js",
+      "target": "ordereditstatusgate_isexplicitlypreinvoiceexact",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\shared\\orderEditStatusGate.js",
+      "source_location": "L54",
+      "weight": 1.0,
+      "_src": "d_laundary_admin_laundry_service_admin_panel_src_shared_ordereditstatusgate_js",
+      "_tgt": "ordereditstatusgate_isinvoiceorlaterbykeywords",
+      "source": "d_laundary_admin_laundry_service_admin_panel_src_shared_ordereditstatusgate_js",
+      "target": "ordereditstatusgate_isinvoiceorlaterbykeywords",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\shared\\orderEditStatusGate.js",
+      "source_location": "L88",
+      "weight": 1.0,
+      "_src": "d_laundary_admin_laundry_service_admin_panel_src_shared_ordereditstatusgate_js",
+      "_tgt": "ordereditstatusgate_rankbyexactpipeline",
+      "source": "d_laundary_admin_laundry_service_admin_panel_src_shared_ordereditstatusgate_js",
+      "target": "ordereditstatusgate_rankbyexactpipeline",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\shared\\orderEditStatusGate.js",
+      "source_location": "L101",
+      "weight": 1.0,
+      "_src": "d_laundary_admin_laundry_service_admin_panel_src_shared_ordereditstatusgate_js",
+      "_tgt": "ordereditstatusgate_caneditorderbystatustitle",
+      "source": "d_laundary_admin_laundry_service_admin_panel_src_shared_ordereditstatusgate_js",
+      "target": "ordereditstatusgate_caneditorderbystatustitle",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\shared\\orderEditStatusGate.js",
+      "source_location": "L117",
+      "weight": 1.0,
+      "_src": "d_laundary_admin_laundry_service_admin_panel_src_shared_ordereditstatusgate_js",
+      "_tgt": "ordereditstatusgate_getfirsteditablestatusindexfromapi",
+      "source": "d_laundary_admin_laundry_service_admin_panel_src_shared_ordereditstatusgate_js",
+      "target": "ordereditstatusgate_getfirsteditablestatusindexfromapi",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\shared\\orderEditStatusGate.js",
+      "source_location": "L133",
+      "weight": 1.0,
+      "_src": "d_laundary_admin_laundry_service_admin_panel_src_shared_ordereditstatusgate_js",
+      "_tgt": "ordereditstatusgate_caneditorderfrombooking",
+      "source": "d_laundary_admin_laundry_service_admin_panel_src_shared_ordereditstatusgate_js",
+      "target": "ordereditstatusgate_caneditorderfrombooking",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\shared\\orderEditStatusGate.js",
+      "source_location": "L102",
+      "weight": 1.0,
+      "_src": "ordereditstatusgate_caneditorderbystatustitle",
+      "_tgt": "ordereditstatusgate_normalizestatustitle",
+      "source": "ordereditstatusgate_normalizestatustitle",
+      "target": "ordereditstatusgate_caneditorderbystatustitle",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\shared\\orderEditStatusGate.js",
+      "source_location": "L134",
+      "weight": 1.0,
+      "_src": "ordereditstatusgate_caneditorderfrombooking",
+      "_tgt": "ordereditstatusgate_resolveorderstatustitle",
+      "source": "ordereditstatusgate_resolveorderstatustitle",
+      "target": "ordereditstatusgate_caneditorderfrombooking",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\shared\\orderEditStatusGate.js",
+      "source_location": "L105",
+      "weight": 1.0,
+      "_src": "ordereditstatusgate_caneditorderbystatustitle",
+      "_tgt": "ordereditstatusgate_isexplicitlypreinvoiceexact",
+      "source": "ordereditstatusgate_isexplicitlypreinvoiceexact",
+      "target": "ordereditstatusgate_caneditorderbystatustitle",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\shared\\orderEditStatusGate.js",
+      "source_location": "L106",
+      "weight": 1.0,
+      "_src": "ordereditstatusgate_caneditorderbystatustitle",
+      "_tgt": "ordereditstatusgate_isinvoiceorlaterbykeywords",
+      "source": "ordereditstatusgate_isinvoiceorlaterbykeywords",
+      "target": "ordereditstatusgate_caneditorderbystatustitle",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\shared\\orderEditStatusGate.js",
+      "source_location": "L108",
+      "weight": 1.0,
+      "_src": "ordereditstatusgate_caneditorderbystatustitle",
+      "_tgt": "ordereditstatusgate_rankbyexactpipeline",
+      "source": "ordereditstatusgate_rankbyexactpipeline",
+      "target": "ordereditstatusgate_caneditorderbystatustitle",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\shared\\orderEditStatusGate.js",
+      "source_location": "L135",
+      "weight": 1.0,
+      "_src": "ordereditstatusgate_caneditorderfrombooking",
+      "_tgt": "ordereditstatusgate_caneditorderbystatustitle",
+      "source": "ordereditstatusgate_caneditorderbystatustitle",
+      "target": "ordereditstatusgate_caneditorderfrombooking",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "D:\\Laundary Admin\\Laundry-service-admin-panel\\src\\shared\\orderEditStatusGate.js",
+      "source_location": "L144",
+      "weight": 1.0,
+      "_src": "ordereditstatusgate_caneditorderfrombooking",
+      "_tgt": "ordereditstatusgate_getfirsteditablestatusindexfromapi",
+      "source": "ordereditstatusgate_getfirsteditablestatusindexfromapi",
+      "target": "ordereditstatusgate_caneditorderfrombooking",
       "confidence_score": 1.0
     },
     {
