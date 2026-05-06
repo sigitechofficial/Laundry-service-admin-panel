@@ -16,6 +16,7 @@ import InputFieldBordered from "../../components/ui/InputFieldBordered";
 import ButtonBlue from "../../components/ui/ButtonBlue";
 import useToaster from "../../components/ui/Toaster";
 import DataTable from "../../components/ui/DataTable";
+import StatCard from "../../components/ui/StatCard";
 import ModalComponent from "../../components/shared/Modal";
 import { useAddCouponMutation, useGetAllCouponsQuery } from "../../store/services/api";
 import { TbCalendar, TbPlus } from "../../shared/icons/index";
@@ -567,44 +568,19 @@ export default function PromoCodesPage() {
           </ButtonBlue>
         </Box>
 
-        <Box
-          sx={{
-            display: "grid",
-            gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)", lg: "repeat(4, 1fr)" },
-            gap: 1.5,
-          }}
-        >
+        <Box className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-7 font-Inter">
           {[
-            { label: "Total codes", value: String(stats.total), hint: "In this session", icon: "🎟️" },
-            { label: "Active", value: String(stats.active), hint: "isActive = true", icon: "✅" },
-            { label: "Expiring soon", value: String(stats.expiringSoon), hint: "Within 7 days", icon: "📅" },
-            { label: "Disabled", value: String(stats.disabled), hint: "Inactive", icon: "🔒" },
+            { label: "Total Codes", value: String(stats.total), bgColor: "bg-purple50" },
+            { label: "Active", value: String(stats.active), bgColor: "bg-red50" },
+            { label: "Expiring Soon", value: String(stats.expiringSoon), bgColor: "bg-green50" },
+            { label: "Disabled", value: String(stats.disabled), bgColor: "bg-green200" },
           ].map((s) => (
-            <Paper
+            <StatCard
               key={s.label}
-              sx={{
-                p: 2,
-                borderRadius: "12px",
-                border: "1px solid #E5E7EB",
-                bgcolor: "#FAFAFA",
-                boxShadow: "none",
-              }}
-            >
-              <Typography sx={{ fontSize: 20, mb: 0.5 }}>{s.icon}</Typography>
-              <Typography
-                sx={{
-                  fontSize: 11,
-                  fontWeight: 700,
-                  color: "#64748B",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.06em",
-                }}
-              >
-                {s.label}
-              </Typography>
-              <Typography sx={{ fontSize: 22, fontWeight: 700, color: "#0F172A", mt: 0.5 }}>{s.value}</Typography>
-              <Typography sx={{ fontSize: 11, color: "#94A3B8", mt: 0.5 }}>{s.hint}</Typography>
-            </Paper>
+              title={s.label}
+              value={s.value}
+              bgColor={s.bgColor}
+            />
           ))}
         </Box>
 
