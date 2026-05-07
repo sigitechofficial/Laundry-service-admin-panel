@@ -151,7 +151,7 @@ export default function Header() {
   return (
     <Box
       position="fixed"
-      zIndex={100}
+      zIndex={1100}
       width="100%"
       height={isDesktop ? "80px" : "60px"}
       bgcolor="grey.10"

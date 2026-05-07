@@ -8,22 +8,26 @@ import {
   MenuItem,
   IconButton,
   Checkbox,
+  Drawer,
+  Button,
 } from "@mui/material";
 import {
   useGetOrderForEditQuery,
   useGetAllServicesQuery,
+  useGetServiceDetailWithBookingSelectionQuery,
   useEditOrderMutation,
   useGetPreferencesQuery,
   useGetAllAddOnServicesQuery,
   useGetShopsDataQuery,
   useGetAllOrderStatusesQuery,
   useGetAllDriverMiniDetailsQuery,
+  useLazyInvoiceCreationQuery,
 } from "../../../store/services/api";
 import baseQueryWithReauth from "../../../store/services/baseQueryWithReauth";
 import useToaster from "../../../components/ui/Toaster";
 import { Delay } from "../../../components/shared/Loaders";
 import dayjs from "dayjs";
-import { TbCalendar, IoChevronBackOutline } from "../../../shared/icons/index";
+import { TbCalendar, IoChevronBackOutline, TbTrash } from "../../../shared/icons/index";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
@@ -99,10 +103,222 @@ function resolveEditOrderItemServiceId(item, serviceItemsMap) {
   return "";
 }
 
+function buildInvoiceView(invoiceDetails, fallbackShopName = "") {
+  if (!invoiceDetails) return null;
+  const customerName = `${invoiceDetails?.customer?.firstName || ""} ${invoiceDetails?.customer?.lastName || ""}`.trim() || "Customer";
+  const invoiceNo = invoiceDetails?.orderTrackId || `INV-${invoiceDetails?.id || ""}`;
+  const dateText = dayjs(invoiceDetails?.createdAt || invoiceDetails?.collectionDate).isValid()
+    ? dayjs(invoiceDetails.createdAt || invoiceDetails.collectionDate).format("DD MMM YYYY")
+    : "N/A";
+  const timeText = invoiceDetails?.collectionTimeTo || invoiceDetails?.collectionTimeFrom || "N/A";
+  const addressText = [invoiceDetails?.customer?.phoneNum, invoiceDetails?.dropOffAddress?.streetAddress]
+    .filter(Boolean)
+    .join(" · ");
+  const agentName = `${invoiceDetails?.driver?.firstName || ""} ${invoiceDetails?.driver?.lastName || ""}`.trim() || fallbackShopName || "justDray cleaner";
+  const items = (invoiceDetails?.customerSelectedServices || [])
+    .filter((it) => Number(it?.items) > 0)
+    .map((it, idx) => ({
+      id: it?.id || idx + 1,
+      name: it?.subCategory?.name || it?.category?.name || it?.service?.name || "Item",
+      qty: Number(it?.items) || 0,
+      rate: Number(it?.categoryPrice || it?.subCategory?.price || 0),
+      serviceName: it?.service?.name || "",
+      addOns: (it?.addOns || []).map((ad) => ({
+        name:
+          ad?.name ||
+          ad?.addOnService?.name ||
+          ad?.service?.name ||
+          ad?.title ||
+          "Add-on",
+        price: Number(ad?.price || 0),
+        qty: Number(ad?.quantity || 1),
+      })),
+      preferences: (it?.selectedServicePreferences || [])
+        .map((pref) => pref?.preferenceValue?.value)
+        .filter(Boolean),
+      instruction: it?.serviceInstruction || "",
+    }));
+  const subtotal = Number(invoiceDetails?.subTotal ?? invoiceDetails?.billingDetail?.total ?? 0);
+  const addOns = items.reduce(
+    (sum, item) =>
+      sum +
+      item.addOns.reduce((acc, ad) => acc + (Number(ad.qty) || 1) * (Number(ad.price) || 0), 0),
+    0
+  );
+  const serviceCharge = Number(invoiceDetails?.billingDetail?.serviceCharge ?? 0);
+  const discount = Number(invoiceDetails?.billingDetail?.discount ?? 0);
+  const grandTotal = Number(invoiceDetails?.orderAmount ?? invoiceDetails?.billingDetail?.total ?? subtotal);
+  const pickupWindow = `${invoiceDetails?.collectionTimeFrom || "N/A"}-${invoiceDetails?.collectionTimeTo || "N/A"}`;
+  const deliveryWindow = `${invoiceDetails?.deliveryTimeFrom || "N/A"}-${invoiceDetails?.deliveryTimeTo || "N/A"}`;
+  const bags = Number(invoiceDetails?.noOfBags || 0);
+  const emailOrPhone = [invoiceDetails?.customer?.phoneNum, invoiceDetails?.customer?.email]
+    .filter(Boolean)
+    .join(" · ");
+  const printedDate = dayjs().isValid() ? dayjs().format("DD MMM YYYY") : dateText;
+  const computedTotalItems = items.reduce((sum, item) => sum + (Number(item.qty) || 0), 0);
+  return {
+    invoiceNo,
+    customerName,
+    dateText,
+    timeText,
+    addressText: addressText || "N/A",
+    agentName,
+    totalItems:
+      computedTotalItems > 0
+        ? computedTotalItems
+        : Number(invoiceDetails?.totalItems || 0),
+    items,
+    subtotal,
+    addOns,
+    serviceCharge,
+    discount,
+    grandTotal,
+    pickupWindow,
+    deliveryWindow,
+    bags,
+    frequency: invoiceDetails?.frequency || "Just Once",
+    emailOrPhone,
+    printedDate,
+  };
+}
+
+function printHtmlDocument(html) {
+  const iframe = document.createElement("iframe");
+  iframe.style.position = "fixed";
+  iframe.style.right = "0";
+  iframe.style.bottom = "0";
+  iframe.style.width = "0";
+  iframe.style.height = "0";
+  iframe.style.border = "0";
+  document.body.appendChild(iframe);
+  const doc = iframe.contentWindow?.document;
+  if (!doc) {
+    document.body.removeChild(iframe);
+    return;
+  }
+  doc.open();
+  doc.write(html);
+  doc.close();
+  iframe.onload = () => {
+    iframe.contentWindow?.focus();
+    iframe.contentWindow?.print();
+    setTimeout(() => {
+      if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
+    }, 1200);
+  };
+}
+
+function a4InvoiceHtml(view) {
+  const rows = view.items.length
+    ? view.items
+        .map(
+          (item, idx) => `
+            <tr>
+              <td>${idx + 1}</td>
+              <td>${item.name}</td>
+              <td style="text-align:right">${item.qty}</td>
+              <td style="text-align:right">£${item.rate.toFixed(2)}</td>
+              <td style="text-align:right">£${(item.qty * item.rate).toFixed(2)}</td>
+            </tr>
+          `
+        )
+        .join("")
+    : `<tr><td colspan="5" style="text-align:center;color:#64748b">No items</td></tr>`;
+  return `<!doctype html><html><head><meta charset="utf-8"/><title>A4 Receipt</title>
+  <style>
+  body{font-family:Arial,sans-serif;color:#111827;margin:0;padding:16px} .sheet{max-width:1000px;margin:0 auto}
+  .top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px}
+  .title{font-size:28px;font-weight:700} .meta{font-size:28px}
+  table{width:100%;border-collapse:collapse} th,td{border:1px solid #d1d5db;padding:8px;font-size:14px}
+  .totals{margin-left:auto;width:260px;margin-top:8px} .totals .row{display:flex;justify-content:space-between;padding:6px 0}
+  </style></head><body><div class="sheet">
+  <div class="top"><div><div class="title">justDray cleaner</div><div>CUSTOMER RECEIPT</div></div><div class="meta"><div><b>Invoice:</b> ${view.invoiceNo}</div><div><b>Date:</b> ${view.dateText}</div><div><b>Time:</b> ${view.timeText}</div><div><b>Agent:</b> ${view.agentName}</div></div></div>
+  <div style="border:1px solid #d1d5db;border-radius:10px;padding:12px;margin-bottom:10px;display:flex;justify-content:space-between">
+    <div><b>Customer:</b> ${view.customerName}<br/><b>Contact / Address:</b> ${view.addressText}</div><div><b>Total Pieces:</b> ${view.totalItems}</div>
+  </div>
+  <table><thead><tr><th>#</th><th>ITEM DETAILS</th><th>QTY</th><th>RATE</th><th>LINE TOTAL</th></tr></thead><tbody>${rows}</tbody></table>
+  <div class="totals"><div class="row"><span>Subtotal</span><span>£${view.subtotal.toFixed(2)}</span></div><div class="row"><span>Add-ons</span><span>£${view.addOns.toFixed(2)}</span></div><div class="row" style="font-weight:700;font-size:22px"><span>Grand Total</span><span>£${view.grandTotal.toFixed(2)}</span></div></div>
+  </div></body></html>`;
+}
+
+function thermalInvoiceHtml(view) {
+  const itemRows = view.items.length
+    ? view.items
+        .map((item) => {
+          const addOnRows = item.addOns.length
+            ? item.addOns
+                .map(
+                  (ad) =>
+                    `<div class="subrow"><span>+ ${ad.qty}x ${ad.name}</span><span>£${(
+                      ad.qty * ad.price
+                    ).toFixed(2)}</span></div>`
+                )
+                .join("")
+            : "";
+          const prefRow = item.preferences.length
+            ? `<div class="muted">Pref: ${item.preferences.join(", ")}</div>`
+            : "";
+          const instructionRow = item.instruction
+            ? `<div class="muted">${item.instruction}</div>`
+            : "";
+          return `<div class="lineItem">
+            <div class="row strong"><span>${item.qty}x ${item.serviceName ? `${item.serviceName} - ` : ""}${item.name}</span><span>£${(item.qty * item.rate).toFixed(2)}</span></div>
+            ${addOnRows}
+            ${prefRow}
+            ${instructionRow}
+          </div>`;
+        })
+        .join("")
+    : `<div class="row"><span>No items</span><span>£0.00</span></div>`;
+  return `<!doctype html><html><head><meta charset="utf-8"/><title>58mm Thermal</title>
+  <style>
+    body{font-family:'Courier New',monospace;margin:0;background:#fff}
+    .ticket{width:58mm;margin:0 auto;padding:8px 6px;color:#111}
+    .center{text-align:center}
+    .line{border-top:1px dashed #444;margin:7px 0}
+    .row{display:flex;justify-content:space-between;gap:8px;font-size:11px;line-height:1.25;margin:1px 0}
+    .subrow{display:flex;justify-content:space-between;gap:8px;font-size:10px;color:#333;padding-left:8px}
+    .muted{font-size:10px;color:#666;padding-left:8px;line-height:1.2}
+    .strong{font-weight:700}
+    .lineItem{margin-bottom:5px}
+    .big{font-size:18px;font-weight:700}
+  </style>
+  </head><body><div class="ticket">
+  <div class="center"><div style="font-size:12px;font-weight:700">justDray cleaner</div><div style="font-size:11px">Customer Receipt</div><div style="font-size:10px">Format: 58mm Thermal</div></div>
+  <div class="line"></div>
+  <div class="row"><span>Invoice</span><span><b>${view.invoiceNo}</b></span></div>
+  <div class="row"><span>Date</span><span>${view.dateText}</span></div>
+  <div class="row"><span>Pickup</span><span>${view.pickupWindow}</span></div>
+  <div class="row"><span>Delivery</span><span>${view.deliveryWindow}</span></div>
+  <div class="row"><span>Bags</span><span>${view.bags}</span></div>
+  <div class="row"><span>Frequency</span><span>${view.frequency}</span></div>
+  <div class="line"></div>
+  <div><b>${view.customerName}</b></div>
+  <div style="font-size:10px;line-height:1.2">${view.emailOrPhone || ""}</div>
+  <div style="font-size:10px;line-height:1.2">${view.addressText}</div>
+  <div class="line"></div>
+  <div class="row strong"><span>Items (${view.totalItems})</span><span>Amount</span></div>
+  ${itemRows}
+  <div class="line"></div>
+  <div class="row"><span>Subtotal</span><span>£${view.subtotal.toFixed(2)}</span></div>
+  <div class="row"><span>Add-ons</span><span>£${view.addOns.toFixed(2)}</span></div>
+  <div class="row"><span>Service Charge</span><span>£${view.serviceCharge.toFixed(2)}</span></div>
+  <div class="row"><span>Discount</span><span>£${view.discount.toFixed(2)}</span></div>
+  <div class="line"></div>
+  <div class="row big"><span>Total</span><span>£${view.grandTotal.toFixed(2)}</span></div>
+  <div class="line"></div>
+  <div class="center" style="font-size:10px">Thank you for choosing justDray cleaner</div>
+  <div class="center" style="font-size:10px;color:#777">Printed: ${view.printedDate} · Keep this receipt</div>
+  </div></body></html>`;
+}
+
 export default function EditOrder() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { data: orderResponse, isLoading } = useGetOrderForEditQuery(id, {
+    skip: !id,
+  });
+  const { data: serviceDetailResponse } = useGetServiceDetailWithBookingSelectionQuery(id, {
     skip: !id,
   });
   const { data: servicesResponse } = useGetAllServicesQuery();
@@ -110,6 +326,7 @@ export default function EditOrder() {
   const { data: statusesResponse } = useGetAllOrderStatusesQuery();
   const { data: shopsResponse, isLoading: shopsLoading } = useGetShopsDataQuery();
   const { data: driversResponse, isLoading: driversLoading } = useGetAllDriverMiniDetailsQuery();
+  const [fetchInvoice, { isFetching: isFetchingInvoice }] = useLazyInvoiceCreationQuery();
   const [editOrder, { isLoading: isSaving }] = useEditOrderMutation();
   const { success, error: showError } = useToaster();
 
@@ -143,7 +360,12 @@ export default function EditOrder() {
     return list;
   }, [shopsResponse, orderData, shopName]);
 
-  const allServices = servicesResponse?.data?.services || [];
+  const serviceDetailData = serviceDetailResponse?.data;
+  const serviceDetailsList = serviceDetailData?.serviceDetails || [];
+  const bookingSelectedServices = serviceDetailData?.bookingSelectedServices || [];
+  const allServices = serviceDetailsList.length
+    ? serviceDetailsList.map((row) => row?.service).filter(Boolean)
+    : servicesResponse?.data?.services || [];
   const allPreferences = preferencesResponse?.data || [];
   const orderStatusOptions = useMemo(
     () => (Array.isArray(statusesResponse?.data) ? statusesResponse.data : []),
@@ -231,6 +453,17 @@ export default function EditOrder() {
   /** Order Items panel: which service / category tab is active (mobile-style UI). */
   const [selectedItemsServiceId, setSelectedItemsServiceId] = useState("");
   const [selectedItemsCategoryKey, setSelectedItemsCategoryKey] = useState("all");
+  const [serviceDrawer, setServiceDrawer] = useState({
+    open: false,
+    serviceId: "",
+  });
+  const [confirmedServiceIds, setConfirmedServiceIds] = useState(new Set());
+  const [invoiceModal, setInvoiceModal] = useState({
+    open: false,
+    format: "a4",
+    previewOpen: false,
+  });
+  const [invoiceDetails, setInvoiceDetails] = useState(null);
   const isInitialized = useRef(false);
   const lastAddedItemRef = useRef({ subCategoryId: null, timestamp: 0 });
   const editStatusRedirected = useRef(false);
@@ -427,8 +660,8 @@ export default function EditOrder() {
       console.log('📦 EditOrder: preferencesArray length:', preferencesArray.length);
       console.log('📦 EditOrder: Full serviceItems state:', JSON.parse(JSON.stringify(serviceItems)));
 
-      // Build services array
-      const services = Object.keys(serviceItems).map((serviceId) => ({
+      // Build services array from confirmed selections.
+      const services = Array.from(confirmedServiceIds).map((serviceId) => ({
         serviceId: parseInt(serviceId),
       }));
 
@@ -640,79 +873,200 @@ export default function EditOrder() {
 
   // Initialize service items from orderData (only once when orderData is first loaded)
   useEffect(() => {
-    if (orderData?.customerSelectedServices && !isInitialized.current) {
-      const items = {};
+    if (!serviceDetailsList.length || isInitialized.current) return;
+    const items = {};
 
-      // Create a map of preferences by serviceId and categoryId/subCategoryId for quick lookup
-      // Also create a reverse map by serviceId only as fallback
-      const preferencesMap = {};
-      const preferencesByServiceMap = {};
+    serviceDetailsList.forEach((serviceRow) => {
+      const serviceId = serviceRow?.serviceId;
+      if (serviceId == null) return;
+      items[serviceId] = {
+        serviceName: serviceRow?.service?.name || "Other",
+        items: [],
+      };
 
-      if (orderData.preferencesArray && Array.isArray(orderData.preferencesArray)) {
-        orderData.preferencesArray.forEach((pref) => {
-          // Map by serviceId + categoryId + subCategoryId (if available)
-          if (pref.categoryId || pref.subCategoryId) {
-            const key = `${pref.serviceId}-${pref.categoryId || ''}-${pref.subCategoryId || ''}`;
-            if (!preferencesMap[key]) {
-              preferencesMap[key] = [];
-            }
-            preferencesMap[key].push({
-              preferenceTypeId: pref.preferenceTypeId,
-              preferenceValueId: pref.preferenceValueId,
-            });
-          }
-
-          // Also map by serviceId only as fallback
-          if (!preferencesByServiceMap[pref.serviceId]) {
-            preferencesByServiceMap[pref.serviceId] = [];
-          }
-          preferencesByServiceMap[pref.serviceId].push({
-            preferenceTypeId: pref.preferenceTypeId,
-            preferenceValueId: pref.preferenceValueId,
+      (serviceRow?.categories || []).forEach((catRow) => {
+        (catRow?.subCategories || []).forEach((sub) => {
+          items[serviceId].items.push({
+            id: `catalog-${serviceId}-${catRow?.categoryId}-${sub?.id}`,
+            sourceServiceId: serviceId,
+            itemName: sub?.name || catRow?.category?.name || "Item",
+            quantity: 0,
+            unitPrice: parseFloat(sub?.price || 0),
+            categoryId: catRow?.categoryId,
+            subCategoryId: sub?.id,
+            preferences: { preferenceIds: [] },
           });
         });
+      });
+    });
+
+    bookingSelectedServices.forEach((selected) => {
+      const serviceId = selected?.serviceId;
+      if (serviceId == null) return;
+      if (!items[serviceId]) {
+        items[serviceId] = {
+          serviceName: selected?.service?.name || "Other",
+          items: [],
+        };
       }
 
-      orderData.customerSelectedServices.forEach((service) => {
-        const serviceName = service.service?.name || "Other";
-        const serviceId = service.serviceId;
-        if (!items[serviceId]) {
-          items[serviceId] = {
-            serviceName,
-            items: [],
-          };
-        }
+      const selectedPrefIds = (selected?.selectedServicePreferences || [])
+        .map((pref) => ({
+          preferenceTypeId: pref?.preferenceTypeId,
+          preferenceValueId: pref?.preferenceValueId,
+        }))
+        .filter((pref) => pref.preferenceTypeId && pref.preferenceValueId);
 
-        // Find preferences for this service item
-        // First try to match by serviceId + categoryId + subCategoryId
-        let itemPreferences = [];
-        if (service.categoryId || service.subCategoryId) {
-          const prefKey = `${serviceId}-${service.categoryId || ''}-${service.subCategoryId || ''}`;
-          itemPreferences = preferencesMap[prefKey] || [];
-        }
+      const existingIndex = items[serviceId].items.findIndex(
+        (it) => String(it.subCategoryId) === String(selected?.subCategoryId)
+      );
 
-        // If no preferences found, try to get by serviceId only (fallback)
-        if (itemPreferences.length === 0 && preferencesByServiceMap[serviceId]) {
-          itemPreferences = preferencesByServiceMap[serviceId];
-        }
+      const mappedItem = {
+        id: selected?.id ?? `selected-${serviceId}-${selected?.subCategoryId}`,
+        sourceServiceId: serviceId,
+        itemName:
+          selected?.subCategory?.name ||
+          selected?.category?.name ||
+          selected?.service?.name ||
+          "Item",
+        quantity:
+          selected?.items !== null && selected?.items !== undefined ? selected.items : 0,
+        unitPrice: parseFloat(selected?.categoryPrice || selected?.subCategory?.price || 0),
+        categoryId: selected?.categoryId,
+        subCategoryId: selected?.subCategoryId,
+        preferences: { preferenceIds: selectedPrefIds },
+      };
 
-        items[serviceId].items.push({
-          id: service.id,
-          sourceServiceId: serviceId,
-          itemName: service.category?.name || service.service?.name || "Item",
-          quantity: service.items !== null && service.items !== undefined ? service.items : 0,
-          unitPrice: parseFloat(service.categoryPrice || service.servicePrice || 0),
-          categoryId: service.categoryId,
-          subCategoryId: service.subCategoryId,
-          preferences: {
-            preferenceIds: itemPreferences || [],
-          },
-        });
-      });
-      setServiceItems(items);
-      isInitialized.current = true;
+      if (existingIndex >= 0) {
+        items[serviceId].items[existingIndex] = {
+          ...items[serviceId].items[existingIndex],
+          ...mappedItem,
+        };
+      } else {
+        items[serviceId].items.push(mappedItem);
+      }
+    });
+
+    setServiceItems(items);
+    const initiallySelectedIds = serviceDetailsList
+      .filter((row) => row?.isSelectedInBooking)
+      .map((row) => String(row?.serviceId));
+    bookingSelectedServices.forEach((s) => {
+      if (s?.serviceId != null) initiallySelectedIds.push(String(s.serviceId));
+    });
+    setConfirmedServiceIds(new Set(initiallySelectedIds));
+    isInitialized.current = true;
+  }, [serviceDetailsList, bookingSelectedServices]);
+
+  const selectedServiceIdsSet = useMemo(() => {
+    return new Set(Array.from(confirmedServiceIds));
+  }, [confirmedServiceIds]);
+
+  const selectedItemsCountByService = useMemo(() => {
+    const counts = {};
+    Object.entries(serviceItems).forEach(([sid, data]) => {
+      counts[sid] = (data?.items || []).reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
+    });
+    return counts;
+  }, [serviceItems]);
+  const selectedItemsTotalCount = useMemo(
+    () => Object.values(selectedItemsCountByService).reduce((sum, count) => sum + (Number(count) || 0), 0),
+    [selectedItemsCountByService]
+  );
+
+  const drawerServiceData = serviceDrawer.serviceId ? serviceItems[serviceDrawer.serviceId] : null;
+  const drawerSelectedItems = useMemo(() => {
+    if (!drawerServiceData?.items) return [];
+    return drawerServiceData.items.filter((item) => (Number(item.quantity) || 0) > 0);
+  }, [drawerServiceData]);
+
+  const openServiceDrawer = (serviceId) => {
+    const sid = String(serviceId || "");
+    if (!sid) return;
+    setServiceDrawer({ open: true, serviceId: sid });
+  };
+
+  const closeServiceDrawer = () => {
+    setServiceDrawer({ open: false, serviceId: "" });
+  };
+
+  const handleSelectService = () => {
+    const sid = String(serviceDrawer.serviceId || "");
+    if (!sid) return;
+    const qtyCount = selectedItemsCountByService[sid] || 0;
+    if (qtyCount <= 0) {
+      showError("Please select item quantity first.");
+      return;
     }
-  }, [orderData]);
+    setConfirmedServiceIds((prev) => {
+      const next = new Set(prev);
+      next.add(sid);
+      return next;
+    });
+    closeServiceDrawer();
+  };
+
+  const handleRemoveDrawerItem = (serviceSid, itemId) => {
+    const sid = String(serviceSid || "");
+    if (!sid) return;
+    setServiceItems((prev) => {
+      if (!prev[sid]) return prev;
+      const next = { ...prev, [sid]: { ...prev[sid], items: [...prev[sid].items] } };
+      const ii = next[sid].items.findIndex((i) => i.id === itemId);
+      if (ii === -1) return prev;
+      next[sid].items[ii] = { ...next[sid].items[ii], quantity: 0 };
+      return next;
+    });
+  };
+
+  const handleRemoveServiceSelection = () => {
+    const sid = String(serviceDrawer.serviceId || "");
+    if (!sid) return;
+    setConfirmedServiceIds((prev) => {
+      const next = new Set(prev);
+      next.delete(sid);
+      return next;
+    });
+    closeServiceDrawer();
+  };
+
+  const invoiceView = useMemo(
+    () => buildInvoiceView(invoiceDetails, shopName),
+    [invoiceDetails, shopName]
+  );
+
+  const handleOpenInvoiceModal = async () => {
+    try {
+      const response = await fetchInvoice(Number(id)).unwrap();
+      const details = response?.data?.invoiceDetails;
+      if (!details) {
+        showError("Invoice details not found.");
+        return;
+      }
+      setInvoiceDetails(details);
+      setInvoiceModal({ open: true, format: "a4", previewOpen: false });
+    } catch (err) {
+      showError(err?.data?.message || "Failed to fetch invoice details.");
+    }
+  };
+
+  const handleCloseInvoiceModal = () => {
+    setInvoiceModal((prev) => ({ ...prev, open: false, previewOpen: false }));
+  };
+
+  const handlePreviewInvoice = () => {
+    if (!invoiceView) return;
+    setInvoiceModal((prev) => ({ ...prev, previewOpen: true }));
+  };
+
+  const handlePrintInvoice = () => {
+    if (!invoiceView) return;
+    const html =
+      invoiceModal.format === "thermal"
+        ? thermalInvoiceHtml(invoiceView)
+        : a4InvoiceHtml(invoiceView);
+    printHtmlDocument(html);
+  };
 
   const serviceIdsOrdered = useMemo(() => Object.keys(serviceItems), [serviceItems]);
 
@@ -1006,6 +1360,13 @@ export default function EditOrder() {
                 <ButtonWhite onClick={handleCancel} disabled={isSaving} size="medium">
                   Cancel
                 </ButtonWhite>
+                <ButtonWhite
+                  onClick={handleOpenInvoiceModal}
+                  disabled={isFetchingInvoice}
+                  size="medium"
+                >
+                  {isFetchingInvoice ? "Generating..." : "Generate Invoice"}
+                </ButtonWhite>
                 <ButtonBlue onClick={handleSave} disabled={isSaving} size="medium">
                   {isSaving ? "Saving..." : "Save Changes"}
                 </ButtonBlue>
@@ -1216,7 +1577,7 @@ export default function EditOrder() {
                     </Typography>
                   </Box>
                   <Typography sx={{ fontSize: 11, fontWeight: 700, color: "#15803D", bgcolor: "#ECFDF3", border: "1px solid #86EFAC", borderRadius: "6px", px: 1.2, py: 0.4 }}>
-                    {Object.values(serviceItems).reduce((sum, serviceData) => sum + serviceData.items.length, 0)} items
+                    {selectedItemsTotalCount} items
                   </Typography>
                 </Box>
 
@@ -1235,31 +1596,60 @@ export default function EditOrder() {
                       {Object.entries(serviceItems).map(([serviceId, serviceData]) => {
                         const active = String(serviceId) === String(selectedItemsServiceId);
                         const imgUrl = serviceImageById[String(serviceId)] || "";
+                        const isSelected = selectedServiceIdsSet.has(String(serviceId));
                         const initial = (serviceData.serviceName || "?").trim().charAt(0).toUpperCase();
                         return (
                           <Box
                             key={serviceId}
                             component="button"
                             type="button"
-                            onClick={() => setSelectedItemsServiceId(String(serviceId))}
+                            onClick={() => {
+                              setSelectedItemsServiceId(String(serviceId));
+                              if (isSelected) {
+                                openServiceDrawer(serviceId);
+                              }
+                            }}
                             sx={{
+                              position: "relative",
                               flex: "0 0 auto",
                               minWidth: 92,
                               maxWidth: 112,
                               px: 1.25,
                               py: 1.25,
                               borderRadius: "12px",
-                              border: active ? "1px solid #93C5FD" : "1px solid #E2E8F0",
+                              border: "none",
                               bgcolor: active ? "#EFF6FF" : "#F8FAFC",
                               cursor: "pointer",
                               fontFamily: "Switzer",
-                              transition: "background-color 0.15s ease, border-color 0.15s ease",
+                              transition: "background-color 0.15s ease",
                               "&:hover": {
                                 bgcolor: active ? "#DBEAFE" : "#F1F5F9",
-                                borderColor: active ? "#60A5FA" : "#CBD5E1",
                               },
                             }}
                           >
+                            {isSelected ? (
+                              <Box
+                                sx={{
+                                  position: "absolute",
+                                  top: 6,
+                                  right: 6,
+                                  width: 18,
+                                  height: 18,
+                                  borderRadius: "50%",
+                                  bgcolor: "#22C55E",
+                                  color: "#fff",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  fontSize: 12,
+                                  fontWeight: 700,
+                                  zIndex: 3,
+                                  boxShadow: "0 0 0 2px #fff",
+                                }}
+                              >
+                                ✓
+                              </Box>
+                            ) : null}
                             <Box
                               sx={{
                                 position: "relative",
@@ -1321,6 +1711,11 @@ export default function EditOrder() {
                               }}
                             >
                               {serviceData.serviceName}
+                            </Typography>
+                            <Typography
+                              sx={{ mt: 0.4, fontSize: 11, color: "#475569", textAlign: "center" }}
+                            >
+                              {selectedItemsCountByService[String(serviceId)] || 0} item(s)
                             </Typography>
                           </Box>
                         );
@@ -1434,42 +1829,18 @@ export default function EditOrder() {
                               }}
                             >
                               <Box sx={{ flex: "1 1 220px", minWidth: 0 }}>
-                                <InputFieldBordered
-                                  value={item.itemName}
-                                  onChange={(e) => {
-                                    const sidUpd = String(rowServiceId);
-                                    setServiceItems((prev) => {
-                                      const newState = { ...prev };
-                                      const bucket = newState[sidUpd];
-                                      if (!bucket) return prev;
-                                      const ii = bucket.items.findIndex((i) => i.id === item.id);
-                                      if (ii !== -1) bucket.items[ii].itemName = e.target.value;
-                                      return newState;
-                                    });
-                                  }}
-                                  placeholder="Item name"
-                                />
+                                <Typography
+                                  sx={{ fontSize: 15, fontWeight: 600, color: "#0F172A" }}
+                                >
+                                  {item.itemName || "Item"}
+                                </Typography>
                                 <Typography sx={{ mt: 1, fontSize: 13, color: "#64748B" }}>
                                   {svcName}
                                 </Typography>
                                 <Box sx={{ mt: 0.75, display: "flex", alignItems: "baseline", gap: 0.5 }}>
-                                  <InputFieldBordered
-                                    type="number"
-                                    value={item.unitPrice > 0 ? item.unitPrice.toFixed(2) : ""}
-                                    onChange={(e) => {
-                                      const newPrice = parseFloat(e.target.value) || 0;
-                                      const sidUpd = String(rowServiceId);
-                                      setServiceItems((prev) => {
-                                        const newState = { ...prev };
-                                        const bucket = newState[sidUpd];
-                                        if (!bucket) return prev;
-                                        const ii = bucket.items.findIndex((i) => i.id === item.id);
-                                        if (ii !== -1) bucket.items[ii].unitPrice = newPrice;
-                                        return newState;
-                                      });
-                                    }}
-                                    placeholder="0.00"
-                                  />
+                                  <Typography sx={{ fontSize: 14, fontWeight: 600, color: "#0F172A" }}>
+                                    ${Number(item.unitPrice || 0).toFixed(2)}
+                                  </Typography>
                                   <Typography sx={{ fontSize: 13, color: "#94A3B8", flexShrink: 0 }}>
                                     / piece
                                   </Typography>
@@ -1521,7 +1892,10 @@ export default function EditOrder() {
                                 <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
                                   <IconButton
                                     size="small"
-                                    onClick={() => bumpOrderItemQuantity(item, rowServiceId, -1)}
+                                    onClick={() => {
+                                      openServiceDrawer(rowServiceId);
+                                      bumpOrderItemQuantity(item, rowServiceId, -1);
+                                    }}
                                     sx={{
                                       border: "1px solid #E2E8F0",
                                       borderRadius: "10px",
@@ -1533,28 +1907,29 @@ export default function EditOrder() {
                                       −
                                     </Typography>
                                   </IconButton>
-                                  <Box sx={{ width: 56 }}>
-                                    <InputFieldBordered
-                                      type="number"
-                                      value={item.quantity}
-                                      onChange={(e) => {
-                                        const newQuantity = parseInt(e.target.value, 10) || 0;
-                                        const sidUpd = String(rowServiceId);
-                                        setServiceItems((prev) => {
-                                          const newState = { ...prev };
-                                          const bucket = newState[sidUpd];
-                                          if (!bucket) return prev;
-                                          const ii = bucket.items.findIndex((i) => i.id === item.id);
-                                          if (ii !== -1) bucket.items[ii].quantity = newQuantity;
-                                          return newState;
-                                        });
-                                      }}
-                                      placeholder="0"
-                                    />
+                                  <Box
+                                    sx={{
+                                      minWidth: 56,
+                                      height: 36,
+                                      px: 1,
+                                      display: "flex",
+                                      alignItems: "center",
+                                      justifyContent: "center",
+                                      border: "1px solid #E2E8F0",
+                                      borderRadius: "10px",
+                                      bgcolor: "#F8FAFC",
+                                    }}
+                                  >
+                                    <Typography sx={{ fontSize: 14, fontWeight: 600, color: "#334155" }}>
+                                      {Number(item.quantity) || 0}
+                                    </Typography>
                                   </Box>
                                   <IconButton
                                     size="small"
-                                    onClick={() => bumpOrderItemQuantity(item, rowServiceId, 1)}
+                                    onClick={() => {
+                                      openServiceDrawer(rowServiceId);
+                                      bumpOrderItemQuantity(item, rowServiceId, 1);
+                                    }}
                                     sx={{
                                       border: "1px solid #BFDBFE",
                                       borderRadius: "10px",
@@ -1833,8 +2208,24 @@ export default function EditOrder() {
                   <Box component="button" sx={{ borderRadius: "8px", border: "1px solid #FECACA", py: 1, fontSize: 12, fontWeight: 700, textTransform: "uppercase", color: "#DC2626", bgcolor: "#fff", cursor: "pointer" }}>
                     Cancel Order
                   </Box>
-                  <Box component="button" sx={{ borderRadius: "8px", border: "1px solid #FCA5A5", py: 1, fontSize: 12, fontWeight: 700, textTransform: "uppercase", color: "#B91C1C", bgcolor: "#fff", cursor: "pointer" }}>
-                    Delete Order
+                  <Box
+                    component="button"
+                    onClick={handleOpenInvoiceModal}
+                    disabled={isFetchingInvoice}
+                    sx={{
+                      borderRadius: "8px",
+                      border: "1px solid #93C5FD",
+                      py: 1,
+                      fontSize: 12,
+                      fontWeight: 700,
+                      textTransform: "uppercase",
+                      color: "#1D4ED8",
+                      bgcolor: "#EFF6FF",
+                      cursor: "pointer",
+                      opacity: isFetchingInvoice ? 0.7 : 1,
+                    }}
+                  >
+                    {isFetchingInvoice ? "Generating..." : "Generate Invoice"}
                   </Box>
                 </Box>
               </Paper>
@@ -1916,6 +2307,481 @@ export default function EditOrder() {
           )}
         </Box>
       </ModalComponent>
+
+      <ModalComponent
+        open={invoiceModal.open}
+        onClose={handleCloseInvoiceModal}
+        title=""
+        width={760}
+        maxHeight="92vh"
+        hideHeader
+      >
+        <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
+          <Typography sx={{ textAlign: "center", fontSize: 24, fontWeight: 700, color: "#111827", lineHeight: 1.2 }}>
+            Confirm Invoice
+          </Typography>
+          <Typography sx={{ textAlign: "center", color: "#6B7280", fontSize: 14, mb: 0.5 }}>
+            Review the summary before finalizing
+          </Typography>
+
+          <Paper sx={{ border: "1px solid #E5E7EB", borderRadius: "12px", p: 1.25, boxShadow: "none" }}>
+            <Typography sx={{ fontSize: 11, color: "#6B7280", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", mb: 1 }}>
+              Receipt Print Format
+            </Typography>
+            <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1 }}>
+              <Button
+                onClick={() => setInvoiceModal((prev) => ({ ...prev, format: "a4" }))}
+                variant="outlined"
+                sx={{
+                  textTransform: "none",
+                  borderRadius: "10px",
+                  minHeight: 42,
+                  fontSize: 14,
+                  fontWeight: 600,
+                  bgcolor: invoiceModal.format === "a4" ? "#ECFDF5" : "#FFFFFF",
+                  color: invoiceModal.format === "a4" ? "#047857" : "#4B5563",
+                  borderColor: invoiceModal.format === "a4" ? "#059669" : "#D1D5DB",
+                  boxShadow: "none",
+                  "&:hover": {
+                    bgcolor: invoiceModal.format === "a4" ? "#D1FAE5" : "#F8FAFC",
+                    borderColor: invoiceModal.format === "a4" ? "#047857" : "#9CA3AF",
+                  },
+                }}
+              >
+                A4 Receipt
+              </Button>
+              <Button
+                onClick={() => setInvoiceModal((prev) => ({ ...prev, format: "thermal" }))}
+                variant="outlined"
+                sx={{
+                  textTransform: "none",
+                  borderRadius: "10px",
+                  minHeight: 42,
+                  fontSize: 14,
+                  fontWeight: 600,
+                  bgcolor: invoiceModal.format === "thermal" ? "#ECFDF5" : "#FFFFFF",
+                  color: invoiceModal.format === "thermal" ? "#047857" : "#4B5563",
+                  borderColor: invoiceModal.format === "thermal" ? "#059669" : "#D1D5DB",
+                  boxShadow: "none",
+                  "&:hover": {
+                    bgcolor: invoiceModal.format === "thermal" ? "#D1FAE5" : "#F8FAFC",
+                    borderColor: invoiceModal.format === "thermal" ? "#047857" : "#9CA3AF",
+                  },
+                }}
+              >
+                58mm Thermal
+              </Button>
+            </Box>
+          </Paper>
+
+          <Paper sx={{ border: "1px solid #E5E7EB", borderRadius: "12px", p: 2, boxShadow: "none" }}>
+            <Box sx={{ display: "grid", gridTemplateColumns: "1fr auto", rowGap: 1 }}>
+              <Typography sx={{ color: "#6B7280", fontSize: 14 }}>Customer</Typography>
+              <Typography sx={{ color: "#111827", fontWeight: 600, fontSize: 14 }}>{invoiceView?.customerName || "N/A"}</Typography>
+              <Typography sx={{ color: "#6B7280", fontSize: 14 }}>Invoice No.</Typography>
+              <Typography sx={{ color: "#111827", fontWeight: 600, fontSize: 14 }}>{invoiceView?.invoiceNo || "N/A"}</Typography>
+              <Typography sx={{ color: "#6B7280", fontSize: 14 }}>Receipt Format</Typography>
+              <Typography sx={{ color: "#111827", fontWeight: 600, fontSize: 14 }}>{invoiceModal.format === "a4" ? "A4 Receipt" : "58mm Thermal"}</Typography>
+              <Typography sx={{ color: "#6B7280", fontSize: 14 }}>Total Items</Typography>
+              <Typography sx={{ color: "#111827", fontWeight: 600, fontSize: 14 }}>{invoiceView?.totalItems || 0}</Typography>
+              <Typography sx={{ color: "#6B7280", fontSize: 14 }}>Subtotal</Typography>
+              <Typography sx={{ color: "#111827", fontWeight: 600, fontSize: 14 }}>£{Number(invoiceView?.subtotal || 0).toFixed(2)}</Typography>
+              <Typography sx={{ color: "#6B7280", fontSize: 14 }}>Add-ons</Typography>
+              <Typography sx={{ color: "#111827", fontWeight: 600, fontSize: 14 }}>£{Number(invoiceView?.addOns || 0).toFixed(2)}</Typography>
+            </Box>
+            <Box sx={{ mt: 2.5, pt: 1.5, borderTop: "1px solid #E5E7EB", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <Typography sx={{ color: "#1F2937", fontWeight: 700, fontSize: 22 }}>Total</Typography>
+              <Typography sx={{ color: "#1F2937", fontWeight: 700, fontSize: 24 }}>£{Number(invoiceView?.grandTotal || 0).toFixed(2)}</Typography>
+            </Box>
+          </Paper>
+
+          <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1.3fr 1.8fr", gap: 1.5 }}>
+            <ButtonWhite onClick={handleCloseInvoiceModal}>Cancel</ButtonWhite>
+            <Button
+              onClick={handlePreviewInvoice}
+              variant="outlined"
+              sx={{ minHeight: 44, borderRadius: "10px", textTransform: "none", fontSize: 16, fontWeight: 700, color: "#047857", borderColor: "#047857", bgcolor: "#ECFDF5" }}
+            >
+              Preview Receipt
+            </Button>
+            <Button
+              onClick={handlePrintInvoice}
+              variant="contained"
+              sx={{ minHeight: 44, borderRadius: "10px", textTransform: "none", fontSize: 16, fontWeight: 700, bgcolor: "#047857" }}
+            >
+              Confirm & Generate
+            </Button>
+          </Box>
+        </Box>
+      </ModalComponent>
+
+      <ModalComponent
+        open={invoiceModal.previewOpen}
+        onClose={() => setInvoiceModal((prev) => ({ ...prev, previewOpen: false }))}
+        title={invoiceModal.format === "a4" ? "A4 Receipt Preview" : "58mm Thermal Preview"}
+        width={invoiceModal.format === "a4" ? 1100 : 420}
+      >
+        {invoiceModal.format === "a4" ? (
+          <Box sx={{ border: "1px solid #D1D5DB", borderRadius: "10px", p: 1.5 }}>
+            <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", mb: 1.2 }}>
+              <Box>
+                <Typography sx={{ fontSize: 24, fontWeight: 700, lineHeight: 1.1 }}>justDray cleaner</Typography>
+                <Typography sx={{ fontSize: 13, letterSpacing: "0.03em" }}>CUSTOMER RECEIPT</Typography>
+              </Box>
+              <Box>
+                <Typography sx={{ fontSize: 12, textAlign: "right" }}><b>Invoice:</b> {invoiceView?.invoiceNo}</Typography>
+                <Typography sx={{ fontSize: 12, textAlign: "right" }}><b>Date:</b> {invoiceView?.dateText}</Typography>
+                <Typography sx={{ fontSize: 12, textAlign: "right" }}><b>Time:</b> {invoiceView?.timeText}</Typography>
+              </Box>
+            </Box>
+
+            <Box sx={{ border: "1px solid #D1D5DB", borderRadius: "8px", p: 1, mb: 1 }}>
+              <Typography sx={{ fontSize: 12 }}><b>Customer:</b> {invoiceView?.customerName}</Typography>
+              <Typography sx={{ fontSize: 11 }}><b>Contact / Address:</b> {invoiceView?.emailOrPhone || ""} {invoiceView?.addressText ? `· ${invoiceView.addressText}` : ""}</Typography>
+            </Box>
+
+            <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 0.8, mb: 1.1 }}>
+              <Typography sx={{ fontSize: 11 }}><b>Pickup:</b> {invoiceView?.pickupWindow || "N/A"}</Typography>
+              <Typography sx={{ fontSize: 11, textAlign: "right" }}><b>Delivery:</b> {invoiceView?.deliveryWindow || "N/A"}</Typography>
+              <Typography sx={{ fontSize: 11 }}><b>Bags:</b> {invoiceView?.bags || 0}</Typography>
+              <Typography sx={{ fontSize: 11, textAlign: "right" }}><b>Frequency:</b> {invoiceView?.frequency || "Just Once"}</Typography>
+            </Box>
+
+            <Box sx={{ display: "grid", gridTemplateColumns: "34px 1fr 56px 70px 82px", border: "1px solid #D1D5DB", bgcolor: "#F8FAFC" }}>
+              <Typography sx={{ p: 0.6, borderRight: "1px solid #D1D5DB", fontSize: 11, fontWeight: 700 }}>#</Typography>
+              <Typography sx={{ p: 0.6, borderRight: "1px solid #D1D5DB", fontSize: 11, fontWeight: 700 }}>ITEM DETAILS</Typography>
+              <Typography sx={{ p: 0.6, borderRight: "1px solid #D1D5DB", fontSize: 11, fontWeight: 700, textAlign: "right" }}>QTY</Typography>
+              <Typography sx={{ p: 0.6, borderRight: "1px solid #D1D5DB", fontSize: 11, fontWeight: 700, textAlign: "right" }}>RATE</Typography>
+              <Typography sx={{ p: 0.6, fontSize: 11, fontWeight: 700, textAlign: "right" }}>LINE TOTAL</Typography>
+            </Box>
+            {(invoiceView?.items || []).map((it, idx) => (
+              <Box key={`${it.id}-${idx}`} sx={{ borderLeft: "1px solid #D1D5DB", borderRight: "1px solid #D1D5DB", borderBottom: "1px solid #D1D5DB", p: 0.7 }}>
+                <Box sx={{ display: "grid", gridTemplateColumns: "34px 1fr 56px 70px 82px" }}>
+                  <Typography sx={{ pr: 0.6, borderRight: "1px solid #D1D5DB", fontSize: 11 }}>{idx + 1}</Typography>
+                  <Typography sx={{ pl: 0.6, pr: 0.6, borderRight: "1px solid #D1D5DB", fontSize: 11, fontWeight: 700 }}>
+                    {it.serviceName ? `${it.serviceName} - ` : ""}{it.name}
+                  </Typography>
+                  <Typography sx={{ pr: 0.6, borderRight: "1px solid #D1D5DB", textAlign: "right", fontSize: 11 }}>{it.qty}</Typography>
+                  <Typography sx={{ pr: 0.6, borderRight: "1px solid #D1D5DB", textAlign: "right", fontSize: 11 }}>£{it.rate.toFixed(2)}</Typography>
+                  <Typography sx={{ textAlign: "right", fontSize: 11, fontWeight: 700 }}>£{(it.qty * it.rate).toFixed(2)}</Typography>
+                </Box>
+                {(it.addOns || []).map((ad, aid) => (
+                  <Box key={`${it.id}-a4-addon-${aid}`} sx={{ display: "flex", justifyContent: "space-between", pl: 5, pr: 0.2, mt: 0.2 }}>
+                    <Typography sx={{ fontSize: 10, color: "#374151" }}>
+                      + {ad.qty}x {ad.name}
+                    </Typography>
+                    <Typography sx={{ fontSize: 10, color: "#374151" }}>
+                      £{(ad.qty * ad.price).toFixed(2)}
+                    </Typography>
+                  </Box>
+                ))}
+                {(it.preferences || []).length > 0 && (
+                  <Typography sx={{ pl: 5, pr: 0.2, mt: 0.15, fontSize: 10, color: "#6B7280" }}>
+                    Pref: {it.preferences.join(", ")}
+                  </Typography>
+                )}
+                {it.instruction ? (
+                  <Typography sx={{ pl: 5, pr: 0.2, mt: 0.15, fontSize: 10, color: "#6B7280" }}>
+                    {it.instruction}
+                  </Typography>
+                ) : null}
+              </Box>
+            ))}
+            <Box sx={{ mt: 1, ml: "auto", width: 250 }}>
+              <Box sx={{ display: "flex", justifyContent: "space-between" }}><Typography sx={{ fontSize: 11 }}>Subtotal</Typography><Typography sx={{ fontSize: 11 }}>£{Number(invoiceView?.subtotal || 0).toFixed(2)}</Typography></Box>
+              <Box sx={{ display: "flex", justifyContent: "space-between" }}><Typography sx={{ fontSize: 11 }}>Add-ons</Typography><Typography sx={{ fontSize: 11 }}>£{Number(invoiceView?.addOns || 0).toFixed(2)}</Typography></Box>
+              <Box sx={{ display: "flex", justifyContent: "space-between" }}><Typography sx={{ fontSize: 11 }}>Service Charge</Typography><Typography sx={{ fontSize: 11 }}>£{Number(invoiceView?.serviceCharge || 0).toFixed(2)}</Typography></Box>
+              <Box sx={{ display: "flex", justifyContent: "space-between" }}><Typography sx={{ fontSize: 11 }}>Discount</Typography><Typography sx={{ fontSize: 11 }}>£{Number(invoiceView?.discount || 0).toFixed(2)}</Typography></Box>
+              <Box sx={{ display: "flex", justifyContent: "space-between", fontWeight: 700, fontSize: 18, mt: 0.4 }}><Typography sx={{ fontWeight: 700, fontSize: 18 }}>Grand Total</Typography><Typography sx={{ fontWeight: 700, fontSize: 18 }}>£{Number(invoiceView?.grandTotal || 0).toFixed(2)}</Typography></Box>
+            </Box>
+          </Box>
+        ) : (
+          <Box sx={{ maxWidth: 280, mx: "auto", border: "1px solid #D1D5DB", borderRadius: "10px", p: 1.25 }}>
+            <Typography sx={{ textAlign: "center", fontSize: 24, fontWeight: 700, lineHeight: 1, fontFamily: "'Courier New', monospace" }}>justDray cleaner</Typography>
+            <Typography sx={{ textAlign: "center", fontSize: 12, fontFamily: "'Courier New', monospace" }}>Customer Receipt</Typography>
+            <Typography sx={{ textAlign: "center", fontSize: 11, mb: 0.7, fontFamily: "'Courier New', monospace" }}>Format: 58mm Thermal</Typography>
+            <Box sx={{ borderTop: "1px dashed #111", my: 0.8 }} />
+            <Box sx={{ display: "flex", justifyContent: "space-between", fontSize: 12, fontFamily: "'Courier New', monospace" }}><Typography sx={{ fontFamily: "'Courier New', monospace", fontSize: 12 }}>Invoice</Typography><Typography sx={{ fontFamily: "'Courier New', monospace", fontWeight: 700, fontSize: 12 }}>{invoiceView?.invoiceNo}</Typography></Box>
+            <Box sx={{ display: "flex", justifyContent: "space-between", fontSize: 12, fontFamily: "'Courier New', monospace" }}><Typography sx={{ fontFamily: "'Courier New', monospace", fontSize: 12 }}>Date</Typography><Typography sx={{ fontFamily: "'Courier New', monospace", fontSize: 12 }}>{invoiceView?.dateText}</Typography></Box>
+            <Box sx={{ display: "flex", justifyContent: "space-between", fontSize: 12, fontFamily: "'Courier New', monospace" }}><Typography sx={{ fontFamily: "'Courier New', monospace", fontSize: 12 }}>Pickup</Typography><Typography sx={{ fontFamily: "'Courier New', monospace", fontSize: 12 }}>{invoiceView?.pickupWindow || "N/A"}</Typography></Box>
+            <Box sx={{ display: "flex", justifyContent: "space-between", fontSize: 12, fontFamily: "'Courier New', monospace" }}><Typography sx={{ fontFamily: "'Courier New', monospace", fontSize: 12 }}>Delivery</Typography><Typography sx={{ fontFamily: "'Courier New', monospace", fontSize: 12 }}>{invoiceView?.deliveryWindow || "N/A"}</Typography></Box>
+            <Box sx={{ display: "flex", justifyContent: "space-between", fontSize: 12, fontFamily: "'Courier New', monospace" }}><Typography sx={{ fontFamily: "'Courier New', monospace", fontSize: 12 }}>Bags</Typography><Typography sx={{ fontFamily: "'Courier New', monospace", fontSize: 12 }}>{invoiceView?.bags || 0}</Typography></Box>
+            <Box sx={{ display: "flex", justifyContent: "space-between", fontSize: 12, fontFamily: "'Courier New', monospace" }}><Typography sx={{ fontFamily: "'Courier New', monospace", fontSize: 12 }}>Frequency</Typography><Typography sx={{ fontFamily: "'Courier New', monospace", fontSize: 12 }}>{invoiceView?.frequency || "Just Once"}</Typography></Box>
+            <Box sx={{ borderTop: "1px dashed #111", my: 0.8 }} />
+            <Typography sx={{ fontWeight: 700, fontSize: 12, fontFamily: "'Courier New', monospace" }}>{invoiceView?.customerName}</Typography>
+            <Typography sx={{ fontSize: 12, fontFamily: "'Courier New', monospace" }}>{invoiceView?.emailOrPhone || ""}</Typography>
+            <Typography sx={{ fontSize: 12, fontFamily: "'Courier New', monospace" }}>{invoiceView?.addressText}</Typography>
+            <Box sx={{ borderTop: "1px dashed #111", my: 0.8 }} />
+            <Box sx={{ display: "flex", justifyContent: "space-between", mb: 0.5 }}>
+              <Typography sx={{ fontFamily: "'Courier New', monospace", fontWeight: 700, fontSize: 11, letterSpacing: "0.01em" }}>
+                Items ({invoiceView?.totalItems || 0})
+              </Typography>
+              <Typography sx={{ fontFamily: "'Courier New', monospace", fontWeight: 700, fontSize: 11, letterSpacing: "0.01em" }}>
+                Amount
+              </Typography>
+            </Box>
+            {(invoiceView?.items || []).map((it, idx) => (
+              <Box key={`${it.id}-${idx}`} sx={{ mb: 0.65 }}>
+                <Box sx={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
+                  <Typography sx={{ fontFamily: "'Courier New', monospace", fontWeight: 700, fontSize: 12 }}>
+                    {it.qty}x {it.serviceName ? `${it.serviceName} - ` : ""}{it.name}
+                  </Typography>
+                  <Typography sx={{ fontFamily: "'Courier New', monospace", fontWeight: 700, fontSize: 12 }}>£{(it.qty * it.rate).toFixed(2)}</Typography>
+                </Box>
+                {(it.addOns || []).map((ad, aid) => (
+                  <Box key={`${it.id}-addon-${aid}`} sx={{ display: "flex", justifyContent: "space-between", pl: 1, fontSize: 11, color: "#374151" }}>
+                    <Typography sx={{ fontFamily: "'Courier New', monospace", fontSize: 11 }}>
+                      + {ad.qty}x {ad.name}
+                    </Typography>
+                    <Typography sx={{ fontFamily: "'Courier New', monospace", fontSize: 11 }}>
+                      £{(ad.qty * ad.price).toFixed(2)}
+                    </Typography>
+                  </Box>
+                ))}
+                {(it.preferences || []).length > 0 && (
+                  <Typography sx={{ pl: 1, fontSize: 11, color: "#6B7280", fontFamily: "'Courier New', monospace" }}>
+                    Pref: {it.preferences.join(", ")}
+                  </Typography>
+                )}
+                {it.instruction ? (
+                  <Typography sx={{ pl: 1, fontSize: 11, color: "#6B7280", fontFamily: "'Courier New', monospace" }}>
+                    {it.instruction}
+                  </Typography>
+                ) : null}
+              </Box>
+            ))}
+            <Box sx={{ borderTop: "1px dashed #111", my: 0.8 }} />
+            <Box sx={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}><Typography sx={{ fontFamily: "'Courier New', monospace", fontSize: 12 }}>Subtotal</Typography><Typography sx={{ fontFamily: "'Courier New', monospace", fontSize: 12 }}>£{Number(invoiceView?.subtotal || 0).toFixed(2)}</Typography></Box>
+            <Box sx={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}><Typography sx={{ fontFamily: "'Courier New', monospace", fontSize: 12 }}>Add-ons</Typography><Typography sx={{ fontFamily: "'Courier New', monospace", fontSize: 12 }}>£{Number(invoiceView?.addOns || 0).toFixed(2)}</Typography></Box>
+            <Box sx={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}><Typography sx={{ fontFamily: "'Courier New', monospace", fontSize: 12 }}>Service Charge</Typography><Typography sx={{ fontFamily: "'Courier New', monospace", fontSize: 12 }}>£{Number(invoiceView?.serviceCharge || 0).toFixed(2)}</Typography></Box>
+            <Box sx={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}><Typography sx={{ fontFamily: "'Courier New', monospace", fontSize: 12 }}>Discount</Typography><Typography sx={{ fontFamily: "'Courier New', monospace", fontSize: 12 }}>£{Number(invoiceView?.discount || 0).toFixed(2)}</Typography></Box>
+            <Box sx={{ borderTop: "1px dashed #111", my: 0.8 }} />
+            <Box sx={{ display: "flex", justifyContent: "space-between" }}><Typography sx={{ fontWeight: 700, fontSize: 20, fontFamily: "'Courier New', monospace" }}>Total</Typography><Typography sx={{ fontWeight: 700, fontSize: 20, fontFamily: "'Courier New', monospace" }}>£{Number(invoiceView?.grandTotal || 0).toFixed(2)}</Typography></Box>
+            <Box sx={{ borderTop: "1px dashed #111", my: 0.8 }} />
+            <Typography sx={{ textAlign: "center", fontSize: 11, fontFamily: "'Courier New', monospace" }}>
+              Thank you for choosing justDray cleaner
+            </Typography>
+            <Typography sx={{ textAlign: "center", fontSize: 10, color: "#6B7280", fontFamily: "'Courier New', monospace" }}>
+              Printed: {invoiceView?.printedDate || invoiceView?.dateText}
+            </Typography>
+          </Box>
+        )}
+      </ModalComponent>
+
+      <Drawer
+        anchor="right"
+        variant="persistent"
+        open={serviceDrawer.open}
+        onClose={closeServiceDrawer}
+        hideBackdrop
+        sx={{
+          zIndex: 90,
+          top: "60px",
+          height: "calc(100vh - 60px)",
+          "& .MuiDrawer-paper": {
+            zIndex: 90,
+            top: "60px",
+            height: "calc(100vh - 60px)",
+          },
+        }}
+        PaperProps={{
+          sx: {
+            width: { xs: "100%", sm: 380 },
+            px: 2,
+            pt: 3,
+            pb: 2,
+            display: "flex",
+            flexDirection: "column",
+            position: "fixed",
+            top: "60px",
+            right: 0,
+            height: "calc(100vh - 60px)",
+            borderLeft: "1px solid #E2E8F0",
+            boxShadow: "0 8px 24px rgb(15 23 42 / 0.12)",
+          },
+        }}
+        ModalProps={{
+          keepMounted: true,
+          hideBackdrop: true,
+          disableEnforceFocus: true,
+          disableAutoFocus: true,
+          disableRestoreFocus: true,
+        }}
+      >
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            mb: 1,
+            pt: 0.5,
+          }}
+        >
+          <Typography sx={{ fontSize: 16, fontWeight: 700, color: "#0F172A" }}>
+            Service Selection
+          </Typography>
+          <IconButton
+            size="small"
+            onClick={closeServiceDrawer}
+            sx={{
+              border: "1px solid #E2E8F0",
+              borderRadius: "8px",
+              width: 30,
+              height: 30,
+              mt: 0.5,
+            }}
+          >
+            <Typography sx={{ fontSize: 18, lineHeight: 1, color: "#334155" }}>×</Typography>
+          </IconButton>
+        </Box>
+        <Typography sx={{ fontSize: 15, fontWeight: 700, color: "#0F172A", mb: 0.5 }}>
+          {drawerServiceData?.serviceName || "Service"}
+        </Typography>
+        <Typography sx={{ fontSize: 12, color: "#64748B", mb: 2 }}>
+          Selected items: {selectedItemsCountByService[String(serviceDrawer.serviceId)] || 0}
+        </Typography>
+
+        <Box sx={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 1 }}>
+          {drawerSelectedItems.length === 0 ? (
+            <Typography sx={{ color: "#64748B", fontSize: 14, mt: 2 }}>
+              No items selected yet. Increase quantity from the item list.
+            </Typography>
+          ) : (
+            drawerSelectedItems.map((item) => {
+              const qty = Number(item.quantity) || 0;
+              const unit = Number(item.unitPrice) || 0;
+              return (
+                <Box
+                  key={`drawer-${item.id}`}
+                  sx={{
+                    border: "none",
+                    borderRadius: "10px",
+                    p: 1,
+                    bgcolor: "#fff",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 1,
+                  }}
+                >
+                  <Box>
+                    <Typography sx={{ fontSize: 14, fontWeight: 600, color: "#0F172A" }}>
+                      {item.itemName}
+                    </Typography>
+                    <Typography sx={{ fontSize: 12, color: "#64748B", mt: 0.3 }}>
+                      {qty} x ${unit.toFixed(2)}
+                    </Typography>
+                  </Box>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                    <IconButton
+                      size="small"
+                      onClick={() =>
+                        bumpOrderItemQuantity(item, serviceDrawer.serviceId, -1)
+                      }
+                      sx={{
+                        border: "1px solid #E2E8F0",
+                        borderRadius: "10px",
+                        width: 32,
+                        height: 32,
+                      }}
+                    >
+                      <Typography
+                        sx={{
+                          fontSize: 18,
+                          fontWeight: 600,
+                          color: "#64748B",
+                          lineHeight: 1,
+                        }}
+                      >
+                        −
+                      </Typography>
+                    </IconButton>
+                    <Box
+                      sx={{
+                        minWidth: 44,
+                        height: 32,
+                        px: 1,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        border: "1px solid #E2E8F0",
+                        borderRadius: "10px",
+                        bgcolor: "#F8FAFC",
+                      }}
+                    >
+                      <Typography sx={{ fontSize: 13, fontWeight: 600, color: "#334155" }}>
+                        {qty}
+                      </Typography>
+                    </Box>
+                    <IconButton
+                      size="small"
+                      onClick={() =>
+                        bumpOrderItemQuantity(item, serviceDrawer.serviceId, 1)
+                      }
+                      sx={{
+                        border: "1px solid #BFDBFE",
+                        borderRadius: "10px",
+                        width: 32,
+                        height: 32,
+                        color: "#2563EB",
+                      }}
+                    >
+                      <TbPlus size={16} />
+                    </IconButton>
+                    <IconButton
+                      size="small"
+                      onClick={() =>
+                        handleRemoveDrawerItem(serviceDrawer.serviceId, item.id)
+                      }
+                      sx={{
+                        border: "1px solid #FECACA",
+                        borderRadius: "10px",
+                        width: 32,
+                        height: 32,
+                        color: "#DC2626",
+                      }}
+                    >
+                      <TbTrash size={14} />
+                    </IconButton>
+                  </Box>
+                </Box>
+              );
+            })
+          )}
+        </Box>
+
+        <Box sx={{ pt: 1.5, mt: 1.5, borderTop: "1px solid #E5E7EB" }}>
+          {(selectedItemsCountByService[String(serviceDrawer.serviceId)] || 0) <= 0 ? (
+            <Box
+              component="button"
+              type="button"
+              onClick={handleRemoveServiceSelection}
+              sx={{
+                width: "100%",
+                height: 42,
+                borderRadius: "10px",
+                border: "1px solid #FCA5A5",
+                bgcolor: "#FEF2F2",
+                color: "#B91C1C",
+                fontFamily: "Switzer",
+                fontSize: 14,
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              Remove Service
+            </Box>
+          ) : (
+            <ButtonBlue
+              onClick={handleSelectService}
+              width="100%"
+              size="small"
+            >
+              Select Service
+            </ButtonBlue>
+          )}
+        </Box>
+      </Drawer>
     </LocalizationProvider>
   );
 }

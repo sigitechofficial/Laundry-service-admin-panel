@@ -610,9 +610,23 @@ export const api = createApi({
       }),
     }),
 
+    getServiceDetailWithBookingSelection: builder.query({
+      query: (bookingId) => ({
+        url: `admin/serviceDetailWithBookingSelection/${bookingId}`,
+        method: "GET",
+      }),
+    }),
+
     getOrderItemsSheet: builder.query({
       query: (bookingId) => ({
         url: `admin/orderItemsSheet?bookingId=${bookingId}`,
+        method: "GET",
+      }),
+    }),
+
+    invoiceCreation: builder.query({
+      query: (bookingId) => ({
+        url: `admin/invoiceCreation/${bookingId}`,
         method: "GET",
       }),
     }),
@@ -1250,7 +1264,9 @@ export const {
   useGetSpecificDriverDetailQuery,
   useDeleteDriverMutation,
   useGetOrderForEditQuery,
+  useGetServiceDetailWithBookingSelectionQuery,
   useGetOrderItemsSheetQuery,
+  useLazyInvoiceCreationQuery,
   useEditOrderMutation,
   useDeleteOrderMutation,
   useAddCancellationPolicyMutation,
