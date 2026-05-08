@@ -146,6 +146,7 @@ function buildInvoiceView(invoiceDetails, fallbackShopName = "") {
     0
   );
   const serviceCharge = Number(invoiceDetails?.billingDetail?.serviceCharge ?? 0);
+  const minimumOrderFee = Number(invoiceDetails?.billingDetail?.upfrontAmount ?? 0);
   const discount = Number(invoiceDetails?.billingDetail?.discount ?? 0);
   const grandTotal = Number(invoiceDetails?.orderAmount ?? invoiceDetails?.billingDetail?.total ?? subtotal);
   const pickupWindow = `${invoiceDetails?.collectionTimeFrom || "N/A"}-${invoiceDetails?.collectionTimeTo || "N/A"}`;
@@ -170,6 +171,7 @@ function buildInvoiceView(invoiceDetails, fallbackShopName = "") {
     items,
     subtotal,
     addOns,
+    minimumOrderFee,
     serviceCharge,
     discount,
     grandTotal,
@@ -211,33 +213,100 @@ function printHtmlDocument(html) {
 function a4InvoiceHtml(view) {
   const rows = view.items.length
     ? view.items
-        .map(
-          (item, idx) => `
+        .map((item, idx) => {
+          const addOnRows = (item.addOns || []).length
+            ? (item.addOns || [])
+                .map(
+                  (ad) =>
+                    `<div class="itemSubRow"><span>+ ${ad.qty}x ${ad.name}</span><span>£${(
+                      ad.qty * ad.price
+                    ).toFixed(2)}</span></div>`
+                )
+                .join("")
+            : "";
+          const prefRow =
+            (item.preferences || []).length > 0
+              ? `<div class="itemMuted">Pref: ${(item.preferences || []).join(", ")}</div>`
+              : "";
+          const instructionRow = item.instruction
+            ? `<div class="itemMuted">${item.instruction}</div>`
+            : "";
+          return `
             <tr>
-              <td>${idx + 1}</td>
-              <td>${item.name}</td>
-              <td style="text-align:right">${item.qty}</td>
-              <td style="text-align:right">£${item.rate.toFixed(2)}</td>
-              <td style="text-align:right">£${(item.qty * item.rate).toFixed(2)}</td>
+              <td class="center">${idx + 1}</td>
+              <td class="itemCell">
+                <div class="itemTitle">${item.serviceName ? `${item.serviceName} - ` : ""}${item.name}</div>
+                ${addOnRows}
+                ${prefRow}
+                ${instructionRow}
+              </td>
+              <td class="right">${item.qty}</td>
+              <td class="right">£${item.rate.toFixed(2)}</td>
+              <td class="right">£${(item.qty * item.rate).toFixed(2)}</td>
             </tr>
           `
-        )
+        })
         .join("")
-    : `<tr><td colspan="5" style="text-align:center;color:#64748b">No items</td></tr>`;
+    : `<tr><td colspan="5" class="emptyState">No items</td></tr>`;
   return `<!doctype html><html><head><meta charset="utf-8"/><title>A4 Receipt</title>
   <style>
-  body{font-family:Arial,sans-serif;color:#111827;margin:0;padding:16px} .sheet{max-width:1000px;margin:0 auto}
-  .top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px}
-  .title{font-size:28px;font-weight:700} .meta{font-size:28px}
-  table{width:100%;border-collapse:collapse} th,td{border:1px solid #d1d5db;padding:8px;font-size:14px}
-  .totals{margin-left:auto;width:260px;margin-top:8px} .totals .row{display:flex;justify-content:space-between;padding:6px 0}
+  *{box-sizing:border-box}
+  body{font-family:Arial,sans-serif;color:#111827;margin:0;padding:20px;background:#fff}
+  .sheet{max-width:1000px;margin:0 auto}
+  .top{display:flex;justify-content:space-between;align-items:flex-start;gap:24px;margin-bottom:14px}
+  .brand{font-size:40px;font-weight:700;line-height:1.05;margin:0}
+  .receiptTag{font-size:22px;font-weight:500;margin-top:3px}
+  .meta{font-size:14px;line-height:1.5;min-width:230px}
+  .metaRow{display:flex;gap:8px}
+  .metaLabel{font-weight:700;min-width:58px}
+  .customer{border:1px solid #d1d5db;border-radius:10px;padding:12px 14px;margin:12px 0 14px;display:flex;justify-content:space-between;align-items:flex-start;gap:18px}
+  .customerMain{font-size:14px;line-height:1.4}
+  .pieces{font-size:13px;font-weight:700;white-space:nowrap}
+  table{width:100%;border-collapse:collapse}
+  th,td{border:1px solid #d1d5db;padding:9px 10px;font-size:13px;vertical-align:top}
+  th{background:#f8fafc;font-size:12px;letter-spacing:.02em}
+  .center{text-align:center}
+  .right{text-align:right}
+  .itemCell{line-height:1.35}
+  .itemTitle{font-weight:700}
+  .itemSubRow{display:flex;justify-content:space-between;gap:10px;color:#374151;font-size:12px;margin-top:2px}
+  .itemMuted{font-size:12px;color:#6b7280;margin-top:2px}
+  .emptyState{text-align:center;color:#64748b}
+  .totals{margin-left:auto;width:280px;margin-top:10px}
+  .totals .row{display:flex;justify-content:space-between;padding:4px 0;font-size:14px}
+  .totals .grand{font-weight:700;font-size:24px;padding-top:6px}
   </style></head><body><div class="sheet">
-  <div class="top"><div><div class="title">justDray cleaner</div><div>CUSTOMER RECEIPT</div></div><div class="meta"><div><b>Invoice:</b> ${view.invoiceNo}</div><div><b>Date:</b> ${view.dateText}</div><div><b>Time:</b> ${view.timeText}</div><div><b>Agent:</b> ${view.agentName}</div></div></div>
-  <div style="border:1px solid #d1d5db;border-radius:10px;padding:12px;margin-bottom:10px;display:flex;justify-content:space-between">
-    <div><b>Customer:</b> ${view.customerName}<br/><b>Contact / Address:</b> ${view.addressText}</div><div><b>Total Pieces:</b> ${view.totalItems}</div>
+  <div class="top">
+    <div>
+      <h1 class="brand">justDray cleaner</h1>
+      <div class="receiptTag">CUSTOMER RECEIPT</div>
+    </div>
+    <div class="meta">
+      <div class="metaRow"><span class="metaLabel">Invoice:</span><span>${view.invoiceNo}</span></div>
+      <div class="metaRow"><span class="metaLabel">Date:</span><span>${view.dateText}</span></div>
+      <div class="metaRow"><span class="metaLabel">Time:</span><span>${view.timeText}</span></div>
+      <div class="metaRow"><span class="metaLabel">Agent:</span><span>${view.agentName}</span></div>
+    </div>
   </div>
-  <table><thead><tr><th>#</th><th>ITEM DETAILS</th><th>QTY</th><th>RATE</th><th>LINE TOTAL</th></tr></thead><tbody>${rows}</tbody></table>
-  <div class="totals"><div class="row"><span>Subtotal</span><span>£${view.subtotal.toFixed(2)}</span></div><div class="row"><span>Add-ons</span><span>£${view.addOns.toFixed(2)}</span></div><div class="row" style="font-weight:700;font-size:22px"><span>Grand Total</span><span>£${view.grandTotal.toFixed(2)}</span></div></div>
+  <div class="customer">
+    <div class="customerMain">
+      <div><b>Customer:</b> ${view.customerName}</div>
+      <div><b>Contact / Address:</b> ${view.addressText}</div>
+    </div>
+    <div class="pieces">Total Pieces: ${view.totalItems}</div>
+  </div>
+  <table>
+    <thead><tr><th>#</th><th>ITEM DETAILS</th><th>QTY</th><th>RATE</th><th>LINE TOTAL</th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table>
+  <div class="totals">
+    <div class="row"><span>Subtotal</span><span>£${view.subtotal.toFixed(2)}</span></div>
+    <div class="row"><span>Add-ons</span><span>£${view.addOns.toFixed(2)}</span></div>
+    <div class="row"><span>Minimum Order Fee</span><span>-£${Math.abs(view.minimumOrderFee || 0).toFixed(2)}</span></div>
+    <div class="row"><span>Service Charge</span><span>£${view.serviceCharge.toFixed(2)}</span></div>
+    <div class="row"><span>Discount</span><span>£${view.discount.toFixed(2)}</span></div>
+    <div class="row grand"><span>Grand Total</span><span>£${view.grandTotal.toFixed(2)}</span></div>
+  </div>
   </div></body></html>`;
 }
 
@@ -302,6 +371,7 @@ function thermalInvoiceHtml(view) {
   <div class="line"></div>
   <div class="row"><span>Subtotal</span><span>£${view.subtotal.toFixed(2)}</span></div>
   <div class="row"><span>Add-ons</span><span>£${view.addOns.toFixed(2)}</span></div>
+  <div class="row"><span>Minimum Order Fee</span><span>-£${Math.abs(view.minimumOrderFee || 0).toFixed(2)}</span></div>
   <div class="row"><span>Service Charge</span><span>£${view.serviceCharge.toFixed(2)}</span></div>
   <div class="row"><span>Discount</span><span>£${view.discount.toFixed(2)}</span></div>
   <div class="line"></div>
@@ -2490,6 +2560,7 @@ export default function EditOrder() {
             <Box sx={{ mt: 1, ml: "auto", width: 250 }}>
               <Box sx={{ display: "flex", justifyContent: "space-between" }}><Typography sx={{ fontSize: 11 }}>Subtotal</Typography><Typography sx={{ fontSize: 11 }}>£{Number(invoiceView?.subtotal || 0).toFixed(2)}</Typography></Box>
               <Box sx={{ display: "flex", justifyContent: "space-between" }}><Typography sx={{ fontSize: 11 }}>Add-ons</Typography><Typography sx={{ fontSize: 11 }}>£{Number(invoiceView?.addOns || 0).toFixed(2)}</Typography></Box>
+              <Box sx={{ display: "flex", justifyContent: "space-between" }}><Typography sx={{ fontSize: 11 }}>Minimum Order Fee</Typography><Typography sx={{ fontSize: 11 }}>-£{Math.abs(Number(invoiceView?.minimumOrderFee || 0)).toFixed(2)}</Typography></Box>
               <Box sx={{ display: "flex", justifyContent: "space-between" }}><Typography sx={{ fontSize: 11 }}>Service Charge</Typography><Typography sx={{ fontSize: 11 }}>£{Number(invoiceView?.serviceCharge || 0).toFixed(2)}</Typography></Box>
               <Box sx={{ display: "flex", justifyContent: "space-between" }}><Typography sx={{ fontSize: 11 }}>Discount</Typography><Typography sx={{ fontSize: 11 }}>£{Number(invoiceView?.discount || 0).toFixed(2)}</Typography></Box>
               <Box sx={{ display: "flex", justifyContent: "space-between", fontWeight: 700, fontSize: 18, mt: 0.4 }}><Typography sx={{ fontWeight: 700, fontSize: 18 }}>Grand Total</Typography><Typography sx={{ fontWeight: 700, fontSize: 18 }}>£{Number(invoiceView?.grandTotal || 0).toFixed(2)}</Typography></Box>
@@ -2553,6 +2624,7 @@ export default function EditOrder() {
             <Box sx={{ borderTop: "1px dashed #111", my: 0.8 }} />
             <Box sx={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}><Typography sx={{ fontFamily: "'Courier New', monospace", fontSize: 12 }}>Subtotal</Typography><Typography sx={{ fontFamily: "'Courier New', monospace", fontSize: 12 }}>£{Number(invoiceView?.subtotal || 0).toFixed(2)}</Typography></Box>
             <Box sx={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}><Typography sx={{ fontFamily: "'Courier New', monospace", fontSize: 12 }}>Add-ons</Typography><Typography sx={{ fontFamily: "'Courier New', monospace", fontSize: 12 }}>£{Number(invoiceView?.addOns || 0).toFixed(2)}</Typography></Box>
+            <Box sx={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}><Typography sx={{ fontFamily: "'Courier New', monospace", fontSize: 12 }}>Minimum Order Fee</Typography><Typography sx={{ fontFamily: "'Courier New', monospace", fontSize: 12 }}>-£{Math.abs(Number(invoiceView?.minimumOrderFee || 0)).toFixed(2)}</Typography></Box>
             <Box sx={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}><Typography sx={{ fontFamily: "'Courier New', monospace", fontSize: 12 }}>Service Charge</Typography><Typography sx={{ fontFamily: "'Courier New', monospace", fontSize: 12 }}>£{Number(invoiceView?.serviceCharge || 0).toFixed(2)}</Typography></Box>
             <Box sx={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}><Typography sx={{ fontFamily: "'Courier New', monospace", fontSize: 12 }}>Discount</Typography><Typography sx={{ fontFamily: "'Courier New', monospace", fontSize: 12 }}>£{Number(invoiceView?.discount || 0).toFixed(2)}</Typography></Box>
             <Box sx={{ borderTop: "1px dashed #111", my: 0.8 }} />
