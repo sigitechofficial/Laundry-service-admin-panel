@@ -937,30 +937,11 @@ export default function OrderDetailsPage() {
 
                 <Box
                   sx={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(2, minmax(150px, 1fr))",
+                    display: "flex",
+                    justifyContent: "flex-end",
                     gap: 1.2,
                   }}
                 >
-                  <Paper
-                    sx={{
-                      border: "1px solid #E2E8F0",
-                      borderRadius: "10px",
-                      boxShadow: "none",
-                      p: 1.5,
-                    }}
-                  >
-                    <Typography
-                      variant="caption"
-                      color="text.secondary"
-                      sx={{ fontSize: 10, textTransform: "uppercase", fontWeight: 700 }}
-                    >
-                      Total Items
-                    </Typography>
-                    <Typography sx={{ fontWeight: 700, mt: 0.35, fontSize: 16, color: "#334155" }}>
-                      {orderData.totalItems || 0} items
-                    </Typography>
-                  </Paper>
                   <Paper
                     sx={{
                       border: "1px solid #E2E8F0",
