@@ -4,7 +4,7 @@ import baseQueryWithReauth from "./baseQueryWithReauth";
 export const api = createApi({
   reducerPath: "api",
   baseQuery: baseQueryWithReauth,
-  tagTypes: ["ServiceConfig", "SupportContact", "Coupons"],
+  tagTypes: ["ServiceConfig", "SupportContact", "Coupons", "Banners"],
 
   endpoints: (builder) => ({
     // Report query helper
@@ -1163,6 +1163,53 @@ export const api = createApi({
       }),
       invalidatesTags: ["Coupons"],
     }),
+
+    // ─── Banners & Offers ───────────────────────────────────────────────────
+    // body is always FormData (multipart) — browser sets Content-Type + boundary automatically
+    createBanner: builder.mutation({
+      query: (formData) => ({
+        url: "admin/createBanner",
+        method: "POST",
+        body: formData,
+        formData: true,
+      }),
+      invalidatesTags: ["Banners"],
+    }),
+
+    getAllBanners: builder.query({
+      query: (params = {}) => {
+        const q = new URLSearchParams();
+        if (params.targetType) q.append("targetType", params.targetType);
+        if (params.zoneId)     q.append("zoneId", params.zoneId);
+        if (params.isActive !== undefined) q.append("isActive", params.isActive);
+        if (params.page)       q.append("page", params.page);
+        if (params.limit)      q.append("limit", params.limit);
+        const qs = q.toString();
+        return {
+          url: qs ? `admin/getAllBanners?${qs}` : "admin/getAllBanners",
+          method: "GET",
+        };
+      },
+      providesTags: ["Banners"],
+    }),
+
+    updateBanner: builder.mutation({
+      query: ({ id, body: formData }) => ({
+        url: `admin/updateBanner/${id}`,
+        method: "PATCH",
+        body: formData,
+        formData: true,
+      }),
+      invalidatesTags: ["Banners"],
+    }),
+
+    deleteBanner: builder.mutation({
+      query: (id) => ({
+        url: `admin/deleteBanner/${id}`,
+        method: "DELETE",
+      }),
+      invalidatesTags: ["Banners"],
+    }),
   }),
 });
 
@@ -1300,4 +1347,8 @@ export const {
   useGetSupportContactQuery,
   useGetAllCouponsQuery,
   useAddCouponMutation,
+  useCreateBannerMutation,
+  useGetAllBannersQuery,
+  useUpdateBannerMutation,
+  useDeleteBannerMutation,
 } = api;

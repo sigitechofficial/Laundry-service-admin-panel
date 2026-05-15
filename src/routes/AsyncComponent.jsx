@@ -169,4 +169,8 @@ export const PromoCodesPage = lazy(() =>
   import("../pages/promotion/PromoCodesPage")
 );
 
+export const BannersPage = lazy(() =>
+  import("../pages/promotion/BannersPage")
+);
+
 export const LoginPage = lazy(() => import("../pages/auth/LoginPage"));

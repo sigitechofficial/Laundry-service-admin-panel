@@ -38,7 +38,8 @@ import {
   NoShowPolicy,
   NoShowPolicyTestCases,
   ReschedulePolicy,
-  PromoCodesPage
+  PromoCodesPage,
+  BannersPage
 } from "../routes/AsyncComponent";
 
 export const privateRoutes = [
@@ -227,6 +228,11 @@ export const privateRoutes = [
     path: "/promotion/promo-codes",
     element: PromoCodesPage,
     resourceKey: "promotion_promo_codes_page",
+  },
+  {
+    path: "/promotion/banners",
+    element: BannersPage,
+    resourceKey: "promotion_banners_page",
   },
 ];
 

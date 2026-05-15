@@ -221,6 +221,11 @@ export const sidebarList = [
         path: "/promotion/promo-codes",
         size: "24px",
       },
+      {
+        label: "Banners & Offers",
+        path: "/promotion/banners",
+        size: "24px",
+      },
     ],
   },
   {
