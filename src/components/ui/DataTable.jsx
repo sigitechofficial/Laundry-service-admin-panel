@@ -304,7 +304,8 @@ const DataTable = ({
                 whiteSpace: "nowrap",
               },
               "& .MuiTableRow-root": {
-                height: 60, // Applies to all rows
+                height: "auto",
+                minHeight: 60,
               },
               "& .MuiTableCell-head": {
                 height: 56, // Specifically for header
@@ -402,9 +403,10 @@ const DataTable = ({
                         fontFamily: "Inter, sans-serif",
                         fontSize: "14px",
                         borderBottom: "none",
-                        whiteSpace: "nowrap",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
+                        whiteSpace: col.wrap || col.renderCell ? "normal" : "nowrap",
+                        overflow: col.wrap || col.renderCell ? "visible" : "hidden",
+                        textOverflow: col.wrap || col.renderCell ? "unset" : "ellipsis",
+                        verticalAlign: col.wrap || col.renderCell ? "top" : "middle",
                         backgroundColor: rowBg,
                         ...(isStickyLeft && {
                           position: "sticky",

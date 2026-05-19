@@ -6,7 +6,14 @@ export const api = createApi({
   baseQuery: baseQueryWithReauth,
   tagTypes: ["ServiceConfig", "SupportContact", "Coupons", "Banners"],
 
-  endpoints: (builder) => ({
+  endpoints: (builder) => {
+    const normalizeServiceId = (id) => {
+      if (id == null || id === "") return undefined;
+      const numericId = Number(id);
+      return Number.isNaN(numericId) ? undefined : numericId;
+    };
+
+    return {
     // Report query helper
     // Supported params:
     // period=today|this_week|this_month|all|custom
@@ -173,8 +180,10 @@ export const api = createApi({
     }),
 
     getCategories: builder.query({
-      query: () => ({
-        url: `admin/getcategories`,
+      query: (serviceId) => ({
+        url: serviceId
+          ? `admin/getcategories?serviceId=${serviceId}`
+          : `admin/getcategories`,
         method: "GET",
       }),
     }),
@@ -185,6 +194,7 @@ export const api = createApi({
         method: "POST",
         body,
       }),
+      invalidatesTags: [{ type: "ServiceConfig", id: "LIST" }],
     }),
 
     editCategory: builder.mutation({
@@ -193,6 +203,7 @@ export const api = createApi({
         method: "PATCH",
         body,
       }),
+      invalidatesTags: [{ type: "ServiceConfig", id: "LIST" }],
     }),
 
     deleteCategory: builder.mutation({
@@ -238,10 +249,12 @@ export const api = createApi({
         method: "POST",
         body,
       }),
-      invalidatesTags: (result, error, body) =>
-        body?.serviceId
-          ? [{ type: "ServiceConfig", id: body.serviceId }]
-          : [{ type: "ServiceConfig", id: "LIST" }],
+      invalidatesTags: (result, error, body) => {
+        const serviceId = normalizeServiceId(body?.serviceId);
+        return serviceId
+          ? [{ type: "ServiceConfig", id: serviceId }]
+          : [{ type: "ServiceConfig", id: "LIST" }];
+      },
     }),
 
     addServiceWithCategories: builder.mutation({
@@ -250,10 +263,12 @@ export const api = createApi({
         method: "POST",
         body,
       }),
-      invalidatesTags: (result, error, body) =>
-        body?.serviceId
-          ? [{ type: "ServiceConfig", id: body.serviceId }]
-          : [{ type: "ServiceConfig", id: "LIST" }],
+      invalidatesTags: (result, error, body) => {
+        const serviceId = normalizeServiceId(body?.serviceId);
+        return serviceId
+          ? [{ type: "ServiceConfig", id: serviceId }]
+          : [{ type: "ServiceConfig", id: "LIST" }];
+      },
     }),
 
     unAssignServiceFromCategories: builder.mutation({
@@ -262,10 +277,12 @@ export const api = createApi({
         method: "DELETE",
         body: { categoryIds },
       }),
-      invalidatesTags: (result, error, args) =>
-        args?.serviceId
-          ? [{ type: "ServiceConfig", id: args.serviceId }]
-          : [{ type: "ServiceConfig", id: "LIST" }],
+      invalidatesTags: (result, error, args) => {
+        const serviceId = normalizeServiceId(args?.serviceId);
+        return serviceId
+          ? [{ type: "ServiceConfig", id: serviceId }]
+          : [{ type: "ServiceConfig", id: "LIST" }];
+      },
     }),
 
     unAssignServiceFromPreferences: builder.mutation({
@@ -273,10 +290,12 @@ export const api = createApi({
         url: `admin/unAssignServiceFromPreferences/${serviceId}`,
         method: "DELETE",
       }),
-      invalidatesTags: (result, error, serviceId) =>
-        serviceId
-          ? [{ type: "ServiceConfig", id: serviceId }]
-          : [{ type: "ServiceConfig", id: "LIST" }],
+      invalidatesTags: (result, error, serviceId) => {
+        const normalizedId = normalizeServiceId(serviceId);
+        return normalizedId
+          ? [{ type: "ServiceConfig", id: normalizedId }]
+          : [{ type: "ServiceConfig", id: "LIST" }];
+      },
     }),
 
     getServiceWitPreferences: builder.query({
@@ -284,10 +303,12 @@ export const api = createApi({
         url: `admin/servicesAndPreferencesData/${id}`,
         method: "GET",
       }),
-      providesTags: (result, error, id) =>
-        id
-          ? [{ type: "ServiceConfig", id }]
-          : [{ type: "ServiceConfig", id: "LIST" }],
+      providesTags: (result, error, id) => {
+        const normalizedId = normalizeServiceId(id);
+        return normalizedId
+          ? [{ type: "ServiceConfig", id: normalizedId }]
+          : [{ type: "ServiceConfig", id: "LIST" }];
+      },
     }),
 
     //Customers
@@ -1210,7 +1231,8 @@ export const api = createApi({
       }),
       invalidatesTags: ["Banners"],
     }),
-  }),
+    };
+  },
 });
 
 export const {

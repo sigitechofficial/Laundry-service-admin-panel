@@ -375,7 +375,7 @@ export default function ServicesCard({ triggerAdd }) {
                   >
                     <TbGripVertical size={20} />
                   </Box>
-                  <Typography variant="body1" noWrap sx={{ flex: 1 }}>
+                  <Typography variant="body1" sx={{ flex: 1 }}>
                     {service.name}
                   </Typography>
                 </Box>

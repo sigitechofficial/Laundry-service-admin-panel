@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, Fragment } from "react";
 import {
   Box,
   Typography,
@@ -6,6 +6,11 @@ import {
   Menu,
   MenuItem,
   Paper,
+  Table,
+  TableHead,
+  TableBody,
+  TableRow,
+  TableCell,
 } from "@mui/material";
 import { useNavigate } from "react-router-dom";
 import {
@@ -14,12 +19,13 @@ import {
   useAddServiceMutation,
   useEditServiceMutation,
 } from "../../store/services/api";
-import DataTable from "../../components/ui/DataTable";
 import {
   TbDotsVertical,
   TbPencil,
   IoEye,
   PiHeadsetBold,
+  TbChevronRight,
+  TbChevronDown,
 } from "../../shared/icons/index";
 import Search from "../../components/ui/Search";
 import {
@@ -57,6 +63,314 @@ function getServiceIcon(name) {
   return match?.icon || MdLocalLaundryService;
 }
 
+const MAIN_TABLE_HEAD_SX = {
+  fontWeight: 600,
+  fontSize: 14,
+  fontFamily: "Inter, sans-serif",
+  color: "#101828",
+  bgcolor: "#FAFAFA",
+  borderBottom: "1px solid #E5E7EB",
+  py: 1.5,
+  px: 2,
+  whiteSpace: "nowrap",
+  lineHeight: 1.4,
+};
+
+const NESTED_TABLE_HEAD_SX = {
+  fontWeight: 600,
+  fontSize: 13,
+  fontFamily: "Inter, sans-serif",
+  color: "#64748B",
+  bgcolor: "#F1F5F9",
+  borderBottom: "1px solid #E2E8F0",
+  py: 1,
+  px: 1.5,
+  whiteSpace: "nowrap",
+};
+
+function ServiceCategoriesExpandableTable({ rows, searchTerm }) {
+  const [expanded, setExpanded] = useState({});
+
+  const filteredRows = useMemo(() => {
+    if (!searchTerm?.trim()) return rows;
+    const q = searchTerm.toLowerCase();
+    return rows.filter(
+      (r) =>
+        r.category?.toLowerCase().includes(q) ||
+        r.serviceName?.toLowerCase().includes(q) ||
+        String(r.description || "")
+          .toLowerCase()
+          .includes(q) ||
+        r.subCategories?.some((sub) =>
+          String(sub?.name || "")
+            .toLowerCase()
+            .includes(q)
+        )
+    );
+  }, [rows, searchTerm]);
+
+  useEffect(() => {
+    if (!searchTerm?.trim()) return;
+    const q = searchTerm.toLowerCase();
+    setExpanded((prev) => {
+      const next = { ...prev };
+      filteredRows.forEach((r) => {
+        if (r.subCategories?.some((sub) => String(sub?.name || "").toLowerCase().includes(q))) {
+          next[r.id] = true;
+        }
+      });
+      return next;
+    });
+  }, [searchTerm, filteredRows]);
+
+  const toggleRow = (id) => {
+    setExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  if (!filteredRows.length) {
+    return (
+      <Paper
+        sx={{
+          borderRadius: 2,
+          border: "1px solid #E5E7EB",
+          p: 4,
+          textAlign: "center",
+        }}
+      >
+        <Typography variant="body2" color="text.secondary">
+          No categories found for this service.
+        </Typography>
+      </Paper>
+    );
+  }
+
+  return (
+    <Paper
+      sx={{
+        width: "100%",
+        borderRadius: 2,
+        border: "1px solid #E5E7EB",
+        overflow: "hidden",
+        boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+      }}
+    >
+      <Box sx={{ maxHeight: 520, overflow: "auto" }}>
+        <Table
+          stickyHeader
+          sx={{
+            width: "100%",
+            minWidth: 900,
+            tableLayout: "fixed",
+          }}
+        >
+          <colgroup>
+            <col style={{ width: 48 }} />
+            <col style={{ width: 56 }} />
+            <col style={{ width: "20%" }} />
+            <col style={{ width: "14%" }} />
+            <col />
+            <col style={{ width: 148 }} />
+          </colgroup>
+          <TableHead>
+            <TableRow>
+              <TableCell sx={{ ...MAIN_TABLE_HEAD_SX, width: 48, px: 1 }} />
+              <TableCell sx={{ ...MAIN_TABLE_HEAD_SX, width: 56 }} align="center">
+                SL
+              </TableCell>
+              <TableCell sx={MAIN_TABLE_HEAD_SX} align="left">
+                Category
+              </TableCell>
+              <TableCell sx={MAIN_TABLE_HEAD_SX} align="left">
+                Service
+              </TableCell>
+              <TableCell sx={MAIN_TABLE_HEAD_SX} align="left">
+                Description
+              </TableCell>
+              <TableCell sx={{ ...MAIN_TABLE_HEAD_SX, width: 148 }} align="right">
+                Sub-categories
+              </TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {filteredRows.map((row, idx) => {
+              const isOpen = Boolean(expanded[row.id]);
+              const subItems = row.subCategories ?? [];
+              const rowBg = idx % 2 === 0 ? "#fff" : "#FAFAFA";
+
+              return (
+                <Fragment key={row.id}>
+                  <TableRow
+                    hover
+                    onClick={() => toggleRow(row.id)}
+                    sx={{
+                      cursor: "pointer",
+                      bgcolor: rowBg,
+                      "&:hover": { bgcolor: "#F0F4FF" },
+                    }}
+                  >
+                    <TableCell sx={{ py: 1.5, borderBottom: "1px solid #E5E7EB" }}>
+                      <IconButton
+                        size="small"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleRow(row.id);
+                        }}
+                        sx={{ color: "#64748B" }}
+                        aria-label={isOpen ? "Collapse" : "Expand"}
+                      >
+                        {isOpen ? <TbChevronDown size={18} /> : <TbChevronRight size={18} />}
+                      </IconButton>
+                    </TableCell>
+                    <TableCell
+                      align="center"
+                      sx={{
+                        py: 1.5,
+                        fontFamily: "Inter, sans-serif",
+                        fontSize: 14,
+                        borderBottom: "1px solid #E5E7EB",
+                      }}
+                    >
+                      {row.sl}
+                    </TableCell>
+                    <TableCell
+                      sx={{
+                        py: 1.5,
+                        fontWeight: 600,
+                        fontFamily: "Inter, sans-serif",
+                        fontSize: 14,
+                        color: "#101828",
+                        borderBottom: "1px solid #E5E7EB",
+                      }}
+                    >
+                      {row.category}
+                    </TableCell>
+                    <TableCell
+                      sx={{
+                        py: 1.5,
+                        fontFamily: "Inter, sans-serif",
+                        fontSize: 14,
+                        borderBottom: "1px solid #E5E7EB",
+                      }}
+                    >
+                      {row.serviceName}
+                    </TableCell>
+                    <TableCell
+                      sx={{
+                        py: 1.5,
+                        fontFamily: "Inter, sans-serif",
+                        fontSize: 14,
+                        color: "#64748B",
+                        borderBottom: "1px solid #E5E7EB",
+                        whiteSpace: "normal",
+                        maxWidth: 320,
+                      }}
+                    >
+                      {row.description}
+                    </TableCell>
+                    <TableCell
+                      align="right"
+                      sx={{
+                        py: 1.5,
+                        fontFamily: "Inter, sans-serif",
+                        fontSize: 14,
+                        color: "#64748B",
+                        borderBottom: "1px solid #E5E7EB",
+                      }}
+                    >
+                      {subItems.length}
+                    </TableCell>
+                  </TableRow>
+
+                  {isOpen && (
+                    <TableRow>
+                      <TableCell
+                        colSpan={6}
+                        sx={{
+                          p: 0,
+                          borderBottom: "1px solid #E5E7EB",
+                          bgcolor: "#F8FAFC",
+                        }}
+                      >
+                        <Box sx={{ px: 2, py: 1.5, pl: 7 }}>
+                          {subItems.length === 0 ? (
+                            <Typography variant="body2" sx={{ color: "#94A3B8", fontSize: 13, py: 1 }}>
+                              No sub-categories configured.
+                            </Typography>
+                          ) : (
+                            <Table
+                              size="small"
+                              sx={{
+                                border: "1px solid #E2E8F0",
+                                borderRadius: 1,
+                                overflow: "hidden",
+                                bgcolor: "#fff",
+                                "& .MuiTableCell-root": {
+                                  fontFamily: "Inter, sans-serif",
+                                  fontSize: 13,
+                                  py: 1,
+                                  px: 1.5,
+                                  borderBottom: "1px solid #E2E8F0",
+                                },
+                                "& .MuiTableRow-root:last-child .MuiTableCell-root": {
+                                  borderBottom: "none",
+                                },
+                              }}
+                            >
+                              <TableHead>
+                                <TableRow>
+                                  <TableCell sx={NESTED_TABLE_HEAD_SX}>Sub-category</TableCell>
+                                  <TableCell sx={NESTED_TABLE_HEAD_SX} align="right">
+                                    Price
+                                  </TableCell>
+                                  <TableCell sx={NESTED_TABLE_HEAD_SX} width={100}>
+                                    Status
+                                  </TableCell>
+                                  <TableCell sx={NESTED_TABLE_HEAD_SX}>Description</TableCell>
+                                </TableRow>
+                              </TableHead>
+                              <TableBody>
+                                {subItems.map((sub, subIdx) => (
+                                  <TableRow key={sub.id ?? `${sub.name}-${subIdx}`}>
+                                    <TableCell sx={{ color: "#101828", fontWeight: 500 }}>
+                                      {sub.name ?? "—"}
+                                    </TableCell>
+                                    <TableCell align="right" sx={{ fontWeight: 600, color: "#000099" }}>
+                                      £{Number(sub.price ?? 0).toFixed(2)}
+                                    </TableCell>
+                                    <TableCell>
+                                      <Typography
+                                        component="span"
+                                        sx={{
+                                          fontSize: 12,
+                                          fontWeight: 600,
+                                          color: sub.status ? "#059669" : "#94A3B8",
+                                        }}
+                                      >
+                                        {sub.status ? "Active" : "Inactive"}
+                                      </Typography>
+                                    </TableCell>
+                                    <TableCell sx={{ color: "#64748B", whiteSpace: "normal" }}>
+                                      {sub.description ?? "—"}
+                                    </TableCell>
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
+                          )}
+                        </Box>
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </Fragment>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </Box>
+    </Paper>
+  );
+}
+
 export default function ServiceDashboard() {
   const navigate = useNavigate();
   const [selectedServiceId, setSelectedServiceId] = useState(null);
@@ -76,7 +390,6 @@ export default function ServiceDashboard() {
   const { data: servicesData, isLoading: isLoadingServices, refetch: refetchServices } =
     useGetAllServicesQuery();
   const services = servicesData?.data?.services ?? [];
-  const servicesCount = servicesData?.data?.servicesCount ?? {};
 
   const { data: serviceConfigData, isLoading: isLoadingConfig } =
     useGetServiceWitPreferencesQuery(selectedServiceId, {
@@ -115,31 +428,19 @@ export default function ServiceDashboard() {
     const rows = [];
     let sl = 1;
     serviceConfigData.data.serviceCategoriesData.forEach((serviceCat) => {
-      const subCount = serviceCat?.category?.subCategories?.length ?? 0;
+      const subCategories = serviceCat?.category?.subCategories ?? [];
+      const categoryDescription = serviceCat?.category?.description ?? "";
       rows.push({
         id: `${selectedService.id}-${serviceCat?.id}`,
         sl: sl++,
         serviceName: selectedService.name,
         category: serviceCat?.category?.name ?? "",
-        description:
-          (selectedService.description?.replace(/<[^>]+>/g, "") || "").slice(0, 50) +
-          ((selectedService.description?.length || 0) > 50 ? "..." : ""),
-        subCategoryCount: subCount,
+        description: categoryDescription.replace(/<[^>]+>/g, "") || "—",
+        subCategories,
       });
     });
     return rows;
   }, [serviceConfigData, selectedService]);
-
-  const tableRows = useMemo(() => {
-    if (!globalSearch?.trim()) return rawTableRows;
-    const q = globalSearch.toLowerCase();
-    return rawTableRows.filter(
-      (r) =>
-        r.serviceName?.toLowerCase().includes(q) ||
-        r.category?.toLowerCase().includes(q) ||
-        String(r.description || "").toLowerCase().includes(q)
-    );
-  }, [rawTableRows, globalSearch]);
 
   const handleMenuOpen = (e, serviceId) => {
     e.stopPropagation();
@@ -259,14 +560,6 @@ export default function ServiceDashboard() {
     }
   };
 
-  const columns = [
-    { field: "sl", headerName: "SL", minWidth: 60 },
-    { field: "serviceName", headerName: "Service name", minWidth: 140 },
-    { field: "category", headerName: "Category", minWidth: 120 },
-    { field: "description", headerName: "Description", minWidth: 200 },
-    { field: "subCategoryCount", headerName: "Sub category count", minWidth: 140 },
-  ];
-
   if (isLoadingServices) return <Delay />;
 
   return (
@@ -307,7 +600,6 @@ export default function ServiceDashboard() {
         {services?.map((service) => {
           const IconComponent = getServiceIcon(service.name);
           const isActive = selectedServiceId === service.id;
-          const count = servicesCount[service.name] ?? "—";
 
           return (
             <Paper
@@ -315,12 +607,13 @@ export default function ServiceDashboard() {
               elevation={0}
               onClick={() => setSelectedServiceId(service.id)}
               sx={{
-                display: "flex",
+                display: "inline-flex",
                 alignItems: "center",
                 gap: 2,
                 px: 2.5,
                 py: 1.5,
-                minWidth: 220,
+                width: "fit-content",
+                flexShrink: 0,
                 cursor: "pointer",
                 bgcolor: isActive ? "#000099" : "white",
                 color: isActive ? "white" : "grey.800",
@@ -333,29 +626,17 @@ export default function ServiceDashboard() {
               }}
             >
               <IconComponent size={24} color={isActive ? "#fff" : "#10B981"} />
-              <Box sx={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 1.5 }}>
-                <Typography variant="body1" fontWeight={600} noWrap>
-                  {service.name}
-                </Typography>
-                <Typography
-                  variant="caption"
-                  sx={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    minWidth: 24,
-                    height: 20,
-                    borderRadius: "50%",
-                    bgcolor: isActive ? "rgba(255,255,255,0.3)" : "#EFF6FF",
-                    color: isActive ? "white" : "#2563EB",
-                    fontWeight: 600,
-                    fontSize: 12,
-                    flexShrink: 0,
-                  }}
-                >
-                  {count}
-                </Typography>
-              </Box>
+              <Typography
+                variant="body1"
+                fontWeight={600}
+                sx={{
+                  whiteSpace: "nowrap",
+                  overflow: "visible",
+                  textOverflow: "clip",
+                }}
+              >
+                {service.name}
+              </Typography>
               <IconButton
                 size="small"
                 onClick={(e) => handleMenuOpen(e, service.id)}
@@ -388,20 +669,12 @@ export default function ServiceDashboard() {
         </MenuItem>
       </Menu>
 
-      {/* Table */}
+      {/* Expandable categories table */}
       <Box sx={{ mt: 2 }}>
         {isLoadingConfig && selectedServiceId ? (
           <MiniLoader />
         ) : (
-          <DataTable
-            data={tableRows}
-            columns={columns}
-            searchPlaceholder="Search by ID, product, or others..."
-            showFilters
-            showDateRange
-            showDownload
-            height={500}
-          />
+          <ServiceCategoriesExpandableTable rows={rawTableRows} searchTerm={globalSearch} />
         )}
       </Box>
 

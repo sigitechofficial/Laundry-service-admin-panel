@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   Box,
   Typography,
@@ -22,18 +22,28 @@ import {
   useDeleteSubCategoryMutation,
   useGetCategoriesQuery,
   useGetSubCategoriesQuery,
+  useGetAllServicesQuery,
 } from "../../store/services/api";
 import { MiniLoader } from "../../components/shared/Loaders";
 import { useSelector } from "react-redux";
 import CategoryModal from "./categories-modal/CategoryModal";
 import SubCategoryModal from "./categories-modal/SubCategoryModal";
 import useToaster from "../../components/ui/Toaster";
+import { formatGbp } from "../../utils/formatGbp";
 
 export default function ItemCategoriesCard({ triggerAdd }) {
   const categoryData = useSelector((state) => state?.apiData);
   const { success, error } = useToaster();
   const { isLoading } = useGetCategoriesQuery();
   useGetSubCategoriesQuery();
+  const { data: servicesResponse } = useGetAllServicesQuery();
+  const servicesMap = useMemo(() => {
+    const map = {};
+    (servicesResponse?.data?.services || []).forEach((svc) => {
+      map[svc.id] = svc.name;
+    });
+    return map;
+  }, [servicesResponse]);
   const [deleteCategory, { isLoading: deleteLoading }] =
     useDeleteCategoryMutation();
   const [deleteSubCategory] = useDeleteSubCategoryMutation();
@@ -188,9 +198,17 @@ export default function ItemCategoriesCard({ triggerAdd }) {
                           gap: "8px",
                         }}
                       >
-                        <Typography width={"100px"} variant="body1">
-                          {category?.name}
-                        </Typography>
+                        <Box>
+                          <Typography variant="body1">
+                            {category?.name}
+                          </Typography>
+                          <Typography variant="caption" color="grey.40">
+                            Service:{" "}
+                            {category?.service?.name ||
+                              servicesMap[category?.serviceId] ||
+                              "Not assigned"}
+                          </Typography>
+                        </Box>
                       </Box>
                       <Box
                         sx={{
@@ -278,11 +296,8 @@ export default function ItemCategoriesCard({ triggerAdd }) {
                                 <Typography variant="body2" fontFamily="Inter">
                                   {item?.name}
                                 </Typography>
-                                <Typography variant="caption" color="grey.40">
-                                  {item?.service}
-                                </Typography>
                                 <Typography variant="body2" fontFamily="Inter">
-                                  £{item?.price}
+                                  {formatGbp(item?.price)}
                                 </Typography>
                                 {(() => {
                                   const uc = item?.unitCount ?? item?.unit_count;

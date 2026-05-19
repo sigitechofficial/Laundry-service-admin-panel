@@ -12,6 +12,7 @@ import ModalComponent from "../../components/shared/Modal";
 import InputFieldModal from "../../components/ui/InputFieldModal";
 import { MiniLoader } from "../../components/shared/Loaders";
 import useToaster from "../../components/ui/Toaster";
+import { formatGbp } from "../../utils/formatGbp";
 
 const emptyForm = {
   open: false,
@@ -20,15 +21,6 @@ const emptyForm = {
   price: "",
   type: "add",
 };
-
-/** £ prefix like product pricing (e.g. £2.5); trims unnecessary trailing zeros. */
-function formatGbp(amount) {
-  const n = Number(amount);
-  if (!Number.isFinite(n)) return "£0";
-  const fixed = n.toFixed(2);
-  const trimmed = fixed.replace(/\.?0+$/, "");
-  return `£${trimmed}`;
-}
 
 export default function AddOnServicesCard({ triggerAdd }) {
   const { success, error } = useToaster();

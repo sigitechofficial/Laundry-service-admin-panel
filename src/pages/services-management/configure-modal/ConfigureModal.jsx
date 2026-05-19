@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Box, Typography, Checkbox, Divider, Alert, Button } from "@mui/material";
 import { useForm, Controller } from "react-hook-form";
 import ModalComponent from "../../../components/shared/Modal";
@@ -27,27 +27,11 @@ export default function ConfigureModal({ open, onClose, selectedServiceId }) {
   });
   const services = servicesResponse?.data?.services || servicesFromRedux || [];
 
-  // Fetch categories and preferences when modal opens
-  const { data: categoriesResponse, isLoading: isLoadingCategories } = useGetCategoriesQuery(undefined, {
-    skip: !open, // Only fetch when modal is open
-  });
   const { data: preferencesResponse, isLoading: isLoadingPreferences } = useGetPreferencesQuery(undefined, {
-    skip: !open, // Only fetch when modal is open
+    skip: !open,
   });
 
-  // Use response data directly, fallback to Redux state
-  const categories = categoriesResponse?.data || categoriesFromRedux || [];
   const preferences = preferencesResponse?.data || preferencesFromRedux || [];
-
-  // Debug logging
-  useEffect(() => {
-    if (open) {
-      console.log("Modal opened - Categories from Redux:", categoriesFromRedux);
-      console.log("Categories Response:", categoriesResponse);
-      console.log("Final Categories:", categories);
-      console.log("Categories Loading:", isLoadingCategories);
-    }
-  }, [open, categoriesFromRedux, categoriesResponse, categories, isLoadingCategories]);
 
   const [addServiceWithPreferences, { isLoading: configServiceLoading }] =
     useAddServiceWithPreferencesMutation();
@@ -84,10 +68,23 @@ export default function ConfigureModal({ open, onClose, selectedServiceId }) {
   const watchedCategories = watch("selectedCategories");
   const watchedPreferences = watch("selectedPreferences");
 
-  const { data: existingServiceData, refetch: refetchServiceConfig } = useGetServiceWitPreferencesQuery(
-    watchedServiceId,
+  const serviceIdNum = useMemo(() => {
+    if (watchedServiceId === "" || watchedServiceId == null) return undefined;
+    const numericId = Number(watchedServiceId);
+    return Number.isNaN(numericId) ? undefined : numericId;
+  }, [watchedServiceId]);
+
+  const { data: categoriesResponse, isLoading: isLoadingCategories } =
+    useGetCategoriesQuery(serviceIdNum, {
+      skip: !open || !serviceIdNum,
+    });
+
+  const allCategories = categoriesResponse?.data || categoriesFromRedux || [];
+
+  const { data: existingServiceData } = useGetServiceWitPreferencesQuery(
+    serviceIdNum,
     {
-      skip: !watchedServiceId,
+      skip: !open || !serviceIdNum,
     }
   );
 
@@ -97,8 +94,21 @@ export default function ConfigureModal({ open, onClose, selectedServiceId }) {
   }));
 
   const selectedService = services?.find(
-    (service) => service.id === watchedServiceId
+    (service) => Number(service.id) === serviceIdNum
   );
+
+  const categoriesForSelectedService = useMemo(() => {
+    if (!serviceIdNum) return [];
+    return allCategories.filter(
+      (cat) => Number(cat.serviceId) === serviceIdNum
+    );
+  }, [allCategories, serviceIdNum]);
+
+  useEffect(() => {
+    if (open && selectedServiceId) {
+      setValue("serviceId", Number(selectedServiceId));
+    }
+  }, [open, selectedServiceId, setValue]);
 
   const handleClose = () => {
     reset({
@@ -129,7 +139,7 @@ export default function ConfigureModal({ open, onClose, selectedServiceId }) {
   };
 
   const handleCategoriesSubmit = async (moveToNextStep = false) => {
-    if (!watchedServiceId) {
+    if (!serviceIdNum) {
       error("Please select a service first");
       return;
     }
@@ -158,7 +168,7 @@ export default function ConfigureModal({ open, onClose, selectedServiceId }) {
       // Unassign removed categories first
       if (removedCategoryIds.length > 0) {
         await unAssignServiceFromCategories({
-          serviceId: watchedServiceId,
+          serviceId: serviceIdNum,
           categoryIds: removedCategoryIds,
         }).unwrap();
       }
@@ -166,7 +176,7 @@ export default function ConfigureModal({ open, onClose, selectedServiceId }) {
       // Assign only newly added categories
       if (addedCategoryIds.length > 0) {
         const apiBody = {
-          serviceId: watchedServiceId,
+          serviceId: serviceIdNum,
           categoryId: addedCategoryIds,
         };
 
@@ -181,7 +191,6 @@ export default function ConfigureModal({ open, onClose, selectedServiceId }) {
 
       // Update original linked categories after successful delta sync
       setOriginalLinkedCategories([...currentCategories]);
-      refetchServiceConfig();
       if (moveToNextStep) {
         success("Categories saved! Now configure preferences.");
         setCurrentStep(2);
@@ -194,7 +203,7 @@ export default function ConfigureModal({ open, onClose, selectedServiceId }) {
   };
 
   const handlePreferencesSubmit = async () => {
-    if (!watchedServiceId) {
+    if (!serviceIdNum) {
       error("Please select a service first");
       return;
     }
@@ -221,7 +230,7 @@ export default function ConfigureModal({ open, onClose, selectedServiceId }) {
 
       if (hasRemovedPreferences || originalLinkedPreferences.length > 0) {
         try {
-          await unAssignServiceFromPreferences(watchedServiceId).unwrap();
+          await unAssignServiceFromPreferences(serviceIdNum).unwrap();
         } catch (unassignErr) {
           console.error("Error unassigning preferences:", unassignErr);
           // Continue with adding preferences even if unassign fails
@@ -231,24 +240,22 @@ export default function ConfigureModal({ open, onClose, selectedServiceId }) {
       // Add current preferences if any
       if (currentPreferences.length > 0) {
         const apiBody = {
-          serviceId: watchedServiceId,
+          serviceId: serviceIdNum,
           preferenceTypeId: currentPreferences,
         };
 
         const res = await addServiceWithPreferences(apiBody).unwrap();
         if (res?.status === "1") {
-          // Update original linked preferences after successful save
           setOriginalLinkedPreferences([...currentPreferences]);
-          refetchServiceConfig();
           success("Preferences updated successfully!");
+          handleClose();
         } else {
           error(res?.message || "Something went wrong");
         }
       } else {
-        // All preferences were removed
         setOriginalLinkedPreferences([]);
-        refetchServiceConfig();
         success("Preferences unassigned successfully!");
+        handleClose();
       }
     } catch (err) {
       error(err?.data?.message || err?.message || "Failed to update preferences");
@@ -256,30 +263,33 @@ export default function ConfigureModal({ open, onClose, selectedServiceId }) {
   };
 
   useEffect(() => {
-    if (watchedServiceId && existingServiceData?.data) {
+    if (serviceIdNum && existingServiceData?.data) {
       const { serviceCategoriesData, preferencesData } =
         existingServiceData.data;
 
-      const linkedCategoryIds =
+      const linkedFromJunction =
         serviceCategoriesData?.map((cat) => cat?.categoryId) || [];
+      const linkedFromServiceId = allCategories
+        .filter((cat) => Number(cat.serviceId) === serviceIdNum)
+        .map((cat) => cat.id);
+      const linkedCategoryIds = [
+        ...new Set([...linkedFromJunction, ...linkedFromServiceId]),
+      ];
+
       const linkedPreferenceIds =
         preferencesData?.map(
           (pref) => pref?.preferenceTypeId ?? pref?.id
         ) || [];
 
-      // Store original linked items
       setOriginalLinkedCategories(linkedCategoryIds);
       setOriginalLinkedPreferences(linkedPreferenceIds);
-
-      // Update form with merged selections
       setValue("selectedCategories", linkedCategoryIds);
       setValue("selectedPreferences", linkedPreferenceIds);
     } else {
-      // Reset when service changes
       setOriginalLinkedCategories([]);
       setOriginalLinkedPreferences([]);
     }
-  }, [watchedServiceId, existingServiceData, setValue]);
+  }, [serviceIdNum, existingServiceData, allCategories, setValue]);
 
   return (
     <ModalComponent
@@ -298,7 +308,8 @@ export default function ConfigureModal({ open, onClose, selectedServiceId }) {
                 title="Select Service*"
                 value={value}
                 onChange={(e) => {
-                  onChange(e.target.value);
+                  const next = e.target.value;
+                  onChange(next === "" ? "" : Number(next));
                 }}
                 options={SERVICE_OPTIONS}
                 placeholder="Choose a service to configure"
@@ -341,7 +352,10 @@ export default function ConfigureModal({ open, onClose, selectedServiceId }) {
                 mb: 2,
               }}
             >
-              Item Categories {categories?.length > 0 ? `(${categories.length} available)` : "(No categories available)"}
+              Item Categories{" "}
+              {categoriesForSelectedService?.length > 0
+                ? `(${categoriesForSelectedService.length} for this service)`
+                : "(No categories for this service)"}
             </Typography>
             <Typography
               variant="body2"
@@ -351,10 +365,10 @@ export default function ConfigureModal({ open, onClose, selectedServiceId }) {
                 fontSize: "14px",
               }}
             >
-              Select which item categories this service applies to. Already
-              linked categories are checked by default.
+              Categories linked to this service. Add new categories from the
+              Categories page and select this service when creating them.
             </Typography>
-            {categories?.length > 0 ? (
+            {categoriesForSelectedService?.length > 0 ? (
               <Box
                 sx={{
                   maxHeight: "200px",
@@ -363,7 +377,7 @@ export default function ConfigureModal({ open, onClose, selectedServiceId }) {
                   borderRadius: "8px",
                 }}
               >
-                {categories.map((category) => {
+                {categoriesForSelectedService.map((category) => {
                   const isLinked =
                     watchedCategories?.includes(category.id) || false;
                   return (
@@ -454,7 +468,8 @@ export default function ConfigureModal({ open, onClose, selectedServiceId }) {
                 }}
               >
                 <Typography variant="body2" sx={{ color: "#667085" }}>
-                  No categories available. Please add categories first.
+                  No categories for this service. Add a category and assign it
+                  to this service from the Categories page.
                 </Typography>
               </Box>
             )}
@@ -467,7 +482,7 @@ export default function ConfigureModal({ open, onClose, selectedServiceId }) {
                 disabled={
                   categoriesLoading ||
                   categoriesUnassignLoading ||
-                  !watchedServiceId
+                  !serviceIdNum
                 }
               />
             </Box>
@@ -677,13 +692,7 @@ export default function ConfigureModal({ open, onClose, selectedServiceId }) {
             <ButtonBlue
               size="medium"
               text="Save Preferences"
-              onClick={() => {
-                handlePreferencesSubmit();
-                // Optionally close modal after saving
-                setTimeout(() => {
-                  handleClose();
-                }, 1500);
-              }}
+              onClick={handlePreferencesSubmit}
               disabled={configServiceLoading || unassignLoading}
             />
           </Box>

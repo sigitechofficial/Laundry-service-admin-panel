@@ -42,7 +42,8 @@ export default function SubCategoryModal({
   const [addSubCategory, { isLoading: isAddSubCategoryLoading }] =
     useAddSubCategoryMutation();
 
-  const [editSubCategory] = useEditSubCategoryMutation();
+  const [editSubCategory, { isLoading: isEditSubCategoryLoading }] =
+    useEditSubCategoryMutation();
 
   const {
     control,
@@ -65,7 +66,7 @@ export default function SubCategoryModal({
         name: data.subCategory,
         description: cleanDescription,
         price: parseFloat(data.price),
-        unitCount: Number.parseInt(String(data.unitCount), 10),
+        unitCount: Number.parseInt(String(data.unitCount || 1), 10) || 1,
         status: true,
         categoryId: categoryData?.id,
       };
@@ -90,7 +91,7 @@ export default function SubCategoryModal({
         name: data.subCategory,
         description: cleanDescription,
         price: parseFloat(data.price),
-        unitCount: Number.parseInt(String(data.unitCount), 10),
+        unitCount: Number.parseInt(String(data.unitCount || 1), 10) || 1,
         status: true,
       };
 
@@ -125,8 +126,8 @@ export default function SubCategoryModal({
       setValue(
         "unitCount",
         isUpdate
-          ? categoryData?.unitCount ?? categoryData?.unit_count ?? ""
-          : ""
+          ? categoryData?.unitCount ?? categoryData?.unit_count ?? 1
+          : 1
       );
     }
   }, [categoryData, open, setValue, isUpdate]);
@@ -148,7 +149,7 @@ export default function SubCategoryModal({
       primaryAction={{
         label: type === "update" ? "Update" : "Add Sub Category",
         onClick: handleSubmit(isUpdate ? UpdateSubCategory : onSubmit),
-        isLoading: isAddSubCategoryLoading,
+        isLoading: isAddSubCategoryLoading || isEditSubCategoryLoading,
       }}
     >
       <Box className="flex flex-col gap-5">

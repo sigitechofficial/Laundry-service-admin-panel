@@ -281,11 +281,15 @@ const apiDataSlice = createSlice({
         }
 
         if (body instanceof FormData) {
+          const serviceIdRaw = body.get("serviceId");
           state.categories[index] = {
             ...state.categories[index],
             name: body.get("name") || state.categories[index]?.name,
             description:
-              body.get("description") || state.categories[index]?.description,
+              body.get("description") ?? state.categories[index]?.description,
+            ...(serviceIdRaw
+              ? { serviceId: Number(serviceIdRaw) }
+              : {}),
           };
         }
       }

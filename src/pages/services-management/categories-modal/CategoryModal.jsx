@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useMemo } from "react";
 import { Box, Typography } from "@mui/material";
 import { useForm, Controller } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
@@ -6,12 +6,19 @@ import ModalComponent from "../../../components/shared/Modal";
 import InputFieldModal from "../../../components/ui/InputFieldModal";
 import ImageUpload from "../../../components/ui/ImageUpload";
 import RichTextEditor from "../../../components/ui/RichTextEditor";
+import SelectField from "../../../components/ui/SelectField";
 import useToaster from "../../../components/ui/Toaster";
+import { BASE_URL } from "../../../utilities/URL";
 import {
   useAddCategoryMutation,
   useEditCategoryMutation,
+  useGetAllServicesQuery,
 } from "../../../store/services/api";
-import { categoryValidationSchema, defaultCategoryValues } from "./constants";
+import {
+  categoryValidationSchema,
+  categoryUpdateValidationSchema,
+  defaultCategoryValues,
+} from "./constants";
 
 const normalizeEditorContent = (value = "") => {
   if (typeof value !== "string") return "";
@@ -19,17 +26,41 @@ const normalizeEditorContent = (value = "") => {
   const html = value.trim();
   if (!html) return "";
 
-  // If editor returned plain text, use it directly.
   if (!/[<>]/.test(html)) {
     return html.replace(/\s+/g, " ").trim();
   }
 
-  // Convert rich text HTML to clean plain text for API payloads.
   const parser = new DOMParser();
   const doc = parser.parseFromString(html, "text/html");
   const text = (doc.body?.textContent || "").replace(/\u00a0/g, " ");
   return text.replace(/\s+/g, " ").trim();
 };
+
+const resolveCategoryImageUrl = (path) => {
+  if (!path) return "";
+  if (path instanceof File) return path;
+  const value = String(path);
+  if (value.startsWith("http://") || value.startsWith("https://")) {
+    return value;
+  }
+  if (value.startsWith("blob:") || value.startsWith("data:")) {
+    return value;
+  }
+  return `${BASE_URL}${value.replace(/^\//, "")}`;
+};
+
+const buildCategoryFormValues = (categoryData) => ({
+  name: categoryData?.name || "",
+  description: categoryData?.description || "",
+  serviceId: categoryData?.serviceId ?? categoryData?.service?.id ?? "",
+  image: resolveCategoryImageUrl(
+    categoryData?.CategoryImg ||
+      categoryData?.categoryImg ||
+      categoryData?.image ||
+      categoryData?.img ||
+      ""
+  ),
+});
 
 export default function CategoryModal({ open, onClose, type, categoryData }) {
   const { success, error } = useToaster();
@@ -37,6 +68,24 @@ export default function CategoryModal({ open, onClose, type, categoryData }) {
     useAddCategoryMutation();
   const [editCategory, { isLoading: isEditCategoryLoading }] =
     useEditCategoryMutation();
+  const { data: servicesResponse } = useGetAllServicesQuery(undefined, {
+    skip: !open,
+  });
+
+  const services = servicesResponse?.data?.services || [];
+  const serviceOptions = useMemo(
+    () =>
+      services.map((svc) => ({
+        label: svc.name,
+        value: String(svc.id),
+      })),
+    [services]
+  );
+
+  const isUpdate = type === "update";
+  const validationSchema = isUpdate
+    ? categoryUpdateValidationSchema
+    : categoryValidationSchema;
 
   const {
     control,
@@ -45,36 +94,32 @@ export default function CategoryModal({ open, onClose, type, categoryData }) {
     setValue,
     formState: { errors },
   } = useForm({
-    resolver: yupResolver(categoryValidationSchema),
+    resolver: yupResolver(validationSchema),
     defaultValues: defaultCategoryValues,
     mode: "onChange",
   });
-
-  const isUpdate = type === "update";
 
   useEffect(() => {
     if (!open) return;
 
     if (isUpdate && categoryData) {
-      setValue("name", categoryData?.name || "");
-      setValue("description", categoryData?.description || "");
-      setValue(
-        "image",
-        categoryData?.CategoryImg ||
-          categoryData?.categoryImg ||
-          categoryData?.image ||
-          categoryData?.img ||
-          ""
-      );
+      reset(buildCategoryFormValues(categoryData));
       return;
     }
 
     reset(defaultCategoryValues);
-  }, [open, isUpdate, categoryData, reset, setValue]);
+  }, [open, isUpdate, categoryData, reset]);
 
   const handleClose = () => {
     reset(defaultCategoryValues);
     onClose();
+  };
+
+  const onInvalid = (formErrors) => {
+    const firstError = Object.values(formErrors)[0];
+    const message =
+      firstError?.message || "Please fix the highlighted fields before saving.";
+    error(message);
   };
 
   const onSubmit = async (data) => {
@@ -83,6 +128,7 @@ export default function CategoryModal({ open, onClose, type, categoryData }) {
       const formdata = new FormData();
       formdata.append("name", data.name || "");
       formdata.append("description", cleanDescription);
+      formdata.append("serviceId", String(data.serviceId));
 
       if (isUpdate) {
         if (data.image instanceof File) {
@@ -130,11 +176,40 @@ export default function CategoryModal({ open, onClose, type, categoryData }) {
       }}
       primaryAction={{
         label: isUpdate ? "Update Category" : "Add Category",
-        onClick: handleSubmit(onSubmit),
+        onClick: handleSubmit(onSubmit, onInvalid),
         isLoading: isAddCategoryLoading || isEditCategoryLoading,
       }}
     >
       <Box className="flex flex-col gap-5">
+        <Controller
+          name="serviceId"
+          control={control}
+          render={({ field: { onChange, value } }) => (
+            <Box>
+              <SelectField
+                title="Service*"
+                value={value === "" || value == null ? "" : String(value)}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  onChange(next === "" ? "" : Number(next));
+                }}
+                options={serviceOptions}
+                placeholder="Select service for this category"
+                fullWidth
+                bgcolor="grey.60"
+              />
+              {errors.serviceId && (
+                <Typography
+                  variant="caption"
+                  sx={{ color: "error.main", mt: 1, display: "block" }}
+                >
+                  {errors.serviceId.message}
+                </Typography>
+              )}
+            </Box>
+          )}
+        />
+
         <Controller
           name="image"
           control={control}
@@ -189,7 +264,7 @@ export default function CategoryModal({ open, onClose, type, categoryData }) {
           render={({ field: { onChange, value } }) => (
             <Box>
               <RichTextEditor
-                title="Description*"
+                title={isUpdate ? "Description" : "Description*"}
                 value={value}
                 onChange={(e) => onChange(e.target.value)}
                 placeholder="Enter category description"
