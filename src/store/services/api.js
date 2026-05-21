@@ -4,7 +4,7 @@ import baseQueryWithReauth from "./baseQueryWithReauth";
 export const api = createApi({
   reducerPath: "api",
   baseQuery: baseQueryWithReauth,
-  tagTypes: ["ServiceConfig", "SupportContact", "Coupons", "Banners"],
+  tagTypes: ["ServiceConfig", "SupportContact", "Coupons", "Banners", "AccountDeletionReasons"],
 
   endpoints: (builder) => {
     const normalizeServiceId = (id) => {
@@ -978,6 +978,40 @@ export const api = createApi({
       }),
     }),
 
+    getAccountDeletionReasons: builder.query({
+      query: () => ({
+        url: "admin/getAccountDeletionReasons",
+        method: "GET",
+      }),
+      providesTags: ["AccountDeletionReasons"],
+    }),
+
+    createAccountDeletionReason: builder.mutation({
+      query: (body) => ({
+        url: "admin/createAccountDeletionReason",
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: ["AccountDeletionReasons"],
+    }),
+
+    updateAccountDeletionReason: builder.mutation({
+      query: ({ id, body }) => ({
+        url: `admin/updateAccountDeletionReason/${id}`,
+        method: "PATCH",
+        body,
+      }),
+      invalidatesTags: ["AccountDeletionReasons"],
+    }),
+
+    deleteAccountDeletionReason: builder.mutation({
+      query: (id) => ({
+        url: `admin/deleteAccountDeletionReason/${id}`,
+        method: "DELETE",
+      }),
+      invalidatesTags: ["AccountDeletionReasons"],
+    }),
+
     addNoShowPolicy: builder.mutation({
       query: (body) => ({
         url: "admin/addNoShowPolicy",
@@ -1346,6 +1380,10 @@ export const {
   useCreateReasonMutation,
   useGetAllReasonsQuery,
   useDeleteReasonMutation,
+  useGetAccountDeletionReasonsQuery,
+  useCreateAccountDeletionReasonMutation,
+  useUpdateAccountDeletionReasonMutation,
+  useDeleteAccountDeletionReasonMutation,
   useAddNoShowPolicyMutation,
   useGetNoShowPoliciesQuery,
   useLazyGetNoShowPoliciesQuery,

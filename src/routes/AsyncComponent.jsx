@@ -32,6 +32,10 @@ export const CustomerSupport = lazy(() =>
   import("../pages/customer-support/CustomerSupport")
 );
 
+export const DeleteAccountReasons = lazy(() =>
+  import("../pages/delete-account-reasons/DeleteAccountReasons")
+);
+
 export const CustomerDetails = lazy(() =>
   import("../pages/customer-management/customer-details/CustomerDetails")
 );

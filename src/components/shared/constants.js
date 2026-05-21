@@ -14,6 +14,7 @@ import {
   BsCardList,
   TbX,
   TbSparkles,
+  TbTrash,
 } from "../../shared/icons/index";
 
 export const sidebarList = [
@@ -238,6 +239,12 @@ export const sidebarList = [
     label: "Customer Support",
     Icon: PiHeadsetBold,
     path: "/customer-support",
+    size: "23px",
+  },
+  {
+    label: "Delete Account Reasons",
+    Icon: TbTrash,
+    path: "/delete-account-reasons",
     size: "23px",
   },
 ];

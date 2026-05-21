@@ -10,6 +10,7 @@ import {
   ConfigureServicesPage,
   CustomerManagement,
   CustomerSupport,
+  DeleteAccountReasons,
   CustomerDetails,
   ShopDetails,
   DriverManagement,
@@ -88,6 +89,11 @@ export const privateRoutes = [
     path: "/customer-support",
     element: CustomerSupport,
     resourceKey: "customer_support_page",
+  },
+  {
+    path: "/delete-account-reasons",
+    element: DeleteAccountReasons,
+    resourceKey: "delete_account_reasons_page",
   },
   {
     path: "/customer-management/details/:id",
