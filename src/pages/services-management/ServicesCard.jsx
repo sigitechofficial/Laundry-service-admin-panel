@@ -63,6 +63,20 @@ export default function ServicesCard({ triggerAdd }) {
   const [editService, { isLoading: editServiceLoading }] =
     useEditServiceMutation();
 
+  const formatTurnaroundTime = (value) => {
+    if (value == null || value === "") return "";
+    return String(value);
+  };
+
+  const handleTurnaroundChange = (e) => {
+    const digitsOnly = e.target.value.replace(/\D/g, "");
+    setAdd((prev) => ({ ...prev, turnaroundTime: digitsOnly }));
+  };
+
+  const appendTimeRequired = (formData) => {
+    formData.append("timeRequired", String(add.turnaroundTime ?? ""));
+  };
+
   // Handle form data population for update modal
   useEffect(() => {
     if (add.type === "update" && add.id) {
@@ -81,10 +95,9 @@ export default function ServicesCard({ triggerAdd }) {
           name: serviceToEdit.name || "",
           description: serviceToEdit.description || "",
           image: BASE_URL + serviceToEdit.image || "",
-          turnaroundTime:
-            serviceToEdit.timeRequired ??
-            serviceToEdit.turnaroundTime ??
-            "",
+          turnaroundTime: formatTurnaroundTime(
+            serviceToEdit.timeRequired ?? serviceToEdit.turnaroundTime
+          ),
           pricedByWeight: hasPricing,
           basePrice: serviceToEdit.basePrice ?? "",
           baseWeightKg: serviceToEdit.baseWeightKg ?? "",
@@ -197,7 +210,9 @@ export default function ServicesCard({ triggerAdd }) {
       description: service.description || "",
       image: service.serviceImg || "",
       servicesId: service.id,
-      turnaroundTime: service.timeRequired ?? service.turnaroundTime ?? "",
+      turnaroundTime: formatTurnaroundTime(
+        service.timeRequired ?? service.turnaroundTime
+      ),
       pricedByWeight: hasPricing,
       basePrice: service.basePrice ?? "",
       baseWeightKg: service.baseWeightKg ?? "",
@@ -224,9 +239,7 @@ export default function ServicesCard({ triggerAdd }) {
     formData.append("description", add.description);
     formData.append("serviceImg", add.image);
     formData.append("pricingBasis", add.pricedByWeight ? "weight" : "item");
-    if (add.turnaroundTime) {
-      formData.append("timeRequired", add.turnaroundTime);
-    }
+    appendTimeRequired(formData);
     if (add.pricedByWeight) {
       formData.append("basePrice", add.basePrice);
       formData.append("baseWeightKg", add.baseWeightKg);
@@ -235,6 +248,7 @@ export default function ServicesCard({ triggerAdd }) {
     let res = await addService(formData).unwrap();
     if (res?.status === "1") {
       handleToggle();
+      void refetch();
     } else {
       error("Something went wrong");
     }
@@ -257,9 +271,7 @@ export default function ServicesCard({ triggerAdd }) {
       } else if (add.image === null) {
         formData.append("deleteImage", "true");
       }
-      if (add.turnaroundTime) {
-        formData.append("timeRequired", add.turnaroundTime);
-      }
+      appendTimeRequired(formData);
       if (add.pricedByWeight) {
         formData.append("basePrice", add.basePrice);
         formData.append("baseWeightKg", add.baseWeightKg);
@@ -269,6 +281,7 @@ export default function ServicesCard({ triggerAdd }) {
       if (res?.status === "1") {
         handleToggle();
         success("Service updated successfully!");
+        void refetch();
       } else {
         error("Something went wrong");
       }
@@ -441,10 +454,13 @@ export default function ServicesCard({ triggerAdd }) {
           {/* Turnaround time */}
           <InputFieldModal
             title="Turnaround Time (Days)"
-            placeholder="e.g. 2-3 days"
+            placeholder="e.g. 2"
             name="turnaroundTime"
+            type="text"
+            inputMode="numeric"
+            pattern="[0-9]*"
             value={add.turnaroundTime}
-            onChange={handleChange}
+            onChange={handleTurnaroundChange}
           />
 
           {/* Weight-based pricing toggle */}

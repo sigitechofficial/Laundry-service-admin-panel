@@ -121,11 +121,29 @@ const apiDataSlice = createSlice({
                 else nextImage = v ?? service.image;
               }
             }
+            const timeRequired =
+              body instanceof FormData && body.has("timeRequired")
+                ? String(body.get("timeRequired") ?? "")
+                : service.timeRequired;
+            const pricingBasis =
+              body instanceof FormData && body.has("pricingBasis")
+                ? body.get("pricingBasis")
+                : service.pricingBasis;
             return {
               ...service,
               name: body.get?.("name") ?? service.name,
               description: body.get?.("description") ?? service.description,
               image: nextImage,
+              timeRequired,
+              pricingBasis,
+              basePrice:
+                body instanceof FormData && body.has("basePrice")
+                  ? body.get("basePrice")
+                  : service.basePrice,
+              baseWeightKg:
+                body instanceof FormData && body.has("baseWeightKg")
+                  ? body.get("baseWeightKg")
+                  : service.baseWeightKg,
             };
           });
         }
