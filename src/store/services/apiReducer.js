@@ -129,6 +129,11 @@ const apiDataSlice = createSlice({
               body instanceof FormData && body.has("pricingBasis")
                 ? body.get("pricingBasis")
                 : service.pricingBasis;
+            const parseFormBool = (key) => {
+              if (!(body instanceof FormData) || !body.has(key)) return service[key];
+              const v = body.get(key);
+              return v === "true" || v === true;
+            };
             return {
               ...service,
               name: body.get?.("name") ?? service.name,
@@ -136,6 +141,8 @@ const apiDataSlice = createSlice({
               image: nextImage,
               timeRequired,
               pricingBasis,
+              numberOfBags: parseFormBool("numberOfBags"),
+              numberOfItems: parseFormBool("numberOfItems"),
               basePrice:
                 body instanceof FormData && body.has("basePrice")
                   ? body.get("basePrice")

@@ -201,6 +201,27 @@ export default function ShopDetails() {
     .slice(0, 4);
   const allOrders = [...orders].sort((a, b) => dayjs(b?.createdAt).valueOf() - dayjs(a?.createdAt).valueOf());
 
+  const shopServices = useMemo(() => {
+    const rows = Array.isArray(biz?.agentServices) ? biz.agentServices : [];
+    return rows
+      .map((row, index) => {
+        const svc = row?.service ?? {};
+        return {
+          sl: index + 1,
+          junctionId: row?.id,
+          serviceId: row?.serviceId ?? svc?.id,
+          name: svc?.name || "—",
+          description: svc?.description || "",
+          turnaround:
+            svc?.timeRequired != null && String(svc.timeRequired).trim() !== ""
+              ? String(svc.timeRequired)
+              : row?.serviceTimeRequired || "—",
+          active: row?.status !== false && svc?.status !== false,
+        };
+      })
+      .filter((row) => row.serviceId || row.name !== "—");
+  }, [biz?.agentServices]);
+
   const shopStaff = useMemo(() => {
     const currentShopId = String(shop?.id ?? id ?? "");
     const detailStaffSource = Array.isArray(shop?.employees)
@@ -548,6 +569,7 @@ export default function ShopDetails() {
           <Tab value="staff" label="Staff" />
           <Tab value="documents" label="Documents" />
           <Tab value="settings" label="Settings" />
+          <Tab value="services" label="Services" />
         </Tabs>
       </Paper>
 
@@ -1294,7 +1316,105 @@ export default function ShopDetails() {
           </Box>
         )}
 
-        {activeTab !== "overview" && activeTab !== "orders" && activeTab !== "staff" && activeTab !== "settings" && (
+        {activeTab === "services" && (
+          <Paper sx={CARD_SX}>
+            <Box
+              sx={{
+                px: 2.5,
+                py: 1.8,
+                borderBottom: "1px solid #F1F5F9",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <Typography sx={{ fontSize: 14, fontWeight: 600, color: "#0F172A" }}>
+                Services offered by this shop
+              </Typography>
+              <Chip
+                size="small"
+                label={`${shopServices.length} service${shopServices.length === 1 ? "" : "s"}`}
+                sx={{ bgcolor: "#F1F5F9", color: "#475569", fontSize: 10 }}
+              />
+            </Box>
+            <TableContainer>
+              <Table size="small">
+                <TableHead>
+                  <TableRow sx={{ bgcolor: "#F8FAFC" }}>
+                    {["#", "Service", "Service ID", "Turnaround", "Status"].map((h) => (
+                      <TableCell
+                        key={h}
+                        sx={{
+                          fontSize: 11,
+                          fontWeight: 700,
+                          color: "#94A3B8",
+                          textTransform: "uppercase",
+                          letterSpacing: "0.06em",
+                          borderBottom: "1px solid #F1F5F9",
+                        }}
+                      >
+                        {h}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {shopServices.length ? (
+                    shopServices.map((row) => (
+                      <TableRow key={row.junctionId ?? row.serviceId} hover>
+                        <TableCell sx={{ fontSize: 12, color: "#64748B" }}>{row.sl}</TableCell>
+                        <TableCell>
+                          <Typography sx={{ fontSize: 13, fontWeight: 600, color: "#0F172A" }}>
+                            {row.name}
+                          </Typography>
+                          {row.description ? (
+                            <Typography
+                              className="line-clamp-2"
+                              sx={{ fontSize: 11, color: "#94A3B8", mt: 0.3 }}
+                            >
+                              {row.description}
+                            </Typography>
+                          ) : null}
+                        </TableCell>
+                        <TableCell sx={{ fontSize: 12, fontWeight: 600, color: "#00028B" }}>
+                          {row.serviceId ?? "—"}
+                        </TableCell>
+                        <TableCell sx={{ fontSize: 13, color: "#475569" }}>{row.turnaround}</TableCell>
+                        <TableCell>
+                          <Chip
+                            size="small"
+                            label={row.active ? "Active" : "Inactive"}
+                            sx={{
+                              fontSize: 11,
+                              fontWeight: 700,
+                              bgcolor: row.active ? "#E0E7FF" : "#F1F5F9",
+                              color: row.active ? "#00028B" : "#64748B",
+                            }}
+                          />
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  ) : (
+                    <TableRow>
+                      <TableCell
+                        colSpan={5}
+                        sx={{ fontSize: 13, color: "#94A3B8", py: 5, textAlign: "center" }}
+                      >
+                        No services assigned to this shop yet.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </Paper>
+        )}
+
+        {activeTab !== "overview" &&
+          activeTab !== "orders" &&
+          activeTab !== "staff" &&
+          activeTab !== "settings" &&
+          activeTab !== "services" && (
           <Paper sx={{ ...CARD_SX, p: 3 }}>
             <Typography sx={{ fontSize: 16, fontWeight: 600, color: "#0F172A" }}>
               {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} section

@@ -4,7 +4,7 @@ import baseQueryWithReauth from "./baseQueryWithReauth";
 export const api = createApi({
   reducerPath: "api",
   baseQuery: baseQueryWithReauth,
-  tagTypes: ["ServiceConfig", "SupportContact", "Coupons", "Banners", "AccountDeletionReasons"],
+  tagTypes: ["ServiceConfig", "SupportContact", "PlatformOperationalHours", "Orders", "Coupons", "Banners", "AccountDeletionReasons"],
 
   endpoints: (builder) => {
     const normalizeServiceId = (id) => {
@@ -361,6 +361,23 @@ export const api = createApi({
         url: "admin/allOrderDetails",
         method: "GET",
       }),
+      providesTags: ["Orders"],
+    }),
+
+    getBookingAssignableShops: builder.query({
+      query: (bookingId) => ({
+        url: `admin/bookings/${bookingId}/assignableShops`,
+        method: "GET",
+      }),
+    }),
+
+    assignBookingToShop: builder.mutation({
+      query: ({ bookingId, laundryShopId }) => ({
+        url: `admin/bookings/${bookingId}/assignShop`,
+        method: "PATCH",
+        body: { laundryShopId },
+      }),
+      invalidatesTags: ["Orders"],
     }),
 
     getAllCompleteOrders: builder.query({
@@ -1202,6 +1219,23 @@ export const api = createApi({
       providesTags: ["SupportContact"],
     }),
 
+    getPlatformOperationalHours: builder.query({
+      query: () => ({
+        url: "admin/platformOperationalHours",
+        method: "GET",
+      }),
+      providesTags: ["PlatformOperationalHours"],
+    }),
+
+    updatePlatformOperationalHours: builder.mutation({
+      query: (body) => ({
+        url: "admin/platformOperationalHours",
+        method: "PATCH",
+        body,
+      }),
+      invalidatesTags: ["PlatformOperationalHours"],
+    }),
+
     getAllCoupons: builder.query({
       query: ({ page = 1, limit = 10, isActive = true } = {}) => ({
         url: `admin/getAllCoupons?page=${page}&limit=${limit}&isActive=${isActive}`,
@@ -1405,6 +1439,10 @@ export const {
   useUpdateBlogMutation,
   useUpdateSupportContactMutation,
   useGetSupportContactQuery,
+  useGetPlatformOperationalHoursQuery,
+  useUpdatePlatformOperationalHoursMutation,
+  useGetBookingAssignableShopsQuery,
+  useAssignBookingToShopMutation,
   useGetAllCouponsQuery,
   useAddCouponMutation,
   useCreateBannerMutation,

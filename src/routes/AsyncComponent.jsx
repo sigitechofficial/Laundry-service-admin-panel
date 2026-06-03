@@ -169,6 +169,10 @@ export const ReschedulePolicy = lazy(() =>
   import("../pages/policies-management/ReschedulePolicy")
 );
 
+export const PlatformOperationalHours = lazy(() =>
+  import("../pages/policies-management/PlatformOperationalHours")
+);
+
 export const PromoCodesPage = lazy(() =>
   import("../pages/promotion/PromoCodesPage")
 );

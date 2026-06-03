@@ -39,6 +39,7 @@ import {
   NoShowPolicy,
   NoShowPolicyTestCases,
   ReschedulePolicy,
+  PlatformOperationalHours,
   PromoCodesPage,
   BannersPage
 } from "../routes/AsyncComponent";
@@ -229,6 +230,11 @@ export const privateRoutes = [
     path: "/policies-management/reschedule-policy",
     element: ReschedulePolicy,
     resourceKey: "reschedule_policy_page",
+  },
+  {
+    path: "/policies-management/platform-operational-hours",
+    element: PlatformOperationalHours,
+    resourceKey: "platform_operational_hours_page",
   },
   {
     path: "/promotion/promo-codes",

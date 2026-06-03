@@ -1,4 +1,4 @@
-import { Box, Typography } from "@mui/material";
+import { Box, Typography, Button } from "@mui/material";
 import { BsCardList } from "../../../shared/icons/index";
 import { Delay } from "../../../components/shared/Loaders";
 import StatCard from "../../../components/ui/StatCard";
@@ -18,6 +18,7 @@ import {
   resolveOrderStatusTitle,
 } from "../../../shared/orderEditStatusGate";
 import DeleteOrderModal from "../order-modals/DeleteOrderModal";
+import AssignOrderModal from "../order-modals/AssignOrderModal";
 
 const PENDING_STATUSES = ["pending", "new", "active", "order created"];
 
@@ -33,6 +34,7 @@ export default function PendingOrders() {
   const [dateRange, setDateRange] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [deleteModal, setDeleteModal] = useState({ open: false, orderId: null });
+  const [assignModal, setAssignModal] = useState({ open: false, orderId: null });
 
   const handleSearchChange = (searchTerm) => {
     setSearchTerm(searchTerm);
@@ -94,7 +96,11 @@ export default function PendingOrders() {
     id: booking?.id,
     sl: index + 1,
     orderId: booking?.id,
-    orderDateTime: dayjs(booking?.created_at).format(dateTimeFormat),
+    orderDateTime: dayjs(
+      booking?.createdAt || booking?.created_at
+    ).format(dateTimeFormat),
+    canAdminAssign: Boolean(booking?.canAdminAssign),
+    agentAcceptExpired: Boolean(booking?.agentAcceptExpired),
     serviceType: booking?.customerSelectedServices
       ?.map((ser) => ser?.service?.name)
       .join(","),
@@ -182,15 +188,34 @@ export default function PendingOrders() {
     {
       field: "actions",
       headerName: "Actions",
-      minWidth: 200,
+      minWidth: 280,
       sortable: false,
       renderCell: (row) => (
-        <ActionButtons
-          showEdit={canEditOrderFromBooking(row._booking, orderStatuses)}
-          onView={() => navigate(`/orders/details/${row.id}`)}
-          onEdit={() => navigate(`/orders/edit/${row.id}`)}
-          onDelete={() => setDeleteModal({ open: true, orderId: row.id })}
-        />
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+          {row.canAdminAssign && (
+            <Button
+              size="small"
+              variant="contained"
+              sx={{
+                minWidth: 72,
+                bgcolor: "#000099",
+                textTransform: "none",
+                fontSize: 12,
+              }}
+              onClick={() =>
+                setAssignModal({ open: true, orderId: row.id })
+              }
+            >
+              Assign
+            </Button>
+          )}
+          <ActionButtons
+            showEdit={canEditOrderFromBooking(row._booking, orderStatuses)}
+            onView={() => navigate(`/orders/details/${row.id}`)}
+            onEdit={() => navigate(`/orders/edit/${row.id}`)}
+            onDelete={() => setDeleteModal({ open: true, orderId: row.id })}
+          />
+        </Box>
       ),
     },
   ];
@@ -244,6 +269,15 @@ export default function PendingOrders() {
         orderId={deleteModal.orderId}
         onClose={() => setDeleteModal({ open: false, orderId: null })}
         onSuccess={handleDeleteSuccess}
+      />
+      <AssignOrderModal
+        open={assignModal.open}
+        bookingId={assignModal.orderId}
+        onClose={() => setAssignModal({ open: false, orderId: null })}
+        onSuccess={() => {
+          refetch();
+          refetchCounts();
+        }}
       />
     </>
   );

@@ -179,6 +179,11 @@ export const sidebarList = [
         path: "/policies-management/reschedule-policy",
         size: "24px",
       },
+      {
+        label: "Operational Hours",
+        path: "/policies-management/platform-operational-hours",
+        size: "24px",
+      },
     ],
   },
   {

@@ -53,6 +53,8 @@ export default function ServicesCard({ triggerAdd }) {
     basePrice: "",
     baseWeightKg: "",
     additionalPricePerKg: "",
+    numberOfBags: false,
+    numberOfItems: false,
   };
 
   const [add, setAdd] = useState(emptyForm);
@@ -75,6 +77,14 @@ export default function ServicesCard({ triggerAdd }) {
 
   const appendTimeRequired = (formData) => {
     formData.append("timeRequired", String(add.turnaroundTime ?? ""));
+  };
+
+  const parseServiceFlag = (value) =>
+    value === true || value === "true" || value === 1 || value === "1";
+
+  const appendQuantityOptions = (formData) => {
+    formData.append("numberOfBags", String(Boolean(add.numberOfBags)));
+    formData.append("numberOfItems", String(Boolean(add.numberOfItems)));
   };
 
   // Handle form data population for update modal
@@ -102,6 +112,8 @@ export default function ServicesCard({ triggerAdd }) {
           basePrice: serviceToEdit.basePrice ?? "",
           baseWeightKg: serviceToEdit.baseWeightKg ?? "",
           additionalPricePerKg: serviceToEdit.additionalPricePerKg ?? "",
+          numberOfBags: parseServiceFlag(serviceToEdit.numberOfBags),
+          numberOfItems: parseServiceFlag(serviceToEdit.numberOfItems),
         }));
       }
     }
@@ -217,6 +229,8 @@ export default function ServicesCard({ triggerAdd }) {
       basePrice: service.basePrice ?? "",
       baseWeightKg: service.baseWeightKg ?? "",
       additionalPricePerKg: service.additionalPricePerKg ?? "",
+      numberOfBags: parseServiceFlag(service.numberOfBags),
+      numberOfItems: parseServiceFlag(service.numberOfItems),
     });
   };
 
@@ -240,6 +254,7 @@ export default function ServicesCard({ triggerAdd }) {
     formData.append("serviceImg", add.image);
     formData.append("pricingBasis", add.pricedByWeight ? "weight" : "item");
     appendTimeRequired(formData);
+    appendQuantityOptions(formData);
     if (add.pricedByWeight) {
       formData.append("basePrice", add.basePrice);
       formData.append("baseWeightKg", add.baseWeightKg);
@@ -272,6 +287,7 @@ export default function ServicesCard({ triggerAdd }) {
         formData.append("deleteImage", "true");
       }
       appendTimeRequired(formData);
+      appendQuantityOptions(formData);
       if (add.pricedByWeight) {
         formData.append("basePrice", add.basePrice);
         formData.append("baseWeightKg", add.baseWeightKg);
@@ -532,6 +548,47 @@ export default function ServicesCard({ triggerAdd }) {
               )}
             </Box>
           )}
+
+          <Box className="flex flex-col gap-1">
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={add.numberOfBags}
+                  onChange={(e) =>
+                    setAdd((prev) => ({
+                      ...prev,
+                      numberOfBags: e.target.checked,
+                    }))
+                  }
+                  color="primary"
+                />
+              }
+              label={
+                <Typography variant="body2" sx={{ color: "#374151", fontWeight: 500 }}>
+                  Number of bags
+                </Typography>
+              }
+            />
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={add.numberOfItems}
+                  onChange={(e) =>
+                    setAdd((prev) => ({
+                      ...prev,
+                      numberOfItems: e.target.checked,
+                    }))
+                  }
+                  color="primary"
+                />
+              }
+              label={
+                <Typography variant="body2" sx={{ color: "#374151", fontWeight: 500 }}>
+                  Number of items
+                </Typography>
+              }
+            />
+          </Box>
 
           <TextareaField
             title="Description"
