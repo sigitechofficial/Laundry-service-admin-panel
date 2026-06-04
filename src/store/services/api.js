@@ -1220,8 +1220,8 @@ export const api = createApi({
     }),
 
     getPlatformOperationalHours: builder.query({
-      query: () => ({
-        url: "admin/platformOperationalHours",
+      query: (countryId) => ({
+        url: `admin/platformOperationalHours?countryId=${countryId}`,
         method: "GET",
       }),
       providesTags: ["PlatformOperationalHours"],
