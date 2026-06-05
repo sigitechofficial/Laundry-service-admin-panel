@@ -6,6 +6,7 @@ import { Delay } from "../../../components/shared/Loaders";
 import dayjs from "dayjs";
 import { TbChevronRight, TbX, TbFileDownload, TbChevronDown, TbChevronLeft } from "../../../shared/icons/index";
 import { BASE_URL } from "../../../utilities/URL";
+import { resolveOrderSubtotal, resolveServicesSubtotal } from "../../../utilities/invoiceTotals";
 
 export default function OrderDetailsModal({ open, orderId, onClose }) {
   const [showOrderItems, setShowOrderItems] = useState(false);
@@ -24,6 +25,16 @@ export default function OrderDetailsModal({ open, orderId, onClose }) {
   });
 
   const orderItemsData = orderItemsResponse?.data;
+  const servicesSubtotalAmount = resolveServicesSubtotal(orderItemsData);
+  const orderSubtotalAmount = resolveOrderSubtotal(orderData, {
+    servicesSubtotal: servicesSubtotalAmount,
+    serviceCharge: orderData?.billingDetail?.serviceCharge,
+    minimumOrderFee: orderData?.billingDetail?.upfrontAmount,
+    tip: orderData?.tips?.[0]?.amount,
+  });
+  const orderGrandTotal = parseFloat(
+    orderData?.billingDetail?.total ?? orderData?.orderAmount ?? orderSubtotalAmount ?? 0
+  );
 
   const handleClose = () => {
     setShowOrderItems(false);
@@ -524,7 +535,7 @@ export default function OrderDetailsModal({ open, orderId, onClose }) {
                     color: "#000000",
                   }}
                 >
-                  Subtotal:
+                  Services subtotal:
                 </Typography>
                 <Typography
                   variant="body2"
@@ -535,7 +546,7 @@ export default function OrderDetailsModal({ open, orderId, onClose }) {
                     color: "#000000",
                   }}
                 >
-                  $ {parseFloat(orderItemsData.totalAmount || 0).toFixed(2)}
+                  $ {parseFloat(servicesSubtotalAmount || 0).toFixed(2)}
                 </Typography>
               </Box>
               
@@ -600,6 +611,38 @@ export default function OrderDetailsModal({ open, orderId, onClose }) {
                   }}
                 >
                   -(0.00)
+                </Typography>
+              </Box>
+
+              <Box
+                sx={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  mb: 1.5,
+                }}
+              >
+                <Typography 
+                  variant="body2" 
+                  fontFamily="Switzer" 
+                  sx={{ 
+                    fontSize: "14px",
+                    fontWeight: 400,
+                    color: "#000000",
+                  }}
+                >
+                  Subtotal:
+                </Typography>
+                <Typography
+                  variant="body2"
+                  fontFamily="Switzer"
+                  sx={{ 
+                    fontSize: "14px",
+                    fontWeight: 700,
+                    color: "#000000",
+                  }}
+                >
+                  $ {parseFloat(orderSubtotalAmount || 0).toFixed(2)}
                 </Typography>
               </Box>
               
@@ -698,7 +741,7 @@ export default function OrderDetailsModal({ open, orderId, onClose }) {
                     color: "#000000",
                   }}
                 >
-                  ${parseFloat(orderItemsData.totalAmount || 0).toFixed(2)}
+                  ${orderGrandTotal.toFixed(2)}
                 </Typography>
               </Box>
             </Box>

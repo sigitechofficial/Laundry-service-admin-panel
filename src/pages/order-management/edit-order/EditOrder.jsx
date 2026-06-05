@@ -41,6 +41,11 @@ import { TbPlus } from "../../../shared/icons/index";
 import ModalComponent from "../../../components/shared/Modal";
 import { canEditOrderFromBooking } from "../../../shared/orderEditStatusGate";
 import { BASE_URL } from "../../../utilities/URL";
+import {
+  mergeInvoiceDetailsFromResponse,
+  resolveOrderSubtotal,
+  resolveServicesSubtotal,
+} from "../../../utilities/invoiceTotals";
 
 /** Booking FK `laundryShopId` is authoritative; never use `laundryShop.userId` (agent id) as shop id. */
 function getOrderLaundryShopId(order) {
@@ -138,17 +143,24 @@ function buildInvoiceView(invoiceDetails, fallbackShopName = "") {
         .filter(Boolean),
       instruction: it?.serviceInstruction || "",
     }));
-  const subtotal = Number(invoiceDetails?.subTotal ?? invoiceDetails?.billingDetail?.total ?? 0);
   const addOns = items.reduce(
     (sum, item) =>
       sum +
       item.addOns.reduce((acc, ad) => acc + (Number(ad.qty) || 1) * (Number(ad.price) || 0), 0),
     0
   );
+  const servicesSubtotal = resolveServicesSubtotal(invoiceDetails, items);
   const serviceCharge = Number(invoiceDetails?.billingDetail?.serviceCharge ?? 0);
   const minimumOrderFee = Number(invoiceDetails?.billingDetail?.upfrontAmount ?? 0);
   const discount = Number(invoiceDetails?.billingDetail?.discount ?? 0);
-  const grandTotal = Number(invoiceDetails?.orderAmount ?? invoiceDetails?.billingDetail?.total ?? subtotal);
+  const orderSubtotal = resolveOrderSubtotal(invoiceDetails, {
+    servicesSubtotal,
+    serviceCharge,
+    minimumOrderFee,
+  });
+  const grandTotal = Number(
+    invoiceDetails?.orderAmount ?? invoiceDetails?.billingDetail?.total ?? orderSubtotal
+  );
   const pickupWindow = `${invoiceDetails?.collectionTimeFrom || "N/A"}-${invoiceDetails?.collectionTimeTo || "N/A"}`;
   const deliveryWindow = `${invoiceDetails?.deliveryTimeFrom || "N/A"}-${invoiceDetails?.deliveryTimeTo || "N/A"}`;
   const bags = Number(invoiceDetails?.noOfBags || 0);
@@ -169,7 +181,8 @@ function buildInvoiceView(invoiceDetails, fallbackShopName = "") {
         ? computedTotalItems
         : Number(invoiceDetails?.totalItems || 0),
     items,
-    subtotal,
+    servicesSubtotal,
+    subtotal: orderSubtotal,
     addOns,
     minimumOrderFee,
     serviceCharge,
@@ -300,10 +313,10 @@ function a4InvoiceHtml(view) {
     <tbody>${rows}</tbody>
   </table>
   <div class="totals">
-    <div class="row"><span>Subtotal</span><span>£${view.subtotal.toFixed(2)}</span></div>
-    <div class="row"><span>Add-ons</span><span>£${view.addOns.toFixed(2)}</span></div>
+    <div class="row"><span>Services subtotal</span><span>£${view.servicesSubtotal.toFixed(2)}</span></div>
     <div class="row"><span>Minimum Order Fee</span><span>-£${Math.abs(view.minimumOrderFee || 0).toFixed(2)}</span></div>
     <div class="row"><span>Service Charge</span><span>£${view.serviceCharge.toFixed(2)}</span></div>
+    <div class="row"><span>Subtotal</span><span>£${view.subtotal.toFixed(2)}</span></div>
     <div class="row"><span>Discount</span><span>£${view.discount.toFixed(2)}</span></div>
     <div class="row grand"><span>Grand Total</span><span>£${view.grandTotal.toFixed(2)}</span></div>
   </div>
@@ -369,10 +382,10 @@ function thermalInvoiceHtml(view) {
   <div class="row strong"><span>Items (${view.totalItems})</span><span>Amount</span></div>
   ${itemRows}
   <div class="line"></div>
-  <div class="row"><span>Subtotal</span><span>£${view.subtotal.toFixed(2)}</span></div>
-  <div class="row"><span>Add-ons</span><span>£${view.addOns.toFixed(2)}</span></div>
+  <div class="row"><span>Services subtotal</span><span>£${view.servicesSubtotal.toFixed(2)}</span></div>
   <div class="row"><span>Minimum Order Fee</span><span>-£${Math.abs(view.minimumOrderFee || 0).toFixed(2)}</span></div>
   <div class="row"><span>Service Charge</span><span>£${view.serviceCharge.toFixed(2)}</span></div>
+  <div class="row"><span>Subtotal</span><span>£${view.subtotal.toFixed(2)}</span></div>
   <div class="row"><span>Discount</span><span>£${view.discount.toFixed(2)}</span></div>
   <div class="line"></div>
   <div class="row big"><span>Total</span><span>£${view.grandTotal.toFixed(2)}</span></div>
@@ -1108,7 +1121,7 @@ export default function EditOrder() {
   const handleOpenInvoiceModal = async () => {
     try {
       const response = await fetchInvoice(Number(id)).unwrap();
-      const details = response?.data?.invoiceDetails;
+      const details = mergeInvoiceDetailsFromResponse(response?.data);
       if (!details) {
         showError("Invoice details not found.");
         return;
@@ -2454,10 +2467,10 @@ export default function EditOrder() {
               <Typography sx={{ color: "#111827", fontWeight: 600, fontSize: 14 }}>{invoiceModal.format === "a4" ? "A4 Receipt" : "58mm Thermal"}</Typography>
               <Typography sx={{ color: "#6B7280", fontSize: 14 }}>Total Items</Typography>
               <Typography sx={{ color: "#111827", fontWeight: 600, fontSize: 14 }}>{invoiceView?.totalItems || 0}</Typography>
+              <Typography sx={{ color: "#6B7280", fontSize: 14 }}>Services subtotal</Typography>
+              <Typography sx={{ color: "#111827", fontWeight: 600, fontSize: 14 }}>£{Number(invoiceView?.servicesSubtotal || 0).toFixed(2)}</Typography>
               <Typography sx={{ color: "#6B7280", fontSize: 14 }}>Subtotal</Typography>
               <Typography sx={{ color: "#111827", fontWeight: 600, fontSize: 14 }}>£{Number(invoiceView?.subtotal || 0).toFixed(2)}</Typography>
-              <Typography sx={{ color: "#6B7280", fontSize: 14 }}>Add-ons</Typography>
-              <Typography sx={{ color: "#111827", fontWeight: 600, fontSize: 14 }}>£{Number(invoiceView?.addOns || 0).toFixed(2)}</Typography>
             </Box>
             <Box sx={{ mt: 2.5, pt: 1.5, borderTop: "1px solid #E5E7EB", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <Typography sx={{ color: "#1F2937", fontWeight: 700, fontSize: 22 }}>Total</Typography>
@@ -2558,10 +2571,10 @@ export default function EditOrder() {
               </Box>
             ))}
             <Box sx={{ mt: 1, ml: "auto", width: 250 }}>
-              <Box sx={{ display: "flex", justifyContent: "space-between" }}><Typography sx={{ fontSize: 11 }}>Subtotal</Typography><Typography sx={{ fontSize: 11 }}>£{Number(invoiceView?.subtotal || 0).toFixed(2)}</Typography></Box>
-              <Box sx={{ display: "flex", justifyContent: "space-between" }}><Typography sx={{ fontSize: 11 }}>Add-ons</Typography><Typography sx={{ fontSize: 11 }}>£{Number(invoiceView?.addOns || 0).toFixed(2)}</Typography></Box>
+              <Box sx={{ display: "flex", justifyContent: "space-between" }}><Typography sx={{ fontSize: 11 }}>Services subtotal</Typography><Typography sx={{ fontSize: 11 }}>£{Number(invoiceView?.servicesSubtotal || 0).toFixed(2)}</Typography></Box>
               <Box sx={{ display: "flex", justifyContent: "space-between" }}><Typography sx={{ fontSize: 11 }}>Minimum Order Fee</Typography><Typography sx={{ fontSize: 11 }}>-£{Math.abs(Number(invoiceView?.minimumOrderFee || 0)).toFixed(2)}</Typography></Box>
               <Box sx={{ display: "flex", justifyContent: "space-between" }}><Typography sx={{ fontSize: 11 }}>Service Charge</Typography><Typography sx={{ fontSize: 11 }}>£{Number(invoiceView?.serviceCharge || 0).toFixed(2)}</Typography></Box>
+              <Box sx={{ display: "flex", justifyContent: "space-between" }}><Typography sx={{ fontSize: 11 }}>Subtotal</Typography><Typography sx={{ fontSize: 11 }}>£{Number(invoiceView?.subtotal || 0).toFixed(2)}</Typography></Box>
               <Box sx={{ display: "flex", justifyContent: "space-between" }}><Typography sx={{ fontSize: 11 }}>Discount</Typography><Typography sx={{ fontSize: 11 }}>£{Number(invoiceView?.discount || 0).toFixed(2)}</Typography></Box>
               <Box sx={{ display: "flex", justifyContent: "space-between", fontWeight: 700, fontSize: 18, mt: 0.4 }}><Typography sx={{ fontWeight: 700, fontSize: 18 }}>Grand Total</Typography><Typography sx={{ fontWeight: 700, fontSize: 18 }}>£{Number(invoiceView?.grandTotal || 0).toFixed(2)}</Typography></Box>
             </Box>
@@ -2622,10 +2635,10 @@ export default function EditOrder() {
               </Box>
             ))}
             <Box sx={{ borderTop: "1px dashed #111", my: 0.8 }} />
-            <Box sx={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}><Typography sx={{ fontFamily: "'Courier New', monospace", fontSize: 12 }}>Subtotal</Typography><Typography sx={{ fontFamily: "'Courier New', monospace", fontSize: 12 }}>£{Number(invoiceView?.subtotal || 0).toFixed(2)}</Typography></Box>
-            <Box sx={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}><Typography sx={{ fontFamily: "'Courier New', monospace", fontSize: 12 }}>Add-ons</Typography><Typography sx={{ fontFamily: "'Courier New', monospace", fontSize: 12 }}>£{Number(invoiceView?.addOns || 0).toFixed(2)}</Typography></Box>
+            <Box sx={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}><Typography sx={{ fontFamily: "'Courier New', monospace", fontSize: 12 }}>Services subtotal</Typography><Typography sx={{ fontFamily: "'Courier New', monospace", fontSize: 12 }}>£{Number(invoiceView?.servicesSubtotal || 0).toFixed(2)}</Typography></Box>
             <Box sx={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}><Typography sx={{ fontFamily: "'Courier New', monospace", fontSize: 12 }}>Minimum Order Fee</Typography><Typography sx={{ fontFamily: "'Courier New', monospace", fontSize: 12 }}>-£{Math.abs(Number(invoiceView?.minimumOrderFee || 0)).toFixed(2)}</Typography></Box>
             <Box sx={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}><Typography sx={{ fontFamily: "'Courier New', monospace", fontSize: 12 }}>Service Charge</Typography><Typography sx={{ fontFamily: "'Courier New', monospace", fontSize: 12 }}>£{Number(invoiceView?.serviceCharge || 0).toFixed(2)}</Typography></Box>
+            <Box sx={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}><Typography sx={{ fontFamily: "'Courier New', monospace", fontSize: 12 }}>Subtotal</Typography><Typography sx={{ fontFamily: "'Courier New', monospace", fontSize: 12 }}>£{Number(invoiceView?.subtotal || 0).toFixed(2)}</Typography></Box>
             <Box sx={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}><Typography sx={{ fontFamily: "'Courier New', monospace", fontSize: 12 }}>Discount</Typography><Typography sx={{ fontFamily: "'Courier New', monospace", fontSize: 12 }}>£{Number(invoiceView?.discount || 0).toFixed(2)}</Typography></Box>
             <Box sx={{ borderTop: "1px dashed #111", my: 0.8 }} />
             <Box sx={{ display: "flex", justifyContent: "space-between" }}><Typography sx={{ fontWeight: 700, fontSize: 20, fontFamily: "'Courier New', monospace" }}>Total</Typography><Typography sx={{ fontWeight: 700, fontSize: 20, fontFamily: "'Courier New', monospace" }}>£{Number(invoiceView?.grandTotal || 0).toFixed(2)}</Typography></Box>

@@ -24,6 +24,11 @@ import { BASE_URL } from "../../../utilities/URL";
 import { canEditOrderFromBooking } from "../../../shared/orderEditStatusGate";
 import ModalComponent from "../../../components/shared/Modal";
 import useToaster from "../../../components/ui/Toaster";
+import {
+  mergeInvoiceDetailsFromResponse,
+  resolveOrderSubtotal,
+  resolveServicesSubtotal,
+} from "../../../utilities/invoiceTotals";
 
 const statusStyleMap = {
   completed: { bg: "#D1FAE5", color: "#065F46", label: "Completed" },
@@ -119,17 +124,24 @@ function buildInvoiceView(invoiceDetails, fallbackShopName = "") {
         .filter(Boolean),
       instruction: it?.serviceInstruction || "",
     }));
-  const subtotal = Number(invoiceDetails?.subTotal ?? invoiceDetails?.billingDetail?.total ?? 0);
   const addOns = items.reduce(
     (sum, item) =>
       sum +
       item.addOns.reduce((acc, ad) => acc + (Number(ad.qty) || 1) * (Number(ad.price) || 0), 0),
     0
   );
+  const servicesSubtotal = resolveServicesSubtotal(invoiceDetails, items);
   const serviceCharge = Number(invoiceDetails?.billingDetail?.serviceCharge ?? 0);
   const minimumOrderFee = Number(invoiceDetails?.billingDetail?.upfrontAmount ?? 0);
   const discount = Number(invoiceDetails?.billingDetail?.discount ?? 0);
-  const grandTotal = Number(invoiceDetails?.orderAmount ?? invoiceDetails?.billingDetail?.total ?? subtotal);
+  const orderSubtotal = resolveOrderSubtotal(invoiceDetails, {
+    servicesSubtotal,
+    serviceCharge,
+    minimumOrderFee,
+  });
+  const grandTotal = Number(
+    invoiceDetails?.orderAmount ?? invoiceDetails?.billingDetail?.total ?? orderSubtotal
+  );
   const pickupWindow = `${invoiceDetails?.collectionTimeFrom || "N/A"}-${invoiceDetails?.collectionTimeTo || "N/A"}`;
   const deliveryWindow = `${invoiceDetails?.deliveryTimeFrom || "N/A"}-${invoiceDetails?.deliveryTimeTo || "N/A"}`;
   const computedTotalItems = items.reduce((sum, item) => sum + (Number(item.qty) || 0), 0);
@@ -142,7 +154,8 @@ function buildInvoiceView(invoiceDetails, fallbackShopName = "") {
     agentName,
     totalItems: computedTotalItems > 0 ? computedTotalItems : Number(invoiceDetails?.totalItems || 0),
     items,
-    subtotal,
+    servicesSubtotal,
+    subtotal: orderSubtotal,
     addOns,
     minimumOrderFee,
     serviceCharge,
@@ -257,10 +270,10 @@ function a4InvoiceHtml(view) {
       <tbody>${rows}</tbody>
     </table>
     <div class="totals">
-      <div class="row"><span>Subtotal</span><span>£${view.subtotal.toFixed(2)}</span></div>
-      <div class="row"><span>Add-ons</span><span>£${view.addOns.toFixed(2)}</span></div>
+      <div class="row"><span>Services subtotal</span><span>£${view.servicesSubtotal.toFixed(2)}</span></div>
       <div class="row"><span>Minimum Order Fee</span><span>-£${Math.abs(view.minimumOrderFee || 0).toFixed(2)}</span></div>
       <div class="row"><span>Service Charge</span><span>£${view.serviceCharge.toFixed(2)}</span></div>
+      <div class="row"><span>Subtotal</span><span>£${view.subtotal.toFixed(2)}</span></div>
       <div class="row"><span>Discount</span><span>£${view.discount.toFixed(2)}</span></div>
       <div class="row grand"><span>Grand Total</span><span>£${view.grandTotal.toFixed(2)}</span></div>
     </div>
@@ -276,7 +289,7 @@ function thermalInvoiceHtml(view) {
       return `<div class="row strong"><span>${item.qty}x ${item.serviceName ? `${item.serviceName} - ` : ""}${item.name}</span><span>£${(item.qty * item.rate).toFixed(2)}</span></div>${addonRows}`;
     })
     .join("");
-  return `<!doctype html><html><head><meta charset="utf-8"/><title>58mm Thermal</title><style>body{font-family:'Courier New',monospace}.ticket{width:58mm;margin:0 auto;padding:8px}.row{display:flex;justify-content:space-between;font-size:11px}.subrow{display:flex;justify-content:space-between;font-size:10px;padding-left:8px;color:#374151}.line{border-top:1px dashed #333;margin:6px 0}.strong{font-weight:700}</style></head><body><div class="ticket"><div style="text-align:center;font-weight:700">justDray cleaner</div><div style="text-align:center;font-size:11px">Customer Receipt</div><div style="text-align:center;font-size:10px">Format: 58mm Thermal</div><div class="line"></div><div class="row"><span>Invoice</span><span>${view.invoiceNo}</span></div><div class="row"><span>Date</span><span>${view.dateText}</span></div><div class="row"><span>Pickup</span><span>${view.pickupWindow}</span></div><div class="row"><span>Delivery</span><span>${view.deliveryWindow}</span></div><div class="line"></div><div><b>${view.customerName}</b></div><div style="font-size:10px">${view.emailOrPhone || ""}</div><div style="font-size:10px">${view.addressText}</div><div class="line"></div><div class="row strong"><span>Items (${view.totalItems})</span><span>Amount</span></div>${itemRows}<div class="line"></div><div class="row"><span>Subtotal</span><span>£${view.subtotal.toFixed(2)}</span></div><div class="row"><span>Add-ons</span><span>£${view.addOns.toFixed(2)}</span></div><div class="row"><span>Minimum Order Fee</span><span>-£${Math.abs(view.minimumOrderFee || 0).toFixed(2)}</span></div><div class="row"><span>Service Charge</span><span>£${view.serviceCharge.toFixed(2)}</span></div><div class="row"><span>Discount</span><span>£${view.discount.toFixed(2)}</span></div><div class="line"></div><div class="row strong" style="font-size:18px"><span>Total</span><span>£${view.grandTotal.toFixed(2)}</span></div></div></body></html>`;
+  return `<!doctype html><html><head><meta charset="utf-8"/><title>58mm Thermal</title><style>body{font-family:'Courier New',monospace}.ticket{width:58mm;margin:0 auto;padding:8px}.row{display:flex;justify-content:space-between;font-size:11px}.subrow{display:flex;justify-content:space-between;font-size:10px;padding-left:8px;color:#374151}.line{border-top:1px dashed #333;margin:6px 0}.strong{font-weight:700}</style></head><body><div class="ticket"><div style="text-align:center;font-weight:700">justDray cleaner</div><div style="text-align:center;font-size:11px">Customer Receipt</div><div style="text-align:center;font-size:10px">Format: 58mm Thermal</div><div class="line"></div><div class="row"><span>Invoice</span><span>${view.invoiceNo}</span></div><div class="row"><span>Date</span><span>${view.dateText}</span></div><div class="row"><span>Pickup</span><span>${view.pickupWindow}</span></div><div class="row"><span>Delivery</span><span>${view.deliveryWindow}</span></div><div class="line"></div><div><b>${view.customerName}</b></div><div style="font-size:10px">${view.emailOrPhone || ""}</div><div style="font-size:10px">${view.addressText}</div><div class="line"></div><div class="row strong"><span>Items (${view.totalItems})</span><span>Amount</span></div>${itemRows}<div class="line"></div><div class="row"><span>Services subtotal</span><span>£${view.servicesSubtotal.toFixed(2)}</span></div><div class="row"><span>Minimum Order Fee</span><span>-£${Math.abs(view.minimumOrderFee || 0).toFixed(2)}</span></div><div class="row"><span>Service Charge</span><span>£${view.serviceCharge.toFixed(2)}</span></div><div class="row"><span>Subtotal</span><span>£${view.subtotal.toFixed(2)}</span></div><div class="row"><span>Discount</span><span>£${view.discount.toFixed(2)}</span></div><div class="line"></div><div class="row strong" style="font-size:18px"><span>Total</span><span>£${view.grandTotal.toFixed(2)}</span></div></div></body></html>`;
 }
 
 export default function OrderDetailsPage() {
@@ -402,18 +415,6 @@ export default function OrderDetailsPage() {
       ? orderItemsTotal
       : 0;
 
-  const subtotalAmount = toNumber(
-    orderData?.subTotal ?? orderItemsData?.totalAmount ?? orderData?.orderAmount ?? 0
-  );
-  const minimumOrderFeeAmount = toNumber(
-    orderData?.billingDetail?.upfrontAmount ?? 0
-  );
-  const serviceChargeAmount = toNumber(orderData?.billingDetail?.serviceCharge ?? 0);
-  const deliveryFeeAmount = toNumber(orderData?.deliveryFee ?? 0);
-  const tipAmount = toNumber(orderData?.tips?.[0]?.amount ?? 0);
-  const totalAmount = toNumber(
-    orderData?.billingDetail?.total ?? orderData?.orderAmount ?? subtotalAmount
-  );
   const addOnsTotalAmount = useMemo(() => {
     return selectedServiceGroups.reduce(
       (sum, svc) =>
@@ -431,6 +432,44 @@ export default function OrderDetailsPage() {
       0
     );
   }, [selectedServiceGroups]);
+  const servicesSubtotalAmount = useMemo(() => {
+    if (
+      orderItemsData?.servicesSubtotal != null ||
+      orderItemsData?.totalAmount != null
+    ) {
+      return resolveServicesSubtotal(orderItemsData);
+    }
+    const servicesOnly = selectedServiceGroups.reduce(
+      (sum, svc) =>
+        sum +
+        svc.items.reduce(
+          (itemSum, item) =>
+            itemSum +
+            Number(item.quantity ?? item.items ?? 0) *
+              Number(item.categoryPrice ?? item.price ?? 0),
+          0
+        ),
+      0
+    );
+    return parseFloat((servicesOnly + addOnsTotalAmount).toFixed(2));
+  }, [orderItemsData, selectedServiceGroups, addOnsTotalAmount]);
+  const minimumOrderFeeAmount = toNumber(
+    orderData?.billingDetail?.upfrontAmount ?? 0
+  );
+  const serviceChargeAmount = toNumber(orderData?.billingDetail?.serviceCharge ?? 0);
+  const deliveryFeeAmount = toNumber(orderData?.deliveryFee ?? 0);
+  const tipAmount = toNumber(orderData?.tips?.[0]?.amount ?? 0);
+  const orderSubtotalAmount = toNumber(
+    resolveOrderSubtotal(orderData, {
+      servicesSubtotal: servicesSubtotalAmount,
+      serviceCharge: serviceChargeAmount,
+      minimumOrderFee: minimumOrderFeeAmount,
+      tip: tipAmount,
+    })
+  );
+  const totalAmount = toNumber(
+    orderData?.billingDetail?.total ?? orderData?.orderAmount ?? orderSubtotalAmount
+  );
   const [selectedItemsServiceId, setSelectedItemsServiceId] = useState("");
   const [selectedItemsCategoryKey, setSelectedItemsCategoryKey] = useState("all");
   const [invoiceModal, setInvoiceModal] = useState({
@@ -493,7 +532,7 @@ export default function OrderDetailsPage() {
   const handleOpenInvoiceModal = async () => {
     try {
       const response = await fetchInvoice(Number(bookingId)).unwrap();
-      const details = response?.data?.invoiceDetails;
+      const details = mergeInvoiceDetailsFromResponse(response?.data);
       if (!details) {
         showError("Invoice details not found.");
         return;
@@ -1548,17 +1587,9 @@ export default function OrderDetailsPage() {
             <Box sx={{ p: 2.5, borderTop: "1px solid #E4E7EC", bgcolor: "#FCFCFD", display: "flex", flexDirection: "column", rowGap: 0.4 }}>
               <Box className="flex items-center justify-between" sx={{ py: 0.9 }}>
                 <Typography variant="body2" color="text.secondary">
-                  Subtotal
+                  Services subtotal
                 </Typography>
-                <Typography variant="body2">${subtotalAmount.toFixed(2)}</Typography>
-              </Box>
-              <Box className="flex items-center justify-between" sx={{ py: 0.9 }}>
-                <Typography variant="body2" color="text.secondary">
-                  Add-ons
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  ${addOnsTotalAmount.toFixed(2)}
-                </Typography>
+                <Typography variant="body2">${servicesSubtotalAmount.toFixed(2)}</Typography>
               </Box>
               <Box className="flex items-center justify-between" sx={{ py: 0.9 }}>
                 <Typography variant="body2" color="text.secondary">
@@ -1575,6 +1606,12 @@ export default function OrderDetailsPage() {
                 <Typography variant="body2" color="text.secondary">
                   ${serviceChargeAmount.toFixed(2)}
                 </Typography>
+              </Box>
+              <Box className="flex items-center justify-between" sx={{ py: 0.9 }}>
+                <Typography variant="body2" color="text.secondary">
+                  Subtotal
+                </Typography>
+                <Typography variant="body2">${orderSubtotalAmount.toFixed(2)}</Typography>
               </Box>
               <Box className="flex items-center justify-between" sx={{ py: 0.9 }}>
                 <Typography variant="body2" color="text.secondary">
