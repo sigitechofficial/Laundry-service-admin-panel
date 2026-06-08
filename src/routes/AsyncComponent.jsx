@@ -83,6 +83,9 @@ export const AddShopPage = lazy(() =>
 export const ShopEmployeesPage = lazy(() =>
   import("../pages/shop-management/ShopEmployeesPage")
 );
+export const PendingAgentsPage = lazy(() =>
+  import("../pages/shop-management/PendingAgentsPage")
+);
 export const ShopDetails = lazy(() =>
   import("../pages/shop-management/ShopDetail")
 );

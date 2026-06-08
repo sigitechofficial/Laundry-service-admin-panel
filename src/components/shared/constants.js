@@ -118,6 +118,11 @@ export const sidebarList = [
         size: "24px",
       },
       {
+        label: "Agent Approvals",
+        path: "/shop-management/pending-agents",
+        size: "24px",
+      },
+      {
         label: "Add Shop",
         path: "/shop-management/add-shop",
         size: "24px",

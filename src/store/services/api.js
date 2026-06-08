@@ -4,7 +4,7 @@ import baseQueryWithReauth from "./baseQueryWithReauth";
 export const api = createApi({
   reducerPath: "api",
   baseQuery: baseQueryWithReauth,
-  tagTypes: ["ServiceConfig", "SupportContact", "PlatformOperationalHours", "Orders", "Coupons", "Banners", "AccountDeletionReasons"],
+  tagTypes: ["ServiceConfig", "SupportContact", "PlatformOperationalHours", "Orders", "Coupons", "Banners", "AccountDeletionReasons", "PendingAgents", "RejectedAgents"],
 
   endpoints: (builder) => {
     const normalizeServiceId = (id) => {
@@ -430,6 +430,31 @@ export const api = createApi({
         method: "POST",
         body,
       }),
+    }),
+
+    getPendingAgents: builder.query({
+      query: () => ({
+        url: "admin/pendingAgents",
+        method: "GET",
+      }),
+      providesTags: ["PendingAgents"],
+    }),
+
+    getRejectedAgents: builder.query({
+      query: () => ({
+        url: "admin/rejectedAgents",
+        method: "GET",
+      }),
+      providesTags: ["RejectedAgents"],
+    }),
+
+    updateAgentApproval: builder.mutation({
+      query: ({ agentId, body }) => ({
+        url: `admin/agents/${agentId}/approval`,
+        method: "PATCH",
+        body,
+      }),
+      invalidatesTags: ["PendingAgents", "RejectedAgents", "Shops"],
     }),
     addAgentAddress: builder.mutation({
       query: ({ userId, body }) => ({
@@ -1350,6 +1375,9 @@ export const {
   useGetShopsDataQuery,
   useGetShopDetailsQuery,
   useAddShopMutation,
+  useGetPendingAgentsQuery,
+  useGetRejectedAgentsQuery,
+  useUpdateAgentApprovalMutation,
   useRegisterAgentMutation,
   useAddAgentAddressMutation,
   useAddAgentBusinessInfoMutation,
