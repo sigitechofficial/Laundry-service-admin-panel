@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { Box, Button, Tab, Tabs, Typography } from "@mui/material";
 import dayjs from "dayjs";
 import DataTable from "../../components/ui/DataTable";
@@ -19,17 +19,16 @@ export default function PendingAgents() {
   const {
     data: pendingResponse,
     isLoading: pendingLoading,
-    refetch: refetchPending,
   } = useGetPendingAgentsQuery(undefined, { skip: tab !== "pending" });
 
   const {
     data: rejectedResponse,
     isLoading: rejectedLoading,
-    refetch: refetchRejected,
   } = useGetRejectedAgentsQuery(undefined, { skip: tab !== "rejected" });
 
   const [updateApproval, { isLoading: isUpdating }] =
     useUpdateAgentApprovalMutation();
+  const approvingRef = useRef(false);
 
   const [rejectModal, setRejectModal] = useState({
     open: false,
@@ -71,38 +70,47 @@ export default function PendingAgents() {
     [agents]
   );
 
-  const handleApprove = async (agentId, isRestore = false) => {
-    try {
-      const res = await updateApproval({
-        agentId,
-        body: { action: "approve" },
-      }).unwrap();
-      if (res?.status === "1") {
-        success(
-          res?.message ||
-            (isRestore ? "Agent restored and approved" : "Agent approved")
-        );
-        refetchPending();
-        refetchRejected();
-      } else {
-        showError(res?.message || "Failed to approve agent");
-      }
-    } catch (err) {
-      showError(err?.data?.message || "Failed to approve agent");
-    }
-  };
+  const isApprovalSuccess = (res) =>
+    res?.status === "1" || res?.status === 1;
 
-  const openRejectModal = (row) => {
+  const handleApprove = useCallback(
+    async (agentId, isRestore = false) => {
+      if (approvingRef.current || isUpdating) return;
+      approvingRef.current = true;
+      try {
+        const res = await updateApproval({
+          agentId,
+          body: { action: "approve" },
+        }).unwrap();
+        if (isApprovalSuccess(res)) {
+          success(
+            res?.message ||
+              (isRestore ? "Agent restored and approved" : "Agent approved")
+          );
+        } else {
+          showError(res?.message || "Failed to approve agent");
+        }
+      } catch (err) {
+        showError(err?.data?.message || "Failed to approve agent");
+      } finally {
+        approvingRef.current = false;
+      }
+    },
+    [isUpdating, showError, success, updateApproval]
+  );
+
+  const openRejectModal = useCallback((row) => {
     setRejectModal({
       open: true,
       agentId: row.id,
       agentName: row.name,
       reason: "",
     });
-  };
+  }, []);
 
-  const handleReject = async () => {
-    if (!rejectModal.agentId) return;
+  const handleReject = useCallback(async () => {
+    if (!rejectModal.agentId || approvingRef.current || isUpdating) return;
+    approvingRef.current = true;
     try {
       const res = await updateApproval({
         agentId: rejectModal.agentId,
@@ -111,18 +119,25 @@ export default function PendingAgents() {
           reason: rejectModal.reason?.trim() || undefined,
         },
       }).unwrap();
-      if (res?.status === "1") {
+      if (isApprovalSuccess(res)) {
         success(res?.message || "Agent rejected");
         setRejectModal({ open: false, agentId: null, agentName: "", reason: "" });
-        refetchPending();
-        refetchRejected();
       } else {
         showError(res?.message || "Failed to reject agent");
       }
     } catch (err) {
       showError(err?.data?.message || "Failed to reject agent");
+    } finally {
+      approvingRef.current = false;
     }
-  };
+  }, [
+    isUpdating,
+    rejectModal.agentId,
+    rejectModal.reason,
+    showError,
+    success,
+    updateApproval,
+  ]);
 
   const columns = useMemo(() => {
     const baseColumns = [
@@ -160,7 +175,10 @@ export default function PendingAgents() {
             variant="contained"
             color="success"
             disabled={isUpdating}
-            onClick={() => handleApprove(row.id, true)}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleApprove(row.id, true);
+            }}
             sx={{ textTransform: "none", minWidth: 120 }}
           >
             Restore & Approve
@@ -172,7 +190,10 @@ export default function PendingAgents() {
               variant="contained"
               color="success"
               disabled={isUpdating}
-              onClick={() => handleApprove(row.id)}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleApprove(row.id);
+              }}
               sx={{ textTransform: "none", minWidth: 84 }}
             >
               Approve
@@ -182,7 +203,10 @@ export default function PendingAgents() {
               variant="outlined"
               color="error"
               disabled={isUpdating}
-              onClick={() => openRejectModal(row)}
+              onClick={(e) => {
+                e.stopPropagation();
+                openRejectModal(row);
+              }}
               sx={{ textTransform: "none", minWidth: 84 }}
             >
               Reject
@@ -192,7 +216,7 @@ export default function PendingAgents() {
     });
 
     return baseColumns;
-  }, [isRejectedTab, isUpdating]);
+  }, [handleApprove, handleReject, isRejectedTab, isUpdating, openRejectModal]);
 
   if (isLoading) return <Delay />;
 
