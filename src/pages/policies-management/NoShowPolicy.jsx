@@ -9,6 +9,7 @@ import { useGetAllZonesQuery } from "../../store/services/api";
 
 export default function NoShowPolicy() {
   const addButtonHandlerRef = useRef(null);
+  const actionHandlersRef = useRef(null);
   const navigate = useNavigate();
   const [selectedZoneId, setSelectedZoneId] = useState("");
   const [zoneMenuAnchor, setZoneMenuAnchor] = useState(null);
@@ -92,6 +93,24 @@ export default function NoShowPolicy() {
                 ))}
               </Menu>
               <ButtonBlueLight
+                variant="contained"
+                bgColor="#10b981"
+                color="white"
+                radius="8px"
+                onClick={() => actionHandlersRef.current?.addDummyData?.()}
+              >
+                Add Dummy Data
+              </ButtonBlueLight>
+              <ButtonBlueLight
+                variant="contained"
+                bgColor="#8B5CF6"
+                color="white"
+                radius="8px"
+                onClick={() => actionHandlersRef.current?.testDummyData?.()}
+              >
+                Test Dummy Data
+              </ButtonBlueLight>
+              <ButtonBlueLight
                 variant="outlined"
                 bgColor="blue.200"
                 color="white"
@@ -110,6 +129,7 @@ export default function NoShowPolicy() {
 
           <NoShowPolicyContent
             onAddButtonRef={addButtonHandlerRef}
+            onActionHandlersRef={actionHandlersRef}
             zoneId={selectedZoneId}
             onZoneIdChange={setSelectedZoneId}
             showZoneFilter={false}

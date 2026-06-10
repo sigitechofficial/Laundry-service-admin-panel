@@ -1,9 +1,21 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Box, Typography, Select, MenuItem, FormControl } from "@mui/material";
 import { BsCardList } from "../../shared/icons/index";
 import DataTable from "../../components/ui/DataTable";
 import ButtonBlueLight from "../../components/ui/ButtonBlueLight";
+import useToaster from "../../components/ui/Toaster";
 import { useNavigate } from "react-router-dom";
+import { useSelector } from "react-redux";
+import {
+  useAddNoShowPolicyMutation,
+  useLazyGetNoShowPoliciesQuery,
+  useGetAllZonesQuery,
+} from "../../store/services/api";
+import {
+  runNoShowPolicyApiTests,
+  NO_SHOW_TEST_RESULTS_STORAGE_KEY,
+} from "../../utilities/noShowPolicyDummyData";
+import { mergedZonesList, currencyCodeFromZone, buildCurrencyUnitsList } from "../../utilities/zonesList";
 
 const NO_SHOW_TEST_CASES = [
   { tcId: "NS-001", section: "Add Policy", scenario: "Add no-show policy with required fields and verify in list", policySetup: "Name; Description; EnableForPickup=ON; FeeType=absolute; PickupNoShowFee=10; Currency=USD", orderValue: "N/A", timing: "New policy", steps: "Fill form -> Submit -> Open list", expectedFee: "N/A", expectedResult: "Policy created; appears in list with correct name" },
@@ -22,9 +34,81 @@ const NO_SHOW_TEST_CASES = [
 
 export default function NoShowPolicyTestCases() {
   const navigate = useNavigate();
+  const { success, error: showError } = useToaster();
+  const [addNoShowPolicy] = useAddNoShowPolicyMutation();
+  const [fetchNoShowPolicies] = useLazyGetNoShowPoliciesQuery();
+  const { data: zonesQueryData } = useGetAllZonesQuery();
+  const zonesReduxNode = useSelector((state) => state?.apiData?.zones);
+  const zonesList = useMemo(
+    () => mergedZonesList(zonesQueryData, zonesReduxNode),
+    [zonesQueryData, zonesReduxNode]
+  );
+  const [isRunningTests, setIsRunningTests] = useState(false);
+
   const [results, setResults] = useState(() =>
     Object.fromEntries(NO_SHOW_TEST_CASES.map((tc) => [tc.tcId, { status: "Pending", actualResult: "" }]))
   );
+
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(NO_SHOW_TEST_RESULTS_STORAGE_KEY);
+      if (!raw) return;
+      const stored = JSON.parse(raw);
+      setResults((prev) => {
+        const next = { ...prev };
+        Object.entries(stored).forEach(([tcId, row]) => {
+          if (next[tcId]) {
+            next[tcId] = {
+              status: row.status || "Pending",
+              actualResult: row.actualResult || "",
+            };
+          }
+        });
+        return next;
+      });
+      sessionStorage.removeItem(NO_SHOW_TEST_RESULTS_STORAGE_KEY);
+    } catch {
+      // ignore invalid storage
+    }
+  }, []);
+
+  const handleRunApiTests = async () => {
+    const zoneId = zonesList[0]?.id;
+    if (!zoneId) {
+      showError("Add at least one zone before running API tests.");
+      return;
+    }
+    const currency = currencyCodeFromZone(zonesList[0], buildCurrencyUnitsList()) || "USD";
+
+    setIsRunningTests(true);
+    try {
+      const apiResults = await runNoShowPolicyApiTests({
+        zoneId,
+        currency,
+        addNoShowPolicy: (body) => addNoShowPolicy(body),
+        fetchNoShowPolicies: (params) => fetchNoShowPolicies(params),
+      });
+      setResults((prev) => {
+        const next = { ...prev };
+        Object.entries(apiResults).forEach(([tcId, row]) => {
+          if (next[tcId]) {
+            next[tcId] = {
+              status: row.status || "Pending",
+              actualResult: row.actualResult || "",
+            };
+          }
+        });
+        return next;
+      });
+      const passed = Object.values(apiResults).filter((r) => r.status === "Pass").length;
+      success(`API tests complete: ${passed} passed.`);
+    } catch (err) {
+      console.error(err);
+      showError("Failed to run API tests.");
+    } finally {
+      setIsRunningTests(false);
+    }
+  };
 
   const handleStatusChange = (tcId, value) => {
     setResults((prev) => ({ ...prev, [tcId]: { ...prev[tcId], status: value } }));
@@ -120,15 +204,27 @@ export default function NoShowPolicyTestCases() {
             No Show Policy – Test Cases
           </Typography>
         </Box>
-        <ButtonBlueLight
-          variant="outlined"
-          bgColor="blue.200"
-          color="white"
-          radius="8px"
-          onClick={() => navigate("/policies-management/no-show-policy")}
-        >
-          Back to No Show Policy
-        </ButtonBlueLight>
+        <Box className="flex items-center gap-3">
+          <ButtonBlueLight
+            variant="contained"
+            bgColor="#8B5CF6"
+            color="white"
+            radius="8px"
+            onClick={handleRunApiTests}
+            disabled={isRunningTests}
+          >
+            {isRunningTests ? "Running…" : "Run API Tests"}
+          </ButtonBlueLight>
+          <ButtonBlueLight
+            variant="outlined"
+            bgColor="blue.200"
+            color="white"
+            radius="8px"
+            onClick={() => navigate("/policies-management/no-show-policy")}
+          >
+            Back to No Show Policy
+          </ButtonBlueLight>
+        </Box>
       </Box>
 
       <Typography variant="body2" sx={{ mb: 2, color: "grey.80", fontFamily: "Switzer" }}>
