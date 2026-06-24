@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, Fragment, useRef, useCallback } from "react";
-import { Box, Button, CircularProgress, IconButton, Typography } from "@mui/material";
+import { Box, Button, CircularProgress, IconButton, Typography, Checkbox, FormControlLabel } from "@mui/material";
 import { BsCardList, TbPlus } from "../../shared/icons/index";
 import Search from "../../components/ui/Search";
 import FiltersButton from "../../components/ui/FiltersButton";
@@ -50,11 +50,10 @@ const UK_POSTCODE_AREA_GEOJSON_BASE =
   "https://cdn.jsdelivr.net/gh/missinglink/uk-postcode-polygons@master/geojson";
 const ukPostcodeAreaGeojsonCache = new Map();
 
-/** Fixed zone payment methods sent to add/edit zone APIs (`paymentMethod`). */
+/** Zone payment methods (PayPal excluded). */
 const ZONE_PAYMENT_METHOD_OPTIONS = [
   { value: "cash", label: "Cash" },
   { value: "strip", label: "Stripe" },
-  { value: "paypal", label: "PayPal" },
 ];
 
 function normalizeZonePaymentMethod(raw) {
@@ -62,8 +61,42 @@ function normalizeZonePaymentMethod(raw) {
   if (!s) return "";
   if (s === "cash") return "cash";
   if (s === "stripe" || s === "strip") return "strip";
-  if (s === "paypal") return "paypal";
   return "";
+}
+
+function parseZonePaymentMethods(raw) {
+  const normalized = normalizeZonePaymentMethod(raw);
+  return normalized ? [normalized] : [];
+}
+
+function paymentMethodsToZonePayload(methods) {
+  const selected = Array.isArray(methods) ? methods : [];
+  if (!selected.length) return {};
+
+  const hasCash = selected.includes("cash");
+  const hasStrip = selected.includes("strip");
+
+  let paymentMethod = "";
+  let paymentMehtod = null;
+
+  if (hasStrip) {
+    paymentMethod = "strip";
+    paymentMehtod = "Stripe";
+  } else if (hasCash) {
+    paymentMethod = "cash";
+    paymentMehtod = "Cash";
+  }
+
+  if (!paymentMethod) return {};
+
+  return { paymentMethod, paymentMehtod };
+}
+
+function formatPaymentMethodsLabel(methods) {
+  const labels = ZONE_PAYMENT_METHOD_OPTIONS
+    .filter((opt) => methods?.includes(opt.value))
+    .map((opt) => opt.label);
+  return labels.length ? labels.join(", ") : "N/A";
 }
 
 /** If Google’s viewport is larger than this for a full unit postcode, it’s closer to sector than unit — use tight hex. */
@@ -291,7 +324,7 @@ export default function ZoneManagement() {
     zoneCommission: "",
     zoneCurrency: "",
     currencyUnitId: "",
-    paymentMethod: "",
+    paymentMethods: [],
     deliveryCharges: "",
     ExDeliveryCharges: " ",
     zoneAdminId: "",
@@ -413,7 +446,14 @@ export default function ZoneManagement() {
         )}, ${zone.coordinates.coordinates[0][0][1].toFixed(2)}`
         : "N/A",
       currency: zone.currencyUnitId || "N/A",
-      paymentMethod: zone.paymentMethod || "N/A",
+      paymentMethod: formatPaymentMethodsLabel(
+        parseZonePaymentMethods(
+          zone.paymentMethod ??
+            zone.paymentMehtod ??
+            zone.payment_method ??
+            zone.paymentMethods
+        )
+      ),
       deliveryCharges: zone.serviceCharge || 0,
       noOfShops: "N/A",
       expressDelivery: "N/A",
@@ -751,12 +791,11 @@ export default function ZoneManagement() {
         zoneCommission: zone.agentCommissionPercent ?? (100 - (zone.zoneAdminComission ?? 20)),
         zoneCurrency: selectedCurrency?.name || "",
         currencyUnitId: zone.currencyUnitId ? String(zone.currencyUnitId) : "",
-        paymentMethod: normalizeZonePaymentMethod(
+        paymentMethods: parseZonePaymentMethods(
           zone.paymentMethod ??
-            zone.payment_method ??
             zone.paymentMehtod ??
+            zone.payment_method ??
             zone.paymentMethods ??
-            zone.defaultPaymentMethod ??
             rowZone?.paymentMethod ??
             rowZone?.payment_method
         ),
@@ -991,7 +1030,7 @@ export default function ZoneManagement() {
         zoneCommission: "",
         zoneCurrency: "",
         currencyUnitId: "",
-        paymentMethod: "",
+        paymentMethods: [],
         deliveryCharges: "",
         ExDeliveryCharges: "",
         zoneAdminId: "",
@@ -1082,7 +1121,7 @@ export default function ZoneManagement() {
       // Keep existing distance unit in edit mode; default to 2 for new zones
       const distanceUnitId = parseInt(add.distanceUnitId) || 2;
 
-      const paymentMethodNormalized = normalizeZonePaymentMethod(add.paymentMethod);
+      const paymentPayload = paymentMethodsToZonePayload(add.paymentMethods);
       const zoneData = {
         name: zoneNameTrimmed,
         postcodes: postcodes,
@@ -1095,9 +1134,7 @@ export default function ZoneManagement() {
         zoneAdminComission: 100 - zoneCommissionNum,
         zoneAdminId: add.zoneAdminId && add.zoneAdminId.trim() !== "" ? parseInt(add.zoneAdminId) : null,
         status: true, // create as active
-        ...(paymentMethodNormalized
-          ? { paymentMethod: paymentMethodNormalized }
-          : {}),
+        ...paymentPayload,
       };
 
       console.log("Zone data being sent:", zoneData);
@@ -2093,26 +2130,45 @@ export default function ZoneManagement() {
                   />
                 </Box>
 
-                <Box className="flex flex-col gap-y-3">
-                  <label htmlFor="paymentMethod" className="text-grey40">
-                    Payment Method
-                  </label>
-                  <SelectField
-                    title=""
-                    value={add.paymentMethod || ""}
-                    onChange={(e) => {
-                      setAdd((prev) => ({
-                        ...prev,
-                        paymentMethod: e.target.value,
-                      }));
-                    }}
-                    options={ZONE_PAYMENT_METHOD_OPTIONS}
-                    placeholder="Select payment method"
-                    fullWidth
-                    bgcolor={"grey.200"}
-                  />
+                <Box className="flex flex-col gap-y-2">
+                  <label className="text-grey40">Payment Method</label>
+                  <Box className="flex flex-col gap-y-1">
+                    {ZONE_PAYMENT_METHOD_OPTIONS.map((option) => (
+                      <FormControlLabel
+                        key={option.value}
+                        control={
+                          <Checkbox
+                            checked={(add.paymentMethods || []).includes(
+                              option.value
+                            )}
+                            onChange={(e) => {
+                              const checked = e.target.checked;
+                              setAdd((prev) => {
+                                const current = new Set(
+                                  prev.paymentMethods || []
+                                );
+                                if (checked) {
+                                  current.add(option.value);
+                                } else {
+                                  current.delete(option.value);
+                                }
+                                return {
+                                  ...prev,
+                                  paymentMethods: [...current],
+                                };
+                              });
+                            }}
+                            size="small"
+                          />
+                        }
+                        label={option.label}
+                      />
+                    ))}
+                  </Box>
                 </Box>
 
+                {/* Hidden for now — delivery charges, express delivery, zone admin ID */}
+                <Box sx={{ display: "none" }}>
                 <Box className="flex flex-col gap-y-3">
                   <label htmlFor="deliveryCharges" className="text-grey40">
                     Delivery Charges
@@ -2148,6 +2204,7 @@ export default function ZoneManagement() {
                     onChange={handleChange}
                     placeholder="Enter zone admin ID"
                   />
+                </Box>
                 </Box>
               </Box>
             </ModalComponent>
