@@ -57,20 +57,13 @@ export default function AssignOrderModal({
       return;
     }
     try {
-      const result = await assignShop({
+      await assignShop({
         bookingId,
         laundryShopId: selectedShopId,
       }).unwrap();
-      const responseData = result?.data ?? result ?? {};
-      if (responseData.pendingAgentAccept) {
-        toast.success(
-          isReassign
-            ? "Order reassigned. The shop must accept the order in their app."
-            : "Order sent to shop. The agent must accept the order in their app."
-        );
-      } else {
-        toast.success("Order assigned to shop.");
-      }
+      toast.success(
+        isReassign ? "Order reassigned to shop." : "Order assigned to shop."
+      );
       onSuccess?.();
       onClose();
     } catch (err) {
@@ -80,7 +73,7 @@ export default function AssignOrderModal({
 
   const errorMessage =
     error?.data?.message ||
-    "Could not load shops. Order may be completed, invoice finalized, or platform closed.";
+    "Could not load shops. Order may be out for pickup, completed, invoice finalized, or platform closed.";
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
@@ -102,9 +95,9 @@ export default function AssignOrderModal({
           <>
             {isReassign && (
               <Alert severity="warning" sx={{ mb: 2, fontSize: 13 }}>
-                Pickup proof photos will be cleared. Card payments already
-                collected at pickup stay on the order (no double charge). The
-                selected shop must accept before work continues.
+                Reassign is only allowed before the driver goes out for pickup.
+                Card payments already collected stay on the order (no double
+                charge).
               </Alert>
             )}
             <Typography sx={{ mb: 1, fontSize: 14, color: "#64748B" }}>
@@ -120,9 +113,8 @@ export default function AssignOrderModal({
               </Typography>
             )}
             <Typography sx={{ mb: 2, fontSize: 13, color: "#64748B" }}>
-              Only shops that are open right now can be selected. After you
-              confirm, the shop owner receives a notification and must accept
-              the order.
+              Only shops that are open right now can be selected. The assigned
+              shop receives the order immediately in their active list.
             </Typography>
             {shops.length === 0 ? (
               <Typography sx={{ color: "#64748B" }}>

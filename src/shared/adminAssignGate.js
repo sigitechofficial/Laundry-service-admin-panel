@@ -1,6 +1,8 @@
 /** Mirrors backend canAdminAssignOrReassignBooking for admin UI. */
 
 const TERMINAL_BOOKING_STATUS_IDS = [17, 19, 21];
+/** Status 4 = Driver Out for PickUp */
+const DRIVER_OUT_FOR_PICKUP_STATUS_ID = 4;
 
 export function canAdminAssignOrReassignFromBooking(booking) {
   if (!booking) return false;
@@ -8,6 +10,7 @@ export function canAdminAssignOrReassignFromBooking(booking) {
   if (booking.invoiceStatus === "finalized") return false;
   const statusId = Number(booking.bookingStatusId);
   if (TERMINAL_BOOKING_STATUS_IDS.includes(statusId)) return false;
+  if (statusId >= DRIVER_OUT_FOR_PICKUP_STATUS_ID) return false;
   return true;
 }
 
