@@ -418,7 +418,7 @@ export default function ZoneManagement() {
       noOfShops: "N/A",
       expressDelivery: "N/A",
       zoneAssign: zone.zoneAdminId ? `Admin ${zone.zoneAdminId}` : "Unassigned",
-      commission: zone.zoneAdminComission || 0,
+      commission: zone.agentCommissionPercent ?? (100 - (zone.zoneAdminComission || 20)),
       status: zone.status,
       createdAt: zone.createdAt,
       updatedAt: zone.updatedAt,
@@ -748,7 +748,7 @@ export default function ZoneManagement() {
         zoneName: zone.name || "",
         serviceCharge: zone.serviceCharge ?? "",
         zoneMinimumAmount: zone.zoneMinimumAmount ?? "",
-        zoneCommission: zone.zoneAdminComission ?? "",
+        zoneCommission: zone.agentCommissionPercent ?? (100 - (zone.zoneAdminComission ?? 20)),
         zoneCurrency: selectedCurrency?.name || "",
         currencyUnitId: zone.currencyUnitId ? String(zone.currencyUnitId) : "",
         paymentMethod: normalizeZonePaymentMethod(
@@ -950,7 +950,7 @@ export default function ZoneManagement() {
     },
     {
       field: "commission",
-      headerName: "Commission %",
+      headerName: "Agent commission %",
       flex: 0.12,
       minWidth: 200,
       align: "center",
@@ -1062,12 +1062,12 @@ export default function ZoneManagement() {
       }
       const commRaw = add.zoneCommission;
       if (commRaw === "" || commRaw === null || commRaw === undefined) {
-        showError("Zone commission is required.");
+        showError("Agent commission % is required.");
         return;
       }
       const zoneCommissionNum = parseFloat(String(commRaw).trim());
-      if (!Number.isFinite(zoneCommissionNum) || zoneCommissionNum < 0) {
-        showError("Enter a valid zone commission percentage.");
+      if (!Number.isFinite(zoneCommissionNum) || zoneCommissionNum < 0 || zoneCommissionNum > 100) {
+        showError("Enter a valid agent commission percentage (0–100).");
         return;
       }
       // Extract postcodes array from addedPostcodes
@@ -1091,7 +1091,8 @@ export default function ZoneManagement() {
         currencyUnitId: currencyUnitId || parseInt(add.currencyUnitId) || 1,
         distanceUnitId: distanceUnitId,
         serviceCharge: parseFloat(add.deliveryCharges) || 0,
-        zoneAdminComission: zoneCommissionNum,
+        agentCommissionPercent: zoneCommissionNum,
+        zoneAdminComission: 100 - zoneCommissionNum,
         zoneAdminId: add.zoneAdminId && add.zoneAdminId.trim() !== "" ? parseInt(add.zoneAdminId) : null,
         status: true, // create as active
         ...(paymentMethodNormalized
@@ -2046,14 +2047,15 @@ export default function ZoneManagement() {
                   />
                 </Box>
                 <Box className="flex flex-col gap-y-3">
-                  <label htmlFor="description" className="text-grey40">
-                    Zone commission%
+                  <label htmlFor="zoneCommission" className="text-grey40">
+                    Agent commission %
                   </label>
                   <InputFieldModal
                     name="zoneCommission"
+                    type="number"
                     value={add.zoneCommission}
                     onChange={handleChange}
-                    placeholder="Zone commission%"
+                    placeholder="e.g. 80 — percent of order total paid to agent"
                   />
                 </Box>
 
