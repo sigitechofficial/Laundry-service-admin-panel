@@ -34,22 +34,12 @@ import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import dayjs from "dayjs";
 import { useSelector } from "react-redux";
-import { useNavigate } from "react-router-dom";
-import {
-  buildNoShowDummyPolicyBatch,
-  buildRandomNoShowFormValues,
-  runNoShowPolicyApiTests,
-  NO_SHOW_TEST_RESULTS_STORAGE_KEY,
-} from "../../utilities/noShowPolicyDummyData";
-
 export default function NoShowPolicyContent({
   onAddButtonRef,
-  onActionHandlersRef,
   zoneId: externalZoneId,
   onZoneIdChange,
   showZoneFilter = true,
 }) {
-  const navigate = useNavigate();
   const { success, error: showError } = useToaster();
   const [modalOpen, setModalOpen] = useState(false);
   const [editingPolicy, setEditingPolicy] = useState(null);
@@ -74,9 +64,6 @@ export default function NoShowPolicyContent({
   const [pendingAddPayload, setPendingAddPayload] = useState(null);
   const [overlapTogglingId, setOverlapTogglingId] = useState(null);
   const [overlapPolicyFetchAll, setOverlapPolicyFetchAll] = useState(false);
-  const [isSeedingDummy, setIsSeedingDummy] = useState(false);
-  const [isRunningTests, setIsRunningTests] = useState(false);
-
   // Reset page to 1 when filters change
   useEffect(() => {
     setPage(1);
@@ -726,122 +713,13 @@ export default function NoShowPolicyContent({
     setModalOpen(true);
   };
 
-  const resolveDefaultZoneId = () => {
-    if (selectedZoneId) return Number(selectedZoneId);
-    if (zonesList[0]?.id) return Number(zonesList[0].id);
-    return null;
-  };
-
-  const resolveCurrencyForZone = (zoneId) => {
-    const zone = zonesList.find((z) => String(z.id) === String(zoneId));
-    return currencyCodeFromZone(zone, currencyUnitsList) || "USD";
-  };
-
-  const handleFillDummyForm = () => {
-    const zoneId = resolveDefaultZoneId();
-    if (!zoneId) {
-      showError("Add at least one zone before filling dummy data.");
-      return;
-    }
-    if (!modalOpen) {
-      setEditingPolicy(null);
-      setModalOpen(true);
-    }
-    const currency = resolveCurrencyForZone(zoneId);
-    reset(
-      buildRandomNoShowFormValues({
-        zoneId,
-        currency,
-        versionName: getNextVersionName(),
-      })
-    );
-    success("Form filled with dummy data — review and Save to create.");
-  };
-
-  const handleAddDummyPolicies = async () => {
-    const zoneId = resolveDefaultZoneId();
-    if (!zoneId) {
-      showError("Add at least one zone before seeding dummy policies.");
-      return;
-    }
-    const currency = resolveCurrencyForZone(zoneId);
-    const payloads = buildNoShowDummyPolicyBatch(zoneId, currency, 5);
-
-    setIsSeedingDummy(true);
-    let successCount = 0;
-    let errorCount = 0;
-
-    try {
-      for (const payload of payloads) {
-        try {
-          await addNoShowPolicy(payload).unwrap();
-          successCount += 1;
-        } catch (error) {
-          console.error(`Dummy policy failed: ${payload.name}`, error);
-          errorCount += 1;
-        }
-      }
-
-      if (successCount > 0) {
-        success(`Added ${successCount} dummy no-show polic${successCount === 1 ? "y" : "ies"} to the backend.`);
-        refetch();
-      }
-      if (errorCount > 0) {
-        showError(
-          `${errorCount} dummy polic${errorCount === 1 ? "y" : "ies"} failed (overlap or validation). Check console.`
-        );
-      }
-    } finally {
-      setIsSeedingDummy(false);
-    }
-  };
-
-  const handleRunTestDummyData = async () => {
-    const zoneId = resolveDefaultZoneId();
-    if (!zoneId) {
-      showError("Add at least one zone before running API tests.");
-      return;
-    }
-    const currency = resolveCurrencyForZone(zoneId);
-
-    setIsRunningTests(true);
-    try {
-      const results = await runNoShowPolicyApiTests({
-        zoneId,
-        currency,
-        addNoShowPolicy: (body) => addNoShowPolicy(body),
-        fetchNoShowPolicies: (params) => fetchOverlapPolicies(params),
-      });
-      sessionStorage.setItem(
-        NO_SHOW_TEST_RESULTS_STORAGE_KEY,
-        JSON.stringify(results)
-      );
-      const passed = Object.values(results).filter((r) => r.status === "Pass").length;
-      success(`API tests finished: ${passed} passed. Opening test cases…`);
-      refetch();
-      navigate("/policies-management/no-show-policy/test-cases");
-    } catch (error) {
-      console.error("No-show API tests failed:", error);
-      showError(error?.message || "Failed to run API tests.");
-    } finally {
-      setIsRunningTests(false);
-    }
-  };
-
-  // Expose handlers to parent via refs
+  // Expose add handler to parent via ref
   useEffect(() => {
     if (onAddButtonRef) {
       onAddButtonRef.current = handleAdd;
     }
-    if (onActionHandlersRef) {
-      onActionHandlersRef.current = {
-        addDummyData: handleAddDummyPolicies,
-        testDummyData: handleRunTestDummyData,
-        fillDummyForm: handleFillDummyForm,
-      };
-    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [onAddButtonRef, onActionHandlersRef]);
+  }, [onAddButtonRef]);
 
   const handleEdit = (policy) => {
     setEditingPolicy(policy);
@@ -1230,19 +1108,6 @@ export default function NoShowPolicyContent({
       >
         <LocalizationProvider dateAdapter={AdapterDayjs}>
           <Box className="flex flex-col gap-6">
-          {!editingPolicy ? (
-            <Box className="flex flex-wrap gap-2 justify-end">
-              <Button
-                size="small"
-                variant="outlined"
-                onClick={handleFillDummyForm}
-                disabled={isSeedingDummy || isRunningTests}
-                sx={{ textTransform: "none", borderColor: "#10b981", color: "#10b981" }}
-              >
-                Fill Dummy Data
-              </Button>
-            </Box>
-          ) : null}
           {/* Basic Information */}
           <Box>
             <Typography variant="h6" sx={{ mb: 1, fontFamily: "Switzer", fontWeight: 600 }}>

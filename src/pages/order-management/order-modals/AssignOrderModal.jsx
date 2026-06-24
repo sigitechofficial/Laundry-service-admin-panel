@@ -11,6 +11,7 @@ import {
   Chip,
   CircularProgress,
   Box,
+  Alert,
 } from "@mui/material";
 import { useEffect, useState } from "react";
 import {
@@ -18,12 +19,19 @@ import {
   useAssignBookingToShopMutation,
 } from "../../../store/services/api";
 import useToaster from "../../../components/ui/Toaster";
+import { isReassignBooking } from "../../../shared/adminAssignGate";
 
-export default function AssignOrderModal({ open, bookingId, onClose, onSuccess }) {
+export default function AssignOrderModal({
+  open,
+  bookingId,
+  bookingSnapshot,
+  onClose,
+  onSuccess,
+}) {
   const toast = useToaster();
   const [selectedShopId, setSelectedShopId] = useState(null);
 
-  const { data, isLoading, isError } = useGetBookingAssignableShopsQuery(
+  const { data, isLoading, isError, error } = useGetBookingAssignableShopsQuery(
     bookingId,
     { skip: !open || !bookingId }
   );
@@ -33,6 +41,9 @@ export default function AssignOrderModal({ open, bookingId, onClose, onSuccess }
 
   const payload = data?.data ?? data ?? {};
   const shops = payload?.shops ?? [];
+  const isReassign =
+    Boolean(payload?.currentLaundryShopId) ||
+    isReassignBooking(bookingSnapshot);
 
   useEffect(() => {
     if (!open) {
@@ -46,11 +57,20 @@ export default function AssignOrderModal({ open, bookingId, onClose, onSuccess }
       return;
     }
     try {
-      await assignShop({
+      const result = await assignShop({
         bookingId,
         laundryShopId: selectedShopId,
       }).unwrap();
-      toast.success("Order assigned to shop.");
+      const responseData = result?.data ?? result ?? {};
+      if (responseData.pendingAgentAccept) {
+        toast.success(
+          isReassign
+            ? "Order reassigned. The shop must accept the order in their app."
+            : "Order sent to shop. The agent must accept the order in their app."
+        );
+      } else {
+        toast.success("Order assigned to shop.");
+      }
       onSuccess?.();
       onClose();
     } catch (err) {
@@ -58,9 +78,15 @@ export default function AssignOrderModal({ open, bookingId, onClose, onSuccess }
     }
   };
 
+  const errorMessage =
+    error?.data?.message ||
+    "Could not load shops. Order may be completed, invoice finalized, or platform closed.";
+
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>Assign order to shop</DialogTitle>
+      <DialogTitle>
+        {isReassign ? "Reassign order to shop" : "Assign order to shop"}
+      </DialogTitle>
       <DialogContent>
         {isLoading && (
           <Box sx={{ display: "flex", justifyContent: "center", py: 3 }}>
@@ -69,15 +95,34 @@ export default function AssignOrderModal({ open, bookingId, onClose, onSuccess }
         )}
         {isError && (
           <Typography color="error" sx={{ py: 2 }}>
-            Could not load shops. Only expired, unassigned orders can be assigned
-            while platform and shop are open.
+            {errorMessage}
           </Typography>
         )}
         {!isLoading && !isError && (
           <>
-            <Typography sx={{ mb: 2, fontSize: 14, color: "#64748B" }}>
-              Order #{payload?.orderTrackId || bookingId} — only shops that are
-              open right now can be selected.
+            {isReassign && (
+              <Alert severity="warning" sx={{ mb: 2, fontSize: 13 }}>
+                Pickup proof photos will be cleared. Card payments already
+                collected at pickup stay on the order (no double charge). The
+                selected shop must accept before work continues.
+              </Alert>
+            )}
+            <Typography sx={{ mb: 1, fontSize: 14, color: "#64748B" }}>
+              Order #{payload?.orderTrackId || bookingId}
+              {payload?.invoiceStatus
+                ? ` · Invoice: ${payload.invoiceStatus}`
+                : ""}
+            </Typography>
+            {payload?.currentLaundryShopId && (
+              <Typography sx={{ mb: 2, fontSize: 13, color: "#475569" }}>
+                Currently assigned to shop ID {payload.currentLaundryShopId}.
+                Select a different open shop to reassign.
+              </Typography>
+            )}
+            <Typography sx={{ mb: 2, fontSize: 13, color: "#64748B" }}>
+              Only shops that are open right now can be selected. After you
+              confirm, the shop owner receives a notification and must accept
+              the order.
             </Typography>
             {shops.length === 0 ? (
               <Typography sx={{ color: "#64748B" }}>
@@ -101,11 +146,17 @@ export default function AssignOrderModal({ open, bookingId, onClose, onSuccess }
                     }}
                   >
                     <ListItemText
-                      primary={shop.shopName}
+                      primary={
+                        shop.isCurrentShop
+                          ? `${shop.shopName} (current)`
+                          : shop.shopName
+                      }
                       secondary={
                         shop.canAssign
                           ? "Open now — tap to select"
-                          : "Closed — cannot assign"
+                          : shop.isCurrentShop
+                            ? "Current shop — choose another shop"
+                            : "Closed — cannot assign"
                       }
                     />
                     <Chip
@@ -130,7 +181,13 @@ export default function AssignOrderModal({ open, bookingId, onClose, onSuccess }
           disabled={isAssigning || !selectedShopId || isLoading}
           sx={{ bgcolor: "#000099" }}
         >
-          {isAssigning ? "Assigning…" : "Assign"}
+          {isAssigning
+            ? isReassign
+              ? "Reassigning…"
+              : "Assigning…"
+            : isReassign
+              ? "Reassign"
+              : "Assign"}
         </Button>
       </DialogActions>
     </Dialog>

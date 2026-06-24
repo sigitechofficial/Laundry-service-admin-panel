@@ -1,4 +1,4 @@
-import { Box, Typography, Button } from "@mui/material";
+import { Box, Typography } from "@mui/material";
 import { BsCardList } from "../../../shared/icons/index";
 import { Delay } from "../../../components/shared/Loaders";
 import StatCard from "../../../components/ui/StatCard";
@@ -19,6 +19,8 @@ import {
 } from "../../../shared/orderEditStatusGate";
 import DeleteOrderModal from "../order-modals/DeleteOrderModal";
 import AssignOrderModal from "../order-modals/AssignOrderModal";
+import OrderAssignActionButton from "../order-modals/OrderAssignActionButton";
+import { canAdminAssignOrReassignFromBooking } from "../../../shared/adminAssignGate";
 
 const PENDING_STATUSES = ["pending", "new", "active", "order created"];
 
@@ -34,7 +36,11 @@ export default function PendingOrders() {
   const [dateRange, setDateRange] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [deleteModal, setDeleteModal] = useState({ open: false, orderId: null });
-  const [assignModal, setAssignModal] = useState({ open: false, orderId: null });
+  const [assignModal, setAssignModal] = useState({
+    open: false,
+    orderId: null,
+    booking: null,
+  });
 
   const handleSearchChange = (searchTerm) => {
     setSearchTerm(searchTerm);
@@ -99,7 +105,7 @@ export default function PendingOrders() {
     orderDateTime: dayjs(
       booking?.createdAt || booking?.created_at
     ).format(dateTimeFormat),
-    canAdminAssign: Boolean(booking?.canAdminAssign),
+    canAdminAssign: canAdminAssignOrReassignFromBooking(booking),
     agentAcceptExpired: Boolean(booking?.agentAcceptExpired),
     serviceType: booking?.customerSelectedServices
       ?.map((ser) => ser?.service?.name)
@@ -192,23 +198,16 @@ export default function PendingOrders() {
       sortable: false,
       renderCell: (row) => (
         <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-          {row.canAdminAssign && (
-            <Button
-              size="small"
-              variant="contained"
-              sx={{
-                minWidth: 72,
-                bgcolor: "#000099",
-                textTransform: "none",
-                fontSize: 12,
-              }}
-              onClick={() =>
-                setAssignModal({ open: true, orderId: row.id })
-              }
-            >
-              Assign
-            </Button>
-          )}
+          <OrderAssignActionButton
+            booking={row._booking}
+            onClick={() =>
+              setAssignModal({
+                open: true,
+                orderId: row.id,
+                booking: row._booking,
+              })
+            }
+          />
           <ActionButtons
             showEdit={canEditOrderFromBooking(row._booking, orderStatuses)}
             onView={() => navigate(`/orders/details/${row.id}`)}
@@ -273,7 +272,10 @@ export default function PendingOrders() {
       <AssignOrderModal
         open={assignModal.open}
         bookingId={assignModal.orderId}
-        onClose={() => setAssignModal({ open: false, orderId: null })}
+        bookingSnapshot={assignModal.booking}
+        onClose={() =>
+          setAssignModal({ open: false, orderId: null, booking: null })
+        }
         onSuccess={() => {
           refetch();
           refetchCounts();

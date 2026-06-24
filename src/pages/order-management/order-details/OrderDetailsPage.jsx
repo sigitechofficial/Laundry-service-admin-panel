@@ -29,6 +29,9 @@ import {
   resolveOrderSubtotal,
   resolveServicesSubtotal,
 } from "../../../utilities/invoiceTotals";
+import AssignOrderModal from "../order-modals/AssignOrderModal";
+import OrderAssignActionButton from "../order-modals/OrderAssignActionButton";
+import { canAdminAssignOrReassignFromBooking } from "../../../shared/adminAssignGate";
 
 const statusStyleMap = {
   completed: { bg: "#D1FAE5", color: "#065F46", label: "Completed" },
@@ -298,7 +301,8 @@ export default function OrderDetailsPage() {
   const orderId = Number(id);
   const { error: showError } = useToaster();
 
-  const { data: orderResponse, isLoading } = useGetOrderForEditQuery(orderId, {
+  const { data: orderResponse, isLoading, refetch: refetchOrder } =
+    useGetOrderForEditQuery(orderId, {
     skip: !orderId,
   });
   const { data: statusesResponse } = useGetAllOrderStatusesQuery();
@@ -326,6 +330,10 @@ export default function OrderDetailsPage() {
     if (!orderData) return false;
     return canEditOrderFromBooking(orderData, orderStatusOptions);
   }, [orderData, orderStatusOptions]);
+
+  const canShowAdminAssign = useMemo(() => {
+    return canAdminAssignOrReassignFromBooking(orderData);
+  }, [orderData]);
 
   const groupedItems = useMemo(() => {
     if (!orderItemsData?.customerServices) return [];
@@ -478,6 +486,7 @@ export default function OrderDetailsPage() {
     previewOpen: false,
   });
   const [invoiceDetails, setInvoiceDetails] = useState(null);
+  const [assignModalOpen, setAssignModalOpen] = useState(false);
   const selectedItemsServiceIdResolved =
     selectedItemsServiceId || selectedServiceGroups?.[0]?.serviceId || "";
 
@@ -885,6 +894,13 @@ export default function OrderDetailsPage() {
               >
                 {isFetchingInvoice ? "Generating..." : "Generate Invoice"}
               </Button>
+            ) : null}
+            {canShowAdminAssign ? (
+              <OrderAssignActionButton
+                booking={orderData}
+                size="medium"
+                onClick={() => setAssignModalOpen(true)}
+              />
             ) : null}
             <Button
               variant="contained"
@@ -1918,6 +1934,13 @@ export default function OrderDetailsPage() {
         </Typography>
       )}
     </ModalComponent>
+    <AssignOrderModal
+      open={assignModalOpen}
+      bookingId={bookingId}
+      bookingSnapshot={orderData}
+      onClose={() => setAssignModalOpen(false)}
+      onSuccess={() => refetchOrder()}
+    />
     </>
   );
 }
