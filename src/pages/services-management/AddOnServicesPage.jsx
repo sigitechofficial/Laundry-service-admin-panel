@@ -2,9 +2,11 @@ import { Box, Typography } from "@mui/material";
 import { PiHeadsetBold } from "../../shared/icons/index";
 import { useState } from "react";
 import AddOnServicesCard from "./AddOnServicesCard";
+import AddOnCategoriesModal from "./AddOnCategoriesModal";
 
 export default function AddOnServicesPage() {
   const [triggerAdd, setTriggerAdd] = useState(0);
+  const [categoriesOpen, setCategoriesOpen] = useState(false);
 
   const handleAddClick = () => {
     setTriggerAdd((prev) => prev + 1);
@@ -21,16 +23,29 @@ export default function AddOnServicesPage() {
             Add-on Services
           </Typography>
         </Box>
-        <button
-          onClick={handleAddClick}
-          className="bg-blue100 hover:bg-blue-600 text-white px-6 py-2.5 rounded-lg font-medium text-sm transition-all duration-200 shadow-sm hover:shadow-md flex items-center justify-center min-w-[150px] h-[40px]"
-        >
-          Add Add-on
-        </button>
+        <Box className="flex items-center gap-x-3">
+          <button
+            onClick={() => setCategoriesOpen(true)}
+            className="border border-blue100 text-blue100 hover:bg-blue-50 px-6 py-2.5 rounded-lg font-medium text-sm transition-all duration-200 flex items-center justify-center min-w-[160px] h-[40px]"
+          >
+            Manage Categories
+          </button>
+          <button
+            onClick={handleAddClick}
+            className="bg-blue100 hover:bg-blue-600 text-white px-6 py-2.5 rounded-lg font-medium text-sm transition-all duration-200 shadow-sm hover:shadow-md flex items-center justify-center min-w-[150px] h-[40px]"
+          >
+            Add Add-on
+          </button>
+        </Box>
       </Box>
       <Box>
         <AddOnServicesCard triggerAdd={triggerAdd} />
       </Box>
+
+      <AddOnCategoriesModal
+        open={categoriesOpen}
+        onClose={() => setCategoriesOpen(false)}
+      />
     </div>
   );
 }

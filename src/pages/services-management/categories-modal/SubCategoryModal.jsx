@@ -1,5 +1,14 @@
 import React, { useEffect } from "react";
-import { Box, Typography } from "@mui/material";
+import {
+  Box,
+  Typography,
+  FormControl,
+  Select,
+  MenuItem,
+  Checkbox,
+  ListItemText,
+  Chip,
+} from "@mui/material";
 import { useForm, Controller } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import ModalComponent from "../../../components/shared/Modal";
@@ -9,6 +18,7 @@ import useToaster from "../../../components/ui/Toaster";
 import {
   useAddSubCategoryMutation,
   useEditSubCategoryMutation,
+  useGetAllAddOnCategoriesQuery,
 } from "../../../store/services/api";
 import {
   categorySubValidationSchema,
@@ -45,6 +55,23 @@ export default function SubCategoryModal({
   const [editSubCategory, { isLoading: isEditSubCategoryLoading }] =
     useEditSubCategoryMutation();
 
+  const { data: addOnCategoriesData } = useGetAllAddOnCategoriesQuery({
+    includeServices: false,
+  });
+
+  const addOnCategoryOptions = (() => {
+    const list =
+      addOnCategoriesData?.data?.addOnCategories ||
+      addOnCategoriesData?.data ||
+      [];
+    return Array.isArray(list)
+      ? list.map((c) => ({ value: String(c.id), label: c.name }))
+      : [];
+  })();
+
+  const addOnCategoryLabel = (id) =>
+    addOnCategoryOptions.find((o) => o.value === String(id))?.label || id;
+
   const {
     control,
     handleSubmit,
@@ -69,6 +96,7 @@ export default function SubCategoryModal({
         unitCount: Number.parseInt(String(data.unitCount || 1), 10) || 1,
         status: true,
         categoryId: categoryData?.id,
+        addOnCategoryIds: (data.addOnCategoryIds || []).map((id) => Number(id)),
       };
 
       const res = await addSubCategory([formData]).unwrap();
@@ -93,6 +121,7 @@ export default function SubCategoryModal({
         price: parseFloat(data.price),
         unitCount: Number.parseInt(String(data.unitCount || 1), 10) || 1,
         status: true,
+        addOnCategoryIds: (data.addOnCategoryIds || []).map((id) => Number(id)),
       };
 
       const res = await editSubCategory({
@@ -129,6 +158,14 @@ export default function SubCategoryModal({
           ? categoryData?.unitCount ?? categoryData?.unit_count ?? 1
           : 1
       );
+
+      const linkedAddOnCategories = isUpdate
+        ? categoryData?.addOnCategories
+        : null;
+      const linkedIds = Array.isArray(linkedAddOnCategories)
+        ? linkedAddOnCategories.map((c) => String(c.id))
+        : [];
+      setValue("addOnCategoryIds", linkedIds);
     }
   }, [categoryData, open, setValue, isUpdate]);
 
@@ -190,6 +227,81 @@ export default function SubCategoryModal({
                   {errors.subCategory.message}
                 </Typography>
               )}
+            </Box>
+          )}
+        />
+
+        <Controller
+          name="addOnCategoryIds"
+          control={control}
+          render={({ field: { onChange, value } }) => (
+            <Box>
+              <Typography
+                variant="body2"
+                sx={{ color: "#374151", mb: "8px" }}
+              >
+                Add-on / Repair Categories
+              </Typography>
+              <FormControl fullWidth size="small">
+                <Select
+                  multiple
+                  displayEmpty
+                  value={Array.isArray(value) ? value : []}
+                  onChange={(e) =>
+                    onChange(
+                      typeof e.target.value === "string"
+                        ? e.target.value.split(",")
+                        : e.target.value
+                    )
+                  }
+                  renderValue={(selected) => {
+                    if (!selected || selected.length === 0) {
+                      return (
+                        <Typography sx={{ color: "#9CA3AF" }}>
+                          No add-on categories
+                        </Typography>
+                      );
+                    }
+                    return (
+                      <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
+                        {selected.map((id) => (
+                          <Chip
+                            key={id}
+                            label={addOnCategoryLabel(id)}
+                            size="small"
+                          />
+                        ))}
+                      </Box>
+                    );
+                  }}
+                  MenuProps={{ PaperProps: { sx: { maxHeight: 320 } } }}
+                  sx={{
+                    bgcolor: "#F4F7FF",
+                    borderRadius: "8px",
+                    fontFamily: "Switzer",
+                    "& fieldset": { border: "none" },
+                    "& .MuiSelect-select": { minHeight: "36px", py: "8px" },
+                  }}
+                >
+                  {addOnCategoryOptions.length === 0 ? (
+                    <MenuItem disabled value="">
+                      No categories available
+                    </MenuItem>
+                  ) : (
+                    addOnCategoryOptions.map((opt) => (
+                      <MenuItem key={opt.value} value={opt.value}>
+                        <Checkbox
+                          checked={
+                            Array.isArray(value) &&
+                            value.indexOf(opt.value) > -1
+                          }
+                        />
+                        <ListItemText primary={opt.label} />
+                      </MenuItem>
+                    ))
+                  )}
+                </Select>
+              </FormControl>
             </Box>
           )}
         />

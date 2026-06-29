@@ -80,6 +80,44 @@ export const api = createApi({
       }),
     }),
 
+    getAllAddOnCategories: builder.query({
+      query: (params = {}) => ({
+        url: "admin/getAllAddOnCategories",
+        method: "GET",
+        params,
+      }),
+    }),
+
+    getAddOnCategoryById: builder.query({
+      query: (addOnCategoryId) => ({
+        url: `admin/getAddOnCategoryById/${addOnCategoryId}`,
+        method: "GET",
+      }),
+    }),
+
+    createAddOnCategory: builder.mutation({
+      query: (body) => ({
+        url: "admin/createAddOnCategory",
+        method: "POST",
+        body,
+      }),
+    }),
+
+    updateAddOnCategory: builder.mutation({
+      query: ({ addOnCategoryId, body }) => ({
+        url: `admin/updateAddOnCategory/${addOnCategoryId}`,
+        method: "PATCH",
+        body,
+      }),
+    }),
+
+    deleteAddOnCategory: builder.mutation({
+      query: (addOnCategoryId) => ({
+        url: `admin/deleteAddOnCategory/${addOnCategoryId}`,
+        method: "DELETE",
+      }),
+    }),
+
     dashboardData: builder.query({
       query: () => ({
         url: `admin/adminDashboard`,
@@ -1341,6 +1379,11 @@ export const {
   useCreateAddOnServiceMutation,
   useUpdateAddOnServiceMutation,
   useDeleteAddOnServiceMutation,
+  useGetAllAddOnCategoriesQuery,
+  useGetAddOnCategoryByIdQuery,
+  useCreateAddOnCategoryMutation,
+  useUpdateAddOnCategoryMutation,
+  useDeleteAddOnCategoryMutation,
   useAddPreferenceMutation,
   useAddPreferenceValueMutation,
   useAddCategoryMutation,
