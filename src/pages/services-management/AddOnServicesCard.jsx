@@ -462,9 +462,11 @@ export default function AddOnServicesCard({ triggerAdd }) {
           />
           <InputFieldModal
             title="Price (£)"
-            placeholder="e.g. 2.5"
+            placeholder="e.g. 19.22"
             name="price"
             type="number"
+            step="0.01"
+            min="0"
             value={serviceForm.price}
             onChange={handleServiceChange}
           />
