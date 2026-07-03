@@ -1,16 +1,19 @@
 import { useEffect, useState } from "react";
+import dayjs from "dayjs";
 import {
   Box,
   Typography,
   Paper,
   Switch,
-  TextField,
   Skeleton,
   FormControl,
   InputLabel,
   Select,
   MenuItem,
 } from "@mui/material";
+import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
+import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
+import { TimePicker } from "@mui/x-date-pickers/TimePicker";
 import ButtonBlue from "../../components/ui/ButtonBlue";
 import useToaster from "../../components/ui/Toaster";
 import {
@@ -34,6 +37,19 @@ const toHourMinute = (value, fallback = "07:00") => {
   if (!value || typeof value !== "string") return fallback;
   const [hh = "07", mm = "00"] = value.split(":");
   return `${hh.padStart(2, "0")}:${mm.padStart(2, "0")}`;
+};
+
+const timeStringToDayjs = (value) => {
+  const normalized = toHourMinute(value, "");
+  if (!normalized) return null;
+  const [hh, mm] = normalized.split(":").map(Number);
+  if (!Number.isFinite(hh) || !Number.isFinite(mm)) return null;
+  return dayjs().hour(hh).minute(mm).second(0).millisecond(0);
+};
+
+const dayjsToTimeString = (value) => {
+  if (!value || !value.isValid?.()) return "";
+  return value.format("HH:mm");
 };
 
 const buildRowsFromApi = (days = []) => {
@@ -190,6 +206,7 @@ export default function PlatformOperationalHours() {
           </Typography>
         </Box>
         <Box sx={{ p: 2.5, display: "flex", flexDirection: "column", gap: 1.5 }}>
+          <LocalizationProvider dateAdapter={AdapterDayjs}>
           {isLoading || isFetching
             ? DAY_ORDER.map((day) => (
                 <Skeleton key={day} height={48} sx={{ borderRadius: 2 }} />
@@ -233,26 +250,38 @@ export default function PlatformOperationalHours() {
                           alignItems: "center",
                         }}
                       >
-                        <TextField
-                          type="time"
-                          size="small"
-                          value={row.start}
-                          onChange={(e) =>
-                            handleChange(index, "start", e.target.value)
+                        <TimePicker
+                          ampm={false}
+                          format="HH:mm"
+                          value={timeStringToDayjs(row.start)}
+                          onChange={(value) =>
+                            handleChange(index, "start", dayjsToTimeString(value))
                           }
+                          slotProps={{
+                            textField: {
+                              size: "small",
+                              placeholder: "HH:mm",
+                            },
+                          }}
                         />
                         <Typography
                           sx={{ textAlign: "center", color: "#94A3B8", fontSize: 12 }}
                         >
                           to
                         </Typography>
-                        <TextField
-                          type="time"
-                          size="small"
-                          value={row.end}
-                          onChange={(e) =>
-                            handleChange(index, "end", e.target.value)
+                        <TimePicker
+                          ampm={false}
+                          format="HH:mm"
+                          value={timeStringToDayjs(row.end)}
+                          onChange={(value) =>
+                            handleChange(index, "end", dayjsToTimeString(value))
                           }
+                          slotProps={{
+                            textField: {
+                              size: "small",
+                              placeholder: "HH:mm",
+                            },
+                          }}
                         />
                       </Box>
                     ) : (
@@ -263,6 +292,7 @@ export default function PlatformOperationalHours() {
                   </Box>
                 </Box>
               ))}
+          </LocalizationProvider>
         </Box>
         <Box sx={{ px: 2.5, py: 2, borderTop: "1px solid #F1F5F9", display: "flex", justifyContent: "flex-end" }}>
           <ButtonBlue
