@@ -388,16 +388,20 @@ export default function CancellationPolicy() {
       ),
     },
     {
-      field: "unprocessedPercentage",
-      headerName: "Unprocessed %",
-      flex: 0.1,
-      minWidth: 130,
+      field: "unprocessedOrderValuePercentage",
+      headerName: "Unprocessed % (prepaid)",
+      flex: 0.12,
+      minWidth: 170,
       sortable: true,
-      renderCell: (row) => (
-        <Typography sx={{ fontWeight: 500, fontSize: "13px" }}>
-          {row.unprocessedPercentage ? `${row.unprocessedPercentage}%` : "N/A"}
-        </Typography>
-      ),
+      renderCell: (row) => {
+        const pct =
+          row.unprocessedOrderValuePercentage || row.unprocessedPercentage;
+        return (
+          <Typography sx={{ fontWeight: 500, fontSize: "13px" }}>
+            {pct ? `${pct}%` : "N/A"}
+          </Typography>
+        );
+      },
     },
     {
       field: "unprocessedAfterPickupMinutes",
@@ -408,18 +412,6 @@ export default function CancellationPolicy() {
       renderCell: (row) => (
         <Typography sx={{ fontWeight: 500, fontSize: "13px" }}>
           {row.unprocessedAfterPickupMinutes || "0"} min
-        </Typography>
-      ),
-    },
-    {
-      field: "unprocessedOrderValuePercentage",
-      headerName: "Order Value %",
-      flex: 0.1,
-      minWidth: 120,
-      sortable: true,
-      renderCell: (row) => (
-        <Typography sx={{ fontWeight: 500, fontSize: "13px" }}>
-          {row.unprocessedOrderValuePercentage ? `${row.unprocessedOrderValuePercentage}%` : "N/A"}
         </Typography>
       ),
     },
@@ -811,25 +803,38 @@ export default function CancellationPolicy() {
         ? (Number(config.prePickupFreeChargeWindowMinutes) / 60).toString()
         : "",
       prePickupFirstCancellationLeniency: config.prePickupFirstCancellationLeniency ?? true,
-      // Determine fee type based on existing data (prefer percentage if both exist)
+      // Determine fee type from absolute vs prepaid-% (canonical = order value %, legacy = unprocessedPercentage)
       unprocessedFeeType: (() => {
-        const hasPercentage = config.unprocessedPercentage && parseFloat(config.unprocessedPercentage) > 0;
-        const hasAbsolute = config.unprocessedAbsoluteAmount && parseFloat(config.unprocessedAbsoluteAmount) > 0;
-        return hasPercentage ? "percentage" : (hasAbsolute ? "absolute" : "absolute");
+        const orderValuePct = parseFloat(config.unprocessedOrderValuePercentage);
+        const legacyPct = parseFloat(config.unprocessedPercentage);
+        const hasPercentage =
+          (Number.isFinite(orderValuePct) && orderValuePct > 0) ||
+          (Number.isFinite(legacyPct) && legacyPct > 0);
+        const hasAbsolute =
+          config.unprocessedAbsoluteAmount &&
+          parseFloat(config.unprocessedAbsoluteAmount) > 0;
+        return hasPercentage ? "percentage" : hasAbsolute ? "absolute" : "absolute";
       })(),
       unprocessedFeeValue: (() => {
-        const hasPercentage = config.unprocessedPercentage && parseFloat(config.unprocessedPercentage) > 0;
-        const hasAbsolute = config.unprocessedAbsoluteAmount && parseFloat(config.unprocessedAbsoluteAmount) > 0;
-        return hasPercentage
-          ? config.unprocessedPercentage?.toString()
-          : (hasAbsolute ? config.unprocessedAbsoluteAmount?.toString() : "");
+        const orderValuePct = parseFloat(config.unprocessedOrderValuePercentage);
+        const legacyPct = parseFloat(config.unprocessedPercentage);
+        if (Number.isFinite(orderValuePct) && orderValuePct > 0) {
+          return String(orderValuePct);
+        }
+        if (Number.isFinite(legacyPct) && legacyPct > 0) {
+          return String(legacyPct);
+        }
+        const hasAbsolute =
+          config.unprocessedAbsoluteAmount &&
+          parseFloat(config.unprocessedAbsoluteAmount) > 0;
+        return hasAbsolute ? config.unprocessedAbsoluteAmount?.toString() : "";
       })(),
       unprocessedAbsoluteAmount: config.unprocessedAbsoluteAmount?.toString() || "",
-      unprocessedPercentage: config.unprocessedPercentage?.toString() || "",
+      unprocessedPercentage: "",
       unprocessedAfterPickupMinutes: config.unprocessedAfterPickupMinutes
         ? (Number(config.unprocessedAfterPickupMinutes) / 60).toString()
         : "",
-      unprocessedOrderValuePercentage: config.unprocessedOrderValuePercentage?.toString() || "",
+      unprocessedOrderValuePercentage: "",
       allowCancelUnprocessed: config.allowCancelUnprocessed ?? true,
       courtesyWindowDays: config.courtesyWindowDays?.toString() || "",
       courtesyCapAmount: config.courtesyCapAmount?.toString() || "",
@@ -983,12 +988,15 @@ export default function CancellationPolicy() {
         : null;
 
       // Determine which field to set for unprocessed orders based on fee type
-      const unprocessedAbsoluteAmount = data.unprocessedFeeType === "absolute" && data.unprocessedFeeValue
-        ? parseFloat(data.unprocessedFeeValue)
-        : 0;
-      const unprocessedPercentage = data.unprocessedFeeType === "percentage" && data.unprocessedFeeValue
-        ? parseFloat(data.unprocessedFeeValue)
-        : null;
+      const unprocessedAbsoluteAmount =
+        data.unprocessedFeeType === "absolute" && data.unprocessedFeeValue
+          ? parseFloat(data.unprocessedFeeValue)
+          : 0;
+      // Single prepaid % — store on both columns so legacy / canonical stay aligned
+      const unprocessedPct =
+        data.unprocessedFeeType === "percentage" && data.unprocessedFeeValue
+          ? parseFloat(data.unprocessedFeeValue)
+          : 0;
 
       payload = {
         name: data.name,
@@ -1007,14 +1015,11 @@ export default function CancellationPolicy() {
         prePickupFirstCancellationLeniency: data.prePickupFirstCancellationLeniency,
         unprocessedAbsoluteCurrency: data.currency,
         unprocessedAbsoluteAmount: unprocessedAbsoluteAmount,
-        unprocessedPercentage: unprocessedPercentage,
+        unprocessedPercentage: unprocessedPct || null,
         unprocessedAfterPickupMinutes: data.unprocessedAfterPickupMinutes
           ? Math.round(parseFloat(data.unprocessedAfterPickupMinutes) * 60)
           : 0,
-        unprocessedOrderValuePercentage:
-          data.unprocessedFeeType === "percentage" && data.unprocessedOrderValuePercentage
-            ? parseFloat(data.unprocessedOrderValuePercentage)
-            : 0,
+        unprocessedOrderValuePercentage: unprocessedPct || 0,
         allowCancelUnprocessed: data.allowCancelUnprocessed,
         courtesyWindowDays: data.courtesyWindowDays ? parseInt(data.courtesyWindowDays) : 0,
         courtesyCapAmount: data.courtesyCapAmount ? parseFloat(data.courtesyCapAmount) : 0,
@@ -1765,7 +1770,7 @@ export default function CancellationPolicy() {
                             ]}
                             placeholder="Select fee type"
                             fullWidth
-                            tooltipText="Choose between a fixed amount (Absolute) or a percentage of the order value (Percentage)."
+                            tooltipText="Choose a fixed amount (Absolute) or a percentage of prepaid (Percentage). Prepaid = minimum order + service fee + tip."
                           />
                         )}
                       />
@@ -1774,15 +1779,23 @@ export default function CancellationPolicy() {
                         control={control}
                         render={({ field: { onChange, value } }) => (
                           <InputFieldModal
-                            title={unprocessedFeeType === "absolute" ? "Absolute Amount" : "Percentage (%)"}
-                            placeholder={unprocessedFeeType === "absolute" ? "Enter amount" : "Enter percentage"}
+                            title={
+                              unprocessedFeeType === "absolute"
+                                ? "Absolute Amount"
+                                : "Unprocessed fee % (of prepaid)"
+                            }
+                            placeholder={
+                              unprocessedFeeType === "absolute"
+                                ? "Enter amount"
+                                : "e.g. 50"
+                            }
                             type="number"
                             value={value || ""}
                             onChange={(e) => onChange(e.target.value)}
                             tooltipText={
                               unprocessedFeeType === "absolute"
-                                ? "Fixed cancellation fee amount for unprocessed order cancellations. This is a flat fee charged when a customer cancels an unprocessed order."
-                                : "Percentage-based cancellation fee for unprocessed orders (e.g., 5.00 for 5% of order value)."
+                                ? "Fixed cancellation fee for unprocessed / On the Way cancellations."
+                                : "Percentage of prepaid (minimum order + service fee + tip). Example: 50 = keep half of prepaid. This is the only % used by cancel fee."
                             }
                           />
                         )}
@@ -1799,27 +1812,10 @@ export default function CancellationPolicy() {
                           type="number"
                           value={value || ""}
                           onChange={(e) => onChange(e.target.value)}
-                          tooltipText="Time window in hours after pickup where cancellations are allowed. This value is converted to minutes before saving."
+                          tooltipText="Legacy field (hours, stored as minutes). Not used by cancel fee calc today."
                         />
                       )}
                     />
-
-                    {unprocessedFeeType === "percentage" && (
-                      <Controller
-                        name="unprocessedOrderValuePercentage"
-                        control={control}
-                        render={({ field: { onChange, value } }) => (
-                          <InputFieldModal
-                            title="Order Value Percentage (%)"
-                            placeholder="Enter percentage"
-                            type="number"
-                            value={value || ""}
-                            onChange={(e) => onChange(e.target.value)}
-                            tooltipText="Percentage of order value used for calculating cancellation fees for unprocessed orders (e.g., 10.00 for 10% of order value)."
-                          />
-                        )}
-                      />
-                    )}
 
                     <Controller
                       name="allowCancelUnprocessed"
