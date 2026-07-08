@@ -31,16 +31,25 @@ export default function AssignOrderModal({
   const toast = useToaster();
   const [selectedShopId, setSelectedShopId] = useState(null);
 
-  const { data, isLoading, isError, error } = useGetBookingAssignableShopsQuery(
-    bookingId,
-    { skip: !open || !bookingId }
-  );
+  const { data, isLoading, isError, error } =
+    useGetBookingAssignableShopsQuery(bookingId, {
+      skip: !open || !bookingId,
+      refetchOnMountOrArgChange: true,
+    });
 
   const [assignShop, { isLoading: isAssigning }] =
     useAssignBookingToShopMutation();
 
   const payload = data?.data ?? data ?? {};
   const shops = payload?.shops ?? [];
+  const assignableShops = shops.filter((shop) => shop.canAssign);
+  const hasShopList = shops.length > 0;
+  const blockingError = isError && !hasShopList;
+  const refreshWarning =
+    isError && hasShopList
+      ? error?.data?.message ||
+        "Could not refresh shop list. Showing last loaded shops."
+      : null;
   const isReassign =
     Boolean(payload?.currentLaundryShopId) ||
     isReassignBooking(bookingSnapshot);
@@ -74,6 +83,9 @@ export default function AssignOrderModal({
   const errorMessage =
     error?.data?.message ||
     "Could not load shops. Order may be out for pickup, completed, or invoice finalized.";
+  const isPlatformClosedError =
+    typeof error?.data?.message === "string" &&
+    error.data.message.toLowerCase().includes("platform is closed");
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
@@ -81,17 +93,31 @@ export default function AssignOrderModal({
         {isReassign ? "Reassign order to shop" : "Assign order to shop"}
       </DialogTitle>
       <DialogContent>
-        {isLoading && (
+        {isLoading && !hasShopList && (
           <Box sx={{ display: "flex", justifyContent: "center", py: 3 }}>
             <CircularProgress size={32} />
           </Box>
         )}
-        {isError && (
-          <Typography color="error" sx={{ py: 2 }}>
-            {errorMessage}
-          </Typography>
+        {blockingError && (
+          <>
+            <Typography color="error" sx={{ py: 2 }}>
+              {errorMessage}
+            </Typography>
+            {isPlatformClosedError && (
+              <Alert severity="info" sx={{ mb: 2, fontSize: 13 }}>
+                This restriction was removed in the latest backend. Deploy the
+                updated API (or point admin to your local backend) and restart
+                the server.
+              </Alert>
+            )}
+          </>
         )}
-        {!isLoading && !isError && (
+        {refreshWarning && (
+          <Alert severity="warning" sx={{ mb: 2, fontSize: 13 }}>
+            {refreshWarning}
+          </Alert>
+        )}
+        {(!isLoading || hasShopList) && !blockingError && (
           <>
             {isReassign && (
               <Alert severity="warning" sx={{ mb: 2, fontSize: 13 }}>
@@ -116,6 +142,12 @@ export default function AssignOrderModal({
               Select a shop in this zone. The assigned shop receives the order
               immediately in their active list.
             </Typography>
+            {hasShopList && assignableShops.length === 0 && (
+              <Alert severity="info" sx={{ mb: 2, fontSize: 13 }}>
+                All shops in this zone appear closed on the current schedule. You
+                can still select a shop if assignment is allowed.
+              </Alert>
+            )}
             {shops.length === 0 ? (
               <Typography sx={{ color: "#64748B" }}>
                 No shops in this zone.
@@ -126,15 +158,16 @@ export default function AssignOrderModal({
                   <ListItemButton
                     key={shop.laundryShopId}
                     selected={selectedShopId === shop.laundryShopId}
-                    disabled={!shop.canAssign}
+                    disabled={shop.isCurrentShop}
                     onClick={() =>
-                      shop.canAssign && setSelectedShopId(shop.laundryShopId)
+                      !shop.isCurrentShop &&
+                      setSelectedShopId(shop.laundryShopId)
                     }
                     sx={{
                       borderRadius: 1,
                       mb: 0.5,
                       border: "1px solid #E2E8F0",
-                      opacity: shop.canAssign ? 1 : 0.5,
+                      opacity: shop.isCurrentShop ? 0.5 : 1,
                     }}
                   >
                     <ListItemText
@@ -144,13 +177,11 @@ export default function AssignOrderModal({
                           : shop.shopName
                       }
                       secondary={
-                        shop.canAssign
-                          ? shop.isOpenNow
-                            ? "Open now — tap to select"
-                            : "Closed — tap to select"
-                          : shop.isCurrentShop
-                            ? "Current shop — choose another shop"
-                            : "Unavailable"
+                        shop.isCurrentShop
+                          ? "Current shop — choose another shop"
+                          : shop.isOpenNow
+                            ? "Open on shop schedule — tap to select"
+                            : "Closed on shop schedule — tap to select"
                       }
                     />
                     <Chip
@@ -172,7 +203,7 @@ export default function AssignOrderModal({
         <Button
           variant="contained"
           onClick={handleAssign}
-          disabled={isAssigning || !selectedShopId || isLoading}
+          disabled={isAssigning || !selectedShopId || (isLoading && !hasShopList)}
           sx={{ bgcolor: "#000099" }}
         >
           {isAssigning
