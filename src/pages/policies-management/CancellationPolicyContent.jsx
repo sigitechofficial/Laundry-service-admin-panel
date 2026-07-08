@@ -382,16 +382,20 @@ export default function CancellationPolicyContent() {
       ),
     },
     {
-      field: "unprocessedPercentage",
-      headerName: "Unprocessed %",
-      flex: 0.1,
-      minWidth: 130,
+      field: "unprocessedOrderValuePercentage",
+      headerName: "Unprocessed % (prepaid)",
+      flex: 0.12,
+      minWidth: 170,
       sortable: true,
-      renderCell: (row) => (
-        <Typography sx={{ fontWeight: 500, fontSize: "13px" }}>
-          {row.unprocessedPercentage ? `${row.unprocessedPercentage}%` : "N/A"}
-        </Typography>
-      ),
+      renderCell: (row) => {
+        const pct =
+          row.unprocessedOrderValuePercentage || row.unprocessedPercentage;
+        return (
+          <Typography sx={{ fontWeight: 500, fontSize: "13px" }}>
+            {pct ? `${pct}%` : "N/A"}
+          </Typography>
+        );
+      },
     },
     {
       field: "unprocessedAfterPickupMinutes",
@@ -402,18 +406,6 @@ export default function CancellationPolicyContent() {
       renderCell: (row) => (
         <Typography sx={{ fontWeight: 500, fontSize: "13px" }}>
           {row.unprocessedAfterPickupMinutes || "0"} min
-        </Typography>
-      ),
-    },
-    {
-      field: "unprocessedOrderValuePercentage",
-      headerName: "Order Value %",
-      flex: 0.1,
-      minWidth: 120,
-      sortable: true,
-      renderCell: (row) => (
-        <Typography sx={{ fontWeight: 500, fontSize: "13px" }}>
-          {row.unprocessedOrderValuePercentage ? `${row.unprocessedOrderValuePercentage}%` : "N/A"}
         </Typography>
       ),
     },
@@ -896,11 +888,22 @@ export default function CancellationPolicyContent() {
       prePickupFirstCancellationLeniency: config.prePickupFirstCancellationLeniency ?? true,
       unprocessedAbsoluteCurrency: config.unprocessedAbsoluteCurrency || "USD",
       unprocessedAbsoluteAmount: config.unprocessedAbsoluteAmount?.toString() || "",
-      unprocessedPercentage: config.unprocessedPercentage?.toString() || "",
+      // Form field removed; keep empty — save syncs legacy column from order-value %.
+      unprocessedPercentage: "",
       unprocessedAfterPickupMinutes: config.unprocessedAfterPickupMinutes
         ? (Number(config.unprocessedAfterPickupMinutes) / 60).toString()
         : "",
-      unprocessedOrderValuePercentage: config.unprocessedOrderValuePercentage?.toString() || "",
+      unprocessedOrderValuePercentage: (() => {
+        const orderValuePct = Number(config.unprocessedOrderValuePercentage);
+        if (Number.isFinite(orderValuePct) && orderValuePct > 0) {
+          return String(orderValuePct);
+        }
+        const legacyPct = Number(config.unprocessedPercentage);
+        if (Number.isFinite(legacyPct) && legacyPct > 0) {
+          return String(legacyPct);
+        }
+        return "";
+      })(),
       allowCancelUnprocessed: config.allowCancelUnprocessed ?? true,
       courtesyWindowDays: config.courtesyWindowDays?.toString() || "",
       courtesyCapAmount: config.courtesyCapAmount?.toString() || "",
@@ -1198,11 +1201,16 @@ export default function CancellationPolicyContent() {
         prePickupFirstCancellationLeniency: data.prePickupFirstCancellationLeniency,
         unprocessedAbsoluteCurrency: data.unprocessedAbsoluteCurrency,
         unprocessedAbsoluteAmount: data.unprocessedAbsoluteAmount ? parseFloat(data.unprocessedAbsoluteAmount) : 0,
-        unprocessedPercentage: data.unprocessedPercentage ? parseFloat(data.unprocessedPercentage) : 0,
+        // One canonical %: write the same value to both columns so legacy reads stay in sync.
+        unprocessedPercentage: data.unprocessedOrderValuePercentage
+          ? parseFloat(data.unprocessedOrderValuePercentage)
+          : 0,
         unprocessedAfterPickupMinutes: data.unprocessedAfterPickupMinutes
           ? Math.round(parseFloat(data.unprocessedAfterPickupMinutes) * 60)
           : 0,
-        unprocessedOrderValuePercentage: data.unprocessedOrderValuePercentage ? parseFloat(data.unprocessedOrderValuePercentage) : 0,
+        unprocessedOrderValuePercentage: data.unprocessedOrderValuePercentage
+          ? parseFloat(data.unprocessedOrderValuePercentage)
+          : 0,
         allowCancelUnprocessed: data.allowCancelUnprocessed,
         courtesyWindowDays: data.courtesyWindowDays ? parseInt(data.courtesyWindowDays) : 0,
         courtesyCapAmount: data.courtesyCapAmount ? parseFloat(data.courtesyCapAmount) : 0,
@@ -1787,16 +1795,16 @@ export default function CancellationPolicyContent() {
 
                 <Box className="grid grid-cols-2 gap-4">
                   <Controller
-                    name="unprocessedPercentage"
+                    name="unprocessedOrderValuePercentage"
                     control={control}
                     render={({ field: { onChange, value } }) => (
                       <InputFieldModal
-                        title="Percentage (%)"
-                        placeholder="Enter percentage"
+                        title="Unprocessed fee % (of prepaid)"
+                        placeholder="e.g. 50"
                         type="number"
                         value={value || ""}
                         onChange={(e) => onChange(e.target.value)}
-                        tooltipText="Percentage-based cancellation fee for unprocessed orders (e.g., 5.00 for 5% of order value)."
+                        tooltipText="Cancellation fee after On the Way / unprocessed stage, as a percentage of prepaid (minimum order + service fee + tip). Example: 50 = keep half of prepaid."
                       />
                     )}
                   />
@@ -1811,26 +1819,11 @@ export default function CancellationPolicyContent() {
                         type="number"
                         value={value || ""}
                         onChange={(e) => onChange(e.target.value)}
-                        tooltipText="Time window in hours after pickup where cancellations are allowed. This value is converted to minutes before saving."
+                        tooltipText="Legacy field (hours, stored as minutes). Not used by cancel fee calc today; kept for future time-window rules after pickup."
                       />
                     )}
                   />
                 </Box>
-
-                <Controller
-                  name="unprocessedOrderValuePercentage"
-                  control={control}
-                  render={({ field: { onChange, value } }) => (
-                    <InputFieldModal
-                      title="Order Value Percentage (%)"
-                      placeholder="Enter percentage"
-                      type="number"
-                      value={value || ""}
-                      onChange={(e) => onChange(e.target.value)}
-                      tooltipText="Percentage of order value used for calculating cancellation fees for unprocessed orders (e.g., 10.00 for 10% of order value)."
-                    />
-                  )}
-                />
 
                 <Controller
                   name="allowCancelUnprocessed"
