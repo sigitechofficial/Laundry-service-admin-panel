@@ -53,7 +53,7 @@ export default function AssignOrderModal({
 
   const handleAssign = async () => {
     if (!selectedShopId) {
-      toast.error("Select an open shop first.");
+      toast.error("Select a shop first.");
       return;
     }
     try {
@@ -73,7 +73,7 @@ export default function AssignOrderModal({
 
   const errorMessage =
     error?.data?.message ||
-    "Could not load shops. Order may be out for pickup, completed, invoice finalized, or platform closed.";
+    "Could not load shops. Order may be out for pickup, completed, or invoice finalized.";
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
@@ -109,12 +109,12 @@ export default function AssignOrderModal({
             {payload?.currentLaundryShopId && (
               <Typography sx={{ mb: 2, fontSize: 13, color: "#475569" }}>
                 Currently assigned to shop ID {payload.currentLaundryShopId}.
-                Select a different open shop to reassign.
+                Select a different shop to reassign.
               </Typography>
             )}
             <Typography sx={{ mb: 2, fontSize: 13, color: "#64748B" }}>
-              Only shops that are open right now can be selected. The assigned
-              shop receives the order immediately in their active list.
+              Select a shop in this zone. The assigned shop receives the order
+              immediately in their active list.
             </Typography>
             {shops.length === 0 ? (
               <Typography sx={{ color: "#64748B" }}>
@@ -145,10 +145,12 @@ export default function AssignOrderModal({
                       }
                       secondary={
                         shop.canAssign
-                          ? "Open now — tap to select"
+                          ? shop.isOpenNow
+                            ? "Open now — tap to select"
+                            : "Closed — tap to select"
                           : shop.isCurrentShop
                             ? "Current shop — choose another shop"
-                            : "Closed — cannot assign"
+                            : "Unavailable"
                       }
                     />
                     <Chip
