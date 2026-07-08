@@ -14,12 +14,73 @@ import {
   Alert,
 } from "@mui/material";
 import { useEffect, useState } from "react";
+import dayjs from "dayjs";
 import {
   useGetBookingAssignableShopsQuery,
   useAssignBookingToShopMutation,
 } from "../../../store/services/api";
 import useToaster from "../../../components/ui/Toaster";
 import { isReassignBooking } from "../../../shared/adminAssignGate";
+
+function formatTimeHm(value) {
+  if (!value) return null;
+  const raw = String(value).trim();
+  const match = raw.match(/^(\d{1,2}):(\d{2})/);
+  if (!match) return raw;
+  return `${String(Number(match[1])).padStart(2, "0")}:${match[2]}`;
+}
+
+function shopDayHoursLabel(shop) {
+  const day = shop?.todayDayOfWeek || null;
+  const open = formatTimeHm(shop?.todayOpenTime);
+  const close = formatTimeHm(shop?.todayCloseTime);
+
+  if (day && open && close && shop?.todayScheduleActive !== false) {
+    return `${day} ${open} – ${close}`;
+  }
+  if (day) {
+    return `${day} · Closed today`;
+  }
+  return null;
+}
+
+function shopPrimaryLabel(shop) {
+  const name = shop?.isCurrentShop
+    ? `${shop.shopName} (current)`
+    : shop?.shopName || "Shop";
+  const hours = shopDayHoursLabel(shop);
+  return hours ? `${name} · ${hours}` : name;
+}
+
+function pickupSecondaryLabel(payload, bookingSnapshot, isCurrentShop) {
+  if (isCurrentShop) {
+    return "Current shop — choose another shop";
+  }
+
+  const collectionDate =
+    payload?.collectionDate || bookingSnapshot?.collectionDate;
+  const timeFrom =
+    payload?.collectionTimeFrom || bookingSnapshot?.collectionTimeFrom;
+  const timeTo =
+    payload?.collectionTimeTo || bookingSnapshot?.collectionTimeTo;
+
+  const datePart = dayjs(collectionDate).isValid()
+    ? dayjs(collectionDate).format("ddd DD MMM")
+    : null;
+  const from = formatTimeHm(timeFrom);
+  const to = formatTimeHm(timeTo);
+
+  if (datePart && from && to) {
+    return `Pickup: ${datePart} · ${from} – ${to}`;
+  }
+  if (datePart && from) {
+    return `Pickup: ${datePart} · ${from}`;
+  }
+  if (from && to) {
+    return `Pickup: ${from} – ${to}`;
+  }
+  return "Pickup time unavailable";
+}
 
 export default function AssignOrderModal({
   open,
@@ -171,18 +232,12 @@ export default function AssignOrderModal({
                     }}
                   >
                     <ListItemText
-                      primary={
+                      primary={shopPrimaryLabel(shop)}
+                      secondary={pickupSecondaryLabel(
+                        payload,
+                        bookingSnapshot,
                         shop.isCurrentShop
-                          ? `${shop.shopName} (current)`
-                          : shop.shopName
-                      }
-                      secondary={
-                        shop.isCurrentShop
-                          ? "Current shop — choose another shop"
-                          : shop.isOpenNow
-                            ? "Open on shop schedule — tap to select"
-                            : "Closed on shop schedule — tap to select"
-                      }
+                      )}
                     />
                     <Chip
                       size="small"
