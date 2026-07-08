@@ -319,13 +319,13 @@ export default function ZoneManagement() {
     open: false,
     coordinates: "",
     zoneName: "",
-    serviceCharge: "",
+    serviceCharge: "20",
     zoneMinimumAmount: "",
     zoneCommission: "",
     zoneCurrency: "",
     currencyUnitId: "",
     paymentMethods: [],
-    deliveryCharges: "",
+    deliveryCharges: "20",
     ExDeliveryCharges: " ",
     zoneAdminId: "",
     distanceUnitId: "",
@@ -786,7 +786,9 @@ export default function ZoneManagement() {
         cityId: derivedCityId ? String(derivedCityId) : "",
         coordinates: "",
         zoneName: zone.name || "",
-        serviceCharge: zone.serviceCharge ?? "",
+        serviceCharge: zone.serviceCharge != null && zone.serviceCharge !== ""
+          ? String(zone.serviceCharge)
+          : "20",
         zoneMinimumAmount: zone.zoneMinimumAmount ?? "",
         zoneCommission: zone.agentCommissionPercent ?? (100 - (zone.zoneAdminComission ?? 20)),
         zoneCurrency: selectedCurrency?.name || "",
@@ -799,7 +801,9 @@ export default function ZoneManagement() {
             rowZone?.paymentMethod ??
             rowZone?.payment_method
         ),
-        deliveryCharges: zone.serviceCharge ?? "",
+        deliveryCharges: zone.serviceCharge != null && zone.serviceCharge !== ""
+          ? String(zone.serviceCharge)
+          : "20",
         ExDeliveryCharges: "",
         zoneAdminId: zone.zoneAdminId ? String(zone.zoneAdminId) : "",
         distanceUnitId: zone.distanceUnitId ? String(zone.distanceUnitId) : "2",
@@ -1023,7 +1027,7 @@ export default function ZoneManagement() {
         zoneName: "",
         description: "",
         coordinates: "",
-        serviceCharge: "",
+        serviceCharge: "20",
         zoneMinimumAmount: "",
         countryId: "",
         cityId: "",
@@ -1031,7 +1035,7 @@ export default function ZoneManagement() {
         zoneCurrency: "",
         currencyUnitId: "",
         paymentMethods: [],
-        deliveryCharges: "",
+        deliveryCharges: "20",
         ExDeliveryCharges: "",
         zoneAdminId: "",
         distanceUnitId: "",
@@ -1059,15 +1063,23 @@ export default function ZoneManagement() {
         open: true,
         distanceUnitId: "2",
         currencyUnitId: "",
+        serviceCharge: "20",
+        deliveryCharges: "20",
       }));
     }
   };
 
   const handleChange = (e) => {
-    setAdd((prev) => ({
-      ...prev,
-      [e.target.name]: e.target.value,
-    }));
+    const { name, value } = e.target;
+    setAdd((prev) => {
+      const next = { ...prev, [name]: value };
+      // Keep serviceCharge / deliveryCharges in sync (API uses serviceCharge).
+      if (name === "serviceCharge" || name === "deliveryCharges") {
+        next.serviceCharge = value;
+        next.deliveryCharges = value;
+      }
+      return next;
+    });
   };
 
   const handleAddZone = async () => {
@@ -1097,6 +1109,16 @@ export default function ZoneManagement() {
       const zoneMinimumNum = parseFloat(String(minRaw).trim());
       if (!Number.isFinite(zoneMinimumNum) || zoneMinimumNum < 0) {
         showError("Enter a valid zone minimum amount.");
+        return;
+      }
+      const feeRaw = add.serviceCharge ?? add.deliveryCharges;
+      if (feeRaw === "" || feeRaw === null || feeRaw === undefined) {
+        showError("Service fee is required.");
+        return;
+      }
+      const serviceFeeNum = parseFloat(String(feeRaw).trim());
+      if (!Number.isFinite(serviceFeeNum) || serviceFeeNum < 0) {
+        showError("Enter a valid service fee.");
         return;
       }
       const commRaw = add.zoneCommission;
@@ -1129,7 +1151,7 @@ export default function ZoneManagement() {
         zoneMinimumAmount: zoneMinimumNum,
         currencyUnitId: currencyUnitId || parseInt(add.currencyUnitId) || 1,
         distanceUnitId: distanceUnitId,
-        serviceCharge: parseFloat(add.deliveryCharges) || 0,
+        serviceCharge: serviceFeeNum,
         agentCommissionPercent: zoneCommissionNum,
         zoneAdminComission: 100 - zoneCommissionNum,
         zoneAdminId: add.zoneAdminId && add.zoneAdminId.trim() !== "" ? parseInt(add.zoneAdminId) : null,
@@ -2084,6 +2106,18 @@ export default function ZoneManagement() {
                   />
                 </Box>
                 <Box className="flex flex-col gap-y-3">
+                  <label htmlFor="serviceCharge" className="text-grey40">
+                    Service Fee
+                  </label>
+                  <InputFieldModal
+                    name="serviceCharge"
+                    type="number"
+                    value={add.serviceCharge}
+                    onChange={handleChange}
+                    placeholder="e.g. 20"
+                  />
+                </Box>
+                <Box className="flex flex-col gap-y-3">
                   <label htmlFor="zoneCommission" className="text-grey40">
                     Agent commission %
                   </label>
@@ -2167,20 +2201,8 @@ export default function ZoneManagement() {
                   </Box>
                 </Box>
 
-                {/* Hidden for now — delivery charges, express delivery, zone admin ID */}
+                {/* Hidden for now — express delivery, zone admin ID */}
                 <Box sx={{ display: "none" }}>
-                <Box className="flex flex-col gap-y-3">
-                  <label htmlFor="deliveryCharges" className="text-grey40">
-                    Delivery Charges
-                  </label>
-                  <InputFieldModal
-                    name="deliveryCharges"
-                    value={add.deliveryCharges}
-                    onChange={handleChange}
-                    placeholder="Enter delivery charges"
-                  />
-                </Box>
-
                 <Box className="flex flex-col gap-y-3">
                   <label htmlFor="ExDeliveryCharges" className="text-grey40">
                     Express-Delivery Charges
