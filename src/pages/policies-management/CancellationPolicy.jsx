@@ -15,6 +15,7 @@ import {
   TbCalendar,
   TbTrash,
   TbFilter,
+  TbEye,
 } from "../../shared/icons/index";
 import DataTable from "../../components/ui/DataTable";
 import ModalComponent from "../../components/shared/Modal";
@@ -72,6 +73,52 @@ function isPolicyConsideredActive(p) {
   return s === "1" || s === "true" || s === "yes";
 }
 
+function formatPolicyBool(value) {
+  return value ? "Yes" : "No";
+}
+
+function PolicyDetailRow({ label, value }) {
+  return (
+    <Box
+      sx={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "flex-start",
+        gap: 2,
+        py: 1.25,
+        borderBottom: "1px solid #F1F5F9",
+      }}
+    >
+      <Typography sx={{ fontSize: "13px", color: "grey.80", fontFamily: "Switzer", flexShrink: 0 }}>
+        {label}
+      </Typography>
+      <Typography
+        sx={{
+          fontSize: "13px",
+          fontWeight: 500,
+          fontFamily: "Switzer",
+          textAlign: "right",
+          color: "grey.20",
+          wordBreak: "break-word",
+        }}
+      >
+        {value ?? "—"}
+      </Typography>
+    </Box>
+  );
+}
+
+function PolicyDetailSection({ title, children }) {
+  return (
+    <Box>
+      <Typography variant="h6" sx={{ mb: 1.5, fontFamily: "Switzer", fontWeight: 600, fontSize: "15px" }}>
+        {title}
+      </Typography>
+      <Box sx={{ bgcolor: "#FAFBFC", borderRadius: "8px", px: 2, py: 0.5 }}>{children}</Box>
+    </Box>
+  );
+}
+
 export default function CancellationPolicy() {
   const { success, error: showError } = useToaster();
   const [modalOpen, setModalOpen] = useState(false);
@@ -92,6 +139,8 @@ export default function CancellationPolicy() {
   const [pendingAddPayload, setPendingAddPayload] = useState(null);
   const [overlapTogglingId, setOverlapTogglingId] = useState(null);
   const [overlapPolicyFetchAll, setOverlapPolicyFetchAll] = useState(false);
+  const [viewModalOpen, setViewModalOpen] = useState(false);
+  const [viewingPolicy, setViewingPolicy] = useState(null);
 
   // Reset page to 1 when filters change
   useEffect(() => {
@@ -625,6 +674,37 @@ export default function CancellationPolicy() {
         </Typography>
       ),
     },
+    {
+      field: "actions",
+      headerName: "Actions",
+      flex: 0.08,
+      minWidth: 100,
+      sortable: false,
+      renderCell: (row) => (
+        <Box
+          component="button"
+          type="button"
+          onClick={() => handleView(row)}
+          sx={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 0.5,
+            border: "none",
+            background: "none",
+            cursor: "pointer",
+            color: "primary.main",
+            fontWeight: 500,
+            fontSize: "13px",
+            fontFamily: "Switzer",
+            p: 0,
+            "&:hover": { opacity: 0.8 },
+          }}
+        >
+          <TbEye size={16} />
+          View
+        </Box>
+      ),
+    },
   ];
 
   // Prepare table data
@@ -689,6 +769,7 @@ export default function CancellationPolicy() {
         : null,
       // Keep original config for edit functionality
       cancellationConfig: policy.cancellationConfig,
+      _rawPolicy: policy,
     };
   }) || [];
 
@@ -768,6 +849,18 @@ export default function CancellationPolicy() {
       customerLeniencyEnabled: true,
     });
     setModalOpen(true);
+  };
+
+  const handleView = (row) => {
+    const policy = row._rawPolicy || policies.find((p) => p.id === row.id);
+    if (!policy) return;
+    setViewingPolicy(policy);
+    setViewModalOpen(true);
+  };
+
+  const handleCloseView = () => {
+    setViewModalOpen(false);
+    setViewingPolicy(null);
   };
 
   const handleEdit = (policy) => {
@@ -1237,6 +1330,17 @@ export default function CancellationPolicy() {
       ? zoneOptions.find((z) => String(z.value) === String(overlapZoneId))?.label ||
         `Zone #${overlapZoneId}`
       : "";
+
+  const viewingConfig = viewingPolicy?.cancellationConfig || {};
+  const viewingZoneName =
+    viewingPolicy?.zone?.name ||
+    zoneOptions.find((z) => String(z.value) === String(viewingPolicy?.zoneId))?.label ||
+    "—";
+  const viewingFreeWindowHours = viewingConfig.prePickupFreeChargeWindowMinutes
+    ? (Number(viewingConfig.prePickupFreeChargeWindowMinutes) / 60).toFixed(2)
+    : "0";
+  const viewingUnprocessedPct =
+    viewingConfig.unprocessedOrderValuePercentage || viewingConfig.unprocessedPercentage;
 
   return (
     <Box>
@@ -2041,6 +2145,144 @@ export default function CancellationPolicy() {
                 </Box>
               )}
             </Box>
+          </ModalComponent>
+
+          {/* View Policy Modal */}
+          <ModalComponent
+            open={viewModalOpen}
+            title="VIEW CANCELLATION POLICY"
+            onClose={handleCloseView}
+            width={720}
+            primaryAction={{
+              label: "Close",
+              onClick: handleCloseView,
+            }}
+          >
+            {viewingPolicy && (
+              <Box className="flex flex-col gap-5">
+                <PolicyDetailSection title="Basic Information">
+                  <PolicyDetailRow label="Policy Name" value={viewingPolicy.name} />
+                  <PolicyDetailRow label="Description" value={viewingPolicy.description} />
+                  <PolicyDetailRow label="Zone" value={viewingZoneName} />
+                  <PolicyDetailRow label="Type" value={viewingPolicy.type || "—"} />
+                  <PolicyDetailRow label="Status" value={viewingPolicy.isActive ? "Active" : "Inactive"} />
+                  <PolicyDetailRow label="Default Policy" value={formatPolicyBool(viewingPolicy.isDefault)} />
+                  <PolicyDetailRow
+                    label="Effective From"
+                    value={
+                      viewingPolicy.effectiveFrom
+                        ? new Date(viewingPolicy.effectiveFrom).toLocaleDateString()
+                        : "—"
+                    }
+                  />
+                  <PolicyDetailRow
+                    label="Effective To"
+                    value={
+                      viewingPolicy.effectiveTo
+                        ? new Date(viewingPolicy.effectiveTo).toLocaleDateString()
+                        : "—"
+                    }
+                  />
+                  <PolicyDetailRow
+                    label="Created At"
+                    value={
+                      viewingPolicy.createdAt
+                        ? new Date(viewingPolicy.createdAt).toLocaleString()
+                        : "—"
+                    }
+                  />
+                  <PolicyDetailRow
+                    label="Updated At"
+                    value={
+                      viewingPolicy.updatedAt
+                        ? new Date(viewingPolicy.updatedAt).toLocaleString()
+                        : "—"
+                    }
+                  />
+                </PolicyDetailSection>
+
+                <PolicyDetailSection title="Pre-Pickup Charges">
+                  <PolicyDetailRow
+                    label="Currency"
+                    value={viewingConfig.prePickupAbsoluteCurrency || "—"}
+                  />
+                  <PolicyDetailRow
+                    label="Absolute Amount"
+                    value={
+                      viewingConfig.prePickupAbsoluteAmount != null
+                        ? `${viewingConfig.prePickupAbsoluteCurrency || ""} ${viewingConfig.prePickupAbsoluteAmount}`
+                        : "—"
+                    }
+                  />
+                  <PolicyDetailRow
+                    label="Percentage"
+                    value={
+                      viewingConfig.prePickupPercentage
+                        ? `${viewingConfig.prePickupPercentage}%`
+                        : "—"
+                    }
+                  />
+                  <PolicyDetailRow
+                    label="Free Charge Window"
+                    value={`${viewingFreeWindowHours} hours (${viewingConfig.prePickupFreeChargeWindowMinutes || 0} min)`}
+                  />
+                  <PolicyDetailRow
+                    label="First Cancellation Leniency"
+                    value={formatPolicyBool(viewingConfig.prePickupFirstCancellationLeniency)}
+                  />
+                </PolicyDetailSection>
+
+                <PolicyDetailSection title="Unprocessed Order Charges">
+                  <PolicyDetailRow
+                    label="Currency"
+                    value={viewingConfig.unprocessedAbsoluteCurrency || "—"}
+                  />
+                  <PolicyDetailRow
+                    label="Absolute Amount"
+                    value={
+                      viewingConfig.unprocessedAbsoluteAmount != null
+                        ? `${viewingConfig.unprocessedAbsoluteCurrency || ""} ${viewingConfig.unprocessedAbsoluteAmount}`
+                        : "—"
+                    }
+                  />
+                  <PolicyDetailRow
+                    label="Percentage (prepaid)"
+                    value={viewingUnprocessedPct ? `${viewingUnprocessedPct}%` : "—"}
+                  />
+                  <PolicyDetailRow
+                    label="After Pickup (Minutes)"
+                    value={`${viewingConfig.unprocessedAfterPickupMinutes || 0} min`}
+                  />
+                  <PolicyDetailRow
+                    label="Allow Cancel Unprocessed"
+                    value={formatPolicyBool(viewingConfig.allowCancelUnprocessed)}
+                  />
+                </PolicyDetailSection>
+
+                <PolicyDetailSection title="Courtesy Window">
+                  <PolicyDetailRow
+                    label="Window Days"
+                    value={viewingConfig.courtesyWindowDays ?? "—"}
+                  />
+                  <PolicyDetailRow
+                    label="Cap Amount"
+                    value={
+                      viewingConfig.courtesyCapAmount != null
+                        ? `${viewingConfig.prePickupAbsoluteCurrency || ""} ${viewingConfig.courtesyCapAmount}`
+                        : "—"
+                    }
+                  />
+                  <PolicyDetailRow label="Courtesy Count" value={viewingConfig.courtesyCount ?? "—"} />
+                </PolicyDetailSection>
+
+                <PolicyDetailSection title="Customer Leniency">
+                  <PolicyDetailRow
+                    label="Enable Customer Leniency"
+                    value={formatPolicyBool(viewingConfig.customerLeniencyEnabled)}
+                  />
+                </PolicyDetailSection>
+              </Box>
+            )}
           </ModalComponent>
 
           {/* Delete Confirmation Modal */}
