@@ -55,6 +55,7 @@ export default function ServicesCard({ triggerAdd }) {
     additionalPricePerKg: "",
     numberOfBags: false,
     numberOfItems: false,
+    washBleedDisclaimerEnabled: false,
   };
 
   const [add, setAdd] = useState(emptyForm);
@@ -85,6 +86,10 @@ export default function ServicesCard({ triggerAdd }) {
   const appendQuantityOptions = (formData) => {
     formData.append("numberOfBags", String(Boolean(add.numberOfBags)));
     formData.append("numberOfItems", String(Boolean(add.numberOfItems)));
+    formData.append(
+      "washBleedDisclaimerEnabled",
+      String(Boolean(add.washBleedDisclaimerEnabled))
+    );
   };
 
   // Handle form data population for update modal
@@ -114,6 +119,9 @@ export default function ServicesCard({ triggerAdd }) {
           additionalPricePerKg: serviceToEdit.additionalPricePerKg ?? "",
           numberOfBags: parseServiceFlag(serviceToEdit.numberOfBags),
           numberOfItems: parseServiceFlag(serviceToEdit.numberOfItems),
+          washBleedDisclaimerEnabled: parseServiceFlag(
+            serviceToEdit.washBleedDisclaimerEnabled
+          ),
         }));
       }
     }
@@ -231,6 +239,9 @@ export default function ServicesCard({ triggerAdd }) {
       additionalPricePerKg: service.additionalPricePerKg ?? "",
       numberOfBags: parseServiceFlag(service.numberOfBags),
       numberOfItems: parseServiceFlag(service.numberOfItems),
+      washBleedDisclaimerEnabled: parseServiceFlag(
+        service.washBleedDisclaimerEnabled
+      ),
     });
   };
 
@@ -585,6 +596,25 @@ export default function ServicesCard({ triggerAdd }) {
               label={
                 <Typography variant="body2" sx={{ color: "#374151", fontWeight: 500 }}>
                   Number of items
+                </Typography>
+              }
+            />
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={add.washBleedDisclaimerEnabled}
+                  onChange={(e) =>
+                    setAdd((prev) => ({
+                      ...prev,
+                      washBleedDisclaimerEnabled: e.target.checked,
+                    }))
+                  }
+                  color="primary"
+                />
+              }
+              label={
+                <Typography variant="body2" sx={{ color: "#374151", fontWeight: 500 }}>
+                  Mixed wash colour-bleed disclaimer
                 </Typography>
               }
             />

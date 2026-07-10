@@ -143,6 +143,7 @@ const apiDataSlice = createSlice({
               pricingBasis,
               numberOfBags: parseFormBool("numberOfBags"),
               numberOfItems: parseFormBool("numberOfItems"),
+              washBleedDisclaimerEnabled: parseFormBool("washBleedDisclaimerEnabled"),
               basePrice:
                 body instanceof FormData && body.has("basePrice")
                   ? body.get("basePrice")
