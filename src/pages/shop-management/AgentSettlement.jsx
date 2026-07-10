@@ -24,6 +24,7 @@ import {
   useRejectCashRemittanceMutation,
   useRecordCashSettlementMutation,
   useRecordAgentPayoutMutation,
+  useSyncAgentWalletsMutation,
 } from "../../store/services/api";
 
 const isSuccess = (res) => res?.status === "1" || res?.status === 1;
@@ -46,7 +47,7 @@ export default function AgentSettlement() {
   const [actionModal, setActionModal] = useState(emptyActionModal);
   const actingRef = useRef(false);
 
-  const { data: cashDueResponse, isLoading: cashDueLoading } =
+  const { data: cashDueResponse, isLoading: cashDueLoading, refetch: refetchCashDue } =
     useGetAgentsCashDueQuery({ page: 1, limit: 100 }, { skip: tab !== "cash-due" });
 
   const { data: remittanceResponse, isLoading: remittanceLoading } =
@@ -63,8 +64,10 @@ export default function AgentSettlement() {
     useRecordCashSettlementMutation();
   const [recordPayout, { isLoading: recordingPayout }] =
     useRecordAgentPayoutMutation();
+  const [syncAgentWallets, { isLoading: syncingWallets }] =
+    useSyncAgentWalletsMutation();
 
-  const isActing = confirming || rejecting || recordingCash || recordingPayout;
+  const isActing = confirming || rejecting || recordingCash || recordingPayout || syncingWallets;
 
   const cashDueAgents = cashDueResponse?.data?.agents || [];
   const remittances = remittanceResponse?.data?.remittances || [];
@@ -211,6 +214,27 @@ export default function AgentSettlement() {
     showError,
     success,
   ]);
+
+  const handleSyncWallets = useCallback(async () => {
+    if (actingRef.current || syncingWallets) return;
+    actingRef.current = true;
+    try {
+      const res = await syncAgentWallets({ limit: 500 }).unwrap();
+      if (isSuccess(res)) {
+        const stats = res?.data || {};
+        success(
+          `Sync done: ${stats.credited || 0} credited, ${stats.cashRecorded || 0} cash recorded (${stats.processed || 0} processed)`
+        );
+        refetchCashDue();
+      } else {
+        showError(res?.message || "Wallet sync failed");
+      }
+    } catch (err) {
+      showError(err?.data?.message || "Wallet sync failed");
+    } finally {
+      actingRef.current = false;
+    }
+  }, [refetchCashDue, showError, success, syncAgentWallets, syncingWallets]);
 
   const cashDueColumns = useMemo(
     () => [
@@ -373,14 +397,14 @@ export default function AgentSettlement() {
         </Grid>
       </Grid>
 
-      <Box sx={{ mb: 2 }}>
+      <Box sx={{ mb: 2, display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 2 }}>
         <Tabs
           value={tab}
           onChange={(_, value) => setTab(value)}
-          sx={{ mb: 2, borderBottom: 1, borderColor: "divider" }}
+          sx={{ borderBottom: 1, borderColor: "divider", flex: 1, minWidth: 240 }}
         >
           <Tab
-            label="Agents with Cash Due"
+            label="Agent settlements"
             value="cash-due"
             sx={{ textTransform: "none" }}
           />
@@ -390,12 +414,22 @@ export default function AgentSettlement() {
             sx={{ textTransform: "none" }}
           />
         </Tabs>
-        <Typography variant="body2" color="text.secondary">
-          {tab === "cash-due"
-            ? "Agents who collected cash from customers and owe the platform their share. Record cash received or pay out card earnings."
-            : "Agent-submitted cash remittances awaiting your confirmation."}
-        </Typography>
+        {tab === "cash-due" ? (
+          <Button
+            variant="outlined"
+            size="small"
+            disabled={syncingWallets}
+            onClick={handleSyncWallets}
+          >
+            {syncingWallets ? "Syncing…" : "Sync from paid bookings"}
+          </Button>
+        ) : null}
       </Box>
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          {tab === "cash-due"
+            ? "Cash bookings show under Cash Due after agent records payment at delivery. Card bookings show under Payable (platform owes agent). If empty, run Sync from paid bookings once."
+            : "Agent-submitted cash remittances awaiting your confirmation."}
+      </Typography>
 
       {tab === "cash-due" ? (
         <DataTable

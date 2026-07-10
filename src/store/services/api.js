@@ -566,6 +566,15 @@ export const api = createApi({
       invalidatesTags: ["AgentSettlement"],
     }),
 
+    syncAgentWallets: builder.mutation({
+      query: (body = {}) => ({
+        url: "admin/agents/wallet-sync",
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: ["AgentSettlement"],
+    }),
+
     addAgentAddress: builder.mutation({
       query: ({ userId, body }) => ({
         url: `admin/addAgentAddress/${userId}`,
@@ -1501,6 +1510,7 @@ export const {
   useRecordCashSettlementMutation,
   useRecordAgentPayoutMutation,
   useRecordSettlementAdjustmentMutation,
+  useSyncAgentWalletsMutation,
   useRegisterAgentMutation,
   useAddAgentAddressMutation,
   useAddAgentBusinessInfoMutation,
