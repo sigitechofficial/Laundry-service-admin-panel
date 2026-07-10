@@ -4,7 +4,7 @@ import baseQueryWithReauth from "./baseQueryWithReauth";
 export const api = createApi({
   reducerPath: "api",
   baseQuery: baseQueryWithReauth,
-  tagTypes: ["ServiceConfig", "SupportContact", "PlatformOperationalHours", "Orders", "Coupons", "Banners", "AccountDeletionReasons", "PendingAgents", "RejectedAgents"],
+  tagTypes: ["ServiceConfig", "SupportContact", "PlatformOperationalHours", "Orders", "Coupons", "Banners", "AccountDeletionReasons", "PendingAgents", "RejectedAgents", "AgentSettlement"],
 
   endpoints: (builder) => {
     const normalizeServiceId = (id) => {
@@ -494,6 +494,78 @@ export const api = createApi({
       }),
       invalidatesTags: ["PendingAgents", "RejectedAgents", "Shops"],
     }),
+
+    getAgentsCashDue: builder.query({
+      query: (params = {}) => ({
+        url: "admin/agents/cash-due",
+        method: "GET",
+        params,
+      }),
+      providesTags: ["AgentSettlement"],
+    }),
+
+    getPendingRemittances: builder.query({
+      query: (params = {}) => ({
+        url: "admin/agents/remittances/pending",
+        method: "GET",
+        params,
+      }),
+      providesTags: ["AgentSettlement"],
+    }),
+
+    getAgentSettlement: builder.query({
+      query: (agentId) => ({
+        url: `admin/agents/${agentId}/settlement`,
+        method: "GET",
+      }),
+      providesTags: ["AgentSettlement"],
+    }),
+
+    confirmCashRemittance: builder.mutation({
+      query: ({ remittanceId, body }) => ({
+        url: `admin/agents/remittances/${remittanceId}/confirm`,
+        method: "PATCH",
+        body,
+      }),
+      invalidatesTags: ["AgentSettlement"],
+    }),
+
+    rejectCashRemittance: builder.mutation({
+      query: ({ remittanceId, body }) => ({
+        url: `admin/agents/remittances/${remittanceId}/reject`,
+        method: "PATCH",
+        body,
+      }),
+      invalidatesTags: ["AgentSettlement"],
+    }),
+
+    recordCashSettlement: builder.mutation({
+      query: ({ agentId, body }) => ({
+        url: `admin/agents/${agentId}/cash-settlement`,
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: ["AgentSettlement"],
+    }),
+
+    recordAgentPayout: builder.mutation({
+      query: ({ agentId, body }) => ({
+        url: `admin/agents/${agentId}/payout`,
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: ["AgentSettlement"],
+    }),
+
+    recordSettlementAdjustment: builder.mutation({
+      query: ({ agentId, body }) => ({
+        url: `admin/agents/${agentId}/settlement-adjustment`,
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: ["AgentSettlement"],
+    }),
+
     addAgentAddress: builder.mutation({
       query: ({ userId, body }) => ({
         url: `admin/addAgentAddress/${userId}`,
@@ -1421,6 +1493,14 @@ export const {
   useGetPendingAgentsQuery,
   useGetRejectedAgentsQuery,
   useUpdateAgentApprovalMutation,
+  useGetAgentsCashDueQuery,
+  useGetPendingRemittancesQuery,
+  useGetAgentSettlementQuery,
+  useConfirmCashRemittanceMutation,
+  useRejectCashRemittanceMutation,
+  useRecordCashSettlementMutation,
+  useRecordAgentPayoutMutation,
+  useRecordSettlementAdjustmentMutation,
   useRegisterAgentMutation,
   useAddAgentAddressMutation,
   useAddAgentBusinessInfoMutation,

@@ -123,6 +123,11 @@ export const sidebarList = [
         size: "24px",
       },
       {
+        label: "Cash Settlement",
+        path: "/shop-management/agent-settlement",
+        size: "24px",
+      },
+      {
         label: "Add Shop",
         path: "/shop-management/add-shop",
         size: "24px",

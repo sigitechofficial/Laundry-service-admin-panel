@@ -12,6 +12,7 @@ import {
   ShopEmployeesPage,
   ShopDetails,
   PendingAgentsPage,
+  AgentSettlementPage,
   ReportsLayout,
 } from "./AsyncComponent";
 
@@ -32,6 +33,7 @@ export default function PrivateRoutes() {
                 <Route path="add-shop" element={<AddShopPage />} />
                 <Route path="employees" element={<ShopEmployeesPage />} />
                 <Route path="pending-agents" element={<PendingAgentsPage />} />
+                <Route path="agent-settlement" element={<AgentSettlementPage />} />
                 <Route path="details/:id" element={<ShopDetails />} />
               </Route>
               <Route path="/reports/*" element={<ReportsLayout />} />
