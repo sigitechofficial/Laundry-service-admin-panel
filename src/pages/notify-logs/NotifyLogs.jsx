@@ -435,40 +435,26 @@ export default function NotifyLogs() {
       >
         {detail ? (
           <Box>
-            {/* ── Hero header ── */}
-            <Box
-              sx={{
-                background: "linear-gradient(135deg, #000099 0%, #1a1aff 100%)",
-                borderRadius: "12px",
-                px: 3,
-                py: 2.5,
-                mb: 3,
-                position: "relative",
-                overflow: "hidden",
-              }}
-            >
-              {/* decorative circles */}
-              <Box sx={{ position:"absolute", top:-30, right:-30, width:120, height:120, borderRadius:"50%", bgcolor:"rgba(255,255,255,0.06)", pointerEvents:"none" }} />
-              <Box sx={{ position:"absolute", bottom:-40, right:80, width:90, height:90, borderRadius:"50%", bgcolor:"rgba(255,255,255,0.04)", pointerEvents:"none" }} />
-
-              <Box sx={{ position: "relative", zIndex: 1 }}>
-                <Typography sx={{ fontFamily:"Switzer", fontWeight:700, fontSize:18, color:"#fff", mb:0.5 }}>
+            {/* ── Header ── */}
+            <Box sx={{ mb: 3, pb: 2.5, borderBottom: "1px solid #E2E8F0" }}>
+              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 2, mb: 1 }}>
+                <Typography sx={{ fontFamily: "Switzer", fontWeight: 700, fontSize: 20, color: "#0F172A" }}>
                   {detail.orderTrackId ? `Order: ${detail.orderTrackId}` : `Booking #${display(detail.bookingId)}`}
                 </Typography>
-                <Typography sx={{ fontFamily:"Switzer", fontSize:12, color:"rgba(255,255,255,0.7)", mb:1.5 }}>
-                  Log ID: {display(detail.id)} &nbsp;·&nbsp; Booking ID: {display(detail.bookingId)}
-                </Typography>
-                <Box sx={{ display:"flex", flexWrap:"wrap", gap:1 }}>
-                  <PillBadge {...legChip(detail.leg)} />
-                  {detailModal.kind === "notification" ? (
-                    <>
-                      <PillBadge {...channelChip(detail.channel)} />
-                      <PillBadge {...twilioChip(detail.twilioStatus)} />
-                    </>
-                  ) : (
-                    <PillBadge {...sessionStatusChip(detail.status)} />
-                  )}
-                </Box>
+              </Box>
+              <Typography sx={{ fontFamily: "Switzer", fontSize: 13, color: "#8F95B2", mb: 1.5 }}>
+                Log ID: {display(detail.id)}&nbsp;&nbsp;·&nbsp;&nbsp;Booking ID: {display(detail.bookingId)}
+              </Typography>
+              <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
+                <PillBadge {...legChip(detail.leg)} />
+                {detailModal.kind === "notification" ? (
+                  <>
+                    <PillBadge {...channelChip(detail.channel)} />
+                    <PillBadge {...twilioChip(detail.twilioStatus)} />
+                  </>
+                ) : (
+                  <PillBadge {...sessionStatusChip(detail.status)} />
+                )}
               </Box>
             </Box>
 
