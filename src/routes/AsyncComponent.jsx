@@ -89,6 +89,9 @@ export const PendingAgentsPage = lazy(() =>
 export const AgentSettlementPage = lazy(() =>
   import("../pages/shop-management/AgentSettlementPage")
 );
+export const NotifyLogsPage = lazy(() =>
+  import("../pages/notify-logs/NotifyLogsPage")
+);
 export const ShopDetails = lazy(() =>
   import("../pages/shop-management/ShopDetail")
 );

@@ -4,7 +4,7 @@ import baseQueryWithReauth from "./baseQueryWithReauth";
 export const api = createApi({
   reducerPath: "api",
   baseQuery: baseQueryWithReauth,
-  tagTypes: ["ServiceConfig", "SupportContact", "PlatformOperationalHours", "Orders", "Coupons", "Banners", "AccountDeletionReasons", "PendingAgents", "RejectedAgents", "AgentSettlement"],
+  tagTypes: ["ServiceConfig", "SupportContact", "PlatformOperationalHours", "Orders", "Coupons", "Banners", "AccountDeletionReasons", "PendingAgents", "RejectedAgents", "AgentSettlement", "NotifyLogs"],
 
   endpoints: (builder) => {
     const normalizeServiceId = (id) => {
@@ -519,6 +519,15 @@ export const api = createApi({
         method: "GET",
       }),
       providesTags: ["AgentSettlement"],
+    }),
+
+    getNotifyLogs: builder.query({
+      query: (params = {}) => ({
+        url: "admin/notify-logs",
+        method: "GET",
+        params,
+      }),
+      providesTags: ["NotifyLogs"],
     }),
 
     confirmCashRemittance: builder.mutation({
@@ -1505,6 +1514,7 @@ export const {
   useGetAgentsCashDueQuery,
   useGetPendingRemittancesQuery,
   useGetAgentSettlementQuery,
+  useGetNotifyLogsQuery,
   useConfirmCashRemittanceMutation,
   useRejectCashRemittanceMutation,
   useRecordCashSettlementMutation,

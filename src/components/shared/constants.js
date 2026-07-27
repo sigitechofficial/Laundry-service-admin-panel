@@ -5,6 +5,7 @@ import {
   PiHeadsetBold,
   MdOutlineStore,
   MdOutlineLocationOn,
+  MdOutlinePhone,
   IconFingerHold,
   RiUserSettingsLine,
   TbSettings,
@@ -254,6 +255,12 @@ export const sidebarList = [
     label: "Customer Support",
     Icon: PiHeadsetBold,
     path: "/customer-support",
+    size: "23px",
+  },
+  {
+    label: "Notify / Call Logs",
+    Icon: MdOutlinePhone,
+    path: "/notify-logs",
     size: "23px",
   },
   {

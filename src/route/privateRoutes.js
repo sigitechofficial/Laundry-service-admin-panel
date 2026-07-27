@@ -40,7 +40,8 @@ import {
   ReschedulePolicy,
   PlatformOperationalHours,
   PromoCodesPage,
-  BannersPage
+  BannersPage,
+  NotifyLogsPage,
 } from "../routes/AsyncComponent";
 
 export const privateRoutes = [
@@ -89,6 +90,11 @@ export const privateRoutes = [
     path: "/customer-support",
     element: CustomerSupport,
     resourceKey: "customer_support_page",
+  },
+  {
+    path: "/notify-logs",
+    element: NotifyLogsPage,
+    resourceKey: "notify_call_logs_page",
   },
   {
     path: "/delete-account-reasons",
