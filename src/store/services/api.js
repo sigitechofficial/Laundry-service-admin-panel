@@ -530,6 +530,13 @@ export const api = createApi({
       providesTags: ["NotifyLogs"],
     }),
 
+    getServiceComparison: builder.query({
+      query: (bookingId) => ({
+        url: `admin/bookings/${bookingId}/service-comparison`,
+        method: "GET",
+      }),
+    }),
+
     confirmCashRemittance: builder.mutation({
       query: ({ remittanceId, body }) => ({
         url: `admin/agents/remittances/${remittanceId}/confirm`,
@@ -1515,6 +1522,7 @@ export const {
   useGetPendingRemittancesQuery,
   useGetAgentSettlementQuery,
   useGetNotifyLogsQuery,
+  useGetServiceComparisonQuery,
   useConfirmCashRemittanceMutation,
   useRejectCashRemittanceMutation,
   useRecordCashSettlementMutation,

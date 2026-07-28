@@ -19,6 +19,7 @@ import {
   useGetOrderItemsSheetQuery,
   useGetAllOrderStatusesQuery,
   useLazyInvoiceCreationQuery,
+  useGetServiceComparisonQuery,
 } from "../../../store/services/api";
 import { BASE_URL } from "../../../utilities/URL";
 import { canEditOrderFromBooking } from "../../../shared/orderEditStatusGate";
@@ -319,6 +320,12 @@ export default function OrderDetailsPage() {
     useGetOrderItemsSheetQuery(bookingId, {
       skip: !bookingId,
     });
+
+  const { data: comparisonResponse, isLoading: isLoadingComparison } =
+    useGetServiceComparisonQuery(bookingId, {
+      skip: !bookingId,
+    });
+  const comparisonData = comparisonResponse?.data;
 
   const orderItemsData = orderItemsResponse?.data;
   const statusBadge = getStatusBadge(orderData?.bookingStatus?.title);
@@ -1655,6 +1662,157 @@ export default function OrderDetailsPage() {
               </Box>
             </Box>
           </Paper>
+
+          {/* ── Service Comparison: Customer Original vs Agent Invoice ─────── */}
+          {(comparisonData?.snapshotAvailable || isLoadingComparison) && (
+            <Paper sx={CARD_SX}>
+              <Box sx={SECTION_HEADER_SX} className="flex items-center justify-between">
+                <Box className="flex items-center gap-1.5">
+                  <Box sx={{ width: 6, height: 6, borderRadius: "50%", bgcolor: "#F59E0B" }} />
+                  <Typography variant="caption" color="text.secondary"
+                    sx={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}>
+                    Service Comparison
+                  </Typography>
+                </Box>
+                <Box sx={{ px: 1.3, minHeight: 22, borderRadius: "999px", bgcolor: "#FFFBEB", border: "1px solid #FDE68A", display: "inline-flex", alignItems: "center" }}>
+                  <Typography sx={{ fontSize: 10, color: "#B45309", fontWeight: 700 }}>Customer vs Agent</Typography>
+                </Box>
+              </Box>
+
+              {isLoadingComparison ? (
+                <Box sx={{ p: 2.5 }}>
+                  <Typography variant="caption" color="text.secondary">Loading comparison...</Typography>
+                </Box>
+              ) : (
+                <Box className="grid grid-cols-1 md:grid-cols-2">
+                  {/* Customer Original */}
+                  <Box sx={{ p: 2.5, borderRight: { md: "1px solid #E4E7EC" } }}>
+                    <Box sx={{ mb: 1.5, display: "flex", alignItems: "center", gap: 1 }}>
+                      <Box sx={{ width: 4, height: 18, bgcolor: "#F59E0B", borderRadius: 1 }} />
+                      <Typography sx={{ fontSize: 11, fontWeight: 700, color: "#92400E", letterSpacing: "0.06em", textTransform: "uppercase" }}>
+                        Customer Selected
+                      </Typography>
+                    </Box>
+                    {(!comparisonData?.customerOriginal?.services?.length) ? (
+                      <Typography variant="caption" color="text.secondary" sx={{ fontSize: 12 }}>No snapshot available</Typography>
+                    ) : (
+                      <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                        {(comparisonData.customerOriginal.services || []).map((svc, idx) => (
+                          <Box key={`orig-${svc.id || idx}`} sx={{ border: "1px solid #FDE68A", borderRadius: "10px", p: 1.4, bgcolor: "#FFFBEB" }}>
+                            <Typography sx={{ fontSize: 13, fontWeight: 700, color: "#0F172A" }}>
+                              {svc.subCategory?.name || svc.category?.name || svc.service?.name || "Item"}
+                            </Typography>
+                            {svc.service?.name && svc.subCategory?.name && (
+                              <Typography sx={{ fontSize: 11, color: "#64748B" }}>{svc.service.name}</Typography>
+                            )}
+                            <Box className="flex items-center gap-3 mt-0.5 flex-wrap">
+                              {svc.items != null && (
+                                <Typography sx={{ fontSize: 11, color: "#475569" }}>Qty: <b>{svc.items}</b></Typography>
+                              )}
+                              {svc.categoryPrice != null && (
+                                <Typography sx={{ fontSize: 11, color: "#475569" }}>£{Number(svc.categoryPrice).toFixed(2)}/pc</Typography>
+                              )}
+                            </Box>
+                            {(svc.preferences || []).length > 0 && (
+                              <Box sx={{ mt: 0.75, display: "flex", flexWrap: "wrap", gap: 0.5 }}>
+                                {svc.preferences.map((pref, pi) => (
+                                  <Box key={pi} sx={{ px: 1, py: 0.3, borderRadius: "999px", bgcolor: "#FEF3C7", border: "1px solid #FDE68A" }}>
+                                    <Typography sx={{ fontSize: 10, color: "#92400E", fontWeight: 600 }}>
+                                      {pref.preferenceType?.name && `${pref.preferenceType.name}: `}{pref.preferenceValue?.value || "—"}
+                                    </Typography>
+                                  </Box>
+                                ))}
+                              </Box>
+                            )}
+                            {svc.serviceInstruction && (
+                              <Typography sx={{ mt: 0.5, fontSize: 11, color: "#6B7280", fontStyle: "italic" }}>
+                                Note: {svc.serviceInstruction}
+                              </Typography>
+                            )}
+                          </Box>
+                        ))}
+                        {(comparisonData.customerOriginal.bookingPreferences || []).length > 0 && (
+                          <Box sx={{ mt: 0.5 }}>
+                            <Typography sx={{ fontSize: 10, color: "#92400E", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", mb: 0.5 }}>
+                              Booking Preferences
+                            </Typography>
+                            <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
+                              {comparisonData.customerOriginal.bookingPreferences.map((pref, pi) => (
+                                <Box key={pi} sx={{ px: 1, py: 0.3, borderRadius: "999px", bgcolor: "#FEF3C7", border: "1px solid #FDE68A" }}>
+                                  <Typography sx={{ fontSize: 10, color: "#92400E", fontWeight: 600 }}>
+                                    {pref.preferenceType?.name && `${pref.preferenceType.name}: `}{pref.preferenceValue?.value || "—"}
+                                  </Typography>
+                                </Box>
+                              ))}
+                            </Box>
+                          </Box>
+                        )}
+                      </Box>
+                    )}
+                  </Box>
+
+                  {/* Agent Invoice */}
+                  <Box sx={{ p: 2.5 }}>
+                    <Box sx={{ mb: 1.5, display: "flex", alignItems: "center", gap: 1 }}>
+                      <Box sx={{ width: 4, height: 18, bgcolor: "#000099", borderRadius: 1 }} />
+                      <Typography sx={{ fontSize: 11, fontWeight: 700, color: "#000099", letterSpacing: "0.06em", textTransform: "uppercase" }}>
+                        Agent Invoice
+                      </Typography>
+                    </Box>
+                    {(!comparisonData?.agentInvoice?.services?.length) ? (
+                      <Typography variant="caption" color="text.secondary" sx={{ fontSize: 12 }}>No agent services yet</Typography>
+                    ) : (
+                      <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                        {(comparisonData.agentInvoice.services || []).map((svc, idx) => (
+                          <Box key={`agent-${svc.id || idx}`} sx={{ border: "1px solid #C7D2FE", borderRadius: "10px", p: 1.4, bgcolor: "#EEF2FF" }}>
+                            <Typography sx={{ fontSize: 13, fontWeight: 700, color: "#0F172A" }}>
+                              {svc.subCategory?.name || svc.category?.name || svc.service?.name || "Item"}
+                            </Typography>
+                            {svc.service?.name && svc.subCategory?.name && (
+                              <Typography sx={{ fontSize: 11, color: "#64748B" }}>{svc.service.name}</Typography>
+                            )}
+                            <Box className="flex items-center gap-3 mt-0.5 flex-wrap">
+                              {svc.items != null && (
+                                <Typography sx={{ fontSize: 11, color: "#475569" }}>Qty: <b>{svc.items}</b></Typography>
+                              )}
+                              {svc.categoryPrice != null && (
+                                <Typography sx={{ fontSize: 11, color: "#475569" }}>£{Number(svc.categoryPrice).toFixed(2)}/pc</Typography>
+                              )}
+                            </Box>
+                            {(svc.addOns || []).length > 0 && (
+                              <Box sx={{ mt: 0.5 }}>
+                                {svc.addOns.map((ad, ai) => (
+                                  <Typography key={ai} sx={{ fontSize: 11, color: "#475569" }}>
+                                    + {ad.items || 1}x {ad.addOnService?.name || "Add-on"} (£{Number(ad.price || 0).toFixed(2)})
+                                  </Typography>
+                                ))}
+                              </Box>
+                            )}
+                            {(svc.selectedServicePreferences || []).length > 0 && (
+                              <Box sx={{ mt: 0.75, display: "flex", flexWrap: "wrap", gap: 0.5 }}>
+                                {svc.selectedServicePreferences.map((pref, pi) => (
+                                  <Box key={pi} sx={{ px: 1, py: 0.3, borderRadius: "999px", bgcolor: "#E0E7FF", border: "1px solid #C7D2FE" }}>
+                                    <Typography sx={{ fontSize: 10, color: "#3730A3", fontWeight: 600 }}>
+                                      {pref.preferenceType?.name && `${pref.preferenceType.name}: `}{pref.preferenceValue?.value || "—"}
+                                    </Typography>
+                                  </Box>
+                                ))}
+                              </Box>
+                            )}
+                            {svc.serviceInstruction && (
+                              <Typography sx={{ mt: 0.5, fontSize: 11, color: "#6B7280", fontStyle: "italic" }}>
+                                Note: {svc.serviceInstruction}
+                              </Typography>
+                            )}
+                          </Box>
+                        ))}
+                      </Box>
+                    )}
+                  </Box>
+                </Box>
+              )}
+            </Paper>
+          )}
         </Box>
 
         <Box sx={{ display: "flex", flexDirection: "column", rowGap: 2.5 }}>
