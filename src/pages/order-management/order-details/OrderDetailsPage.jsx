@@ -1664,7 +1664,7 @@ export default function OrderDetailsPage() {
           </Paper>
 
           {/* ── Service Comparison: Customer Original vs Agent Invoice ─────── */}
-          {(comparisonData?.snapshotAvailable || isLoadingComparison) && (
+          {(comparisonData || isLoadingComparison) && (
             <Paper sx={CARD_SX}>
               <Box sx={SECTION_HEADER_SX} className="flex items-center justify-between">
                 <Box className="flex items-center gap-1.5">
@@ -1673,6 +1673,12 @@ export default function OrderDetailsPage() {
                     sx={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}>
                     Service Comparison
                   </Typography>
+                  {comparisonData?.fallbackToLive && (
+                    <Typography variant="caption"
+                      sx={{ fontSize: 10, color: "#9CA3AF", fontStyle: "italic", ml: 1 }}>
+                      (snapshot not yet available — showing current services)
+                    </Typography>
+                  )}
                 </Box>
                 <Box sx={{ px: 1.3, minHeight: 22, borderRadius: "999px", bgcolor: "#FFFBEB", border: "1px solid #FDE68A", display: "inline-flex", alignItems: "center" }}>
                   <Typography sx={{ fontSize: 10, color: "#B45309", fontWeight: 700 }}>Customer vs Agent</Typography>
