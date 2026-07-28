@@ -184,7 +184,7 @@ export default function ShopManagement() {
     {
       field: "OrderStatus",
       headerName: "Status",
-      minWidth: 100,
+      minWidth: 180,
     },
 
     {
@@ -265,6 +265,7 @@ export default function ShopManagement() {
                   onDownload={handleDownload}
                   onRowAction={handleRowAction}
                   height={600}
+                  stickyRightFields={["OrderStatus", "actions"]}
                 />
               </div>
             </div>
