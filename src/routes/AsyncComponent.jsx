@@ -121,6 +121,9 @@ export const CancelledOrders = lazy(() =>
 export const OnHoldOrders = lazy(() =>
   import("../pages/order-management/on-hold-orders/OnHoldOrders")
 );
+export const PaymentFailures = lazy(() =>
+  import("../pages/order-management/payment-failures/PaymentFailures")
+);
 
 export const EditOrder = lazy(() =>
   import("../pages/order-management/edit-order/EditOrder")

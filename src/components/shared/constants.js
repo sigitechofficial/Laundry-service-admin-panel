@@ -56,6 +56,11 @@ export const sidebarList = [
         path: "/orders/on-hold-orders",
         size: "24px",
       },
+      {
+        label: "Payment Failures",
+        path: "/orders/payment-failures",
+        size: "24px",
+      },
     ],
   },
   {

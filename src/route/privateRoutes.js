@@ -28,6 +28,7 @@ import {
   PendingOrders,
   CancelledOrders,
   OnHoldOrders,
+  PaymentFailures,
   EditOrder,
   OrderDetails,
   CountriesAndCities,
@@ -180,6 +181,11 @@ export const privateRoutes = [
     path: "/orders/on-hold-orders",
     element: OnHoldOrders,
     resourceKey: "order_on-hold-orders_Page",
+  },
+  {
+    path: "/orders/payment-failures",
+    element: PaymentFailures,
+    resourceKey: "order_payment-failures_Page",
   },
   {
     path: "/orders/edit/:id",

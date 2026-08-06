@@ -4,7 +4,7 @@ import baseQueryWithReauth from "./baseQueryWithReauth";
 export const api = createApi({
   reducerPath: "api",
   baseQuery: baseQueryWithReauth,
-  tagTypes: ["ServiceConfig", "SupportContact", "PlatformOperationalHours", "Orders", "Coupons", "Banners", "AccountDeletionReasons", "PendingAgents", "RejectedAgents", "AgentSettlement", "NotifyLogs"],
+  tagTypes: ["ServiceConfig", "SupportContact", "PlatformOperationalHours", "Orders", "Coupons", "Banners", "AccountDeletionReasons", "PendingAgents", "RejectedAgents", "AgentSettlement", "NotifyLogs", "PaymentFailures"],
 
   endpoints: (builder) => {
     const normalizeServiceId = (id) => {
@@ -430,6 +430,23 @@ export const api = createApi({
         url: "admin/getOnHoldBookings",
         method: "GET",
       }),
+    }),
+
+    getPaymentFailures: builder.query({
+      query: () => ({
+        url: "admin/payment-failures",
+        method: "GET",
+      }),
+      providesTags: ["PaymentFailures"],
+    }),
+
+    resolvePaymentFailure: builder.mutation({
+      query: ({ bookingId, body }) => ({
+        url: `admin/payment-failures/${bookingId}/resolve`,
+        method: "PATCH",
+        body,
+      }),
+      invalidatesTags: ["PaymentFailures", "Orders"],
     }),
 
     getAllOrderStatuses: builder.query({
@@ -1511,6 +1528,8 @@ export const {
   useGetAllOrderQuery,
   useGetAllCompleteOrdersQuery,
   useGetOnHoldBookingsQuery,
+  useGetPaymentFailuresQuery,
+  useResolvePaymentFailureMutation,
   useGetAllOrderStatusesQuery,
   useGetShopsDataQuery,
   useGetShopDetailsQuery,
