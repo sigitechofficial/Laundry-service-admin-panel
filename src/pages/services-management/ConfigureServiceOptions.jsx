@@ -1,6 +1,7 @@
 import { Box, Typography, Checkbox, Collapse } from "@mui/material";
 import { useGetServiceWitPreferencesQuery } from "../../store/services/api";
 import { MiniLoader } from "../../components/shared/Loaders";
+import { formatGbp } from "../../utils/formatGbp";
 
 export default function ConfigureServiceOptions({ serviceId }) {
   const { data, isLoading } = useGetServiceWitPreferencesQuery(serviceId, {
@@ -158,7 +159,7 @@ export default function ConfigureServiceOptions({ serviceId }) {
                             fontFamily: "Inter, sans-serif",
                           }}
                         >
-                          {sub.name} – £{sub.price}
+                          {sub.name} – {formatGbp(sub.price)}
                         </Typography>
                       </Box>
                     ))}

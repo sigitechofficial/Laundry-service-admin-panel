@@ -32,6 +32,10 @@ export const CustomerSupport = lazy(() =>
   import("../pages/customer-support/CustomerSupport")
 );
 
+export const DeleteAccountReasons = lazy(() =>
+  import("../pages/delete-account-reasons/DeleteAccountReasons")
+);
+
 export const CustomerDetails = lazy(() =>
   import("../pages/customer-management/customer-details/CustomerDetails")
 );
@@ -78,6 +82,15 @@ export const AddShopPage = lazy(() =>
 );
 export const ShopEmployeesPage = lazy(() =>
   import("../pages/shop-management/ShopEmployeesPage")
+);
+export const PendingAgentsPage = lazy(() =>
+  import("../pages/shop-management/PendingAgentsPage")
+);
+export const AgentSettlementPage = lazy(() =>
+  import("../pages/shop-management/AgentSettlementPage")
+);
+export const NotifyLogsPage = lazy(() =>
+  import("../pages/notify-logs/NotifyLogsPage")
 );
 export const ShopDetails = lazy(() =>
   import("../pages/shop-management/ShopDetail")
@@ -157,16 +170,20 @@ export const NoShowPolicy = lazy(() =>
   import("../pages/policies-management/NoShowPolicy")
 );
 
-export const NoShowPolicyTestCases = lazy(() =>
-  import("../pages/policies-management/NoShowPolicyTestCases")
-);
-
 export const ReschedulePolicy = lazy(() =>
   import("../pages/policies-management/ReschedulePolicy")
 );
 
+export const PlatformOperationalHours = lazy(() =>
+  import("../pages/policies-management/PlatformOperationalHours")
+);
+
 export const PromoCodesPage = lazy(() =>
   import("../pages/promotion/PromoCodesPage")
+);
+
+export const BannersPage = lazy(() =>
+  import("../pages/promotion/BannersPage")
 );
 
 export const LoginPage = lazy(() => import("../pages/auth/LoginPage"));

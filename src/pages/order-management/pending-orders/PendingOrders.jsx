@@ -18,6 +18,9 @@ import {
   resolveOrderStatusTitle,
 } from "../../../shared/orderEditStatusGate";
 import DeleteOrderModal from "../order-modals/DeleteOrderModal";
+import AssignOrderModal from "../order-modals/AssignOrderModal";
+import OrderAssignActionButton from "../order-modals/OrderAssignActionButton";
+import { canAdminAssignOrReassignFromBooking } from "../../../shared/adminAssignGate";
 
 const PENDING_STATUSES = ["pending", "new", "active", "order created"];
 
@@ -33,6 +36,11 @@ export default function PendingOrders() {
   const [dateRange, setDateRange] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [deleteModal, setDeleteModal] = useState({ open: false, orderId: null });
+  const [assignModal, setAssignModal] = useState({
+    open: false,
+    orderId: null,
+    booking: null,
+  });
 
   const handleSearchChange = (searchTerm) => {
     setSearchTerm(searchTerm);
@@ -94,7 +102,11 @@ export default function PendingOrders() {
     id: booking?.id,
     sl: index + 1,
     orderId: booking?.id,
-    orderDateTime: dayjs(booking?.created_at).format(dateTimeFormat),
+    orderDateTime: dayjs(
+      booking?.createdAt || booking?.created_at
+    ).format(dateTimeFormat),
+    canAdminAssign: canAdminAssignOrReassignFromBooking(booking),
+    agentAcceptExpired: Boolean(booking?.agentAcceptExpired),
     serviceType: booking?.customerSelectedServices
       ?.map((ser) => ser?.service?.name)
       .join(","),
@@ -182,15 +194,27 @@ export default function PendingOrders() {
     {
       field: "actions",
       headerName: "Actions",
-      minWidth: 200,
+      minWidth: 280,
       sortable: false,
       renderCell: (row) => (
-        <ActionButtons
-          showEdit={canEditOrderFromBooking(row._booking, orderStatuses)}
-          onView={() => navigate(`/orders/details/${row.id}`)}
-          onEdit={() => navigate(`/orders/edit/${row.id}`)}
-          onDelete={() => setDeleteModal({ open: true, orderId: row.id })}
-        />
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+          <OrderAssignActionButton
+            booking={row._booking}
+            onClick={() =>
+              setAssignModal({
+                open: true,
+                orderId: row.id,
+                booking: row._booking,
+              })
+            }
+          />
+          <ActionButtons
+            showEdit={canEditOrderFromBooking(row._booking, orderStatuses)}
+            onView={() => navigate(`/orders/details/${row.id}`)}
+            onEdit={() => navigate(`/orders/edit/${row.id}`)}
+            onDelete={() => setDeleteModal({ open: true, orderId: row.id })}
+          />
+        </Box>
       ),
     },
   ];
@@ -244,6 +268,18 @@ export default function PendingOrders() {
         orderId={deleteModal.orderId}
         onClose={() => setDeleteModal({ open: false, orderId: null })}
         onSuccess={handleDeleteSuccess}
+      />
+      <AssignOrderModal
+        open={assignModal.open}
+        bookingId={assignModal.orderId}
+        bookingSnapshot={assignModal.booking}
+        onClose={() =>
+          setAssignModal({ open: false, orderId: null, booking: null })
+        }
+        onSuccess={() => {
+          refetch();
+          refetchCounts();
+        }}
       />
     </>
   );

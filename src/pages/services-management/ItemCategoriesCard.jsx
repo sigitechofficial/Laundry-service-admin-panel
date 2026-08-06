@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   Box,
   Typography,
@@ -17,28 +17,42 @@ import {
   TbPencil,
 } from "../../shared/icons/index";
 import Search from "../../components/ui/Search";
+import FiltersButton from "../../components/ui/FiltersButton";
 import {
   useDeleteCategoryMutation,
   useDeleteSubCategoryMutation,
   useGetCategoriesQuery,
   useGetSubCategoriesQuery,
+  useGetAllServicesQuery,
 } from "../../store/services/api";
 import { MiniLoader } from "../../components/shared/Loaders";
 import { useSelector } from "react-redux";
 import CategoryModal from "./categories-modal/CategoryModal";
 import SubCategoryModal from "./categories-modal/SubCategoryModal";
 import useToaster from "../../components/ui/Toaster";
+import { formatGbp } from "../../utils/formatGbp";
 
 export default function ItemCategoriesCard({ triggerAdd }) {
   const categoryData = useSelector((state) => state?.apiData);
   const { success, error } = useToaster();
   const { isLoading } = useGetCategoriesQuery();
   useGetSubCategoriesQuery();
+  const { data: servicesResponse } = useGetAllServicesQuery();
+  const services = servicesResponse?.data?.services || [];
+  const servicesMap = useMemo(() => {
+    const map = {};
+    services.forEach((svc) => {
+      map[svc.id] = svc.name;
+    });
+    return map;
+  }, [services]);
   const [deleteCategory, { isLoading: deleteLoading }] =
     useDeleteCategoryMutation();
   const [deleteSubCategory] = useDeleteSubCategoryMutation();
   const [expandedCategories, setExpandedCategories] = useState({});
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedServiceId, setSelectedServiceId] = useState("");
+  const [filterAnchorEl, setFilterAnchorEl] = useState(null);
   const [anchorEl, setAnchorEl] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState({
     isOpen: false,
@@ -87,6 +101,22 @@ export default function ItemCategoriesCard({ triggerAdd }) {
     setAnchorEl(null);
   };
 
+  const handleFilterClick = (event) => {
+    setFilterAnchorEl(event.currentTarget);
+  };
+
+  const handleFilterClose = () => {
+    setFilterAnchorEl(null);
+  };
+
+  const handleServiceFilterSelect = (serviceId) => {
+    setSelectedServiceId(serviceId);
+    handleFilterClose();
+  };
+
+  const getCategoryServiceId = (category) =>
+    category?.serviceId ?? category?.service?.id ?? null;
+
   const handleDeleteCategory = async (categoryId) => {
     let res = await deleteCategory(categoryId).unwrap();
     if (res.status === "1") {
@@ -105,15 +135,26 @@ export default function ItemCategoriesCard({ triggerAdd }) {
     }
   };
 
-  const filteredCategories = categoryData?.categories?.filter(
-    (category) =>
-      category?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      categoryData?.subCategories?.some(
-        (item) =>
-          item?.categoryId === category?.id &&
-          item?.name?.toLowerCase().includes(searchTerm.toLowerCase())
-      )
-  );
+  const filteredCategories = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase();
+    return (categoryData?.categories || []).filter((category) => {
+      if (selectedServiceId) {
+        const catServiceId = getCategoryServiceId(category);
+        if (String(catServiceId) !== String(selectedServiceId)) {
+          return false;
+        }
+      }
+      if (!term) return true;
+      return (
+        category?.name?.toLowerCase().includes(term) ||
+        categoryData?.subCategories?.some(
+          (item) =>
+            item?.categoryId === category?.id &&
+            item?.name?.toLowerCase().includes(term)
+        )
+      );
+    });
+  }, [categoryData?.categories, categoryData?.subCategories, searchTerm, selectedServiceId]);
 
   return isLoading ? (
     <MiniLoader />
@@ -133,19 +174,19 @@ export default function ItemCategoriesCard({ triggerAdd }) {
         }}
         className="flex items-start md:items-center justify-between gap-4 !px-4 !py-5 bg-blue10"
       >
-        <Box className="flex md:items-center md:flex-row flex-col gap-5">
-          <Typography
-            variant="subtitle1"
-            sx={{
-              fontWeight: 700,
-              fontSize: "18px",
-              color: "#101828",
-              fontFamily: "Inter, sans-serif",
-            }}
-          >
-            Item Categories & Sub Categories
-          </Typography>
+        <Typography
+          variant="subtitle1"
+          sx={{
+            fontWeight: 700,
+            fontSize: "18px",
+            color: "#101828",
+            fontFamily: "Inter, sans-serif",
+          }}
+        >
+          Item Categories & Sub Categories
+        </Typography>
 
+        <Box className="flex items-center gap-3 flex-wrap justify-end ml-auto">
           <Box className="!w-full sm:!w-[320px] h-11">
             <Search
               onChange={(e) => {
@@ -153,8 +194,52 @@ export default function ItemCategoriesCard({ triggerAdd }) {
               }}
             />
           </Box>
+          <FiltersButton
+            text={
+              selectedServiceId
+                ? servicesMap[selectedServiceId] || "Service"
+                : "Filter by Service"
+            }
+            onClick={handleFilterClick}
+            border={selectedServiceId ? "1px solid #000099" : "1px solid #D0D5DD"}
+            bgColor={selectedServiceId ? "#F4F7FF" : "white"}
+          />
         </Box>
       </Box>
+
+      <Menu
+        anchorEl={filterAnchorEl}
+        open={Boolean(filterAnchorEl)}
+        onClose={handleFilterClose}
+        anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
+        transformOrigin={{ vertical: "top", horizontal: "left" }}
+        sx={{
+          "& .MuiPaper-root": {
+            borderRadius: "8px",
+            border: "1px solid #E4E7EC",
+            boxShadow: "0px 4px 16px rgba(0, 0, 0, 0.1)",
+            minWidth: 200,
+          },
+        }}
+      >
+        <MenuItem
+          selected={!selectedServiceId}
+          onClick={() => handleServiceFilterSelect("")}
+          sx={{ fontFamily: "Inter", fontSize: "14px" }}
+        >
+          All Services
+        </MenuItem>
+        {services.map((service) => (
+          <MenuItem
+            key={service.id}
+            selected={String(selectedServiceId) === String(service.id)}
+            onClick={() => handleServiceFilterSelect(String(service.id))}
+            sx={{ fontFamily: "Inter", fontSize: "14px" }}
+          >
+            {service.name}
+          </MenuItem>
+        ))}
+      </Menu>
 
       <Collapse in={true}>
         <Box sx={{ p: "16px" }}>
@@ -188,9 +273,17 @@ export default function ItemCategoriesCard({ triggerAdd }) {
                           gap: "8px",
                         }}
                       >
-                        <Typography width={"100px"} variant="body1">
-                          {category?.name}
-                        </Typography>
+                        <Box>
+                          <Typography variant="body1">
+                            {category?.name}
+                          </Typography>
+                          <Typography variant="caption" color="grey.40">
+                            Service:{" "}
+                            {category?.service?.name ||
+                              servicesMap[category?.serviceId] ||
+                              "Not assigned"}
+                          </Typography>
+                        </Box>
                       </Box>
                       <Box
                         sx={{
@@ -278,11 +371,8 @@ export default function ItemCategoriesCard({ triggerAdd }) {
                                 <Typography variant="body2" fontFamily="Inter">
                                   {item?.name}
                                 </Typography>
-                                <Typography variant="caption" color="grey.40">
-                                  {item?.service}
-                                </Typography>
                                 <Typography variant="body2" fontFamily="Inter">
-                                  £{item?.price}
+                                  {formatGbp(item?.price)}
                                 </Typography>
                                 {(() => {
                                   const uc = item?.unitCount ?? item?.unit_count;

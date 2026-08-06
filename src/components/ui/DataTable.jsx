@@ -50,6 +50,8 @@ const DataTable = ({
   onFiltersClick,
   /** Field names (e.g. `sl`, `zoneName`) that stay pinned on the left when scrolling horizontally */
   stickyLeftFields,
+  /** Field names (e.g. `OrderStatus`, `actions`) that stay pinned on the right when scrolling horizontally */
+  stickyRightFields,
 }) => {
   const tableRef = React.useRef(null);
   /** Measured `<th>` width per sticky column field (includes padding); avoids overlap when layout is wider than `minWidth`. */
@@ -94,14 +96,18 @@ const DataTable = ({
   };
 
   const measureStickyHeaderWidths = React.useCallback(() => {
-    if (!stickyLeftFields?.length || !tableRef.current) return;
+    if (!stickyLeftFields?.length && !stickyRightFields?.length) return;
+    if (!tableRef.current) return;
     const theadTh = tableRef.current.querySelectorAll("thead tr th");
     if (!theadTh.length) return;
     setStickyColumnWidths((prev) => {
       const merged = { ...prev };
       let updated = false;
       columns.forEach((col, i) => {
-        if (!stickyLeftFields.includes(col.field)) return;
+        const isSticky =
+          stickyLeftFields?.includes(col.field) ||
+          stickyRightFields?.includes(col.field);
+        if (!isSticky) return;
         const cell = theadTh[i];
         const w = cell ? Math.round(cell.getBoundingClientRect().width) : 0;
         if (w > 0 && merged[col.field] !== w) {
@@ -111,10 +117,10 @@ const DataTable = ({
       });
       return updated ? merged : prev;
     });
-  }, [columns, stickyLeftFields]);
+  }, [columns, stickyLeftFields, stickyRightFields]);
 
   React.useLayoutEffect(() => {
-    if (!stickyLeftFields?.length) return;
+    if (!stickyLeftFields?.length && !stickyRightFields?.length) return;
     const table = tableRef.current;
     if (!table) return;
     measureStickyHeaderWidths();
@@ -198,6 +204,27 @@ const DataTable = ({
   const stickyRank = (field) => {
     if (!stickyLeftFields?.length) return -1;
     return stickyLeftFields.indexOf(field);
+  };
+
+  /** Right offset for a sticky-right column: sum rendered widths of columns to the RIGHT that are also sticky-right */
+  const stickyRightOffsetPx = (colIndex) => {
+    if (!stickyRightFields?.length) return 0;
+    let right = 0;
+    for (let i = columns.length - 1; i > colIndex; i--) {
+      if (!stickyRightFields.includes(columns[i]?.field)) continue;
+      const field = columns[i].field;
+      const measured = stickyColumnWidths[field];
+      right +=
+        typeof measured === "number" && measured > 0
+          ? measured
+          : fallbackStickyColumnWidthPx(columns[i]);
+    }
+    return right;
+  };
+
+  const stickyRightRank = (field) => {
+    if (!stickyRightFields?.length) return -1;
+    return stickyRightFields.indexOf(field);
   };
 
   return (
@@ -304,7 +331,8 @@ const DataTable = ({
                 whiteSpace: "nowrap",
               },
               "& .MuiTableRow-root": {
-                height: 60, // Applies to all rows
+                height: "auto",
+                minHeight: 60,
               },
               "& .MuiTableCell-head": {
                 height: 56, // Specifically for header
@@ -326,12 +354,16 @@ const DataTable = ({
                   const isSortable = col.sortable !== false; // default true
                   const rank = stickyRank(col.field);
                   const isStickyLeft = rank >= 0;
+                  const rightRank = stickyRightRank(col.field);
+                  const isStickyRight = rightRank >= 0;
 
                   return (
                     <TableCell
                       key={col.field}
                       {...(isStickyLeft
                         ? { style: { zIndex: 130 + rank } }
+                        : isStickyRight
+                        ? { style: { zIndex: 130 + rightRank } }
                         : {})}
                       onClick={() => handleSort(col.field)}
                       align={col.align || "left"}
@@ -353,6 +385,11 @@ const DataTable = ({
                         ...(isStickyLeft && {
                           position: "sticky",
                           left: stickyLeftOffsetPx(colIndex),
+                          top: 0,
+                        }),
+                        ...(isStickyRight && {
+                          position: "sticky",
+                          right: stickyRightOffsetPx(colIndex),
                           top: 0,
                         }),
                       }}
@@ -392,6 +429,8 @@ const DataTable = ({
                   {columns.map((col, colIndex) => {
                     const rank = stickyRank(col.field);
                     const isStickyLeft = rank >= 0;
+                    const rightRank = stickyRightRank(col.field);
+                    const isStickyRight = rightRank >= 0;
                     const rowBg = idx % 2 === 0 ? "#fff" : "#FAFAFA";
 
                     return (
@@ -402,14 +441,20 @@ const DataTable = ({
                         fontFamily: "Inter, sans-serif",
                         fontSize: "14px",
                         borderBottom: "none",
-                        whiteSpace: "nowrap",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
+                        whiteSpace: col.wrap || col.renderCell ? "normal" : "nowrap",
+                        overflow: col.wrap || col.renderCell ? "visible" : "hidden",
+                        textOverflow: col.wrap || col.renderCell ? "unset" : "ellipsis",
+                        verticalAlign: col.wrap || col.renderCell ? "top" : "middle",
                         backgroundColor: rowBg,
                         ...(isStickyLeft && {
                           position: "sticky",
                           left: stickyLeftOffsetPx(colIndex),
                           zIndex: 110 + rank,
+                        }),
+                        ...(isStickyRight && {
+                          position: "sticky",
+                          right: stickyRightOffsetPx(colIndex),
+                          zIndex: 100 + rightRank,
                         }),
                       }}
                     >

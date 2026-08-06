@@ -121,11 +121,37 @@ const apiDataSlice = createSlice({
                 else nextImage = v ?? service.image;
               }
             }
+            const timeRequired =
+              body instanceof FormData && body.has("timeRequired")
+                ? String(body.get("timeRequired") ?? "")
+                : service.timeRequired;
+            const pricingBasis =
+              body instanceof FormData && body.has("pricingBasis")
+                ? body.get("pricingBasis")
+                : service.pricingBasis;
+            const parseFormBool = (key) => {
+              if (!(body instanceof FormData) || !body.has(key)) return service[key];
+              const v = body.get(key);
+              return v === "true" || v === true;
+            };
             return {
               ...service,
               name: body.get?.("name") ?? service.name,
               description: body.get?.("description") ?? service.description,
               image: nextImage,
+              timeRequired,
+              pricingBasis,
+              numberOfBags: parseFormBool("numberOfBags"),
+              numberOfItems: parseFormBool("numberOfItems"),
+              washBleedDisclaimerEnabled: parseFormBool("washBleedDisclaimerEnabled"),
+              basePrice:
+                body instanceof FormData && body.has("basePrice")
+                  ? body.get("basePrice")
+                  : service.basePrice,
+              baseWeightKg:
+                body instanceof FormData && body.has("baseWeightKg")
+                  ? body.get("baseWeightKg")
+                  : service.baseWeightKg,
             };
           });
         }
@@ -281,11 +307,15 @@ const apiDataSlice = createSlice({
         }
 
         if (body instanceof FormData) {
+          const serviceIdRaw = body.get("serviceId");
           state.categories[index] = {
             ...state.categories[index],
             name: body.get("name") || state.categories[index]?.name,
             description:
-              body.get("description") || state.categories[index]?.description,
+              body.get("description") ?? state.categories[index]?.description,
+            ...(serviceIdRaw
+              ? { serviceId: Number(serviceIdRaw) }
+              : {}),
           };
         }
       }

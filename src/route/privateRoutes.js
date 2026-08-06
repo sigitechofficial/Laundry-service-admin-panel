@@ -10,6 +10,7 @@ import {
   ConfigureServicesPage,
   CustomerManagement,
   CustomerSupport,
+  DeleteAccountReasons,
   CustomerDetails,
   ShopDetails,
   DriverManagement,
@@ -36,9 +37,11 @@ import {
   CancellationPolicy,
   OverallPolicies,
   NoShowPolicy,
-  NoShowPolicyTestCases,
   ReschedulePolicy,
-  PromoCodesPage
+  PlatformOperationalHours,
+  PromoCodesPage,
+  BannersPage,
+  NotifyLogsPage,
 } from "../routes/AsyncComponent";
 
 export const privateRoutes = [
@@ -87,6 +90,16 @@ export const privateRoutes = [
     path: "/customer-support",
     element: CustomerSupport,
     resourceKey: "customer_support_page",
+  },
+  {
+    path: "/notify-logs",
+    element: NotifyLogsPage,
+    resourceKey: "notify_call_logs_page",
+  },
+  {
+    path: "/delete-account-reasons",
+    element: DeleteAccountReasons,
+    resourceKey: "delete_account_reasons_page",
   },
   {
     path: "/customer-management/details/:id",
@@ -214,19 +227,24 @@ export const privateRoutes = [
     resourceKey: "no_show_policy_page",
   },
   {
-    path: "/policies-management/no-show-policy/test-cases",
-    element: NoShowPolicyTestCases,
-    resourceKey: "no_show_policy_test_cases_page",
-  },
-  {
     path: "/policies-management/reschedule-policy",
     element: ReschedulePolicy,
     resourceKey: "reschedule_policy_page",
   },
   {
+    path: "/policies-management/platform-operational-hours",
+    element: PlatformOperationalHours,
+    resourceKey: "platform_operational_hours_page",
+  },
+  {
     path: "/promotion/promo-codes",
     element: PromoCodesPage,
     resourceKey: "promotion_promo_codes_page",
+  },
+  {
+    path: "/promotion/banners",
+    element: BannersPage,
+    resourceKey: "promotion_banners_page",
   },
 ];
 

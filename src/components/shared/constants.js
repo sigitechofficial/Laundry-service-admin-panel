@@ -5,6 +5,7 @@ import {
   PiHeadsetBold,
   MdOutlineStore,
   MdOutlineLocationOn,
+  MdOutlinePhone,
   IconFingerHold,
   RiUserSettingsLine,
   TbSettings,
@@ -14,6 +15,7 @@ import {
   BsCardList,
   TbX,
   TbSparkles,
+  TbTrash,
 } from "../../shared/icons/index";
 
 export const sidebarList = [
@@ -117,6 +119,16 @@ export const sidebarList = [
         size: "24px",
       },
       {
+        label: "Agent Approvals",
+        path: "/shop-management/pending-agents",
+        size: "24px",
+      },
+      {
+        label: "Cash Settlement",
+        path: "/shop-management/agent-settlement",
+        size: "24px",
+      },
+      {
         label: "Add Shop",
         path: "/shop-management/add-shop",
         size: "24px",
@@ -178,6 +190,11 @@ export const sidebarList = [
         path: "/policies-management/reschedule-policy",
         size: "24px",
       },
+      {
+        label: "Operational Hours",
+        path: "/policies-management/platform-operational-hours",
+        size: "24px",
+      },
     ],
   },
   {
@@ -221,6 +238,11 @@ export const sidebarList = [
         path: "/promotion/promo-codes",
         size: "24px",
       },
+      {
+        label: "Banners & Offers",
+        path: "/promotion/banners",
+        size: "24px",
+      },
     ],
   },
   {
@@ -233,6 +255,18 @@ export const sidebarList = [
     label: "Customer Support",
     Icon: PiHeadsetBold,
     path: "/customer-support",
+    size: "23px",
+  },
+  {
+    label: "Notify / Call Logs",
+    Icon: MdOutlinePhone,
+    path: "/notify-logs",
+    size: "23px",
+  },
+  {
+    label: "Delete Account Reasons",
+    Icon: TbTrash,
+    path: "/delete-account-reasons",
     size: "23px",
   },
 ];

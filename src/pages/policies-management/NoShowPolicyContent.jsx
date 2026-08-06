@@ -34,7 +34,6 @@ import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import dayjs from "dayjs";
 import { useSelector } from "react-redux";
-
 export default function NoShowPolicyContent({
   onAddButtonRef,
   zoneId: externalZoneId,
@@ -65,7 +64,6 @@ export default function NoShowPolicyContent({
   const [pendingAddPayload, setPendingAddPayload] = useState(null);
   const [overlapTogglingId, setOverlapTogglingId] = useState(null);
   const [overlapPolicyFetchAll, setOverlapPolicyFetchAll] = useState(false);
-
   // Reset page to 1 when filters change
   useEffect(() => {
     setPage(1);
@@ -715,7 +713,7 @@ export default function NoShowPolicyContent({
     setModalOpen(true);
   };
 
-  // Expose handleAdd function to parent via ref
+  // Expose add handler to parent via ref
   useEffect(() => {
     if (onAddButtonRef) {
       onAddButtonRef.current = handleAdd;

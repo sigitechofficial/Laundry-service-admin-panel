@@ -1,4 +1,4 @@
-import { Box, Typography } from "@mui/material";
+import { Box, Typography, Button } from "@mui/material";
 import { BsCardList } from "../../../shared/icons/index";
 import { Delay } from "../../../components/shared/Loaders";
 import StatCard from "../../../components/ui/StatCard";
@@ -18,6 +18,9 @@ import {
   resolveOrderStatusTitle,
 } from "../../../shared/orderEditStatusGate";
 import DeleteOrderModal from "../order-modals/DeleteOrderModal";
+import AssignOrderModal from "../order-modals/AssignOrderModal";
+import OrderAssignActionButton from "../order-modals/OrderAssignActionButton";
+import { canAdminAssignOrReassignFromBooking } from "../../../shared/adminAssignGate";
 
 export default function ShopManagement() {
   const navigate = useNavigate();
@@ -31,6 +34,11 @@ export default function ShopManagement() {
   const [dateRange, setDateRange] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [deleteModal, setDeleteModal] = useState({ open: false, orderId: null });
+  const [assignModal, setAssignModal] = useState({
+    open: false,
+    orderId: null,
+    booking: null,
+  });
 
   const handleSearchChange = (searchTerm) => {
     setSearchTerm(searchTerm);
@@ -106,6 +114,7 @@ export default function ShopManagement() {
       }`,
       shopName: booking?.laundryShop?.name,
       cost: booking?.orderAmount,
+      canAdminAssign: canAdminAssignOrReassignFromBooking(booking),
       actions: "actions",
     };
   });
@@ -175,21 +184,33 @@ export default function ShopManagement() {
     {
       field: "OrderStatus",
       headerName: "Status",
-      minWidth: 100,
+      minWidth: 180,
     },
 
     {
       field: "actions",
       headerName: "Actions",
-      minWidth: 200,
+      minWidth: 280,
       sortable: false,
       renderCell: (row) => (
-        <ActionButtons
-          showEdit={canEditOrderFromBooking(row._booking, orderStatuses)}
-          onView={() => navigate(`/orders/details/${row.id}`)}
-          onEdit={() => navigate(`/orders/edit/${row.id}`)}
-          onDelete={() => setDeleteModal({ open: true, orderId: row.id })}
-        />
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+          <OrderAssignActionButton
+            booking={row._booking}
+            onClick={() =>
+              setAssignModal({
+                open: true,
+                orderId: row.id,
+                booking: row._booking,
+              })
+            }
+          />
+          <ActionButtons
+            showEdit={canEditOrderFromBooking(row._booking, orderStatuses)}
+            onView={() => navigate(`/orders/details/${row.id}`)}
+            onEdit={() => navigate(`/orders/edit/${row.id}`)}
+            onDelete={() => setDeleteModal({ open: true, orderId: row.id })}
+          />
+        </Box>
       ),
     },
   ];
@@ -244,6 +265,7 @@ export default function ShopManagement() {
                   onDownload={handleDownload}
                   onRowAction={handleRowAction}
                   height={600}
+                  stickyRightFields={["OrderStatus", "actions"]}
                 />
               </div>
             </div>
@@ -252,6 +274,18 @@ export default function ShopManagement() {
         orderId={deleteModal.orderId}
         onClose={() => setDeleteModal({ open: false, orderId: null })}
         onSuccess={handleDeleteSuccess}
+      />
+      <AssignOrderModal
+        open={assignModal.open}
+        bookingId={assignModal.orderId}
+        bookingSnapshot={assignModal.booking}
+        onClose={() =>
+          setAssignModal({ open: false, orderId: null, booking: null })
+        }
+        onSuccess={() => {
+          refetch();
+          refetchCounts();
+        }}
       />
     </>
   );

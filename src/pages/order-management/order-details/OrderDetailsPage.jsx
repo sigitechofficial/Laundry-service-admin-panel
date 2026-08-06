@@ -19,11 +19,20 @@ import {
   useGetOrderItemsSheetQuery,
   useGetAllOrderStatusesQuery,
   useLazyInvoiceCreationQuery,
+  useGetServiceComparisonQuery,
 } from "../../../store/services/api";
 import { BASE_URL } from "../../../utilities/URL";
 import { canEditOrderFromBooking } from "../../../shared/orderEditStatusGate";
 import ModalComponent from "../../../components/shared/Modal";
 import useToaster from "../../../components/ui/Toaster";
+import {
+  mergeInvoiceDetailsFromResponse,
+  resolveOrderSubtotal,
+  resolveServicesSubtotal,
+} from "../../../utilities/invoiceTotals";
+import AssignOrderModal from "../order-modals/AssignOrderModal";
+import OrderAssignActionButton from "../order-modals/OrderAssignActionButton";
+import { canAdminAssignOrReassignFromBooking } from "../../../shared/adminAssignGate";
 
 const statusStyleMap = {
   completed: { bg: "#D1FAE5", color: "#065F46", label: "Completed" },
@@ -119,16 +128,24 @@ function buildInvoiceView(invoiceDetails, fallbackShopName = "") {
         .filter(Boolean),
       instruction: it?.serviceInstruction || "",
     }));
-  const subtotal = Number(invoiceDetails?.subTotal ?? invoiceDetails?.billingDetail?.total ?? 0);
   const addOns = items.reduce(
     (sum, item) =>
       sum +
       item.addOns.reduce((acc, ad) => acc + (Number(ad.qty) || 1) * (Number(ad.price) || 0), 0),
     0
   );
+  const servicesSubtotal = resolveServicesSubtotal(invoiceDetails, items);
   const serviceCharge = Number(invoiceDetails?.billingDetail?.serviceCharge ?? 0);
+  const minimumOrderFee = Number(invoiceDetails?.billingDetail?.upfrontAmount ?? 0);
   const discount = Number(invoiceDetails?.billingDetail?.discount ?? 0);
-  const grandTotal = Number(invoiceDetails?.orderAmount ?? invoiceDetails?.billingDetail?.total ?? subtotal);
+  const orderSubtotal = resolveOrderSubtotal(invoiceDetails, {
+    servicesSubtotal,
+    serviceCharge,
+    minimumOrderFee,
+  });
+  const grandTotal = Number(
+    invoiceDetails?.orderAmount ?? invoiceDetails?.billingDetail?.total ?? orderSubtotal
+  );
   const pickupWindow = `${invoiceDetails?.collectionTimeFrom || "N/A"}-${invoiceDetails?.collectionTimeTo || "N/A"}`;
   const deliveryWindow = `${invoiceDetails?.deliveryTimeFrom || "N/A"}-${invoiceDetails?.deliveryTimeTo || "N/A"}`;
   const computedTotalItems = items.reduce((sum, item) => sum + (Number(item.qty) || 0), 0);
@@ -141,8 +158,10 @@ function buildInvoiceView(invoiceDetails, fallbackShopName = "") {
     agentName,
     totalItems: computedTotalItems > 0 ? computedTotalItems : Number(invoiceDetails?.totalItems || 0),
     items,
-    subtotal,
+    servicesSubtotal,
+    subtotal: orderSubtotal,
     addOns,
+    minimumOrderFee,
     serviceCharge,
     discount,
     grandTotal,
@@ -182,11 +201,87 @@ function printHtmlDocument(html) {
 
 function a4InvoiceHtml(view) {
   const rows = view.items
-    .map(
-      (item, idx) => `<tr><td>${idx + 1}</td><td>${item.serviceName ? `${item.serviceName} - ` : ""}${item.name}</td><td style="text-align:right">${item.qty}</td><td style="text-align:right">£${item.rate.toFixed(2)}</td><td style="text-align:right">£${(item.qty * item.rate).toFixed(2)}</td></tr>`
-    )
+    .map((item, idx) => {
+      const addonRows = (item.addOns || []).length
+        ? (item.addOns || [])
+            .map(
+              (ad) =>
+                `<div class="itemSubRow"><span>+ ${ad.qty}x ${ad.name}</span><span>£${(
+                  ad.qty * ad.price
+                ).toFixed(2)}</span></div>`
+            )
+            .join("")
+        : "";
+      const prefRow =
+        (item.preferences || []).length > 0
+          ? `<div class="itemMuted">Pref: ${(item.preferences || []).join(", ")}</div>`
+          : "";
+      const instructionRow = item.instruction
+        ? `<div class="itemMuted">${item.instruction}</div>`
+        : "";
+      return `<tr><td class="center">${idx + 1}</td><td class="itemCell"><div class="itemTitle">${item.serviceName ? `${item.serviceName} - ` : ""}${item.name}</div>${addonRows}${prefRow}${instructionRow}</td><td class="right">${item.qty}</td><td class="right">£${item.rate.toFixed(2)}</td><td class="right">£${(item.qty * item.rate).toFixed(2)}</td></tr>`;
+    })
     .join("");
-  return `<!doctype html><html><head><meta charset="utf-8"/><title>A4 Receipt</title><style>body{font-family:Arial,sans-serif;padding:16px}.sheet{max-width:1000px;margin:0 auto}table{width:100%;border-collapse:collapse}th,td{border:1px solid #d1d5db;padding:8px;font-size:13px}</style></head><body><div class="sheet"><h1 style="margin:0">justDray cleaner</h1><div style="display:flex;justify-content:space-between"><div>CUSTOMER RECEIPT</div><div><b>Invoice:</b> ${view.invoiceNo}<br/><b>Date:</b> ${view.dateText}<br/><b>Time:</b> ${view.timeText}</div></div><div style="border:1px solid #d1d5db;border-radius:8px;padding:10px;margin:10px 0"><b>Customer:</b> ${view.customerName}<br/><b>Contact / Address:</b> ${view.emailOrPhone || ""} · ${view.addressText}<br/><b>Pickup:</b> ${view.pickupWindow} <b style="margin-left:14px">Delivery:</b> ${view.deliveryWindow}</div><table><thead><tr><th>#</th><th>Item</th><th>Qty</th><th>Rate</th><th>Line Total</th></tr></thead><tbody>${rows}</tbody></table><div style="margin-left:auto;width:260px;margin-top:8px"><div style="display:flex;justify-content:space-between"><span>Subtotal</span><span>£${view.subtotal.toFixed(2)}</span></div><div style="display:flex;justify-content:space-between"><span>Add-ons</span><span>£${view.addOns.toFixed(2)}</span></div><div style="display:flex;justify-content:space-between"><span>Service Charge</span><span>£${view.serviceCharge.toFixed(2)}</span></div><div style="display:flex;justify-content:space-between"><span>Discount</span><span>£${view.discount.toFixed(2)}</span></div><div style="display:flex;justify-content:space-between;font-weight:700;font-size:20px"><span>Grand Total</span><span>£${view.grandTotal.toFixed(2)}</span></div></div></div></body></html>`;
+  return `<!doctype html><html><head><meta charset="utf-8"/><title>A4 Receipt</title>
+  <style>
+    *{box-sizing:border-box}
+    body{font-family:Arial,sans-serif;color:#111827;margin:0;padding:20px;background:#fff}
+    .sheet{max-width:1000px;margin:0 auto}
+    .top{display:flex;justify-content:space-between;align-items:flex-start;gap:24px;margin-bottom:14px}
+    .brand{font-size:40px;font-weight:700;line-height:1.05;margin:0}
+    .receiptTag{font-size:22px;font-weight:500;margin-top:3px}
+    .meta{font-size:14px;line-height:1.5;min-width:230px}
+    .metaRow{display:flex;gap:8px}
+    .metaLabel{font-weight:700;min-width:58px}
+    .customer{border:1px solid #d1d5db;border-radius:10px;padding:12px 14px;margin:12px 0 14px;display:flex;justify-content:space-between;align-items:flex-start;gap:18px}
+    .customerMain{font-size:14px;line-height:1.4}
+    .pieces{font-size:13px;font-weight:700;white-space:nowrap}
+    table{width:100%;border-collapse:collapse}
+    th,td{border:1px solid #d1d5db;padding:9px 10px;font-size:13px;vertical-align:top}
+    th{background:#f8fafc;font-size:12px;letter-spacing:.02em}
+    .center{text-align:center}
+    .right{text-align:right}
+    .itemCell{line-height:1.35}
+    .itemTitle{font-weight:700}
+    .itemSubRow{display:flex;justify-content:space-between;gap:10px;color:#374151;font-size:12px;margin-top:2px}
+    .itemMuted{font-size:12px;color:#6b7280;margin-top:2px}
+    .totals{margin-left:auto;width:280px;margin-top:10px}
+    .totals .row{display:flex;justify-content:space-between;padding:4px 0;font-size:14px}
+    .totals .grand{font-weight:700;font-size:24px;padding-top:6px}
+  </style>
+  </head><body><div class="sheet">
+    <div class="top">
+      <div>
+        <h1 class="brand">justDray cleaner</h1>
+        <div class="receiptTag">CUSTOMER RECEIPT</div>
+      </div>
+      <div class="meta">
+        <div class="metaRow"><span class="metaLabel">Invoice:</span><span>${view.invoiceNo}</span></div>
+        <div class="metaRow"><span class="metaLabel">Date:</span><span>${view.dateText}</span></div>
+        <div class="metaRow"><span class="metaLabel">Time:</span><span>${view.timeText}</span></div>
+        <div class="metaRow"><span class="metaLabel">Agent:</span><span>${view.agentName}</span></div>
+      </div>
+    </div>
+    <div class="customer">
+      <div class="customerMain">
+        <div><b>Customer:</b> ${view.customerName}</div>
+        <div><b>Contact / Address:</b> ${view.addressText}</div>
+      </div>
+      <div class="pieces">Total Pieces: ${view.totalItems}</div>
+    </div>
+    <table>
+      <thead><tr><th>#</th><th>ITEM DETAILS</th><th>QTY</th><th>RATE</th><th>LINE TOTAL</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <div class="totals">
+      <div class="row"><span>Services subtotal</span><span>£${view.servicesSubtotal.toFixed(2)}</span></div>
+      <div class="row"><span>Minimum Order Fee</span><span>-£${Math.abs(view.minimumOrderFee || 0).toFixed(2)}</span></div>
+      <div class="row"><span>Service Charge</span><span>£${view.serviceCharge.toFixed(2)}</span></div>
+      <div class="row"><span>Subtotal</span><span>£${view.subtotal.toFixed(2)}</span></div>
+      <div class="row"><span>Discount</span><span>£${view.discount.toFixed(2)}</span></div>
+      <div class="row grand"><span>Grand Total</span><span>£${view.grandTotal.toFixed(2)}</span></div>
+    </div>
+  </div></body></html>`;
 }
 
 function thermalInvoiceHtml(view) {
@@ -198,7 +293,7 @@ function thermalInvoiceHtml(view) {
       return `<div class="row strong"><span>${item.qty}x ${item.serviceName ? `${item.serviceName} - ` : ""}${item.name}</span><span>£${(item.qty * item.rate).toFixed(2)}</span></div>${addonRows}`;
     })
     .join("");
-  return `<!doctype html><html><head><meta charset="utf-8"/><title>58mm Thermal</title><style>body{font-family:'Courier New',monospace}.ticket{width:58mm;margin:0 auto;padding:8px}.row{display:flex;justify-content:space-between;font-size:11px}.subrow{display:flex;justify-content:space-between;font-size:10px;padding-left:8px;color:#374151}.line{border-top:1px dashed #333;margin:6px 0}.strong{font-weight:700}</style></head><body><div class="ticket"><div style="text-align:center;font-weight:700">justDray cleaner</div><div style="text-align:center;font-size:11px">Customer Receipt</div><div style="text-align:center;font-size:10px">Format: 58mm Thermal</div><div class="line"></div><div class="row"><span>Invoice</span><span>${view.invoiceNo}</span></div><div class="row"><span>Date</span><span>${view.dateText}</span></div><div class="row"><span>Pickup</span><span>${view.pickupWindow}</span></div><div class="row"><span>Delivery</span><span>${view.deliveryWindow}</span></div><div class="line"></div><div><b>${view.customerName}</b></div><div style="font-size:10px">${view.emailOrPhone || ""}</div><div style="font-size:10px">${view.addressText}</div><div class="line"></div><div class="row strong"><span>Items (${view.totalItems})</span><span>Amount</span></div>${itemRows}<div class="line"></div><div class="row"><span>Subtotal</span><span>£${view.subtotal.toFixed(2)}</span></div><div class="row"><span>Add-ons</span><span>£${view.addOns.toFixed(2)}</span></div><div class="row"><span>Service Charge</span><span>£${view.serviceCharge.toFixed(2)}</span></div><div class="row"><span>Discount</span><span>£${view.discount.toFixed(2)}</span></div><div class="line"></div><div class="row strong" style="font-size:18px"><span>Total</span><span>£${view.grandTotal.toFixed(2)}</span></div></div></body></html>`;
+  return `<!doctype html><html><head><meta charset="utf-8"/><title>58mm Thermal</title><style>body{font-family:'Courier New',monospace}.ticket{width:58mm;margin:0 auto;padding:8px}.row{display:flex;justify-content:space-between;font-size:11px}.subrow{display:flex;justify-content:space-between;font-size:10px;padding-left:8px;color:#374151}.line{border-top:1px dashed #333;margin:6px 0}.strong{font-weight:700}</style></head><body><div class="ticket"><div style="text-align:center;font-weight:700">justDray cleaner</div><div style="text-align:center;font-size:11px">Customer Receipt</div><div style="text-align:center;font-size:10px">Format: 58mm Thermal</div><div class="line"></div><div class="row"><span>Invoice</span><span>${view.invoiceNo}</span></div><div class="row"><span>Date</span><span>${view.dateText}</span></div><div class="row"><span>Pickup</span><span>${view.pickupWindow}</span></div><div class="row"><span>Delivery</span><span>${view.deliveryWindow}</span></div><div class="line"></div><div><b>${view.customerName}</b></div><div style="font-size:10px">${view.emailOrPhone || ""}</div><div style="font-size:10px">${view.addressText}</div><div class="line"></div><div class="row strong"><span>Items (${view.totalItems})</span><span>Amount</span></div>${itemRows}<div class="line"></div><div class="row"><span>Services subtotal</span><span>£${view.servicesSubtotal.toFixed(2)}</span></div><div class="row"><span>Minimum Order Fee</span><span>-£${Math.abs(view.minimumOrderFee || 0).toFixed(2)}</span></div><div class="row"><span>Service Charge</span><span>£${view.serviceCharge.toFixed(2)}</span></div><div class="row"><span>Subtotal</span><span>£${view.subtotal.toFixed(2)}</span></div><div class="row"><span>Discount</span><span>£${view.discount.toFixed(2)}</span></div><div class="line"></div><div class="row strong" style="font-size:18px"><span>Total</span><span>£${view.grandTotal.toFixed(2)}</span></div></div></body></html>`;
 }
 
 export default function OrderDetailsPage() {
@@ -207,7 +302,8 @@ export default function OrderDetailsPage() {
   const orderId = Number(id);
   const { error: showError } = useToaster();
 
-  const { data: orderResponse, isLoading } = useGetOrderForEditQuery(orderId, {
+  const { data: orderResponse, isLoading, refetch: refetchOrder } =
+    useGetOrderForEditQuery(orderId, {
     skip: !orderId,
   });
   const { data: statusesResponse } = useGetAllOrderStatusesQuery();
@@ -225,6 +321,12 @@ export default function OrderDetailsPage() {
       skip: !bookingId,
     });
 
+  const { data: comparisonResponse, isLoading: isLoadingComparison } =
+    useGetServiceComparisonQuery(bookingId, {
+      skip: !bookingId,
+    });
+  const comparisonData = comparisonResponse?.data;
+
   const orderItemsData = orderItemsResponse?.data;
   const statusBadge = getStatusBadge(orderData?.bookingStatus?.title);
   const orderStatusOptions = useMemo(
@@ -235,6 +337,10 @@ export default function OrderDetailsPage() {
     if (!orderData) return false;
     return canEditOrderFromBooking(orderData, orderStatusOptions);
   }, [orderData, orderStatusOptions]);
+
+  const canShowAdminAssign = useMemo(() => {
+    return canAdminAssignOrReassignFromBooking(orderData);
+  }, [orderData]);
 
   const groupedItems = useMemo(() => {
     if (!orderItemsData?.customerServices) return [];
@@ -290,10 +396,21 @@ export default function OrderDetailsPage() {
     return Object.values(map);
   }, [orderData?.customerSelectedServices]);
 
-  const pickupProofs =
-    orderData?.proofOfDeliveries?.filter((p) => p.deliveryType === "pickUp") || [];
-  const deliveryProofs =
-    orderData?.proofOfDeliveries?.filter((p) => p.deliveryType === "delivery") || [];
+  const proofEntries = Array.isArray(orderData?.proofOfDeliveries)
+    ? orderData.proofOfDeliveries
+    : [];
+  const pickupProofs = proofEntries.filter((p) => {
+    const type = String(p?.deliveryType || "")
+      .replace(/[\s_-]/g, "")
+      .toLowerCase();
+    return type === "pickup";
+  });
+  const deliveryProofs = proofEntries.filter((p) => {
+    const type = String(p?.deliveryType || "")
+      .replace(/[\s_-]/g, "")
+      .toLowerCase();
+    return type === "delivery" || type === "dropoff";
+  });
 
   const pickupItemsCount = pickupProofs.reduce(
     (sum, proof) => sum + Number(proof?.noOfItems || 0),
@@ -303,19 +420,16 @@ export default function OrderDetailsPage() {
     (sum, proof) => sum + Number(proof?.noOfItems || 0),
     0
   );
+  const orderItemsTotal = Number(orderData?.totalItems || 0);
+  const pickupItemsDisplayCount =
+    pickupItemsCount > 0 ? pickupItemsCount : pickupProofs.length > 0 ? orderItemsTotal : 0;
+  const deliveryItemsDisplayCount =
+    deliveryItemsCount > 0
+      ? deliveryItemsCount
+      : deliveryProofs.length > 0
+      ? orderItemsTotal
+      : 0;
 
-  const subtotalAmount = toNumber(
-    orderData?.subTotal ?? orderItemsData?.totalAmount ?? orderData?.orderAmount ?? 0
-  );
-  const minimumOrderFeeAmount = toNumber(
-    orderData?.billingDetail?.categoryCharge ?? 0
-  );
-  const serviceChargeAmount = toNumber(orderData?.billingDetail?.serviceCharge ?? 0);
-  const deliveryFeeAmount = toNumber(orderData?.deliveryFee ?? 0);
-  const tipAmount = toNumber(orderData?.tips?.[0]?.amount ?? 0);
-  const totalAmount = toNumber(
-    orderData?.billingDetail?.total ?? orderData?.orderAmount ?? subtotalAmount
-  );
   const addOnsTotalAmount = useMemo(() => {
     return selectedServiceGroups.reduce(
       (sum, svc) =>
@@ -333,6 +447,44 @@ export default function OrderDetailsPage() {
       0
     );
   }, [selectedServiceGroups]);
+  const servicesSubtotalAmount = useMemo(() => {
+    if (
+      orderItemsData?.servicesSubtotal != null ||
+      orderItemsData?.totalAmount != null
+    ) {
+      return resolveServicesSubtotal(orderItemsData);
+    }
+    const servicesOnly = selectedServiceGroups.reduce(
+      (sum, svc) =>
+        sum +
+        svc.items.reduce(
+          (itemSum, item) =>
+            itemSum +
+            Number(item.quantity ?? item.items ?? 0) *
+              Number(item.categoryPrice ?? item.price ?? 0),
+          0
+        ),
+      0
+    );
+    return parseFloat((servicesOnly + addOnsTotalAmount).toFixed(2));
+  }, [orderItemsData, selectedServiceGroups, addOnsTotalAmount]);
+  const minimumOrderFeeAmount = toNumber(
+    orderData?.billingDetail?.upfrontAmount ?? 0
+  );
+  const serviceChargeAmount = toNumber(orderData?.billingDetail?.serviceCharge ?? 0);
+  const deliveryFeeAmount = toNumber(orderData?.deliveryFee ?? 0);
+  const tipAmount = toNumber(orderData?.tips?.[0]?.amount ?? 0);
+  const orderSubtotalAmount = toNumber(
+    resolveOrderSubtotal(orderData, {
+      servicesSubtotal: servicesSubtotalAmount,
+      serviceCharge: serviceChargeAmount,
+      minimumOrderFee: minimumOrderFeeAmount,
+      tip: tipAmount,
+    })
+  );
+  const totalAmount = toNumber(
+    orderData?.billingDetail?.total ?? orderData?.orderAmount ?? orderSubtotalAmount
+  );
   const [selectedItemsServiceId, setSelectedItemsServiceId] = useState("");
   const [selectedItemsCategoryKey, setSelectedItemsCategoryKey] = useState("all");
   const [invoiceModal, setInvoiceModal] = useState({
@@ -341,6 +493,7 @@ export default function OrderDetailsPage() {
     previewOpen: false,
   });
   const [invoiceDetails, setInvoiceDetails] = useState(null);
+  const [assignModalOpen, setAssignModalOpen] = useState(false);
   const selectedItemsServiceIdResolved =
     selectedItemsServiceId || selectedServiceGroups?.[0]?.serviceId || "";
 
@@ -385,11 +538,17 @@ export default function OrderDetailsPage() {
     () => buildInvoiceView(invoiceDetails, shopName),
     [invoiceDetails, shopName]
   );
+  const invoicePreviewHtml = useMemo(() => {
+    if (!invoiceView) return "";
+    return invoiceModal.format === "thermal"
+      ? thermalInvoiceHtml(invoiceView)
+      : a4InvoiceHtml(invoiceView);
+  }, [invoiceModal.format, invoiceView]);
 
   const handleOpenInvoiceModal = async () => {
     try {
       const response = await fetchInvoice(Number(bookingId)).unwrap();
-      const details = response?.data?.invoiceDetails;
+      const details = mergeInvoiceDetailsFromResponse(response?.data);
       if (!details) {
         showError("Invoice details not found.");
         return;
@@ -460,7 +619,7 @@ export default function OrderDetailsPage() {
                   <div class="name">${escapeHtml(it.label)}</div>
                   <div class="muted">Qty: ${escapeHtml(it.qty)}</div>
                 </div>
-                <div class="price">$${escapeHtml(Number(it.price || 0).toFixed(2))}</div>
+                <div class="price">$${escapeHtml((Number(it.qty || 0) * Number(it.price || 0)).toFixed(2))}</div>
               </div>
             `
             )
@@ -596,16 +755,28 @@ export default function OrderDetailsPage() {
   const pickupPrimaryProof = pickupProofs[0] || {};
   const deliveryPrimaryProof = deliveryProofs[0] || {};
   const pickupProofTime = dayjs(
-    pickupPrimaryProof?.created_at || orderData?.collectionDate
+    pickupPrimaryProof?.createdAt ||
+      pickupPrimaryProof?.created_at ||
+      orderData?.collectionDate
   ).isValid()
-    ? dayjs(pickupPrimaryProof?.created_at || orderData?.collectionDate).format(
+    ? dayjs(
+        pickupPrimaryProof?.createdAt ||
+          pickupPrimaryProof?.created_at ||
+          orderData?.collectionDate
+      ).format(
         "ddd DD MMM · HH:mm"
       )
     : "Not captured";
   const deliveryProofTime = dayjs(
-    deliveryPrimaryProof?.created_at || orderData?.deliveryDate
+    deliveryPrimaryProof?.createdAt ||
+      deliveryPrimaryProof?.created_at ||
+      orderData?.deliveryDate
   ).isValid()
-    ? dayjs(deliveryPrimaryProof?.created_at || orderData?.deliveryDate).format(
+    ? dayjs(
+        deliveryPrimaryProof?.createdAt ||
+          deliveryPrimaryProof?.created_at ||
+          orderData?.deliveryDate
+      ).format(
         "ddd DD MMM · HH:mm"
       )
     : "Not captured";
@@ -731,6 +902,13 @@ export default function OrderDetailsPage() {
                 {isFetchingInvoice ? "Generating..." : "Generate Invoice"}
               </Button>
             ) : null}
+            {canShowAdminAssign ? (
+              <OrderAssignActionButton
+                booking={orderData}
+                size="medium"
+                onClick={() => setAssignModalOpen(true)}
+              />
+            ) : null}
             <Button
               variant="contained"
               onClick={() => navigate(`/orders/edit/${orderId}`)}
@@ -821,30 +999,11 @@ export default function OrderDetailsPage() {
 
                 <Box
                   sx={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(2, minmax(150px, 1fr))",
+                    display: "flex",
+                    justifyContent: "flex-end",
                     gap: 1.2,
                   }}
                 >
-                  <Paper
-                    sx={{
-                      border: "1px solid #E2E8F0",
-                      borderRadius: "10px",
-                      boxShadow: "none",
-                      p: 1.5,
-                    }}
-                  >
-                    <Typography
-                      variant="caption"
-                      color="text.secondary"
-                      sx={{ fontSize: 10, textTransform: "uppercase", fontWeight: 700 }}
-                    >
-                      Total Items
-                    </Typography>
-                    <Typography sx={{ fontWeight: 700, mt: 0.35, fontSize: 16, color: "#334155" }}>
-                      {orderData.totalItems || 0} items
-                    </Typography>
-                  </Paper>
                   <Paper
                     sx={{
                       border: "1px solid #E2E8F0",
@@ -932,7 +1091,7 @@ export default function OrderDetailsPage() {
                         Items Counted
                       </Typography>
                       <Typography sx={{ fontSize: 14, fontWeight: 700, color: "#0F172A" }}>
-                        {pickupItemsCount || 0}
+                        {pickupItemsDisplayCount || 0}
                       </Typography>
                     </Paper>
                     <Paper sx={{ p: 1, border: "1px solid #E2E8F0", boxShadow: "none", borderRadius: "8px", bgcolor: "#fff" }}>
@@ -989,7 +1148,7 @@ export default function OrderDetailsPage() {
                         Items Counted
                       </Typography>
                       <Typography sx={{ fontSize: 14, fontWeight: 700, color: "#0F172A" }}>
-                        {deliveryItemsCount || 0}
+                        {deliveryItemsDisplayCount || 0}
                       </Typography>
                     </Paper>
                     <Paper sx={{ p: 1, border: "1px solid #E2E8F0", boxShadow: "none", borderRadius: "8px", bgcolor: "#fff" }}>
@@ -1088,7 +1247,7 @@ export default function OrderDetailsPage() {
                   <Box className="flex items-center justify-between py-2" sx={{ borderTop: "1px solid #F1F5F9" }}>
                     <Typography sx={{ fontSize: 11, color: "#94A3B8" }}>Items Collected</Typography>
                     <Typography sx={{ fontSize: 11, color: "#334155", fontWeight: 600 }}>
-                      {pickupItemsCount || 0} items
+                      {pickupItemsDisplayCount || 0} items
                     </Typography>
                   </Box>
                   <Box className="flex items-center justify-between py-2" sx={{ borderTop: "1px solid #F1F5F9" }}>
@@ -1171,7 +1330,7 @@ export default function OrderDetailsPage() {
                         fontWeight: 600,
                       }}
                     >
-                      {deliveryItemsCount || 0} items
+                      {deliveryItemsDisplayCount || 0} items
                     </Typography>
                   </Box>
                   <Box className="flex items-center justify-between py-2" sx={{ borderTop: "1px solid #F1F5F9" }}>
@@ -1451,24 +1610,16 @@ export default function OrderDetailsPage() {
             <Box sx={{ p: 2.5, borderTop: "1px solid #E4E7EC", bgcolor: "#FCFCFD", display: "flex", flexDirection: "column", rowGap: 0.4 }}>
               <Box className="flex items-center justify-between" sx={{ py: 0.9 }}>
                 <Typography variant="body2" color="text.secondary">
-                  Subtotal
+                  Services subtotal
                 </Typography>
-                <Typography variant="body2">${subtotalAmount.toFixed(2)}</Typography>
-              </Box>
-              <Box className="flex items-center justify-between" sx={{ py: 0.9 }}>
-                <Typography variant="body2" color="text.secondary">
-                  Add-ons
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  ${addOnsTotalAmount.toFixed(2)}
-                </Typography>
+                <Typography variant="body2">${servicesSubtotalAmount.toFixed(2)}</Typography>
               </Box>
               <Box className="flex items-center justify-between" sx={{ py: 0.9 }}>
                 <Typography variant="body2" color="text.secondary">
                   Minimum Order Fee
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  ${minimumOrderFeeAmount.toFixed(2)}
+                  -${Math.abs(minimumOrderFeeAmount).toFixed(2)}
                 </Typography>
               </Box>
               <Box className="flex items-center justify-between" sx={{ py: 0.9 }}>
@@ -1478,6 +1629,12 @@ export default function OrderDetailsPage() {
                 <Typography variant="body2" color="text.secondary">
                   ${serviceChargeAmount.toFixed(2)}
                 </Typography>
+              </Box>
+              <Box className="flex items-center justify-between" sx={{ py: 0.9 }}>
+                <Typography variant="body2" color="text.secondary">
+                  Subtotal
+                </Typography>
+                <Typography variant="body2">${orderSubtotalAmount.toFixed(2)}</Typography>
               </Box>
               <Box className="flex items-center justify-between" sx={{ py: 0.9 }}>
                 <Typography variant="body2" color="text.secondary">
@@ -1505,6 +1662,191 @@ export default function OrderDetailsPage() {
               </Box>
             </Box>
           </Paper>
+
+          {/* ── Service Comparison: Customer Original vs Agent Invoice ─────── */}
+          {(comparisonData || isLoadingComparison) && (
+            <Paper sx={CARD_SX}>
+              <Box sx={SECTION_HEADER_SX} className="flex items-center justify-between">
+                <Box className="flex items-center gap-1.5">
+                  <Box sx={{ width: 6, height: 6, borderRadius: "50%", bgcolor: "#F59E0B" }} />
+                  <Typography variant="caption" color="text.secondary"
+                    sx={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}>
+                    Service Comparison
+                  </Typography>
+                  {comparisonData?.fallbackToLive && (
+                    <Typography variant="caption"
+                      sx={{ fontSize: 10, color: "#9CA3AF", fontStyle: "italic", ml: 1 }}>
+                      (snapshot not yet available — showing current services)
+                    </Typography>
+                  )}
+                </Box>
+                <Box sx={{ px: 1.3, minHeight: 22, borderRadius: "999px", bgcolor: "#FFFBEB", border: "1px solid #FDE68A", display: "inline-flex", alignItems: "center" }}>
+                  <Typography sx={{ fontSize: 10, color: "#B45309", fontWeight: 700 }}>Customer vs Agent</Typography>
+                </Box>
+              </Box>
+
+              {isLoadingComparison ? (
+                <Box sx={{ p: 2.5 }}>
+                  <Typography variant="caption" color="text.secondary">Loading comparison...</Typography>
+                </Box>
+              ) : (
+                <Box className="grid grid-cols-1 md:grid-cols-2">
+                  {/* ── Customer Original ── */}
+                  <Box sx={{ p: 2.5, borderRight: { md: "1px solid #E4E7EC" } }}>
+                    <Box sx={{ mb: 1.5, display: "flex", alignItems: "center", gap: 1 }}>
+                      <Box sx={{ width: 4, height: 18, bgcolor: "#F59E0B", borderRadius: 1 }} />
+                      <Typography sx={{ fontSize: 11, fontWeight: 700, color: "#92400E", letterSpacing: "0.06em", textTransform: "uppercase" }}>
+                        Customer Selected
+                      </Typography>
+                    </Box>
+                    {(!comparisonData?.customerOriginal?.services?.length) ? (
+                      <Typography variant="caption" color="text.secondary" sx={{ fontSize: 12 }}>No snapshot available</Typography>
+                    ) : (() => {
+                      const groups = {};
+                      (comparisonData.customerOriginal.services || []).forEach((svc) => {
+                        const heading = svc.service?.name || "Other";
+                        if (!groups[heading]) groups[heading] = [];
+                        groups[heading].push(svc);
+                      });
+                      return (
+                        <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                          {Object.entries(groups).map(([heading, items]) => (
+                            <Box key={heading}>
+                              <Typography sx={{ fontSize: 11, fontWeight: 700, color: "#92400E", textTransform: "uppercase", letterSpacing: "0.06em", mb: 0.75, borderBottom: "1px solid #FDE68A", pb: 0.4 }}>
+                                {heading}
+                              </Typography>
+                              <Box sx={{ display: "flex", flexDirection: "column", gap: 0.75 }}>
+                                {items.map((svc, idx) => (
+                                  <Box key={`orig-${svc.id || idx}`} sx={{ border: "1px solid #FDE68A", borderRadius: "10px", p: 1.4, bgcolor: "#FFFBEB" }}>
+                                    <Typography sx={{ fontSize: 13, fontWeight: 700, color: "#0F172A" }}>
+                                      {svc.subCategory?.name || svc.category?.name || "Item"}
+                                    </Typography>
+                                    <Box className="flex items-center gap-3 mt-0.5 flex-wrap">
+                                      {svc.items != null && (
+                                        <Typography sx={{ fontSize: 11, color: "#475569" }}>Qty: <b>{svc.items}</b></Typography>
+                                      )}
+                                      {svc.categoryPrice != null && (
+                                        <Typography sx={{ fontSize: 11, color: "#475569" }}>£{Number(svc.categoryPrice).toFixed(2)}/pc</Typography>
+                                      )}
+                                    </Box>
+                                    {(svc.preferences || []).length > 0 && (
+                                      <Box sx={{ mt: 0.75, display: "flex", flexWrap: "wrap", gap: 0.5 }}>
+                                        {svc.preferences.map((pref, pi) => (
+                                          <Box key={pi} sx={{ px: 1, py: 0.3, borderRadius: "999px", bgcolor: "#FEF3C7", border: "1px solid #FDE68A" }}>
+                                            <Typography sx={{ fontSize: 10, color: "#92400E", fontWeight: 600 }}>
+                                              {pref.preferenceType?.name && `${pref.preferenceType.name}: `}{pref.preferenceValue?.value || "—"}
+                                            </Typography>
+                                          </Box>
+                                        ))}
+                                      </Box>
+                                    )}
+                                    {svc.serviceInstruction && (
+                                      <Typography sx={{ mt: 0.5, fontSize: 11, color: "#6B7280", fontStyle: "italic" }}>
+                                        Note: {svc.serviceInstruction}
+                                      </Typography>
+                                    )}
+                                  </Box>
+                                ))}
+                              </Box>
+                            </Box>
+                          ))}
+                          {(comparisonData.customerOriginal.bookingPreferences || []).length > 0 && (
+                            <Box>
+                              <Typography sx={{ fontSize: 10, color: "#92400E", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", mb: 0.5 }}>
+                                Booking Preferences
+                              </Typography>
+                              <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
+                                {comparisonData.customerOriginal.bookingPreferences.map((pref, pi) => (
+                                  <Box key={pi} sx={{ px: 1, py: 0.3, borderRadius: "999px", bgcolor: "#FEF3C7", border: "1px solid #FDE68A" }}>
+                                    <Typography sx={{ fontSize: 10, color: "#92400E", fontWeight: 600 }}>
+                                      {pref.preferenceType?.name && `${pref.preferenceType.name}: `}{pref.preferenceValue?.value || "—"}
+                                    </Typography>
+                                  </Box>
+                                ))}
+                              </Box>
+                            </Box>
+                          )}
+                        </Box>
+                      );
+                    })()}
+                  </Box>
+
+                  {/* ── Agent Invoice ── */}
+                  <Box sx={{ p: 2.5 }}>
+                    <Box sx={{ mb: 1.5, display: "flex", alignItems: "center", gap: 1 }}>
+                      <Box sx={{ width: 4, height: 18, bgcolor: "#000099", borderRadius: 1 }} />
+                      <Typography sx={{ fontSize: 11, fontWeight: 700, color: "#000099", letterSpacing: "0.06em", textTransform: "uppercase" }}>
+                        Agent Invoice
+                      </Typography>
+                    </Box>
+                    {(!comparisonData?.agentInvoice?.services?.length) ? (
+                      <Typography variant="caption" color="text.secondary" sx={{ fontSize: 12 }}>No agent services yet</Typography>
+                    ) : (() => {
+                      const groups = {};
+                      (comparisonData.agentInvoice.services || []).forEach((svc) => {
+                        const heading = svc.service?.name || "Other";
+                        if (!groups[heading]) groups[heading] = [];
+                        groups[heading].push(svc);
+                      });
+                      return (
+                        <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                          {Object.entries(groups).map(([heading, items]) => (
+                            <Box key={heading}>
+                              <Typography sx={{ fontSize: 11, fontWeight: 700, color: "#000099", textTransform: "uppercase", letterSpacing: "0.06em", mb: 0.75, borderBottom: "1px solid #C7D2FE", pb: 0.4 }}>
+                                {heading}
+                              </Typography>
+                              <Box sx={{ display: "flex", flexDirection: "column", gap: 0.75 }}>
+                                {items.map((svc, idx) => (
+                                  <Box key={`agent-${svc.id || idx}`} sx={{ border: "1px solid #C7D2FE", borderRadius: "10px", p: 1.4, bgcolor: "#EEF2FF" }}>
+                                    <Typography sx={{ fontSize: 13, fontWeight: 700, color: "#0F172A" }}>
+                                      {svc.subCategory?.name || svc.category?.name || "Item"}
+                                    </Typography>
+                                    <Box className="flex items-center gap-3 mt-0.5 flex-wrap">
+                                      {svc.items != null && (
+                                        <Typography sx={{ fontSize: 11, color: "#475569" }}>Qty: <b>{svc.items}</b></Typography>
+                                      )}
+                                      {svc.categoryPrice != null && (
+                                        <Typography sx={{ fontSize: 11, color: "#475569" }}>£{Number(svc.categoryPrice).toFixed(2)}/pc</Typography>
+                                      )}
+                                    </Box>
+                                    {(svc.addOns || []).length > 0 && (
+                                      <Box sx={{ mt: 0.5 }}>
+                                        {svc.addOns.map((ad, ai) => (
+                                          <Typography key={ai} sx={{ fontSize: 11, color: "#475569" }}>
+                                            + {ad.items || 1}x {ad.addOnService?.name || "Add-on"} (£{Number(ad.price || 0).toFixed(2)})
+                                          </Typography>
+                                        ))}
+                                      </Box>
+                                    )}
+                                    {(svc.selectedServicePreferences || []).length > 0 && (
+                                      <Box sx={{ mt: 0.75, display: "flex", flexWrap: "wrap", gap: 0.5 }}>
+                                        {svc.selectedServicePreferences.map((pref, pi) => (
+                                          <Box key={pi} sx={{ px: 1, py: 0.3, borderRadius: "999px", bgcolor: "#E0E7FF", border: "1px solid #C7D2FE" }}>
+                                            <Typography sx={{ fontSize: 10, color: "#3730A3", fontWeight: 600 }}>
+                                              {pref.preferenceType?.name && `${pref.preferenceType.name}: `}{pref.preferenceValue?.value || "—"}
+                                            </Typography>
+                                          </Box>
+                                        ))}
+                                      </Box>
+                                    )}
+                                    {svc.serviceInstruction && (
+                                      <Typography sx={{ mt: 0.5, fontSize: 11, color: "#6B7280", fontStyle: "italic" }}>
+                                        Note: {svc.serviceInstruction}
+                                      </Typography>
+                                    )}
+                                  </Box>
+                                ))}
+                              </Box>
+                            </Box>
+                          ))}
+                        </Box>
+                      );
+                    })()}
+                  </Box>
+                </Box>
+              )}
+            </Paper>
+          )}
         </Box>
 
         <Box sx={{ display: "flex", flexDirection: "column", rowGap: 2.5 }}>
@@ -1758,18 +2100,39 @@ export default function OrderDetailsPage() {
       title={invoiceModal.format === "a4" ? "A4 Receipt Preview" : "58mm Thermal Preview"}
       width={invoiceModal.format === "a4" ? 960 : 420}
     >
-      <Typography sx={{ fontSize: 13, color: "#64748B", mb: 1 }}>
-        Preview follows the same format used on Edit Order invoice flow.
-      </Typography>
-      <Box sx={{ border: "1px dashed #CBD5E1", borderRadius: "8px", p: 1.5 }}>
-        <Typography sx={{ fontSize: 14, fontWeight: 700 }}>
-          {invoiceModal.format === "a4" ? "A4 Receipt" : "58mm Thermal"}
+      {invoicePreviewHtml ? (
+        <Box
+          sx={{
+            border: "1px solid #D1D5DB",
+            borderRadius: "10px",
+            overflow: "hidden",
+            bgcolor: "#F8FAFC",
+          }}
+        >
+          <iframe
+            title={invoiceModal.format === "a4" ? "A4 Receipt Preview" : "58mm Thermal Preview"}
+            srcDoc={invoicePreviewHtml}
+            style={{
+              width: "100%",
+              height: invoiceModal.format === "a4" ? "76vh" : "520px",
+              border: "0",
+              background: "#fff",
+            }}
+          />
+        </Box>
+      ) : (
+        <Typography sx={{ fontSize: 13, color: "#64748B" }}>
+          Receipt preview is unavailable.
         </Typography>
-        <Typography sx={{ fontSize: 12, color: "#64748B" }}>
-          Invoice #{invoiceView?.invoiceNo || "N/A"} · {invoiceView?.customerName || "N/A"}
-        </Typography>
-      </Box>
+      )}
     </ModalComponent>
+    <AssignOrderModal
+      open={assignModalOpen}
+      bookingId={bookingId}
+      bookingSnapshot={orderData}
+      onClose={() => setAssignModalOpen(false)}
+      onSuccess={() => refetchOrder()}
+    />
     </>
   );
 }

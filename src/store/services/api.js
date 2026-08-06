@@ -4,9 +4,16 @@ import baseQueryWithReauth from "./baseQueryWithReauth";
 export const api = createApi({
   reducerPath: "api",
   baseQuery: baseQueryWithReauth,
-  tagTypes: ["ServiceConfig", "SupportContact", "Coupons"],
+  tagTypes: ["ServiceConfig", "SupportContact", "PlatformOperationalHours", "Orders", "Coupons", "Banners", "AccountDeletionReasons", "PendingAgents", "RejectedAgents", "AgentSettlement", "NotifyLogs"],
 
-  endpoints: (builder) => ({
+  endpoints: (builder) => {
+    const normalizeServiceId = (id) => {
+      if (id == null || id === "") return undefined;
+      const numericId = Number(id);
+      return Number.isNaN(numericId) ? undefined : numericId;
+    };
+
+    return {
     // Report query helper
     // Supported params:
     // period=today|this_week|this_month|all|custom
@@ -69,6 +76,44 @@ export const api = createApi({
     deleteAddOnService: builder.mutation({
       query: (addOnServiceId) => ({
         url: `admin/deleteAddOnService/${addOnServiceId}`,
+        method: "DELETE",
+      }),
+    }),
+
+    getAllAddOnCategories: builder.query({
+      query: (params = {}) => ({
+        url: "admin/getAllAddOnCategories",
+        method: "GET",
+        params,
+      }),
+    }),
+
+    getAddOnCategoryById: builder.query({
+      query: (addOnCategoryId) => ({
+        url: `admin/getAddOnCategoryById/${addOnCategoryId}`,
+        method: "GET",
+      }),
+    }),
+
+    createAddOnCategory: builder.mutation({
+      query: (body) => ({
+        url: "admin/createAddOnCategory",
+        method: "POST",
+        body,
+      }),
+    }),
+
+    updateAddOnCategory: builder.mutation({
+      query: ({ addOnCategoryId, body }) => ({
+        url: `admin/updateAddOnCategory/${addOnCategoryId}`,
+        method: "PATCH",
+        body,
+      }),
+    }),
+
+    deleteAddOnCategory: builder.mutation({
+      query: (addOnCategoryId) => ({
+        url: `admin/deleteAddOnCategory/${addOnCategoryId}`,
         method: "DELETE",
       }),
     }),
@@ -173,8 +218,10 @@ export const api = createApi({
     }),
 
     getCategories: builder.query({
-      query: () => ({
-        url: `admin/getcategories`,
+      query: (serviceId) => ({
+        url: serviceId
+          ? `admin/getcategories?serviceId=${serviceId}`
+          : `admin/getcategories`,
         method: "GET",
       }),
     }),
@@ -185,6 +232,7 @@ export const api = createApi({
         method: "POST",
         body,
       }),
+      invalidatesTags: [{ type: "ServiceConfig", id: "LIST" }],
     }),
 
     editCategory: builder.mutation({
@@ -193,6 +241,7 @@ export const api = createApi({
         method: "PATCH",
         body,
       }),
+      invalidatesTags: [{ type: "ServiceConfig", id: "LIST" }],
     }),
 
     deleteCategory: builder.mutation({
@@ -238,10 +287,12 @@ export const api = createApi({
         method: "POST",
         body,
       }),
-      invalidatesTags: (result, error, body) =>
-        body?.serviceId
-          ? [{ type: "ServiceConfig", id: body.serviceId }]
-          : [{ type: "ServiceConfig", id: "LIST" }],
+      invalidatesTags: (result, error, body) => {
+        const serviceId = normalizeServiceId(body?.serviceId);
+        return serviceId
+          ? [{ type: "ServiceConfig", id: serviceId }]
+          : [{ type: "ServiceConfig", id: "LIST" }];
+      },
     }),
 
     addServiceWithCategories: builder.mutation({
@@ -250,10 +301,12 @@ export const api = createApi({
         method: "POST",
         body,
       }),
-      invalidatesTags: (result, error, body) =>
-        body?.serviceId
-          ? [{ type: "ServiceConfig", id: body.serviceId }]
-          : [{ type: "ServiceConfig", id: "LIST" }],
+      invalidatesTags: (result, error, body) => {
+        const serviceId = normalizeServiceId(body?.serviceId);
+        return serviceId
+          ? [{ type: "ServiceConfig", id: serviceId }]
+          : [{ type: "ServiceConfig", id: "LIST" }];
+      },
     }),
 
     unAssignServiceFromCategories: builder.mutation({
@@ -262,10 +315,12 @@ export const api = createApi({
         method: "DELETE",
         body: { categoryIds },
       }),
-      invalidatesTags: (result, error, args) =>
-        args?.serviceId
-          ? [{ type: "ServiceConfig", id: args.serviceId }]
-          : [{ type: "ServiceConfig", id: "LIST" }],
+      invalidatesTags: (result, error, args) => {
+        const serviceId = normalizeServiceId(args?.serviceId);
+        return serviceId
+          ? [{ type: "ServiceConfig", id: serviceId }]
+          : [{ type: "ServiceConfig", id: "LIST" }];
+      },
     }),
 
     unAssignServiceFromPreferences: builder.mutation({
@@ -273,10 +328,12 @@ export const api = createApi({
         url: `admin/unAssignServiceFromPreferences/${serviceId}`,
         method: "DELETE",
       }),
-      invalidatesTags: (result, error, serviceId) =>
-        serviceId
-          ? [{ type: "ServiceConfig", id: serviceId }]
-          : [{ type: "ServiceConfig", id: "LIST" }],
+      invalidatesTags: (result, error, serviceId) => {
+        const normalizedId = normalizeServiceId(serviceId);
+        return normalizedId
+          ? [{ type: "ServiceConfig", id: normalizedId }]
+          : [{ type: "ServiceConfig", id: "LIST" }];
+      },
     }),
 
     getServiceWitPreferences: builder.query({
@@ -284,10 +341,12 @@ export const api = createApi({
         url: `admin/servicesAndPreferencesData/${id}`,
         method: "GET",
       }),
-      providesTags: (result, error, id) =>
-        id
-          ? [{ type: "ServiceConfig", id }]
-          : [{ type: "ServiceConfig", id: "LIST" }],
+      providesTags: (result, error, id) => {
+        const normalizedId = normalizeServiceId(id);
+        return normalizedId
+          ? [{ type: "ServiceConfig", id: normalizedId }]
+          : [{ type: "ServiceConfig", id: "LIST" }];
+      },
     }),
 
     //Customers
@@ -340,6 +399,23 @@ export const api = createApi({
         url: "admin/allOrderDetails",
         method: "GET",
       }),
+      providesTags: ["Orders"],
+    }),
+
+    getBookingAssignableShops: builder.query({
+      query: (bookingId) => ({
+        url: `admin/bookings/${bookingId}/assignableShops`,
+        method: "GET",
+      }),
+    }),
+
+    assignBookingToShop: builder.mutation({
+      query: ({ bookingId, laundryShopId }) => ({
+        url: `admin/bookings/${bookingId}/assignShop`,
+        method: "PATCH",
+        body: { laundryShopId },
+      }),
+      invalidatesTags: ["Orders"],
     }),
 
     getAllCompleteOrders: builder.query({
@@ -393,6 +469,128 @@ export const api = createApi({
         body,
       }),
     }),
+
+    getPendingAgents: builder.query({
+      query: () => ({
+        url: "admin/pendingAgents",
+        method: "GET",
+      }),
+      providesTags: ["PendingAgents"],
+    }),
+
+    getRejectedAgents: builder.query({
+      query: () => ({
+        url: "admin/rejectedAgents",
+        method: "GET",
+      }),
+      providesTags: ["RejectedAgents"],
+    }),
+
+    updateAgentApproval: builder.mutation({
+      query: ({ agentId, body }) => ({
+        url: `admin/agents/${agentId}/approval`,
+        method: "PATCH",
+        body,
+      }),
+      invalidatesTags: ["PendingAgents", "RejectedAgents", "Shops"],
+    }),
+
+    getAgentsCashDue: builder.query({
+      query: (params = {}) => ({
+        url: "admin/agents/cash-due",
+        method: "GET",
+        params,
+      }),
+      providesTags: ["AgentSettlement"],
+    }),
+
+    getPendingRemittances: builder.query({
+      query: (params = {}) => ({
+        url: "admin/agents/remittances/pending",
+        method: "GET",
+        params,
+      }),
+      providesTags: ["AgentSettlement"],
+    }),
+
+    getAgentSettlement: builder.query({
+      query: (agentId) => ({
+        url: `admin/agents/${agentId}/settlement`,
+        method: "GET",
+      }),
+      providesTags: ["AgentSettlement"],
+    }),
+
+    getNotifyLogs: builder.query({
+      query: (params = {}) => ({
+        url: "admin/notify-logs",
+        method: "GET",
+        params,
+      }),
+      providesTags: ["NotifyLogs"],
+    }),
+
+    getServiceComparison: builder.query({
+      query: (bookingId) => ({
+        url: `admin/bookings/${bookingId}/service-comparison`,
+        method: "GET",
+      }),
+    }),
+
+    confirmCashRemittance: builder.mutation({
+      query: ({ remittanceId, body }) => ({
+        url: `admin/agents/remittances/${remittanceId}/confirm`,
+        method: "PATCH",
+        body,
+      }),
+      invalidatesTags: ["AgentSettlement"],
+    }),
+
+    rejectCashRemittance: builder.mutation({
+      query: ({ remittanceId, body }) => ({
+        url: `admin/agents/remittances/${remittanceId}/reject`,
+        method: "PATCH",
+        body,
+      }),
+      invalidatesTags: ["AgentSettlement"],
+    }),
+
+    recordCashSettlement: builder.mutation({
+      query: ({ agentId, body }) => ({
+        url: `admin/agents/${agentId}/cash-settlement`,
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: ["AgentSettlement"],
+    }),
+
+    recordAgentPayout: builder.mutation({
+      query: ({ agentId, body }) => ({
+        url: `admin/agents/${agentId}/payout`,
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: ["AgentSettlement"],
+    }),
+
+    recordSettlementAdjustment: builder.mutation({
+      query: ({ agentId, body }) => ({
+        url: `admin/agents/${agentId}/settlement-adjustment`,
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: ["AgentSettlement"],
+    }),
+
+    syncAgentWallets: builder.mutation({
+      query: (body = {}) => ({
+        url: "admin/agents/wallet-sync",
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: ["AgentSettlement"],
+    }),
+
     addAgentAddress: builder.mutation({
       query: ({ userId, body }) => ({
         url: `admin/addAgentAddress/${userId}`,
@@ -957,6 +1155,40 @@ export const api = createApi({
       }),
     }),
 
+    getAccountDeletionReasons: builder.query({
+      query: () => ({
+        url: "admin/getAccountDeletionReasons",
+        method: "GET",
+      }),
+      providesTags: ["AccountDeletionReasons"],
+    }),
+
+    createAccountDeletionReason: builder.mutation({
+      query: (body) => ({
+        url: "admin/createAccountDeletionReason",
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: ["AccountDeletionReasons"],
+    }),
+
+    updateAccountDeletionReason: builder.mutation({
+      query: ({ id, body }) => ({
+        url: `admin/updateAccountDeletionReason/${id}`,
+        method: "PATCH",
+        body,
+      }),
+      invalidatesTags: ["AccountDeletionReasons"],
+    }),
+
+    deleteAccountDeletionReason: builder.mutation({
+      query: (id) => ({
+        url: `admin/deleteAccountDeletionReason/${id}`,
+        method: "DELETE",
+      }),
+      invalidatesTags: ["AccountDeletionReasons"],
+    }),
+
     addNoShowPolicy: builder.mutation({
       query: (body) => ({
         url: "admin/addNoShowPolicy",
@@ -1147,6 +1379,23 @@ export const api = createApi({
       providesTags: ["SupportContact"],
     }),
 
+    getPlatformOperationalHours: builder.query({
+      query: (countryId) => ({
+        url: `admin/platformOperationalHours?countryId=${countryId}`,
+        method: "GET",
+      }),
+      providesTags: ["PlatformOperationalHours"],
+    }),
+
+    updatePlatformOperationalHours: builder.mutation({
+      query: (body) => ({
+        url: "admin/platformOperationalHours",
+        method: "PATCH",
+        body,
+      }),
+      invalidatesTags: ["PlatformOperationalHours"],
+    }),
+
     getAllCoupons: builder.query({
       query: ({ page = 1, limit = 10, isActive = true } = {}) => ({
         url: `admin/getAllCoupons?page=${page}&limit=${limit}&isActive=${isActive}`,
@@ -1163,7 +1412,55 @@ export const api = createApi({
       }),
       invalidatesTags: ["Coupons"],
     }),
-  }),
+
+    // ─── Banners & Offers ───────────────────────────────────────────────────
+    // body is always FormData (multipart) — browser sets Content-Type + boundary automatically
+    createBanner: builder.mutation({
+      query: (formData) => ({
+        url: "admin/createBanner",
+        method: "POST",
+        body: formData,
+        formData: true,
+      }),
+      invalidatesTags: ["Banners"],
+    }),
+
+    getAllBanners: builder.query({
+      query: (params = {}) => {
+        const q = new URLSearchParams();
+        if (params.targetType) q.append("targetType", params.targetType);
+        if (params.zoneId)     q.append("zoneId", params.zoneId);
+        if (params.isActive !== undefined) q.append("isActive", params.isActive);
+        if (params.page)       q.append("page", params.page);
+        if (params.limit)      q.append("limit", params.limit);
+        const qs = q.toString();
+        return {
+          url: qs ? `admin/getAllBanners?${qs}` : "admin/getAllBanners",
+          method: "GET",
+        };
+      },
+      providesTags: ["Banners"],
+    }),
+
+    updateBanner: builder.mutation({
+      query: ({ id, body: formData }) => ({
+        url: `admin/updateBanner/${id}`,
+        method: "PATCH",
+        body: formData,
+        formData: true,
+      }),
+      invalidatesTags: ["Banners"],
+    }),
+
+    deleteBanner: builder.mutation({
+      query: (id) => ({
+        url: `admin/deleteBanner/${id}`,
+        method: "DELETE",
+      }),
+      invalidatesTags: ["Banners"],
+    }),
+    };
+  },
 });
 
 export const {
@@ -1179,6 +1476,11 @@ export const {
   useCreateAddOnServiceMutation,
   useUpdateAddOnServiceMutation,
   useDeleteAddOnServiceMutation,
+  useGetAllAddOnCategoriesQuery,
+  useGetAddOnCategoryByIdQuery,
+  useCreateAddOnCategoryMutation,
+  useUpdateAddOnCategoryMutation,
+  useDeleteAddOnCategoryMutation,
   useAddPreferenceMutation,
   useAddPreferenceValueMutation,
   useAddCategoryMutation,
@@ -1213,6 +1515,20 @@ export const {
   useGetShopsDataQuery,
   useGetShopDetailsQuery,
   useAddShopMutation,
+  useGetPendingAgentsQuery,
+  useGetRejectedAgentsQuery,
+  useUpdateAgentApprovalMutation,
+  useGetAgentsCashDueQuery,
+  useGetPendingRemittancesQuery,
+  useGetAgentSettlementQuery,
+  useGetNotifyLogsQuery,
+  useGetServiceComparisonQuery,
+  useConfirmCashRemittanceMutation,
+  useRejectCashRemittanceMutation,
+  useRecordCashSettlementMutation,
+  useRecordAgentPayoutMutation,
+  useRecordSettlementAdjustmentMutation,
+  useSyncAgentWalletsMutation,
   useRegisterAgentMutation,
   useAddAgentAddressMutation,
   useAddAgentBusinessInfoMutation,
@@ -1277,6 +1593,10 @@ export const {
   useCreateReasonMutation,
   useGetAllReasonsQuery,
   useDeleteReasonMutation,
+  useGetAccountDeletionReasonsQuery,
+  useCreateAccountDeletionReasonMutation,
+  useUpdateAccountDeletionReasonMutation,
+  useDeleteAccountDeletionReasonMutation,
   useAddNoShowPolicyMutation,
   useGetNoShowPoliciesQuery,
   useLazyGetNoShowPoliciesQuery,
@@ -1298,6 +1618,14 @@ export const {
   useUpdateBlogMutation,
   useUpdateSupportContactMutation,
   useGetSupportContactQuery,
+  useGetPlatformOperationalHoursQuery,
+  useUpdatePlatformOperationalHoursMutation,
+  useGetBookingAssignableShopsQuery,
+  useAssignBookingToShopMutation,
   useGetAllCouponsQuery,
   useAddCouponMutation,
+  useCreateBannerMutation,
+  useGetAllBannersQuery,
+  useUpdateBannerMutation,
+  useDeleteBannerMutation,
 } = api;

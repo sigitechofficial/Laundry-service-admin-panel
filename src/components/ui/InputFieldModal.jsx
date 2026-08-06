@@ -12,6 +12,10 @@ export default function InputFieldModal({
   name,
   disabled,
   tooltipText,
+  inputMode,
+  pattern,
+  step,
+  min,
 }) {
   const [showPassword, setShowPassword] = useState(false);
 
@@ -35,6 +39,10 @@ export default function InputFieldModal({
           name={name}
           value={value}
           onChange={onChange}
+          inputMode={inputMode}
+          pattern={pattern}
+          step={step}
+          min={min}
           className="w-full h-[52px] outline-none bg-[#F4F7FF] rounded-lg !px-4 font-[Switzer] !font-normal !text-base"
         />
 

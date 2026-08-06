@@ -3,13 +3,11 @@ import { BsCardList, TbPlus, TbFilter } from "../../shared/icons/index";
 import NoShowPolicyContent from "./NoShowPolicyContent";
 import ButtonBlueLight from "../../components/ui/ButtonBlueLight";
 import { useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { useGetAllZonesQuery } from "../../store/services/api";
 
 export default function NoShowPolicy() {
   const addButtonHandlerRef = useRef(null);
-  const navigate = useNavigate();
   const [selectedZoneId, setSelectedZoneId] = useState("");
   const [zoneMenuAnchor, setZoneMenuAnchor] = useState(null);
   const zones = useSelector((state) => state?.apiData?.zones?.zones || []);

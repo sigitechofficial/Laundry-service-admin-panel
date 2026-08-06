@@ -9,7 +9,7 @@ import {
   Tooltip,
   CircularProgress,
 } from "@mui/material";
-import { TbPlus, TbCalendar, TbTrash, TbFilter } from "../../shared/icons/index";
+import { TbPlus, TbCalendar, TbTrash, TbFilter, TbEye } from "../../shared/icons/index";
 import StyledCheckbox from "../../components/ui/StyledCheckbox";
 import ChangeStatus from "../../components/ui/Switch";
 import LabelWithTooltip from "../../components/ui/LabelWithTooltip";
@@ -64,6 +64,52 @@ function isPolicyConsideredActive(p) {
   return s === "1" || s === "true" || s === "yes";
 }
 
+function formatPolicyBool(value) {
+  return value ? "Yes" : "No";
+}
+
+function PolicyDetailRow({ label, value }) {
+  return (
+    <Box
+      sx={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "flex-start",
+        gap: 2,
+        py: 1.25,
+        borderBottom: "1px solid #F1F5F9",
+      }}
+    >
+      <Typography sx={{ fontSize: "13px", color: "grey.80", fontFamily: "Switzer", flexShrink: 0 }}>
+        {label}
+      </Typography>
+      <Typography
+        sx={{
+          fontSize: "13px",
+          fontWeight: 500,
+          fontFamily: "Switzer",
+          textAlign: "right",
+          color: "grey.20",
+          wordBreak: "break-word",
+        }}
+      >
+        {value ?? "—"}
+      </Typography>
+    </Box>
+  );
+}
+
+function PolicyDetailSection({ title, children }) {
+  return (
+    <Box>
+      <Typography variant="h6" sx={{ mb: 1.5, fontFamily: "Switzer", fontWeight: 600, fontSize: "15px" }}>
+        {title}
+      </Typography>
+      <Box sx={{ bgcolor: "#FAFBFC", borderRadius: "8px", px: 2, py: 0.5 }}>{children}</Box>
+    </Box>
+  );
+}
+
 export default function CancellationPolicyContent() {
   const { success, error: showError } = useToaster();
   const [modalOpen, setModalOpen] = useState(false);
@@ -88,6 +134,8 @@ export default function CancellationPolicyContent() {
   const [pendingAddPayload, setPendingAddPayload] = useState(null);
   const [overlapTogglingId, setOverlapTogglingId] = useState(null);
   const [overlapPolicyFetchAll, setOverlapPolicyFetchAll] = useState(false);
+  const [viewModalOpen, setViewModalOpen] = useState(false);
+  const [viewingPolicy, setViewingPolicy] = useState(null);
 
   // Reset page to 1 when filters change
   useEffect(() => {
@@ -382,16 +430,20 @@ export default function CancellationPolicyContent() {
       ),
     },
     {
-      field: "unprocessedPercentage",
-      headerName: "Unprocessed %",
-      flex: 0.1,
-      minWidth: 130,
+      field: "unprocessedOrderValuePercentage",
+      headerName: "Unprocessed % (prepaid)",
+      flex: 0.12,
+      minWidth: 170,
       sortable: true,
-      renderCell: (row) => (
-        <Typography sx={{ fontWeight: 500, fontSize: "13px" }}>
-          {row.unprocessedPercentage ? `${row.unprocessedPercentage}%` : "N/A"}
-        </Typography>
-      ),
+      renderCell: (row) => {
+        const pct =
+          row.unprocessedOrderValuePercentage || row.unprocessedPercentage;
+        return (
+          <Typography sx={{ fontWeight: 500, fontSize: "13px" }}>
+            {pct ? `${pct}%` : "N/A"}
+          </Typography>
+        );
+      },
     },
     {
       field: "unprocessedAfterPickupMinutes",
@@ -402,18 +454,6 @@ export default function CancellationPolicyContent() {
       renderCell: (row) => (
         <Typography sx={{ fontWeight: 500, fontSize: "13px" }}>
           {row.unprocessedAfterPickupMinutes || "0"} min
-        </Typography>
-      ),
-    },
-    {
-      field: "unprocessedOrderValuePercentage",
-      headerName: "Order Value %",
-      flex: 0.1,
-      minWidth: 120,
-      sortable: true,
-      renderCell: (row) => (
-        <Typography sx={{ fontWeight: 500, fontSize: "13px" }}>
-          {row.unprocessedOrderValuePercentage ? `${row.unprocessedOrderValuePercentage}%` : "N/A"}
         </Typography>
       ),
     },
@@ -627,6 +667,37 @@ export default function CancellationPolicyContent() {
         </Typography>
       ),
     },
+    {
+      field: "actions",
+      headerName: "Actions",
+      flex: 0.08,
+      minWidth: 100,
+      sortable: false,
+      renderCell: (row) => (
+        <Box
+          component="button"
+          type="button"
+          onClick={() => handleView(row)}
+          sx={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 0.5,
+            border: "none",
+            background: "none",
+            cursor: "pointer",
+            color: "primary.main",
+            fontWeight: 500,
+            fontSize: "13px",
+            fontFamily: "Switzer",
+            p: 0,
+            "&:hover": { opacity: 0.8 },
+          }}
+        >
+          <TbEye size={16} />
+          View
+        </Box>
+      ),
+    },
   ];
 
   // Prepare table data
@@ -691,6 +762,7 @@ export default function CancellationPolicyContent() {
         : null,
       // Keep original config for edit functionality
       cancellationConfig: policy.cancellationConfig,
+      _rawPolicy: policy,
     };
   }) || [];
 
@@ -876,6 +948,18 @@ export default function CancellationPolicyContent() {
     }
   };
 
+  const handleView = (row) => {
+    const policy = row._rawPolicy || policies.find((p) => p.id === row.id);
+    if (!policy) return;
+    setViewingPolicy(policy);
+    setViewModalOpen(true);
+  };
+
+  const handleCloseView = () => {
+    setViewModalOpen(false);
+    setViewingPolicy(null);
+  };
+
   const handleEdit = (policy) => {
     setEditingPolicy(policy);
     const config = policy.cancellationConfig || {};
@@ -896,11 +980,22 @@ export default function CancellationPolicyContent() {
       prePickupFirstCancellationLeniency: config.prePickupFirstCancellationLeniency ?? true,
       unprocessedAbsoluteCurrency: config.unprocessedAbsoluteCurrency || "USD",
       unprocessedAbsoluteAmount: config.unprocessedAbsoluteAmount?.toString() || "",
-      unprocessedPercentage: config.unprocessedPercentage?.toString() || "",
+      // Form field removed; keep empty — save syncs legacy column from order-value %.
+      unprocessedPercentage: "",
       unprocessedAfterPickupMinutes: config.unprocessedAfterPickupMinutes
         ? (Number(config.unprocessedAfterPickupMinutes) / 60).toString()
         : "",
-      unprocessedOrderValuePercentage: config.unprocessedOrderValuePercentage?.toString() || "",
+      unprocessedOrderValuePercentage: (() => {
+        const orderValuePct = Number(config.unprocessedOrderValuePercentage);
+        if (Number.isFinite(orderValuePct) && orderValuePct > 0) {
+          return String(orderValuePct);
+        }
+        const legacyPct = Number(config.unprocessedPercentage);
+        if (Number.isFinite(legacyPct) && legacyPct > 0) {
+          return String(legacyPct);
+        }
+        return "";
+      })(),
       allowCancelUnprocessed: config.allowCancelUnprocessed ?? true,
       courtesyWindowDays: config.courtesyWindowDays?.toString() || "",
       courtesyCapAmount: config.courtesyCapAmount?.toString() || "",
@@ -1198,11 +1293,16 @@ export default function CancellationPolicyContent() {
         prePickupFirstCancellationLeniency: data.prePickupFirstCancellationLeniency,
         unprocessedAbsoluteCurrency: data.unprocessedAbsoluteCurrency,
         unprocessedAbsoluteAmount: data.unprocessedAbsoluteAmount ? parseFloat(data.unprocessedAbsoluteAmount) : 0,
-        unprocessedPercentage: data.unprocessedPercentage ? parseFloat(data.unprocessedPercentage) : 0,
+        // One canonical %: write the same value to both columns so legacy reads stay in sync.
+        unprocessedPercentage: data.unprocessedOrderValuePercentage
+          ? parseFloat(data.unprocessedOrderValuePercentage)
+          : 0,
         unprocessedAfterPickupMinutes: data.unprocessedAfterPickupMinutes
           ? Math.round(parseFloat(data.unprocessedAfterPickupMinutes) * 60)
           : 0,
-        unprocessedOrderValuePercentage: data.unprocessedOrderValuePercentage ? parseFloat(data.unprocessedOrderValuePercentage) : 0,
+        unprocessedOrderValuePercentage: data.unprocessedOrderValuePercentage
+          ? parseFloat(data.unprocessedOrderValuePercentage)
+          : 0,
         allowCancelUnprocessed: data.allowCancelUnprocessed,
         courtesyWindowDays: data.courtesyWindowDays ? parseInt(data.courtesyWindowDays) : 0,
         courtesyCapAmount: data.courtesyCapAmount ? parseFloat(data.courtesyCapAmount) : 0,
@@ -1266,6 +1366,17 @@ export default function CancellationPolicyContent() {
       ? zoneOptions.find((z) => String(z.value) === String(overlapZoneId))?.label ||
         `Zone #${overlapZoneId}`
       : "";
+
+  const viewingConfig = viewingPolicy?.cancellationConfig || {};
+  const viewingZoneName =
+    viewingPolicy?.zone?.name ||
+    zoneOptions.find((z) => String(z.value) === String(viewingPolicy?.zoneId))?.label ||
+    "—";
+  const viewingFreeWindowHours = viewingConfig.prePickupFreeChargeWindowMinutes
+    ? (Number(viewingConfig.prePickupFreeChargeWindowMinutes) / 60).toFixed(2)
+    : "0";
+  const viewingUnprocessedPct =
+    viewingConfig.unprocessedOrderValuePercentage || viewingConfig.unprocessedPercentage;
 
   if (isLoading) {
     return <Delay />;
@@ -1787,16 +1898,16 @@ export default function CancellationPolicyContent() {
 
                 <Box className="grid grid-cols-2 gap-4">
                   <Controller
-                    name="unprocessedPercentage"
+                    name="unprocessedOrderValuePercentage"
                     control={control}
                     render={({ field: { onChange, value } }) => (
                       <InputFieldModal
-                        title="Percentage (%)"
-                        placeholder="Enter percentage"
+                        title="Unprocessed fee % (of prepaid)"
+                        placeholder="e.g. 50"
                         type="number"
                         value={value || ""}
                         onChange={(e) => onChange(e.target.value)}
-                        tooltipText="Percentage-based cancellation fee for unprocessed orders (e.g., 5.00 for 5% of order value)."
+                        tooltipText="Cancellation fee after On the Way / unprocessed stage, as a percentage of prepaid (minimum order + service fee + tip). Example: 50 = keep half of prepaid."
                       />
                     )}
                   />
@@ -1811,26 +1922,11 @@ export default function CancellationPolicyContent() {
                         type="number"
                         value={value || ""}
                         onChange={(e) => onChange(e.target.value)}
-                        tooltipText="Time window in hours after pickup where cancellations are allowed. This value is converted to minutes before saving."
+                        tooltipText="Legacy field (hours, stored as minutes). Not used by cancel fee calc today; kept for future time-window rules after pickup."
                       />
                     )}
                   />
                 </Box>
-
-                <Controller
-                  name="unprocessedOrderValuePercentage"
-                  control={control}
-                  render={({ field: { onChange, value } }) => (
-                    <InputFieldModal
-                      title="Order Value Percentage (%)"
-                      placeholder="Enter percentage"
-                      type="number"
-                      value={value || ""}
-                      onChange={(e) => onChange(e.target.value)}
-                      tooltipText="Percentage of order value used for calculating cancellation fees for unprocessed orders (e.g., 10.00 for 10% of order value)."
-                    />
-                  )}
-                />
 
                 <Controller
                   name="allowCancelUnprocessed"
@@ -2050,6 +2146,144 @@ export default function CancellationPolicyContent() {
             </Box>
           )}
         </Box>
+      </ModalComponent>
+
+      {/* View Policy Modal */}
+      <ModalComponent
+        open={viewModalOpen}
+        title="VIEW CANCELLATION POLICY"
+        onClose={handleCloseView}
+        width={720}
+        primaryAction={{
+          label: "Close",
+          onClick: handleCloseView,
+        }}
+      >
+        {viewingPolicy && (
+          <Box className="flex flex-col gap-5">
+            <PolicyDetailSection title="Basic Information">
+              <PolicyDetailRow label="Policy Name" value={viewingPolicy.name} />
+              <PolicyDetailRow label="Description" value={viewingPolicy.description} />
+              <PolicyDetailRow label="Zone" value={viewingZoneName} />
+              <PolicyDetailRow label="Type" value={viewingPolicy.type || "—"} />
+              <PolicyDetailRow label="Status" value={viewingPolicy.isActive ? "Active" : "Inactive"} />
+              <PolicyDetailRow label="Default Policy" value={formatPolicyBool(viewingPolicy.isDefault)} />
+              <PolicyDetailRow
+                label="Effective From"
+                value={
+                  viewingPolicy.effectiveFrom
+                    ? new Date(viewingPolicy.effectiveFrom).toLocaleDateString()
+                    : "—"
+                }
+              />
+              <PolicyDetailRow
+                label="Effective To"
+                value={
+                  viewingPolicy.effectiveTo
+                    ? new Date(viewingPolicy.effectiveTo).toLocaleDateString()
+                    : "—"
+                }
+              />
+              <PolicyDetailRow
+                label="Created At"
+                value={
+                  viewingPolicy.createdAt
+                    ? new Date(viewingPolicy.createdAt).toLocaleString()
+                    : "—"
+                }
+              />
+              <PolicyDetailRow
+                label="Updated At"
+                value={
+                  viewingPolicy.updatedAt
+                    ? new Date(viewingPolicy.updatedAt).toLocaleString()
+                    : "—"
+                }
+              />
+            </PolicyDetailSection>
+
+            <PolicyDetailSection title="Pre-Pickup Charges">
+              <PolicyDetailRow
+                label="Currency"
+                value={viewingConfig.prePickupAbsoluteCurrency || "—"}
+              />
+              <PolicyDetailRow
+                label="Absolute Amount"
+                value={
+                  viewingConfig.prePickupAbsoluteAmount != null
+                    ? `${viewingConfig.prePickupAbsoluteCurrency || ""} ${viewingConfig.prePickupAbsoluteAmount}`
+                    : "—"
+                }
+              />
+              <PolicyDetailRow
+                label="Percentage"
+                value={
+                  viewingConfig.prePickupPercentage
+                    ? `${viewingConfig.prePickupPercentage}%`
+                    : "—"
+                }
+              />
+              <PolicyDetailRow
+                label="Free Charge Window"
+                value={`${viewingFreeWindowHours} hours (${viewingConfig.prePickupFreeChargeWindowMinutes || 0} min)`}
+              />
+              <PolicyDetailRow
+                label="First Cancellation Leniency"
+                value={formatPolicyBool(viewingConfig.prePickupFirstCancellationLeniency)}
+              />
+            </PolicyDetailSection>
+
+            <PolicyDetailSection title="Unprocessed Order Charges">
+              <PolicyDetailRow
+                label="Currency"
+                value={viewingConfig.unprocessedAbsoluteCurrency || "—"}
+              />
+              <PolicyDetailRow
+                label="Absolute Amount"
+                value={
+                  viewingConfig.unprocessedAbsoluteAmount != null
+                    ? `${viewingConfig.unprocessedAbsoluteCurrency || ""} ${viewingConfig.unprocessedAbsoluteAmount}`
+                    : "—"
+                }
+              />
+              <PolicyDetailRow
+                label="Percentage (prepaid)"
+                value={viewingUnprocessedPct ? `${viewingUnprocessedPct}%` : "—"}
+              />
+              <PolicyDetailRow
+                label="After Pickup (Minutes)"
+                value={`${viewingConfig.unprocessedAfterPickupMinutes || 0} min`}
+              />
+              <PolicyDetailRow
+                label="Allow Cancel Unprocessed"
+                value={formatPolicyBool(viewingConfig.allowCancelUnprocessed)}
+              />
+            </PolicyDetailSection>
+
+            <PolicyDetailSection title="Courtesy Window">
+              <PolicyDetailRow
+                label="Window Days"
+                value={viewingConfig.courtesyWindowDays ?? "—"}
+              />
+              <PolicyDetailRow
+                label="Cap Amount"
+                value={
+                  viewingConfig.courtesyCapAmount != null
+                    ? `${viewingConfig.prePickupAbsoluteCurrency || ""} ${viewingConfig.courtesyCapAmount}`
+                    : "—"
+                }
+              />
+              <PolicyDetailRow label="Courtesy Count" value={viewingConfig.courtesyCount ?? "—"} />
+            </PolicyDetailSection>
+
+            <PolicyDetailSection title="Customer Leniency">
+              <PolicyDetailRow
+                label="Enable Customer Leniency"
+                value={formatPolicyBool(viewingConfig.customerLeniencyEnabled)}
+              />
+            </PolicyDetailSection>
+          </Box>
+        )}
       </ModalComponent>
 
       {/* Delete Confirmation Modal */}

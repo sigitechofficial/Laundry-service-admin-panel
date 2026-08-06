@@ -53,6 +53,9 @@ export default function ServicesCard({ triggerAdd }) {
     basePrice: "",
     baseWeightKg: "",
     additionalPricePerKg: "",
+    numberOfBags: false,
+    numberOfItems: false,
+    washBleedDisclaimerEnabled: false,
   };
 
   const [add, setAdd] = useState(emptyForm);
@@ -62,6 +65,32 @@ export default function ServicesCard({ triggerAdd }) {
 
   const [editService, { isLoading: editServiceLoading }] =
     useEditServiceMutation();
+
+  const formatTurnaroundTime = (value) => {
+    if (value == null || value === "") return "";
+    return String(value);
+  };
+
+  const handleTurnaroundChange = (e) => {
+    const digitsOnly = e.target.value.replace(/\D/g, "");
+    setAdd((prev) => ({ ...prev, turnaroundTime: digitsOnly }));
+  };
+
+  const appendTimeRequired = (formData) => {
+    formData.append("timeRequired", String(add.turnaroundTime ?? ""));
+  };
+
+  const parseServiceFlag = (value) =>
+    value === true || value === "true" || value === 1 || value === "1";
+
+  const appendQuantityOptions = (formData) => {
+    formData.append("numberOfBags", String(Boolean(add.numberOfBags)));
+    formData.append("numberOfItems", String(Boolean(add.numberOfItems)));
+    formData.append(
+      "washBleedDisclaimerEnabled",
+      String(Boolean(add.washBleedDisclaimerEnabled))
+    );
+  };
 
   // Handle form data population for update modal
   useEffect(() => {
@@ -81,14 +110,18 @@ export default function ServicesCard({ triggerAdd }) {
           name: serviceToEdit.name || "",
           description: serviceToEdit.description || "",
           image: BASE_URL + serviceToEdit.image || "",
-          turnaroundTime:
-            serviceToEdit.timeRequired ??
-            serviceToEdit.turnaroundTime ??
-            "",
+          turnaroundTime: formatTurnaroundTime(
+            serviceToEdit.timeRequired ?? serviceToEdit.turnaroundTime
+          ),
           pricedByWeight: hasPricing,
           basePrice: serviceToEdit.basePrice ?? "",
           baseWeightKg: serviceToEdit.baseWeightKg ?? "",
           additionalPricePerKg: serviceToEdit.additionalPricePerKg ?? "",
+          numberOfBags: parseServiceFlag(serviceToEdit.numberOfBags),
+          numberOfItems: parseServiceFlag(serviceToEdit.numberOfItems),
+          washBleedDisclaimerEnabled: parseServiceFlag(
+            serviceToEdit.washBleedDisclaimerEnabled
+          ),
         }));
       }
     }
@@ -197,11 +230,18 @@ export default function ServicesCard({ triggerAdd }) {
       description: service.description || "",
       image: service.serviceImg || "",
       servicesId: service.id,
-      turnaroundTime: service.timeRequired ?? service.turnaroundTime ?? "",
+      turnaroundTime: formatTurnaroundTime(
+        service.timeRequired ?? service.turnaroundTime
+      ),
       pricedByWeight: hasPricing,
       basePrice: service.basePrice ?? "",
       baseWeightKg: service.baseWeightKg ?? "",
       additionalPricePerKg: service.additionalPricePerKg ?? "",
+      numberOfBags: parseServiceFlag(service.numberOfBags),
+      numberOfItems: parseServiceFlag(service.numberOfItems),
+      washBleedDisclaimerEnabled: parseServiceFlag(
+        service.washBleedDisclaimerEnabled
+      ),
     });
   };
 
@@ -224,9 +264,8 @@ export default function ServicesCard({ triggerAdd }) {
     formData.append("description", add.description);
     formData.append("serviceImg", add.image);
     formData.append("pricingBasis", add.pricedByWeight ? "weight" : "item");
-    if (add.turnaroundTime) {
-      formData.append("timeRequired", add.turnaroundTime);
-    }
+    appendTimeRequired(formData);
+    appendQuantityOptions(formData);
     if (add.pricedByWeight) {
       formData.append("basePrice", add.basePrice);
       formData.append("baseWeightKg", add.baseWeightKg);
@@ -235,6 +274,7 @@ export default function ServicesCard({ triggerAdd }) {
     let res = await addService(formData).unwrap();
     if (res?.status === "1") {
       handleToggle();
+      void refetch();
     } else {
       error("Something went wrong");
     }
@@ -257,9 +297,8 @@ export default function ServicesCard({ triggerAdd }) {
       } else if (add.image === null) {
         formData.append("deleteImage", "true");
       }
-      if (add.turnaroundTime) {
-        formData.append("timeRequired", add.turnaroundTime);
-      }
+      appendTimeRequired(formData);
+      appendQuantityOptions(formData);
       if (add.pricedByWeight) {
         formData.append("basePrice", add.basePrice);
         formData.append("baseWeightKg", add.baseWeightKg);
@@ -269,6 +308,7 @@ export default function ServicesCard({ triggerAdd }) {
       if (res?.status === "1") {
         handleToggle();
         success("Service updated successfully!");
+        void refetch();
       } else {
         error("Something went wrong");
       }
@@ -375,7 +415,7 @@ export default function ServicesCard({ triggerAdd }) {
                   >
                     <TbGripVertical size={20} />
                   </Box>
-                  <Typography variant="body1" noWrap sx={{ flex: 1 }}>
+                  <Typography variant="body1" sx={{ flex: 1 }}>
                     {service.name}
                   </Typography>
                 </Box>
@@ -441,10 +481,13 @@ export default function ServicesCard({ triggerAdd }) {
           {/* Turnaround time */}
           <InputFieldModal
             title="Turnaround Time (Days)"
-            placeholder="e.g. 2-3 days"
+            placeholder="e.g. 2"
             name="turnaroundTime"
+            type="text"
+            inputMode="numeric"
+            pattern="[0-9]*"
             value={add.turnaroundTime}
-            onChange={handleChange}
+            onChange={handleTurnaroundChange}
           />
 
           {/* Weight-based pricing toggle */}
@@ -516,6 +559,66 @@ export default function ServicesCard({ triggerAdd }) {
               )}
             </Box>
           )}
+
+          <Box className="flex flex-col gap-1">
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={add.numberOfBags}
+                  onChange={(e) =>
+                    setAdd((prev) => ({
+                      ...prev,
+                      numberOfBags: e.target.checked,
+                    }))
+                  }
+                  color="primary"
+                />
+              }
+              label={
+                <Typography variant="body2" sx={{ color: "#374151", fontWeight: 500 }}>
+                  Number of bags
+                </Typography>
+              }
+            />
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={add.numberOfItems}
+                  onChange={(e) =>
+                    setAdd((prev) => ({
+                      ...prev,
+                      numberOfItems: e.target.checked,
+                    }))
+                  }
+                  color="primary"
+                />
+              }
+              label={
+                <Typography variant="body2" sx={{ color: "#374151", fontWeight: 500 }}>
+                  Number of items
+                </Typography>
+              }
+            />
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={add.washBleedDisclaimerEnabled}
+                  onChange={(e) =>
+                    setAdd((prev) => ({
+                      ...prev,
+                      washBleedDisclaimerEnabled: e.target.checked,
+                    }))
+                  }
+                  color="primary"
+                />
+              }
+              label={
+                <Typography variant="body2" sx={{ color: "#374151", fontWeight: 500 }}>
+                  Mixed wash colour-bleed disclaimer
+                </Typography>
+              }
+            />
+          </Box>
 
           <TextareaField
             title="Description"
