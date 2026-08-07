@@ -276,6 +276,12 @@ export const sidebarList = [
     size: "23px",
   },
   {
+    label: "Send Notifications",
+    Icon: MdNotificationsNone,
+    path: "/send-notifications",
+    size: "23px",
+  },
+  {
     label: "Delete Account Reasons",
     Icon: TbTrash,
     path: "/delete-account-reasons",

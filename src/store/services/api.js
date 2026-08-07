@@ -548,6 +548,30 @@ export const api = createApi({
       providesTags: ["NotifyLogs"],
     }),
 
+    searchNotificationRecipients: builder.query({
+      query: (params = {}) => ({
+        url: "admin/notifications/recipients/search",
+        method: "GET",
+        params,
+      }),
+    }),
+
+    previewAdminNotification: builder.mutation({
+      query: (body) => ({
+        url: "admin/notifications/preview",
+        method: "POST",
+        body,
+      }),
+    }),
+
+    sendAdminNotification: builder.mutation({
+      query: (body) => ({
+        url: "admin/notifications/send",
+        method: "POST",
+        body,
+      }),
+    }),
+
     getServiceComparison: builder.query({
       query: (bookingId) => ({
         url: `admin/bookings/${bookingId}/service-comparison`,
@@ -1542,6 +1566,9 @@ export const {
   useGetPendingRemittancesQuery,
   useGetAgentSettlementQuery,
   useGetNotifyLogsQuery,
+  useLazySearchNotificationRecipientsQuery,
+  usePreviewAdminNotificationMutation,
+  useSendAdminNotificationMutation,
   useGetServiceComparisonQuery,
   useConfirmCashRemittanceMutation,
   useRejectCashRemittanceMutation,
