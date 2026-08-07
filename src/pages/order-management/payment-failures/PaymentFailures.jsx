@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
-import { Box, Button, Typography } from "@mui/material";
+import { Box, Button, Chip, Typography } from "@mui/material";
 import { BsCardList } from "../../../shared/icons/index";
 import { Delay } from "../../../components/shared/Loaders";
 import DataTable from "../../../components/ui/DataTable";
@@ -37,6 +37,33 @@ const ACTIONS = [
   },
 ];
 
+const FRIENDLY_REASONS = {
+  generic_decline: "Card was declined by the bank",
+  insufficient_funds: "Insufficient funds on the card",
+  lost_card: "Card reported as lost",
+  stolen_card: "Card reported as stolen",
+  expired_card: "Card has expired",
+  incorrect_cvc: "Incorrect card security code (CVC)",
+  processing_error: "Bank processing error — try again later",
+  do_not_honor: "Bank declined the payment (do not honor)",
+  authentication_required: "Card requires customer authentication",
+  missing_payment_method: "No saved payment method on file",
+  card_declined: "Card was declined",
+};
+
+function formatFailureReason(code, message, displayFromApi) {
+  if (displayFromApi) return displayFromApi;
+  const key = String(code || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "_");
+  if (key && FRIENDLY_REASONS[key]) return FRIENDLY_REASONS[key];
+  const msg = String(message || "")
+    .replace(/^Stripe Error:\s*/i, "")
+    .trim();
+  return msg || "Card payment failed";
+}
+
 export default function PaymentFailures() {
   const navigate = useNavigate();
   const { success, error: showError } = useToaster();
@@ -56,7 +83,7 @@ export default function PaymentFailures() {
 
   const tableData = useMemo(
     () =>
-      (Array.isArray(failures) ? failures : []).map((row, index) => {
+      (Array.isArray(failures) ? failures : []).map((row) => {
         const customerName = [
           row?.customer?.firstName,
           row?.customer?.lastName,
@@ -64,10 +91,15 @@ export default function PaymentFailures() {
           .filter(Boolean)
           .join(" ")
           .trim();
+        const code = row.lastPaymentFailureCode || "";
+        const reason = formatFailureReason(
+          code,
+          row.lastPaymentFailureMessage,
+          row.failureReasonDisplay || row.paymentFlags?.paymentFailureReason
+        );
         return {
           id: row.id,
-          sl: index + 1,
-          orderId: row.orderTrackId || row.id,
+          orderId: row.orderTrackId || String(row.id),
           customer: customerName || row?.customer?.email || "—",
           phone: row?.customer?.phoneNum || "—",
           amount:
@@ -76,13 +108,16 @@ export default function PaymentFailures() {
               : row?.orderAmount != null
                 ? `£${Number(row.orderAmount).toFixed(2)}`
                 : "—",
-          reason: row.lastPaymentFailureMessage || "—",
-          code: row.lastPaymentFailureCode || "—",
+          code: code || "—",
+          reason,
           failedAt: row.lastPaymentFailureAt
             ? dayjs(row.lastPaymentFailureAt).format(dateTimeFormat)
             : "—",
-          statusId: row.bookingStatusId ?? "—",
-          gate: row.paymentDeliveryGate || "—",
+          statusLabel:
+            row.bookingStatusLabel ||
+            (row.bookingStatusId != null
+              ? `Status ${row.bookingStatusId}`
+              : "—"),
         };
       }),
     [failures]
@@ -130,22 +165,63 @@ export default function PaymentFailures() {
 
   const columns = useMemo(
     () => [
-      { field: "orderId", headerName: "Order ID", minWidth: 130 },
+      { field: "orderId", headerName: "Order ID", minWidth: 140 },
       { field: "customer", headerName: "Customer", minWidth: 140 },
       { field: "phone", headerName: "Phone", minWidth: 120 },
       { field: "amount", headerName: "Amount", minWidth: 90 },
-      { field: "code", headerName: "Error code", minWidth: 120 },
-      { field: "reason", headerName: "Reason", minWidth: 180, wrap: true },
+      {
+        field: "reason",
+        headerName: "Failure reason",
+        minWidth: 280,
+        wrap: true,
+        renderCell: (row) => (
+          <Box sx={{ py: 0.5, maxWidth: 360 }}>
+            {row.code && row.code !== "—" ? (
+              <Chip
+                size="small"
+                label={row.code}
+                sx={{
+                  mb: 0.75,
+                  height: 22,
+                  fontSize: 11,
+                  bgcolor: "#FFF1F0",
+                  color: "#CF1322",
+                  border: "1px solid #FFCCC7",
+                }}
+              />
+            ) : null}
+            <Typography
+              variant="body2"
+              sx={{
+                whiteSpace: "normal",
+                wordBreak: "normal",
+                overflowWrap: "anywhere",
+                lineHeight: 1.45,
+                color: "text.primary",
+              }}
+            >
+              {row.reason}
+            </Typography>
+          </Box>
+        ),
+      },
       { field: "failedAt", headerName: "Failed at", minWidth: 150 },
-      { field: "statusId", headerName: "Status", minWidth: 70 },
+      { field: "statusLabel", headerName: "Status", minWidth: 140 },
       {
         field: "actions",
         headerName: "Actions",
-        width: 380,
+        minWidth: 360,
         sortable: false,
-        // DataTable passes the row object directly (not MUI DataGrid params).
         renderCell: (row) => (
-          <Box sx={{ display: "flex", gap: 0.75, flexWrap: "wrap", py: 0.5 }}>
+          <Box
+            sx={{
+              display: "flex",
+              gap: 0.75,
+              flexWrap: "wrap",
+              py: 0.5,
+              alignItems: "center",
+            }}
+          >
             <Button
               size="small"
               variant="outlined"
@@ -218,6 +294,7 @@ export default function PaymentFailures() {
         columns={columns}
         searchable
         searchPlaceholder="Search payment failures..."
+        stickyRightFields={["actions"]}
       />
 
       <ModalComponent
