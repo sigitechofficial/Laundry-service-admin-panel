@@ -392,6 +392,7 @@ export const api = createApi({
         url: "admin/ordersCount",
         method: "GET",
       }),
+      providesTags: ["Orders"],
     }),
 
     getAllOrder: builder.query({

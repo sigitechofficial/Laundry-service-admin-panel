@@ -130,63 +130,72 @@ export default function PaymentFailures() {
 
   const columns = useMemo(
     () => [
-      { field: "sl", headerName: "SL", width: 60 },
-      { field: "orderId", headerName: "Order ID", flex: 1, minWidth: 120 },
-      { field: "customer", headerName: "Customer", flex: 1, minWidth: 140 },
-      { field: "phone", headerName: "Phone", flex: 1, minWidth: 120 },
-      { field: "amount", headerName: "Amount", width: 100 },
-      { field: "code", headerName: "Error code", width: 140 },
-      { field: "reason", headerName: "Reason", flex: 1.4, minWidth: 180 },
-      { field: "failedAt", headerName: "Failed at", width: 160 },
-      { field: "statusId", headerName: "Status", width: 80 },
+      { field: "orderId", headerName: "Order ID", minWidth: 130 },
+      { field: "customer", headerName: "Customer", minWidth: 140 },
+      { field: "phone", headerName: "Phone", minWidth: 120 },
+      { field: "amount", headerName: "Amount", minWidth: 90 },
+      { field: "code", headerName: "Error code", minWidth: 120 },
+      { field: "reason", headerName: "Reason", minWidth: 180, wrap: true },
+      { field: "failedAt", headerName: "Failed at", minWidth: 150 },
+      { field: "statusId", headerName: "Status", minWidth: 70 },
       {
         field: "actions",
         headerName: "Actions",
         width: 380,
         sortable: false,
-        renderCell: (params) => {
-          const row = params.row;
-          return (
-            <Box sx={{ display: "flex", gap: 0.75, flexWrap: "wrap", py: 0.5 }}>
-              <Button
-                size="small"
-                variant="outlined"
-                onClick={() => navigate(`/orders/details/${row.id}`)}
-                sx={{ textTransform: "none" }}
-              >
-                View
-              </Button>
-              <Button
-                size="small"
-                variant="contained"
-                color="success"
-                disabled={isResolving}
-                onClick={() => openConfirm(row, "shift_to_cash")}
-                sx={{ textTransform: "none" }}
-              >
-                Shift to Cash
-              </Button>
-              <Button
-                size="small"
-                variant="contained"
-                disabled={isResolving}
-                onClick={() => openConfirm(row, "allow_proceed")}
-                sx={{ textTransform: "none" }}
-              >
-                Allow Proceed
-              </Button>
-              <Button
-                size="small"
-                variant="text"
-                disabled={isResolving}
-                onClick={() => openConfirm(row, "keep_waiting")}
-                sx={{ textTransform: "none" }}
-              >
-                Keep Waiting
-              </Button>
-            </Box>
-          );
-        },
+        // DataTable passes the row object directly (not MUI DataGrid params).
+        renderCell: (row) => (
+          <Box sx={{ display: "flex", gap: 0.75, flexWrap: "wrap", py: 0.5 }}>
+            <Button
+              size="small"
+              variant="outlined"
+              onClick={(e) => {
+                e.stopPropagation();
+                navigate(`/orders/details/${row.id}`);
+              }}
+              sx={{ textTransform: "none" }}
+            >
+              View
+            </Button>
+            <Button
+              size="small"
+              variant="contained"
+              color="success"
+              disabled={isResolving}
+              onClick={(e) => {
+                e.stopPropagation();
+                openConfirm(row, "shift_to_cash");
+              }}
+              sx={{ textTransform: "none" }}
+            >
+              Shift to Cash
+            </Button>
+            <Button
+              size="small"
+              variant="contained"
+              disabled={isResolving}
+              onClick={(e) => {
+                e.stopPropagation();
+                openConfirm(row, "allow_proceed");
+              }}
+              sx={{ textTransform: "none" }}
+            >
+              Allow Proceed
+            </Button>
+            <Button
+              size="small"
+              variant="text"
+              disabled={isResolving}
+              onClick={(e) => {
+                e.stopPropagation();
+                openConfirm(row, "keep_waiting");
+              }}
+              sx={{ textTransform: "none" }}
+            >
+              Keep Waiting
+            </Button>
+          </Box>
+        ),
       },
     ],
     [isResolving, navigate, openConfirm]

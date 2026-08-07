@@ -82,6 +82,8 @@ function Sidebar() {
         return counts.cancelledOrders || 0;
       case "On hold":
         return counts.onHoldOrders || 0;
+      case "Payment Failures":
+        return counts.paymentFailuresCount || 0;
       default:
         return 0;
     }
