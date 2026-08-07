@@ -92,6 +92,9 @@ export const AgentSettlementPage = lazy(() =>
 export const NotifyLogsPage = lazy(() =>
   import("../pages/notify-logs/NotifyLogsPage")
 );
+export const FcmDebugPage = lazy(() =>
+  import("../pages/fcm-debug/FcmDebugPage")
+);
 export const ShopDetails = lazy(() =>
   import("../pages/shop-management/ShopDetail")
 );

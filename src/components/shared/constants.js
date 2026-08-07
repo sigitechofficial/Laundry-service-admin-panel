@@ -6,6 +6,7 @@ import {
   MdOutlineStore,
   MdOutlineLocationOn,
   MdOutlinePhone,
+  MdNotificationsNone,
   IconFingerHold,
   RiUserSettingsLine,
   TbSettings,
@@ -266,6 +267,12 @@ export const sidebarList = [
     label: "Notify / Call Logs",
     Icon: MdOutlinePhone,
     path: "/notify-logs",
+    size: "23px",
+  },
+  {
+    label: "FCM Push Debug",
+    Icon: MdNotificationsNone,
+    path: "/fcm-debug",
     size: "23px",
   },
   {

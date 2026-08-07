@@ -5,6 +5,7 @@ import {
   MdOutlineLocationOn,
   MdOutlinePhone,
   MdMailOutline,
+  MdNotificationsNone,
 } from "react-icons/md";
 import { BsCardList, BsHandbagFill } from "react-icons/bs";
 import {
@@ -112,6 +113,7 @@ export {
   MdOutlineLocationOn,
   MdOutlinePhone,
   MdMailOutline,
+  MdNotificationsNone,
   TbArrowsSort,
   IoIosArrowRoundUp,
   IoIosArrowRoundDown,

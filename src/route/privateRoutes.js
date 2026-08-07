@@ -43,6 +43,7 @@ import {
   PromoCodesPage,
   BannersPage,
   NotifyLogsPage,
+  FcmDebugPage,
 } from "../routes/AsyncComponent";
 
 export const privateRoutes = [
@@ -96,6 +97,11 @@ export const privateRoutes = [
     path: "/notify-logs",
     element: NotifyLogsPage,
     resourceKey: "notify_call_logs_page",
+  },
+  {
+    path: "/fcm-debug",
+    element: FcmDebugPage,
+    resourceKey: "fcm_push_debug_page",
   },
   {
     path: "/delete-account-reasons",
