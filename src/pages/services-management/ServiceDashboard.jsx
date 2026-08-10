@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, Fragment } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef, Fragment } from "react";
 import {
   Box,
   Typography,
@@ -16,8 +16,12 @@ import { useNavigate } from "react-router-dom";
 import {
   useGetAllServicesQuery,
   useGetServiceWitPreferencesQuery,
+  useGetAllAddOnServicesQuery,
   useAddServiceMutation,
   useEditServiceMutation,
+  useUpdateServicesSortOrderMutation,
+  useUpdateCategoriesSortOrderMutation,
+  useUpdateSubCategoriesSortOrderMutation,
 } from "../../store/services/api";
 import {
   TbDotsVertical,
@@ -27,6 +31,7 @@ import {
   TbChevronRight,
   TbChevronDown,
 } from "../../shared/icons/index";
+import { TbGripVertical } from "react-icons/tb";
 import Search from "../../components/ui/Search";
 import {
   MdLocalLaundryService,
@@ -42,6 +47,13 @@ import ImageUpload from "../../components/ui/ImageUpload";
 import useToaster from "../../components/ui/Toaster";
 import { BASE_URL } from "../../utilities/URL";
 import { Delay, MiniLoader } from "../../components/shared/Loaders";
+import CategoryAddOnsModal from "./CategoryAddOnsModal";
+import {
+  buildSubCategoriesByServiceId,
+  getAddOnsForCategoryRow,
+  normalizeAddOnServicesList,
+} from "./serviceAddOnsUtils";
+import FiltersButton from "../../components/ui/FiltersButton";
 
 // Service name patterns → icons (matches Figma laundry design intent)
 const SERVICE_ICONS = [
@@ -88,13 +100,44 @@ const NESTED_TABLE_HEAD_SX = {
   whiteSpace: "nowrap",
 };
 
-function ServiceCategoriesExpandableTable({ rows, searchTerm }) {
+function reorderById(list, draggedId, targetId) {
+  const ids = list.map((item) => String(item.id));
+  const fromIdx = ids.indexOf(String(draggedId));
+  const toIdx = ids.indexOf(String(targetId));
+  if (fromIdx < 0 || toIdx < 0 || fromIdx === toIdx) return null;
+  const next = [...list];
+  const [moved] = next.splice(fromIdx, 1);
+  next.splice(toIdx, 0, moved);
+  return next;
+}
+
+function ServiceCategoriesExpandableTable({
+  rows,
+  searchTerm,
+  addOnsList,
+  subCategoriesByServiceId,
+  onViewAddOns,
+  onReorderCategories,
+  onReorderSubCategories,
+  reorderDisabled = false,
+}) {
   const [expanded, setExpanded] = useState({});
+  const [categoryOrder, setCategoryOrder] = useState(null);
+  const [subOrderByCategory, setSubOrderByCategory] = useState({});
+  const [dragOverCategoryId, setDragOverCategoryId] = useState(null);
+  const [dragOverSubKey, setDragOverSubKey] = useState(null);
+
+  useEffect(() => {
+    setCategoryOrder(null);
+    setSubOrderByCategory({});
+  }, [rows]);
+
+  const baseRows = categoryOrder ?? rows;
 
   const filteredRows = useMemo(() => {
-    if (!searchTerm?.trim()) return rows;
+    if (!searchTerm?.trim()) return baseRows;
     const q = searchTerm.toLowerCase();
-    return rows.filter(
+    return baseRows.filter(
       (r) =>
         r.category?.toLowerCase().includes(q) ||
         r.serviceName?.toLowerCase().includes(q) ||
@@ -107,7 +150,7 @@ function ServiceCategoriesExpandableTable({ rows, searchTerm }) {
             .includes(q)
         )
     );
-  }, [rows, searchTerm]);
+  }, [baseRows, searchTerm]);
 
   useEffect(() => {
     if (!searchTerm?.trim()) return;
@@ -115,7 +158,13 @@ function ServiceCategoriesExpandableTable({ rows, searchTerm }) {
     setExpanded((prev) => {
       const next = { ...prev };
       filteredRows.forEach((r) => {
-        if (r.subCategories?.some((sub) => String(sub?.name || "").toLowerCase().includes(q))) {
+        if (
+          r.subCategories?.some((sub) =>
+            String(sub?.name || "")
+              .toLowerCase()
+              .includes(q)
+          )
+        ) {
           next[r.id] = true;
         }
       });
@@ -125,6 +174,55 @@ function ServiceCategoriesExpandableTable({ rows, searchTerm }) {
 
   const toggleRow = (id) => {
     setExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  const getSubItems = (row) =>
+    subOrderByCategory[row.categoryId] ?? row.subCategories ?? [];
+
+  const handleCategoryDrop = async (e, targetId) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOverCategoryId(null);
+    const draggedId = e.dataTransfer.getData("text/category");
+    if (!draggedId || reorderDisabled) return;
+    const next = reorderById(baseRows, draggedId, targetId);
+    if (!next) return;
+    setCategoryOrder(next);
+    try {
+      await onReorderCategories?.(next);
+    } catch {
+      setCategoryOrder(null);
+    }
+  };
+
+  const handleSubDrop = async (e, categoryId, targetSubId) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOverSubKey(null);
+    const draggedId = e.dataTransfer.getData("text/subcategory");
+    const dragCategoryId = e.dataTransfer.getData("text/subcategory-category");
+    if (
+      !draggedId ||
+      String(dragCategoryId) !== String(categoryId) ||
+      reorderDisabled
+    ) {
+      return;
+    }
+    const row = baseRows.find((r) => String(r.categoryId) === String(categoryId));
+    if (!row) return;
+    const current = getSubItems(row);
+    const next = reorderById(current, draggedId, targetSubId);
+    if (!next) return;
+    setSubOrderByCategory((prev) => ({ ...prev, [categoryId]: next }));
+    try {
+      await onReorderSubCategories?.(categoryId, next);
+    } catch {
+      setSubOrderByCategory((prev) => {
+        const copy = { ...prev };
+        delete copy[categoryId];
+        return copy;
+      });
+    }
   };
 
   if (!filteredRows.length) {
@@ -154,25 +252,34 @@ function ServiceCategoriesExpandableTable({ rows, searchTerm }) {
         boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
       }}
     >
+      <Typography
+        variant="caption"
+        sx={{ display: "block", px: 2, pt: 1.5, color: "#64748B", fontFamily: "Inter, sans-serif" }}
+      >
+        Drag the grip handle to reorder categories and sub-categories.
+      </Typography>
       <Box sx={{ maxHeight: 520, overflow: "auto" }}>
         <Table
           stickyHeader
           sx={{
             width: "100%",
-            minWidth: 900,
+            minWidth: 940,
             tableLayout: "fixed",
           }}
         >
           <colgroup>
+            <col style={{ width: 44 }} />
             <col style={{ width: 48 }} />
             <col style={{ width: 56 }} />
-            <col style={{ width: "20%" }} />
-            <col style={{ width: "14%" }} />
+            <col style={{ width: "18%" }} />
+            <col style={{ width: "12%" }} />
             <col />
             <col style={{ width: 148 }} />
+            <col style={{ width: 120 }} />
           </colgroup>
           <TableHead>
             <TableRow>
+              <TableCell sx={{ ...MAIN_TABLE_HEAD_SX, width: 44, px: 1 }} />
               <TableCell sx={{ ...MAIN_TABLE_HEAD_SX, width: 48, px: 1 }} />
               <TableCell sx={{ ...MAIN_TABLE_HEAD_SX, width: 56 }} align="center">
                 SL
@@ -189,18 +296,38 @@ function ServiceCategoriesExpandableTable({ rows, searchTerm }) {
               <TableCell sx={{ ...MAIN_TABLE_HEAD_SX, width: 148 }} align="right">
                 Sub-categories
               </TableCell>
+              <TableCell sx={{ ...MAIN_TABLE_HEAD_SX, width: 120 }} align="center">
+                Add-ons
+              </TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {filteredRows.map((row, idx) => {
               const isOpen = Boolean(expanded[row.id]);
-              const subItems = row.subCategories ?? [];
-              const rowBg = idx % 2 === 0 ? "#fff" : "#FAFAFA";
+              const subItems = getSubItems(row);
+              const addOnCount = getAddOnsForCategoryRow(
+                { ...row, subCategories: subItems },
+                addOnsList,
+                subCategoriesByServiceId
+              ).length;
+              const rowBg =
+                dragOverCategoryId === row.id
+                  ? "rgba(21, 112, 239, 0.08)"
+                  : idx % 2 === 0
+                    ? "#fff"
+                    : "#FAFAFA";
 
               return (
                 <Fragment key={row.id}>
                   <TableRow
                     hover
+                    onDragOver={(e) => {
+                      if (reorderDisabled) return;
+                      e.preventDefault();
+                      setDragOverCategoryId(row.id);
+                    }}
+                    onDragLeave={() => setDragOverCategoryId(null)}
+                    onDrop={(e) => handleCategoryDrop(e, row.id)}
                     onClick={() => toggleRow(row.id)}
                     sx={{
                       cursor: "pointer",
@@ -208,6 +335,30 @@ function ServiceCategoriesExpandableTable({ rows, searchTerm }) {
                       "&:hover": { bgcolor: "#F0F4FF" },
                     }}
                   >
+                    <TableCell
+                      sx={{ py: 1.5, borderBottom: "1px solid #E5E7EB", px: 0.5 }}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <Box
+                        draggable={!reorderDisabled && !searchTerm?.trim()}
+                        onDragStart={(e) => {
+                          e.stopPropagation();
+                          e.dataTransfer.setData("text/category", String(row.id));
+                          e.dataTransfer.effectAllowed = "move";
+                        }}
+                        sx={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          cursor: reorderDisabled ? "not-allowed" : "grab",
+                          color: "#94A3B8",
+                          "&:active": { cursor: "grabbing" },
+                        }}
+                        aria-label="Drag to reorder category"
+                      >
+                        <TbGripVertical size={18} />
+                      </Box>
+                    </TableCell>
                     <TableCell sx={{ py: 1.5, borderBottom: "1px solid #E5E7EB" }}>
                       <IconButton
                         size="small"
@@ -230,7 +381,7 @@ function ServiceCategoriesExpandableTable({ rows, searchTerm }) {
                         borderBottom: "1px solid #E5E7EB",
                       }}
                     >
-                      {row.sl}
+                      {idx + 1}
                     </TableCell>
                     <TableCell
                       sx={{
@@ -279,12 +430,35 @@ function ServiceCategoriesExpandableTable({ rows, searchTerm }) {
                     >
                       {subItems.length}
                     </TableCell>
+                    <TableCell
+                      align="center"
+                      sx={{
+                        py: 1.5,
+                        borderBottom: "1px solid #E5E7EB",
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <FiltersButton
+                        text={
+                          addOnCount > 0 ? `View (${addOnCount})` : "View"
+                        }
+                        variant="blue"
+                        onClick={() =>
+                          onViewAddOns?.({
+                            categoryName: row.category,
+                            subCategories: subItems,
+                          })
+                        }
+                        boxShadow="none"
+                        border="none"
+                      />
+                    </TableCell>
                   </TableRow>
 
                   {isOpen && (
                     <TableRow>
                       <TableCell
-                        colSpan={6}
+                        colSpan={8}
                         sx={{
                           p: 0,
                           borderBottom: "1px solid #E5E7EB",
@@ -318,6 +492,7 @@ function ServiceCategoriesExpandableTable({ rows, searchTerm }) {
                             >
                               <TableHead>
                                 <TableRow>
+                                  <TableCell sx={{ ...NESTED_TABLE_HEAD_SX, width: 40 }} />
                                   <TableCell sx={NESTED_TABLE_HEAD_SX}>Sub-category</TableCell>
                                   <TableCell sx={NESTED_TABLE_HEAD_SX} align="right">
                                     Price
@@ -329,31 +504,79 @@ function ServiceCategoriesExpandableTable({ rows, searchTerm }) {
                                 </TableRow>
                               </TableHead>
                               <TableBody>
-                                {subItems.map((sub, subIdx) => (
-                                  <TableRow key={sub.id ?? `${sub.name}-${subIdx}`}>
-                                    <TableCell sx={{ color: "#101828", fontWeight: 500 }}>
-                                      {sub.name ?? "—"}
-                                    </TableCell>
-                                    <TableCell align="right" sx={{ fontWeight: 600, color: "#000099" }}>
-                                      £{Number(sub.price ?? 0).toFixed(2)}
-                                    </TableCell>
-                                    <TableCell>
-                                      <Typography
-                                        component="span"
-                                        sx={{
-                                          fontSize: 12,
-                                          fontWeight: 600,
-                                          color: sub.status ? "#059669" : "#94A3B8",
-                                        }}
-                                      >
-                                        {sub.status ? "Active" : "Inactive"}
-                                      </Typography>
-                                    </TableCell>
-                                    <TableCell sx={{ color: "#64748B", whiteSpace: "normal" }}>
-                                      {sub.description ?? "—"}
-                                    </TableCell>
-                                  </TableRow>
-                                ))}
+                                {subItems.map((sub, subIdx) => {
+                                  const subKey = `${row.categoryId}-${sub.id}`;
+                                  return (
+                                    <TableRow
+                                      key={sub.id ?? `${sub.name}-${subIdx}`}
+                                      onDragOver={(e) => {
+                                        if (reorderDisabled) return;
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        setDragOverSubKey(subKey);
+                                      }}
+                                      onDragLeave={() => setDragOverSubKey(null)}
+                                      onDrop={(e) =>
+                                        handleSubDrop(e, row.categoryId, sub.id)
+                                      }
+                                      sx={{
+                                        bgcolor:
+                                          dragOverSubKey === subKey
+                                            ? "rgba(21, 112, 239, 0.08)"
+                                            : "inherit",
+                                      }}
+                                    >
+                                      <TableCell sx={{ width: 40, px: 0.5 }}>
+                                        <Box
+                                          draggable={!reorderDisabled}
+                                          onDragStart={(e) => {
+                                            e.stopPropagation();
+                                            e.dataTransfer.setData(
+                                              "text/subcategory",
+                                              String(sub.id)
+                                            );
+                                            e.dataTransfer.setData(
+                                              "text/subcategory-category",
+                                              String(row.categoryId)
+                                            );
+                                            e.dataTransfer.effectAllowed = "move";
+                                          }}
+                                          sx={{
+                                            display: "flex",
+                                            color: "#94A3B8",
+                                            cursor: reorderDisabled
+                                              ? "not-allowed"
+                                              : "grab",
+                                          }}
+                                          aria-label="Drag to reorder sub-category"
+                                        >
+                                          <TbGripVertical size={16} />
+                                        </Box>
+                                      </TableCell>
+                                      <TableCell sx={{ color: "#101828", fontWeight: 500 }}>
+                                        {sub.name ?? "—"}
+                                      </TableCell>
+                                      <TableCell align="right" sx={{ fontWeight: 600, color: "#000099" }}>
+                                        £{Number(sub.price ?? 0).toFixed(2)}
+                                      </TableCell>
+                                      <TableCell>
+                                        <Typography
+                                          component="span"
+                                          sx={{
+                                            fontSize: 12,
+                                            fontWeight: 600,
+                                            color: sub.status ? "#059669" : "#94A3B8",
+                                          }}
+                                        >
+                                          {sub.status ? "Active" : "Inactive"}
+                                        </Typography>
+                                      </TableCell>
+                                      <TableCell sx={{ color: "#64748B", whiteSpace: "normal" }}>
+                                        {sub.description ?? "—"}
+                                      </TableCell>
+                                    </TableRow>
+                                  );
+                                })}
                               </TableBody>
                             </Table>
                           )}
@@ -396,19 +619,54 @@ export default function ServiceDashboard() {
       skip: !selectedServiceId,
     });
 
+  const { data: addOnsResponse } = useGetAllAddOnServicesQuery();
+  const addOnsList = useMemo(
+    () => normalizeAddOnServicesList(addOnsResponse),
+    [addOnsResponse]
+  );
+  const subCategoriesByServiceId = useMemo(
+    () =>
+      buildSubCategoriesByServiceId(
+        serviceConfigData?.data?.serviceCategoriesData
+      ),
+    [serviceConfigData?.data?.serviceCategoriesData]
+  );
+
+  const [addOnsModal, setAddOnsModal] = useState({
+    open: false,
+    categoryName: "",
+    subCategories: [],
+  });
+
   const [addService, { isLoading: addServiceLoading }] = useAddServiceMutation();
   const [editService, { isLoading: editServiceLoading }] =
     useEditServiceMutation();
+  const [updateServicesSortOrder, { isLoading: serviceReorderLoading }] =
+    useUpdateServicesSortOrderMutation();
+  const [updateCategoriesSortOrder, { isLoading: categoryReorderLoading }] =
+    useUpdateCategoriesSortOrderMutation();
+  const [updateSubCategoriesSortOrder, { isLoading: subReorderLoading }] =
+    useUpdateSubCategoriesSortOrderMutation();
+
+  const [serviceDragOrder, setServiceDragOrder] = useState(null);
+  const [dragOverServiceId, setDragOverServiceId] = useState(null);
+  const draggingServiceIdRef = useRef(null);
 
   useEffect(() => {
-    if (services?.length && !selectedServiceId) {
-      setSelectedServiceId(services[0]?.id);
+    setServiceDragOrder(null);
+  }, [servicesData]);
+
+  const orderedServices = serviceDragOrder ?? services;
+
+  useEffect(() => {
+    if (orderedServices?.length && !selectedServiceId) {
+      setSelectedServiceId(orderedServices[0]?.id);
     }
-  }, [services, selectedServiceId]);
+  }, [orderedServices, selectedServiceId]);
 
   useEffect(() => {
     if (serviceModal.type === "update" && serviceModal.id) {
-      const s = services?.find((sv) => sv.id === serviceModal.id);
+      const s = orderedServices?.find((sv) => sv.id === serviceModal.id);
       if (s) {
         setServiceModal((prev) => ({
           ...prev,
@@ -418,9 +676,9 @@ export default function ServiceDashboard() {
         }));
       }
     }
-  }, [serviceModal.type, serviceModal.id, services]);
+  }, [serviceModal.type, serviceModal.id, orderedServices]);
 
-  const selectedService = services?.find((s) => s.id === selectedServiceId);
+  const selectedService = orderedServices?.find((s) => s.id === selectedServiceId);
 
   const rawTableRows = useMemo(() => {
     if (!serviceConfigData?.data?.serviceCategoriesData || !selectedService)
@@ -430,8 +688,11 @@ export default function ServiceDashboard() {
     serviceConfigData.data.serviceCategoriesData.forEach((serviceCat) => {
       const subCategories = serviceCat?.category?.subCategories ?? [];
       const categoryDescription = serviceCat?.category?.description ?? "";
+      const categoryId =
+        serviceCat?.category?.id ?? serviceCat?.categoryId ?? null;
       rows.push({
         id: `${selectedService.id}-${serviceCat?.id}`,
+        categoryId,
         sl: sl++,
         serviceName: selectedService.name,
         category: serviceCat?.category?.name ?? "",
@@ -441,6 +702,88 @@ export default function ServiceDashboard() {
     });
     return rows;
   }, [serviceConfigData, selectedService]);
+
+  const handleReorderCategories = useCallback(
+    async (orderedRows) => {
+      const payload = orderedRows
+        .filter((r) => r.categoryId != null)
+        .map((r, i) => ({
+          categoryId: r.categoryId,
+          sortOrder: i + 1,
+        }));
+      if (!payload.length) return;
+      const res = await updateCategoriesSortOrder({
+        serviceId: selectedServiceId,
+        categories: payload,
+      }).unwrap();
+      if (res?.status === "1") {
+        success("Category order updated.");
+      } else {
+        throw new Error(res?.message || "Failed");
+      }
+    },
+    [selectedServiceId, updateCategoriesSortOrder, success]
+  );
+
+  const handleReorderSubCategories = useCallback(
+    async (_categoryId, orderedSubs) => {
+      const payload = orderedSubs
+        .filter((s) => s?.id != null)
+        .map((s, i) => ({
+          subCategoryId: s.id,
+          sortOrder: i + 1,
+        }));
+      if (!payload.length) return;
+      const res = await updateSubCategoriesSortOrder({
+        serviceId: selectedServiceId,
+        subCategories: payload,
+      }).unwrap();
+      if (res?.status === "1") {
+        success("Sub-category order updated.");
+      } else {
+        throw new Error(res?.message || "Failed");
+      }
+    },
+    [selectedServiceId, updateSubCategoriesSortOrder, success]
+  );
+
+  const handleServiceChipDrop = useCallback(
+    async (targetId) => {
+      setDragOverServiceId(null);
+      const draggedId = draggingServiceIdRef.current;
+      draggingServiceIdRef.current = null;
+      const base = serviceDragOrder ?? services ?? [];
+      const next = reorderById(base, draggedId, targetId);
+      if (!next) return;
+      setServiceDragOrder(next);
+      try {
+        const res = await updateServicesSortOrder({
+          services: next.map((s, i) => ({
+            serviceId: s.id,
+            sortOrder: i + 1,
+          })),
+        }).unwrap();
+        if (res?.status === "1") {
+          success("Service order updated.");
+          refetchServices();
+        } else {
+          setServiceDragOrder(null);
+          error(res?.message || "Could not save service order.");
+        }
+      } catch {
+        setServiceDragOrder(null);
+        error("Could not save service order.");
+      }
+    },
+    [
+      serviceDragOrder,
+      services,
+      updateServicesSortOrder,
+      refetchServices,
+      success,
+      error,
+    ]
+  );
 
   const handleMenuOpen = (e, serviceId) => {
     e.stopPropagation();
@@ -461,7 +804,7 @@ export default function ServiceDashboard() {
   };
 
   const handleEditFromMenu = () => {
-    const s = services?.find((sv) => sv.id === menuServiceId);
+    const s = orderedServices?.find((sv) => sv.id === menuServiceId);
     if (s) {
       setServiceModal({
         open: true,
@@ -586,7 +929,13 @@ export default function ServiceDashboard() {
         </Box>
       </Box>
 
-      {/* Service Category Cards */}
+      {/* Service chips — drag grip to reorder */}
+      <Typography
+        variant="caption"
+        sx={{ color: "#64748B", fontFamily: "Inter, sans-serif", display: "block", mb: -0.5 }}
+      >
+        Drag the grip on a service chip to change tab order.
+      </Typography>
       <Box
         sx={{
           display: "flex",
@@ -597,7 +946,7 @@ export default function ServiceDashboard() {
           "&::-webkit-scrollbar-thumb": { bgcolor: "#ccc", borderRadius: 3 },
         }}
       >
-        {services?.map((service) => {
+        {orderedServices?.map((service) => {
           const IconComponent = getServiceIcon(service.name);
           const isActive = selectedServiceId === service.id;
 
@@ -606,25 +955,68 @@ export default function ServiceDashboard() {
               key={service.id}
               elevation={0}
               onClick={() => setSelectedServiceId(service.id)}
+              onDragOver={(e) => {
+                if (serviceReorderLoading) return;
+                e.preventDefault();
+                setDragOverServiceId(service.id);
+              }}
+              onDragLeave={() => setDragOverServiceId(null)}
+              onDrop={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                handleServiceChipDrop(service.id);
+              }}
               sx={{
                 display: "inline-flex",
                 alignItems: "center",
-                gap: 2,
+                gap: 1.5,
                 px: 2.5,
                 py: 1.5,
                 width: "fit-content",
                 flexShrink: 0,
                 cursor: "pointer",
-                bgcolor: isActive ? "#000099" : "white",
+                bgcolor:
+                  dragOverServiceId === service.id
+                    ? "rgba(21, 112, 239, 0.12)"
+                    : isActive
+                      ? "#000099"
+                      : "white",
                 color: isActive ? "white" : "grey.800",
                 border: "1px solid",
-                borderColor: isActive ? "#000099" : "#E5E7EB",
+                borderColor:
+                  dragOverServiceId === service.id
+                    ? "#1570EF"
+                    : isActive
+                      ? "#000099"
+                      : "#E5E7EB",
                 borderRadius: 2,
                 boxShadow: "0px 1px 2px rgba(16, 24, 40, 0.08)",
                 transition: "all 0.2s",
-                "&:hover": { borderColor: "#000099", bgcolor: isActive ? "#000099" : "#F9FAFB" },
+                "&:hover": {
+                  borderColor: "#000099",
+                  bgcolor: isActive ? "#000099" : "#F9FAFB",
+                },
               }}
             >
+              <Box
+                draggable={!serviceReorderLoading}
+                onDragStart={(e) => {
+                  e.stopPropagation();
+                  draggingServiceIdRef.current = service.id;
+                  e.dataTransfer.setData("text/plain", String(service.id));
+                  e.dataTransfer.effectAllowed = "move";
+                }}
+                onClick={(e) => e.stopPropagation()}
+                sx={{
+                  display: "flex",
+                  color: isActive ? "rgba(255,255,255,0.85)" : "#94A3B8",
+                  cursor: serviceReorderLoading ? "not-allowed" : "grab",
+                  "&:active": { cursor: "grabbing" },
+                }}
+                aria-label="Drag to reorder service"
+              >
+                <TbGripVertical size={18} />
+              </Box>
               <IconComponent size={24} color={isActive ? "#fff" : "#10B981"} />
               <Typography
                 variant="body1"
@@ -674,9 +1066,33 @@ export default function ServiceDashboard() {
         {isLoadingConfig && selectedServiceId ? (
           <MiniLoader />
         ) : (
-          <ServiceCategoriesExpandableTable rows={rawTableRows} searchTerm={globalSearch} />
+          <ServiceCategoriesExpandableTable
+            rows={rawTableRows}
+            searchTerm={globalSearch}
+            addOnsList={addOnsList}
+            subCategoriesByServiceId={subCategoriesByServiceId}
+            onViewAddOns={({ categoryName, subCategories }) =>
+              setAddOnsModal({ open: true, categoryName, subCategories })
+            }
+            onReorderCategories={handleReorderCategories}
+            onReorderSubCategories={handleReorderSubCategories}
+            reorderDisabled={
+              categoryReorderLoading || subReorderLoading || Boolean(globalSearch?.trim())
+            }
+          />
         )}
       </Box>
+
+      <CategoryAddOnsModal
+        open={addOnsModal.open}
+        onClose={() =>
+          setAddOnsModal({ open: false, categoryName: "", subCategories: [] })
+        }
+        categoryName={addOnsModal.categoryName}
+        subCategories={addOnsModal.subCategories}
+        addOnsList={addOnsList}
+        subCategoriesByServiceId={subCategoriesByServiceId}
+      />
 
       <ModalComponent
         open={serviceModal.open}

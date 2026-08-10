@@ -17,7 +17,7 @@ export default function StatCard({
         {title}
       </h6>
       <p className="font-bold text-lg 2xl:text-xl mt-1" style={{ color: titleColor }}>
-        {value}
+        {value ?? 0}
       </p>
     </div>
   );

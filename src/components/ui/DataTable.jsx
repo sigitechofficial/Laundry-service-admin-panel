@@ -13,6 +13,7 @@ import {
   FormControl,
   Pagination,
   Stack,
+  CircularProgress,
 } from "@mui/material";
 import Search from "./Search";
 import FiltersButton from "./FiltersButton";
@@ -48,10 +49,18 @@ const DataTable = ({
   onPageSizeChange,
   // Filter click handler
   onFiltersClick,
+  /** Extra controls rendered before Filters / date range (e.g. zone dropdown) */
+  toolbarExtra,
+  /** Replaces the default Filters button (e.g. order status menu) */
+  filtersSlot,
   /** Field names (e.g. `sl`, `zoneName`) that stay pinned on the left when scrolling horizontally */
   stickyLeftFields,
   /** Field names (e.g. `OrderStatus`, `actions`) that stay pinned on the right when scrolling horizontally */
   stickyRightFields,
+  /** Show overlay while refetching (server-side lists) */
+  isLoading = false,
+  /** Shown when there are no rows (e.g. zone filter with zero bookings) */
+  emptyMessage = "No data found",
 }) => {
   const tableRef = React.useRef(null);
   /** Measured `<th>` width per sticky column field (includes padding); avoids overlap when layout is wider than `minWidth`. */
@@ -130,15 +139,25 @@ const DataTable = ({
   }, [measureStickyHeaderWidths, sortConfig.field, sortConfig.direction]);
 
   // filtering
+  const rowSearchBlob = (row) => {
+    const parts = [];
+    for (const [key, value] of Object.entries(row)) {
+      if (key === "_booking") continue;
+      if (key === "_export" && value && typeof value === "object") {
+        parts.push(...Object.values(value).map((v) => String(v ?? "")));
+        continue;
+      }
+      parts.push(String(value ?? ""));
+    }
+    return parts.join(" ").toLowerCase();
+  };
+
   const filteredData = useMemo(() => {
     if (serverSidePagination) return data;
     if (!searchTerm) return data;
 
-    return data.filter((row) =>
-      Object.values(row).some((field) =>
-        String(field).toLowerCase().includes(searchTerm.toLowerCase())
-      )
-    );
+    const q = searchTerm.toLowerCase();
+    return data.filter((row) => rowSearchBlob(row).includes(q));
   }, [data, searchTerm, serverSidePagination]);
 
   // 🔹 Sorting logic
@@ -227,6 +246,18 @@ const DataTable = ({
     return stickyRightFields.indexOf(field);
   };
 
+  const lastStickyLeftField = useMemo(() => {
+    if (!stickyLeftFields?.length) return null;
+    let last = null;
+    for (const col of columns) {
+      if (stickyLeftFields.includes(col.field)) last = col.field;
+    }
+    return last;
+  }, [columns, stickyLeftFields]);
+
+  const stickyLeftEdgeShadow =
+    "inset -1px 0 0 #E5E7EB, 4px 0 6px -2px rgba(0, 0, 0, 0.08)";
+
   return (
     <Box sx={{ width: "100%", maxWidth: "100%", overflow: "visible" }}>
       <Paper
@@ -245,18 +276,26 @@ const DataTable = ({
               border="none"
               boxShadow="none"
               placeholder={searchPlaceholder}
-              value={searchTerm}
+              value={searchValue !== undefined ? searchValue : searchTerm}
               onChange={(e) => {
                 const next = e.target.value;
-                setSearchTerm(next);
-                if (onSearchChange) onSearchChange(next);
+                if (searchValue === undefined) {
+                  setSearchTerm(next);
+                }
+                if (onSearchChange) {
+                  onSearchChange(next);
+                } else if (searchValue === undefined) {
+                  setSearchTerm(next);
+                }
               }}
               startAdornment={<TbSearch size="20px" color="#9CA3AF" />}
             />
           </Box>
 
           <Box className="flex items-center gap-3 flex-wrap">
-            {showFilters && (
+            {toolbarExtra}
+            {filtersSlot}
+            {!filtersSlot && showFilters && (
               <FiltersButton
                 bgColor="grey.60"
                 border="none"
@@ -297,6 +336,7 @@ const DataTable = ({
         {/* Table */}
         <Box 
           sx={{ 
+            position: "relative",
             height: height - 150, 
             overflowY: "auto", 
             overflowX: "auto", 
@@ -318,6 +358,22 @@ const DataTable = ({
             },
           }}
         >
+          {isLoading ? (
+            <Box
+              sx={{
+                position: "absolute",
+                inset: 0,
+                zIndex: 200,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                bgcolor: "rgba(255, 255, 255, 0.72)",
+                pointerEvents: "none",
+              }}
+            >
+              <CircularProgress size={36} sx={{ color: "#000099" }} />
+            </Box>
+          ) : null}
           <Table
             ref={tableRef}
             stickyHeader
@@ -386,6 +442,9 @@ const DataTable = ({
                           position: "sticky",
                           left: stickyLeftOffsetPx(colIndex),
                           top: 0,
+                          ...(col.field === lastStickyLeftField && {
+                            boxShadow: stickyLeftEdgeShadow,
+                          }),
                         }),
                         ...(isStickyRight && {
                           position: "sticky",
@@ -418,54 +477,79 @@ const DataTable = ({
               </TableRow>
             </TableHead>
             <TableBody>
-              {paginatedData.map((row, idx) => (
-                <TableRow
-                  key={row.id || idx}
-                  sx={{
-                    backgroundColor: idx % 2 === 0 ? "#fff" : "#FAFAFA",
-                    // "&:hover": { backgroundColor: "#fff !important" },
-                  }}
-                >
-                  {columns.map((col, colIndex) => {
-                    const rank = stickyRank(col.field);
-                    const isStickyLeft = rank >= 0;
-                    const rightRank = stickyRightRank(col.field);
-                    const isStickyRight = rightRank >= 0;
-                    const rowBg = idx % 2 === 0 ? "#fff" : "#FAFAFA";
-
-                    return (
-                    <TableCell
-                      key={col.field}
-                      align={col.align || "left"}
-                      sx={{
-                        fontFamily: "Inter, sans-serif",
-                        fontSize: "14px",
-                        borderBottom: "none",
-                        whiteSpace: col.wrap || col.renderCell ? "normal" : "nowrap",
-                        overflow: col.wrap || col.renderCell ? "visible" : "hidden",
-                        textOverflow: col.wrap || col.renderCell ? "unset" : "ellipsis",
-                        verticalAlign: col.wrap || col.renderCell ? "top" : "middle",
-                        backgroundColor: rowBg,
-                        ...(isStickyLeft && {
-                          position: "sticky",
-                          left: stickyLeftOffsetPx(colIndex),
-                          zIndex: 110 + rank,
-                        }),
-                        ...(isStickyRight && {
-                          position: "sticky",
-                          right: stickyRightOffsetPx(colIndex),
-                          zIndex: 100 + rightRank,
-                        }),
-                      }}
-                    >
-                      {/* {row[col.field]} */}
-
-                      {col.renderCell ? col.renderCell(row) : row[col.field]}
-                    </TableCell>
-                  );
-                  })}
+              {!isLoading && paginatedData.length === 0 ? (
+                <TableRow>
+                  <TableCell
+                    colSpan={Math.max(columns.length, 1)}
+                    align="center"
+                    sx={{
+                      py: 8,
+                      fontFamily: "Inter, sans-serif",
+                      fontSize: "14px",
+                      color: "#6B7280",
+                      borderBottom: "none",
+                      backgroundColor: "#fff",
+                    }}
+                  >
+                    {emptyMessage}
+                  </TableCell>
                 </TableRow>
-              ))}
+              ) : (
+                paginatedData.map((row, idx) => (
+                  <TableRow
+                    key={row.id != null ? `order-${row.id}` : `row-${idx}`}
+                    sx={{
+                      backgroundColor: idx % 2 === 0 ? "#fff" : "#FAFAFA",
+                    }}
+                  >
+                    {columns.map((col, colIndex) => {
+                      const rank = stickyRank(col.field);
+                      const isStickyLeft = rank >= 0;
+                      const rightRank = stickyRightRank(col.field);
+                      const isStickyRight = rightRank >= 0;
+                      const rowBg = idx % 2 === 0 ? "#fff" : "#FAFAFA";
+
+                      return (
+                        <TableCell
+                          key={col.field}
+                          align={col.align || "left"}
+                          sx={{
+                            fontFamily: "Inter, sans-serif",
+                            fontSize: "14px",
+                            borderBottom: "none",
+                            whiteSpace:
+                              col.wrap || col.renderCell ? "normal" : "nowrap",
+                            overflow:
+                              col.wrap || col.renderCell ? "visible" : "hidden",
+                            textOverflow:
+                              col.wrap || col.renderCell ? "unset" : "ellipsis",
+                            verticalAlign:
+                              col.wrap || col.renderCell ? "top" : "middle",
+                            backgroundColor: rowBg,
+                            ...(isStickyLeft && {
+                              position: "sticky",
+                              left: stickyLeftOffsetPx(colIndex),
+                              zIndex: 110 + rank,
+                              ...(col.field === lastStickyLeftField && {
+                                boxShadow: stickyLeftEdgeShadow,
+                              }),
+                            }),
+                            ...(isStickyRight && {
+                              position: "sticky",
+                              right: stickyRightOffsetPx(colIndex),
+                              zIndex: 100 + rightRank,
+                            }),
+                          }}
+                        >
+                          {col.renderCell
+                            ? col.renderCell(row)
+                            : row[col.field]}
+                        </TableCell>
+                      );
+                    })}
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
         </Box>

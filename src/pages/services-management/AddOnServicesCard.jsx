@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Box,
   Collapse,
@@ -12,13 +12,16 @@ import {
   TbChevronDown,
   TbPencil,
 } from "../../shared/icons/index";
+import { TbGripVertical } from "react-icons/tb";
 import {
   useCreateAddOnServiceMutation,
   useDeleteAddOnServiceMutation,
   useGetAllAddOnServicesQuery,
   useUpdateAddOnServiceMutation,
+  useUpdateAddOnServicesSortOrderMutation,
   useGetAllAddOnCategoriesQuery,
   useUpdateAddOnCategoryMutation,
+  useUpdateAddOnCategoriesSortOrderMutation,
   useDeleteAddOnCategoryMutation,
 } from "../../store/services/api";
 import ModalComponent from "../../components/shared/Modal";
@@ -48,6 +51,23 @@ const UNCATEGORIZED_KEY = "uncategorized";
 const isExplicitFailure = (res) =>
   res && (res.status === "0" || res.status === 0 || res.success === false);
 
+function reorderById(list, draggedId, targetId) {
+  const ids = list.map((item) => String(item.id));
+  const fromIdx = ids.indexOf(String(draggedId));
+  const toIdx = ids.indexOf(String(targetId));
+  if (fromIdx < 0 || toIdx < 0 || fromIdx === toIdx) return null;
+  const next = [...list];
+  const [moved] = next.splice(fromIdx, 1);
+  next.splice(toIdx, 0, moved);
+  return next;
+}
+
+function sortBySortOrder(list) {
+  return [...list].sort(
+    (a, b) => (Number(a.sortOrder) || 0) - (Number(b.sortOrder) || 0)
+  );
+}
+
 export default function AddOnServicesCard({ triggerAdd }) {
   const { success, error } = useToaster();
   const { data, isLoading, refetch } = useGetAllAddOnServicesQuery();
@@ -64,10 +84,22 @@ export default function AddOnServicesCard({ triggerAdd }) {
     useUpdateAddOnCategoryMutation();
   const [deleteCategory, { isLoading: categoryDeleting }] =
     useDeleteAddOnCategoryMutation();
+  const [updateCategoriesSortOrder, { isLoading: categoryReorderLoading }] =
+    useUpdateAddOnCategoriesSortOrderMutation();
+  const [updateServicesSortOrder, { isLoading: serviceReorderLoading }] =
+    useUpdateAddOnServicesSortOrderMutation();
 
   const [serviceForm, setServiceForm] = useState(emptyServiceForm);
   const [categoryForm, setCategoryForm] = useState(emptyCategoryForm);
   const [expanded, setExpanded] = useState({});
+  const [categoryDragOrder, setCategoryDragOrder] = useState(null);
+  const [serviceOrderByCategory, setServiceOrderByCategory] = useState({});
+  const [dragOverCategoryId, setDragOverCategoryId] = useState(null);
+  const [dragOverServiceKey, setDragOverServiceKey] = useState(null);
+  const draggingCategoryIdRef = useRef(null);
+  const draggingServiceRef = useRef({ id: null, categoryId: null });
+
+  const reorderBusy = categoryReorderLoading || serviceReorderLoading;
 
   const addOnServices = useMemo(() => {
     const list = data?.data?.addOnServices || data?.data || [];
@@ -77,8 +109,16 @@ export default function AddOnServicesCard({ triggerAdd }) {
   const categories = useMemo(() => {
     const list =
       categoriesData?.data?.addOnCategories || categoriesData?.data || [];
-    return Array.isArray(list) ? list : [];
+    return Array.isArray(list) ? sortBySortOrder(list) : [];
   }, [categoriesData]);
+
+  useEffect(() => {
+    setCategoryDragOrder(null);
+  }, [categoriesData]);
+
+  useEffect(() => {
+    setServiceOrderByCategory({});
+  }, [data]);
 
   const categoryOptions = useMemo(
     () => categories.map((c) => ({ value: String(c.id), label: c.name })),
@@ -88,7 +128,8 @@ export default function AddOnServicesCard({ triggerAdd }) {
   // Build accordion groups: every category (even empty) + uncategorized bucket.
   const groups = useMemo(() => {
     const byId = new Map();
-    categories.forEach((c) =>
+    const orderedCats = categoryDragOrder ?? categories;
+    orderedCats.forEach((c) =>
       byId.set(String(c.id), { id: String(c.id), name: c.name, items: [] })
     );
     const uncategorized = {
@@ -104,10 +145,21 @@ export default function AddOnServicesCard({ triggerAdd }) {
       else uncategorized.items.push(svc);
     });
 
-    const ordered = [...byId.values()];
-    if (uncategorized.items.length > 0) ordered.push(uncategorized);
+    const ordered = [...byId.values()].map((group) => {
+      const override = serviceOrderByCategory[group.id];
+      const items = override ?? sortBySortOrder(group.items);
+      return { ...group, items };
+    });
+
+    if (uncategorized.items.length > 0) {
+      const override = serviceOrderByCategory[UNCATEGORIZED_KEY];
+      ordered.push({
+        ...uncategorized,
+        items: override ?? sortBySortOrder(uncategorized.items),
+      });
+    }
     return ordered;
-  }, [addOnServices, categories]);
+  }, [addOnServices, categories, categoryDragOrder, serviceOrderByCategory]);
 
   // Header "Add Add-on" button trigger -> open blank add-on form.
   useEffect(() => {
@@ -144,6 +196,104 @@ export default function AddOnServicesCard({ triggerAdd }) {
         item.addOnCategoryId != null ? String(item.addOnCategoryId) : "",
       type: "update",
     });
+
+  const handleCategoryDrop = useCallback(
+    async (targetId) => {
+      setDragOverCategoryId(null);
+      if (reorderBusy || targetId === UNCATEGORIZED_KEY) return;
+      const draggedId = draggingCategoryIdRef.current;
+      draggingCategoryIdRef.current = null;
+      if (!draggedId || draggedId === UNCATEGORIZED_KEY) return;
+
+      const base = categoryDragOrder ?? categories;
+      const next = reorderById(base, draggedId, targetId);
+      if (!next) return;
+      setCategoryDragOrder(next);
+
+      try {
+        const res = await updateCategoriesSortOrder({
+          addOnCategories: next.map((c, i) => ({
+            addOnCategoryId: c.id,
+            sortOrder: i + 1,
+          })),
+        }).unwrap();
+        if (!isExplicitFailure(res)) {
+          success("Category order updated.");
+          void refetchCategories();
+        } else {
+          setCategoryDragOrder(null);
+          error(res?.message || "Could not save category order.");
+        }
+      } catch {
+        setCategoryDragOrder(null);
+        error("Could not save category order.");
+      }
+    },
+    [
+      reorderBusy,
+      categoryDragOrder,
+      categories,
+      updateCategoriesSortOrder,
+      refetchCategories,
+      success,
+      error,
+    ]
+  );
+
+  const handleServiceDrop = useCallback(
+    async (categoryId, targetServiceId) => {
+      setDragOverServiceKey(null);
+      if (reorderBusy) return;
+      const { id: draggedId, categoryId: dragCat } = draggingServiceRef.current;
+      draggingServiceRef.current = { id: null, categoryId: null };
+      if (!draggedId || String(dragCat) !== String(categoryId)) return;
+
+      const group = groups.find((g) => String(g.id) === String(categoryId));
+      if (!group) return;
+      const base =
+        serviceOrderByCategory[categoryId] ?? group.items ?? [];
+      const next = reorderById(base, draggedId, targetServiceId);
+      if (!next) return;
+
+      setServiceOrderByCategory((prev) => ({ ...prev, [categoryId]: next }));
+
+      try {
+        const res = await updateServicesSortOrder({
+          addOnServices: next.map((s, i) => ({
+            addOnServiceId: s.id,
+            sortOrder: i + 1,
+          })),
+        }).unwrap();
+        if (!isExplicitFailure(res)) {
+          success("Add-on order updated.");
+          void refetch();
+        } else {
+          setServiceOrderByCategory((prev) => {
+            const copy = { ...prev };
+            delete copy[categoryId];
+            return copy;
+          });
+          error(res?.message || "Could not save add-on order.");
+        }
+      } catch {
+        setServiceOrderByCategory((prev) => {
+          const copy = { ...prev };
+          delete copy[categoryId];
+          return copy;
+        });
+        error("Could not save add-on order.");
+      }
+    },
+    [
+      reorderBusy,
+      groups,
+      serviceOrderByCategory,
+      updateServicesSortOrder,
+      refetch,
+      success,
+      error,
+    ]
+  );
 
   const handleServiceSave = async () => {
     const trimmedName = String(serviceForm.name || "").trim();
@@ -248,38 +398,83 @@ export default function AddOnServicesCard({ triggerAdd }) {
     }
   };
 
-  const renderServiceRow = (item) => (
-    <Box
-      key={item.id}
-      className="flex items-center justify-between py-2 px-3 mb-2!"
-      sx={{ borderBottom: "1px solid #E4E7EC" }}
-    >
-      <Typography variant="body2" fontFamily="Inter">
-        {item.name}
-      </Typography>
-      <Box className="flex items-center gap-3">
-        <Typography variant="body2" sx={{ color: "#334155", fontWeight: 600 }}>
-          {formatGbp(item.price)}
-        </Typography>
-        <IconButton
-          disabled={updating}
-          onClick={() => openEditService(item)}
-          size="small"
-          sx={{ color: "#00028B" }}
-        >
-          <TbPencil size="18px" />
-        </IconButton>
-        <IconButton
-          disabled={deleting}
-          onClick={() => handleServiceDelete(item.id)}
-          size="small"
-          sx={{ color: "#EF4444" }}
-        >
-          <RiDeleteBin6Line size="18px" />
-        </IconButton>
+  const renderServiceRow = (item, categoryId) => {
+    const dropKey = `${categoryId}:${item.id}`;
+    const isOver = dragOverServiceKey === dropKey;
+
+    return (
+      <Box
+        key={item.id}
+        className="flex items-center justify-between py-2 px-3 mb-2!"
+        onDragOver={(e) => {
+          if (reorderBusy) return;
+          e.preventDefault();
+          setDragOverServiceKey(dropKey);
+        }}
+        onDragLeave={() => setDragOverServiceKey(null)}
+        onDrop={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          void handleServiceDrop(categoryId, item.id);
+        }}
+        sx={{
+          borderBottom: "1px solid #E4E7EC",
+          bgcolor: isOver ? "rgba(21, 112, 239, 0.08)" : "transparent",
+          borderRadius: isOver ? "4px" : 0,
+        }}
+      >
+        <Box className="flex items-center gap-2 min-w-0">
+          <Box
+            draggable={!reorderBusy}
+            onDragStart={(e) => {
+              e.stopPropagation();
+              draggingServiceRef.current = {
+                id: String(item.id),
+                categoryId: String(categoryId),
+              };
+              e.dataTransfer.setData("text/addon-service", String(item.id));
+              e.dataTransfer.effectAllowed = "move";
+            }}
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              cursor: reorderBusy ? "not-allowed" : "grab",
+              color: "#94A3B8",
+              flexShrink: 0,
+              "&:active": { cursor: "grabbing" },
+            }}
+            aria-label="Drag to reorder add-on"
+          >
+            <TbGripVertical size={16} />
+          </Box>
+          <Typography variant="body2" fontFamily="Inter" noWrap>
+            {item.name}
+          </Typography>
+        </Box>
+        <Box className="flex items-center gap-3">
+          <Typography variant="body2" sx={{ color: "#334155", fontWeight: 600 }}>
+            {formatGbp(item.price)}
+          </Typography>
+          <IconButton
+            disabled={updating || reorderBusy}
+            onClick={() => openEditService(item)}
+            size="small"
+            sx={{ color: "#00028B" }}
+          >
+            <TbPencil size="18px" />
+          </IconButton>
+          <IconButton
+            disabled={deleting || reorderBusy}
+            onClick={() => handleServiceDelete(item.id)}
+            size="small"
+            sx={{ color: "#EF4444" }}
+          >
+            <RiDeleteBin6Line size="18px" />
+          </IconButton>
+        </Box>
       </Box>
-    </Box>
-  );
+    );
+  };
 
   if (isLoading) return <MiniLoader />;
 
@@ -296,17 +491,25 @@ export default function AddOnServicesCard({ triggerAdd }) {
         sx={{ borderBottom: "1px solid #E4E7EC" }}
         className="flex items-center justify-between gap-4 px-4! py-5! bg-blue10"
       >
-        <Typography
-          variant="subtitle1"
-          sx={{
-            fontWeight: 700,
-            fontSize: "18px",
-            color: "#101828",
-            fontFamily: "Inter, sans-serif",
-          }}
-        >
-          Add-on Categories & Services
-        </Typography>
+        <Box>
+          <Typography
+            variant="subtitle1"
+            sx={{
+              fontWeight: 700,
+              fontSize: "18px",
+              color: "#101828",
+              fontFamily: "Inter, sans-serif",
+            }}
+          >
+            Add-on Categories & Services
+          </Typography>
+          <Typography
+            variant="caption"
+            sx={{ color: "#64748B", display: "block", mt: 0.5 }}
+          >
+            Drag the grip handle to reorder categories and add-ons.
+          </Typography>
+        </Box>
       </Box>
 
       <Box sx={{ p: "16px" }}>
@@ -318,10 +521,24 @@ export default function AddOnServicesCard({ triggerAdd }) {
           ) : (
             groups.map((group) => {
               const isUncategorized = group.id === UNCATEGORIZED_KEY;
+              const isCatOver =
+                !isUncategorized && dragOverCategoryId === group.id;
+
               return (
                 <Box key={group.id}>
                   <ListItem
                     onClick={() => toggleExpand(group.id)}
+                    onDragOver={(e) => {
+                      if (reorderBusy || isUncategorized) return;
+                      e.preventDefault();
+                      setDragOverCategoryId(group.id);
+                    }}
+                    onDragLeave={() => setDragOverCategoryId(null)}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      void handleCategoryDrop(group.id);
+                    }}
                     sx={{
                       display: "flex",
                       alignItems: "center",
@@ -329,18 +546,52 @@ export default function AddOnServicesCard({ triggerAdd }) {
                       py: "8px",
                       px: "16px",
                       my: "4px",
-                      bgcolor: "blue.10",
+                      bgcolor: isCatOver
+                        ? "rgba(21, 112, 239, 0.12)"
+                        : "blue.10",
                       borderRadius: "4px",
                       cursor: "pointer",
-                      "&:hover": { bgcolor: "blue.20" },
+                      "&:hover": {
+                        bgcolor: isCatOver
+                          ? "rgba(21, 112, 239, 0.12)"
+                          : "blue.20",
+                      },
                     }}
                   >
-                    <Box>
-                      <Typography variant="body1">{group.name}</Typography>
-                      <Typography variant="caption" color="grey.40">
-                        {group.items.length} service
-                        {group.items.length === 1 ? "" : "s"}
-                      </Typography>
+                    <Box className="flex items-center gap-2 min-w-0">
+                      {!isUncategorized && (
+                        <Box
+                          draggable={!reorderBusy}
+                          onDragStart={(e) => {
+                            e.stopPropagation();
+                            draggingCategoryIdRef.current = String(group.id);
+                            e.dataTransfer.setData(
+                              "text/addon-category",
+                              String(group.id)
+                            );
+                            e.dataTransfer.effectAllowed = "move";
+                          }}
+                          onClick={(e) => e.stopPropagation()}
+                          sx={{
+                            display: "flex",
+                            alignItems: "center",
+                            cursor: reorderBusy ? "not-allowed" : "grab",
+                            color: "#94A3B8",
+                            flexShrink: 0,
+                            "&:active": { cursor: "grabbing" },
+                          }}
+                          aria-label="Drag to reorder category"
+                        >
+                          <TbGripVertical size={18} />
+                        </Box>
+                      )}
+                      <Box>
+                        <Typography variant="body1">{group.name}</Typography>
+                        <Typography variant="caption" color="grey.40">
+                          {group.items.length} service
+                          {group.items.length === 1 ? "" : "s"}
+                        </Typography>
+                      </Box>
                     </Box>
 
                     <Box
@@ -366,7 +617,7 @@ export default function AddOnServicesCard({ triggerAdd }) {
                         <IconButton
                           size="small"
                           sx={{ color: "#00028B" }}
-                          disabled={categoryUpdating}
+                          disabled={categoryUpdating || reorderBusy}
                           onClick={(e) => {
                             e.stopPropagation();
                             setCategoryForm({
@@ -383,7 +634,7 @@ export default function AddOnServicesCard({ triggerAdd }) {
                         <IconButton
                           size="small"
                           sx={{ color: "#EF4444" }}
-                          disabled={categoryDeleting}
+                          disabled={categoryDeleting || reorderBusy}
                           onClick={(e) => {
                             e.stopPropagation();
                             handleCategoryDelete(group.id);
@@ -422,7 +673,9 @@ export default function AddOnServicesCard({ triggerAdd }) {
                           No services in this category yet.
                         </Typography>
                       ) : (
-                        group.items.map((item) => renderServiceRow(item))
+                        group.items.map((item) =>
+                          renderServiceRow(item, group.id)
+                        )
                       )}
                     </Box>
                   </Collapse>

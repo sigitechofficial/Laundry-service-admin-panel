@@ -189,6 +189,7 @@ export default function ItemCategoriesCard({ triggerAdd }) {
         <Box className="flex items-center gap-3 flex-wrap justify-end ml-auto">
           <Box className="!w-full sm:!w-[320px] h-11">
             <Search
+              value={searchTerm}
               onChange={(e) => {
                 setSearchTerm(e.target.value);
               }}

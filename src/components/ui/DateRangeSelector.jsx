@@ -58,6 +58,11 @@ const DateRangeSelector = ({
   };
 
   const handleOptionSelect = (option) => {
+    if (option === "allTime") {
+      if (onChange) onChange(null);
+      handleClose();
+      return;
+    }
     if (option === "custom") {
       setDateRangeAnchorEl(buttonRef.current);
       setSelectingStart(true);

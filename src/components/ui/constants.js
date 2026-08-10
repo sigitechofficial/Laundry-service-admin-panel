@@ -52,6 +52,7 @@ export const calculateDateRange = (option) => {
 };
 
 export const DATE_RANGE_OPTIONS = [
+  { label: "All time", value: "allTime" },
   { label: "Today", value: "today" },
   { label: "Current Week", value: "currentWeek" },
   { label: "Current Month", value: "currentMonth" },

@@ -745,6 +745,9 @@ Step 3.
     "allOrderCount": 250,
     "completedOrders": 180,
     "pendingOrders": 40,
+    "newOrders": 12,
+    "activeOrders": 28,
+    "repeatOrders": 95,
     "cancelledOrders": 20,
     "onHoldOrders": 10
   }

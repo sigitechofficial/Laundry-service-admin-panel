@@ -25,10 +25,10 @@ export default function Search({
         <FiSearch size={"22px"} />
       </Typography>
       <input
-        className="w-full h-full border-none outline-none bg-transparent"
+        className="w-full h-full border-none outline-none bg-transparent text-[#101828] placeholder:text-[#667085]"
         type="search"
         placeholder={placeholder}
-        value={value ?? ""}
+        {...(value !== undefined ? { value: value ?? "" } : {})}
         onChange={onChange}
       />
     </Box>

@@ -13,6 +13,17 @@ export const api = createApi({
       return Number.isNaN(numericId) ? undefined : numericId;
     };
 
+    const orderListQueryParams = (params = {}) => {
+      const { page = 1, limit = 25, zoneId, status, startDate, endDate, search } = params;
+      const q = { page, limit };
+      if (zoneId != null && String(zoneId).trim() !== "") q.zoneId = zoneId;
+      if (status != null && String(status).trim() !== "") q.status = status;
+      if (startDate) q.startDate = startDate;
+      if (endDate) q.endDate = endDate;
+      if (search != null && String(search).trim() !== "") q.search = String(search).trim();
+      return q;
+    };
+
     return {
     // Report query helper
     // Supported params:
@@ -73,6 +84,14 @@ export const api = createApi({
       }),
     }),
 
+    updateAddOnServicesSortOrder: builder.mutation({
+      query: ({ addOnServices: items }) => ({
+        url: "admin/updateAddOnServicesSortOrder",
+        method: "PATCH",
+        body: { addOnServices: items },
+      }),
+    }),
+
     deleteAddOnService: builder.mutation({
       query: (addOnServiceId) => ({
         url: `admin/deleteAddOnService/${addOnServiceId}`,
@@ -108,6 +127,14 @@ export const api = createApi({
         url: `admin/updateAddOnCategory/${addOnCategoryId}`,
         method: "PATCH",
         body,
+      }),
+    }),
+
+    updateAddOnCategoriesSortOrder: builder.mutation({
+      query: ({ addOnCategories: items }) => ({
+        url: "admin/updateAddOnCategoriesSortOrder",
+        method: "PATCH",
+        body: { addOnCategories: items },
       }),
     }),
 
@@ -154,6 +181,34 @@ export const api = createApi({
         method: "PATCH",
         body,
       }),
+    }),
+
+    updateCategoriesSortOrder: builder.mutation({
+      query: ({ categories: items }) => ({
+        url: "admin/updateCategoriesSortOrder",
+        method: "PATCH",
+        body: { categories: items },
+      }),
+      invalidatesTags: (result, error, arg) => {
+        const tags = [{ type: "ServiceConfig", id: "LIST" }];
+        const sid = Number(arg?.serviceId);
+        if (sid) tags.push({ type: "ServiceConfig", id: sid });
+        return tags;
+      },
+    }),
+
+    updateSubCategoriesSortOrder: builder.mutation({
+      query: ({ subCategories: items }) => ({
+        url: "admin/updateSubCategoriesSortOrder",
+        method: "PATCH",
+        body: { subCategories: items },
+      }),
+      invalidatesTags: (result, error, arg) => {
+        const tags = [{ type: "ServiceConfig", id: "LIST" }];
+        const sid = Number(arg?.serviceId);
+        if (sid) tags.push({ type: "ServiceConfig", id: sid });
+        return tags;
+      },
     }),
 
     getPreferences: builder.query({
@@ -388,19 +443,56 @@ export const api = createApi({
     }),
 
     getOrdersCount: builder.query({
-      query: () => ({
+      query: (params = {}) => ({
         url: "admin/ordersCount",
         method: "GET",
+        params: orderListQueryParams({ ...params, page: 1, limit: 1 }),
       }),
       providesTags: ["Orders"],
+      refetchOnMountOrArgChange: true,
+      transformResponse: (response) => {
+        const root = response?.data !== undefined ? response : { data: response };
+        const d = root.data && typeof root.data === "object" ? root.data : {};
+        const has = (key) => Object.prototype.hasOwnProperty.call(d, key);
+        const newOrders = d.newOrders ?? d.NewOrders;
+        const legacyMetrics =
+          !has("newOrders") &&
+          !has("NewOrders") &&
+          !has("repeatOrders");
+        const activeOrders = has("activeOrders")
+          ? d.activeOrders
+          : d.pendingOrders;
+        return {
+          ...root,
+          data: {
+            ...d,
+            newOrders: newOrders ?? 0,
+            activeOrders: activeOrders ?? 0,
+            repeatOrders: d.repeatOrders ?? 0,
+            ordersCountLegacy: legacyMetrics,
+          },
+        };
+      },
     }),
 
     getAllOrder: builder.query({
-      query: () => ({
+      query: (params = {}) => ({
         url: "admin/allOrderDetails",
         method: "GET",
+        params: orderListQueryParams(params),
       }),
       providesTags: ["Orders"],
+      refetchOnMountOrArgChange: true,
+    }),
+
+    getPendingOrders: builder.query({
+      query: (params = {}) => ({
+        url: "admin/pendingOrders",
+        method: "GET",
+        params: orderListQueryParams(params),
+      }),
+      providesTags: ["Orders"],
+      refetchOnMountOrArgChange: true,
     }),
 
     getBookingAssignableShops: builder.query({
@@ -420,17 +512,33 @@ export const api = createApi({
     }),
 
     getAllCompleteOrders: builder.query({
-      query: () => ({
+      query: (params = {}) => ({
         url: "admin/completeOrders",
         method: "GET",
+        params: orderListQueryParams(params),
       }),
+      providesTags: ["Orders"],
+      refetchOnMountOrArgChange: true,
+    }),
+
+    getCancelledOrders: builder.query({
+      query: (params = {}) => ({
+        url: "admin/allCancelOrders",
+        method: "GET",
+        params: orderListQueryParams(params),
+      }),
+      providesTags: ["Orders"],
+      refetchOnMountOrArgChange: true,
     }),
 
     getOnHoldBookings: builder.query({
-      query: () => ({
+      query: (params = {}) => ({
         url: "admin/getOnHoldBookings",
         method: "GET",
+        params: orderListQueryParams(params),
       }),
+      providesTags: ["Orders"],
+      refetchOnMountOrArgChange: true,
     }),
 
     getPaymentFailures: builder.query({
@@ -1517,11 +1625,13 @@ export const {
   useAddServiceMutation,
   useCreateAddOnServiceMutation,
   useUpdateAddOnServiceMutation,
+  useUpdateAddOnServicesSortOrderMutation,
   useDeleteAddOnServiceMutation,
   useGetAllAddOnCategoriesQuery,
   useGetAddOnCategoryByIdQuery,
   useCreateAddOnCategoryMutation,
   useUpdateAddOnCategoryMutation,
+  useUpdateAddOnCategoriesSortOrderMutation,
   useDeleteAddOnCategoryMutation,
   useAddPreferenceMutation,
   useAddPreferenceValueMutation,
@@ -1530,6 +1640,8 @@ export const {
   useAddSubCategoryMutation,
   useDeleteServiceMutation,
   useUpdateServicesSortOrderMutation,
+  useUpdateCategoriesSortOrderMutation,
+  useUpdateSubCategoriesSortOrderMutation,
   useDeletePreferenceMutation,
   useDeleteCategoryMutation,
   useDeletePreferenceValueMutation,
@@ -1551,7 +1663,9 @@ export const {
   useEditCustomerMutation,
   useGetOrdersCountQuery,
   useGetAllOrderQuery,
+  useGetPendingOrdersQuery,
   useGetAllCompleteOrdersQuery,
+  useGetCancelledOrdersQuery,
   useGetOnHoldBookingsQuery,
   useGetPaymentFailuresQuery,
   useResolvePaymentFailureMutation,
