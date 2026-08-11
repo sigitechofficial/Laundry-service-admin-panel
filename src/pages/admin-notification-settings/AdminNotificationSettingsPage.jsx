@@ -19,7 +19,9 @@ import {
   useGetAdminNotificationPreferencesQuery,
   useUpdateAdminNotificationPreferencesMutation,
   useDemoAdminNotificationAlertMutation,
+  useRegisterAdminFcmTokenMutation,
 } from "../../store/services/api";
+import { requestDeviceToken } from "../../utilities/requestFCMToken";
 
 const CATEGORY_LABELS = {
   pickup: "Pickup",
@@ -36,6 +38,7 @@ export default function AdminNotificationSettingsPage() {
   const { data, isLoading, isError, refetch } = useGetAdminNotificationPreferencesQuery();
   const [updatePrefs, { isLoading: saving }] = useUpdateAdminNotificationPreferencesMutation();
   const [demoAlert, { isLoading: demoing }] = useDemoAdminNotificationAlertMutation();
+  const [registerFcm, { isLoading: registeringFcm }] = useRegisterAdminFcmTokenMutation();
 
   const serverAlerts = data?.data?.alerts || [];
   const [localPrefs, setLocalPrefs] = useState({});
@@ -43,6 +46,7 @@ export default function AdminNotificationSettingsPage() {
   const [forceDemo, setForceDemo] = useState(false);
   const [demoingType, setDemoingType] = useState(null);
   const [lastDemo, setLastDemo] = useState(null);
+  const [fcmStatus, setFcmStatus] = useState(null);
 
   useEffect(() => {
     if (!serverAlerts.length) return;
@@ -89,6 +93,25 @@ export default function AdminNotificationSettingsPage() {
       refetch();
     } catch (err) {
       showError(err?.data?.message || "Failed to save preferences");
+    }
+  };
+
+  const handleRefreshFcm = async () => {
+    try {
+      const token = await requestDeviceToken();
+      if (!token || token.length < 80 || /^no-fcm/i.test(token)) {
+        setFcmStatus("missing");
+        showError(
+          "Could not get an FCM token. Allow notifications, use HTTPS, then try again. Check Firebase env (VITE_FIREBASE_*)."
+        );
+        return;
+      }
+      await registerFcm({ dvToken: token }).unwrap();
+      setFcmStatus("ok");
+      success("FCM token registered. You can run Demo now.");
+    } catch (err) {
+      setFcmStatus("error");
+      showError(err?.data?.message || "Failed to register FCM token");
     }
   };
 
@@ -166,6 +189,12 @@ export default function AdminNotificationSettingsPage() {
         stay logged in, then click Demo. Titles start with [DEMO] so you can tell them apart.
       </Alert>
 
+      <Alert severity="warning" sx={{ mb: 2 }}>
+        Your last demo failed because the server had placeholder token{" "}
+        <code>no-fcm-token</code> (login without real FCM). Click{" "}
+        <strong>Refresh FCM token</strong> below first, then Demo again.
+      </Alert>
+
       <Card variant="outlined" sx={{ mb: 3 }}>
         <CardContent>
           <Typography variant="subtitle1" fontWeight={600} gutterBottom>
@@ -174,6 +203,28 @@ export default function AdminNotificationSettingsPage() {
           <Typography variant="body2" color="text.secondary" mb={1.5}>
             Sends a sample push only to you (does not create real orders).
           </Typography>
+          <Stack
+            direction={{ xs: "column", sm: "row" }}
+            spacing={1.5}
+            alignItems={{ xs: "stretch", sm: "center" }}
+            flexWrap="wrap"
+            mb={1.5}
+          >
+            <Button
+              variant="contained"
+              color="secondary"
+              disabled={registeringFcm}
+              onClick={handleRefreshFcm}
+            >
+              {registeringFcm ? "Registering…" : "Refresh FCM token"}
+            </Button>
+            {fcmStatus === "ok" && (
+              <Chip label="FCM ready" color="success" size="small" />
+            )}
+            {fcmStatus === "missing" && (
+              <Chip label="FCM missing" color="error" size="small" />
+            )}
+          </Stack>
           <Stack
             direction={{ xs: "column", sm: "row" }}
             spacing={1.5}

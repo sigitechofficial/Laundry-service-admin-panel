@@ -727,6 +727,14 @@ export const api = createApi({
       }),
     }),
 
+    registerAdminFcmToken: builder.mutation({
+      query: (body) => ({
+        url: "admin/notification-preferences/register-fcm",
+        method: "POST",
+        body,
+      }),
+    }),
+
     getServiceComparison: builder.query({
       query: (bookingId) => ({
         url: `admin/bookings/${bookingId}/service-comparison`,
@@ -1735,6 +1743,7 @@ export const {
   useGetAdminNotificationPreferencesQuery,
   useUpdateAdminNotificationPreferencesMutation,
   useDemoAdminNotificationAlertMutation,
+  useRegisterAdminFcmTokenMutation,
   useGetServiceComparisonQuery,
   useConfirmCashRemittanceMutation,
   useRejectCashRemittanceMutation,
