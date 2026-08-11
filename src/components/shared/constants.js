@@ -298,6 +298,18 @@ export const sidebarList = [
     path: "/delete-account-reasons",
     size: "23px",
   },
+  {
+    label: "Review Reason Codes",
+    Icon: TbSparkles,
+    path: "/review-reason-codes",
+    size: "23px",
+  },
+  {
+    label: "Shop Reviews",
+    Icon: BsCardList,
+    path: "/shop-reviews",
+    size: "23px",
+  },
 ];
 
 /** Map sidebar labels to API feature keys (camelCase), same rules as RolePermission.toFeatureKey */

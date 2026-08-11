@@ -11,6 +11,9 @@ import {
   CustomerManagement,
   CustomerSupport,
   DeleteAccountReasons,
+  ReviewReasonCodes,
+  ShopReviewsInbox,
+  ShopRatingsReport,
   CustomerDetails,
   ShopDetails,
   DriverManagement,
@@ -120,6 +123,21 @@ export const privateRoutes = [
     path: "/delete-account-reasons",
     element: DeleteAccountReasons,
     resourceKey: "delete_account_reasons_page",
+  },
+  {
+    path: "/review-reason-codes",
+    element: ReviewReasonCodes,
+    resourceKey: "review_reason_codes_page",
+  },
+  {
+    path: "/shop-reviews",
+    element: ShopReviewsInbox,
+    resourceKey: "shop_reviews_page",
+  },
+  {
+    path: "/shop-ratings-report",
+    element: ShopRatingsReport,
+    resourceKey: "shop_ratings_report_page",
   },
   {
     path: "/customer-management/details/:id",

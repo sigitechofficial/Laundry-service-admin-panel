@@ -8,6 +8,7 @@ import OnHoldReport from "./OnHoldReport";
 import ServiceDemandReport from "./ServiceDemandReport";
 import TopPerformingShopsReport from "./TopPerformingShopsReport";
 import DailyEarningReport from "./DailyEarningReport";
+import ShopRatingsReport from "../shop-ratings-report/ShopRatingsReport";
 
 const REPORT_TABS = [
   { label: "Top Services Report", path: "/reports/top-services" },
@@ -16,6 +17,7 @@ const REPORT_TABS = [
   { label: "Service Demand Report", path: "/reports/service-demand" },
   { label: "Top Performing Shops", path: "/reports/top-performing-shops" },
   { label: "Daily Earning Report", path: "/reports/daily-earning" },
+  { label: "Shop Ratings & Insights", path: "/reports/shop-ratings" },
 ];
 
 const REPORT_PANELS = [
@@ -25,6 +27,7 @@ const REPORT_PANELS = [
   ServiceDemandReport,
   TopPerformingShopsReport,
   DailyEarningReport,
+  ShopRatingsReport,
 ];
 
 export default function ReportsLayout() {

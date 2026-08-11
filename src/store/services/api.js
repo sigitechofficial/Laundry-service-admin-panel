@@ -4,7 +4,7 @@ import baseQueryWithReauth from "./baseQueryWithReauth";
 export const api = createApi({
   reducerPath: "api",
   baseQuery: baseQueryWithReauth,
-  tagTypes: ["ServiceConfig", "SupportContact", "PlatformOperationalHours", "Orders", "Coupons", "Banners", "AccountDeletionReasons", "PendingAgents", "RejectedAgents", "AgentSettlement", "NotifyLogs", "PaymentFailures", "AdminNotificationPreferences", "ActionRequiredOrders"],
+  tagTypes: ["ServiceConfig", "SupportContact", "PlatformOperationalHours", "Orders", "Coupons", "Banners", "AccountDeletionReasons", "ReviewReasonCodes", "ShopReviews", "ShopRatingsReport", "PendingAgents", "RejectedAgents", "AgentSettlement", "NotifyLogs", "PaymentFailures", "AdminNotificationPreferences", "ActionRequiredOrders"],
 
   endpoints: (builder) => {
     const normalizeServiceId = (id) => {
@@ -1076,9 +1076,10 @@ export const api = createApi({
     }),
 
     getAllRoles: builder.query({
-      query: () => ({
+      query: (audience) => ({
         url: "admin/getAllRoles",
         method: "GET",
+        params: audience ? { audience } : undefined,
       }),
     }),
 
@@ -1404,6 +1405,85 @@ export const api = createApi({
         method: "DELETE",
       }),
       invalidatesTags: ["AccountDeletionReasons"],
+    }),
+
+    getReviewReasonCodes: builder.query({
+      query: (params = {}) => ({
+        url: "admin/getReviewReasonCodes",
+        method: "GET",
+        params,
+      }),
+      providesTags: ["ReviewReasonCodes"],
+    }),
+
+    createReviewReasonCode: builder.mutation({
+      query: (body) => ({
+        url: "admin/createReviewReasonCode",
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: ["ReviewReasonCodes"],
+    }),
+
+    updateReviewReasonCode: builder.mutation({
+      query: ({ id, body }) => ({
+        url: `admin/updateReviewReasonCode/${id}`,
+        method: "PATCH",
+        body,
+      }),
+      invalidatesTags: ["ReviewReasonCodes"],
+    }),
+
+    deleteReviewReasonCode: builder.mutation({
+      query: (id) => ({
+        url: `admin/deleteReviewReasonCode/${id}`,
+        method: "DELETE",
+      }),
+      invalidatesTags: ["ReviewReasonCodes"],
+    }),
+
+    getShopReviews: builder.query({
+      query: (params = {}) => ({
+        url: "admin/shopReviews",
+        method: "GET",
+        params,
+      }),
+      providesTags: ["ShopReviews"],
+    }),
+
+    hideShopReview: builder.mutation({
+      query: ({ id, body }) => ({
+        url: `admin/shopReviews/${id}/hide`,
+        method: "PATCH",
+        body: body || {},
+      }),
+      invalidatesTags: ["ShopReviews", "ShopRatingsReport"],
+    }),
+
+    unhideShopReview: builder.mutation({
+      query: (id) => ({
+        url: `admin/shopReviews/${id}/unhide`,
+        method: "PATCH",
+      }),
+      invalidatesTags: ["ShopReviews", "ShopRatingsReport"],
+    }),
+
+    getShopRatingsReport: builder.query({
+      query: (params = {}) => ({
+        url: "admin/reports/shop-ratings",
+        method: "GET",
+        params,
+      }),
+      providesTags: ["ShopRatingsReport"],
+    }),
+
+    getReviewReasonInsights: builder.query({
+      query: (params = {}) => ({
+        url: "admin/reports/review-reason-insights",
+        method: "GET",
+        params,
+      }),
+      providesTags: ["ShopRatingsReport"],
     }),
 
     addNoShowPolicy: builder.mutation({
@@ -1831,6 +1911,15 @@ export const {
   useCreateAccountDeletionReasonMutation,
   useUpdateAccountDeletionReasonMutation,
   useDeleteAccountDeletionReasonMutation,
+  useGetReviewReasonCodesQuery,
+  useCreateReviewReasonCodeMutation,
+  useUpdateReviewReasonCodeMutation,
+  useDeleteReviewReasonCodeMutation,
+  useGetShopReviewsQuery,
+  useHideShopReviewMutation,
+  useUnhideShopReviewMutation,
+  useGetShopRatingsReportQuery,
+  useGetReviewReasonInsightsQuery,
   useAddNoShowPolicyMutation,
   useGetNoShowPoliciesQuery,
   useLazyGetNoShowPoliciesQuery,

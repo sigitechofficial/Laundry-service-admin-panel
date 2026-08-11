@@ -36,6 +36,18 @@ export const DeleteAccountReasons = lazy(() =>
   import("../pages/delete-account-reasons/DeleteAccountReasons")
 );
 
+export const ReviewReasonCodes = lazy(() =>
+  import("../pages/review-reason-codes/ReviewReasonCodes")
+);
+
+export const ShopReviewsInbox = lazy(() =>
+  import("../pages/shop-reviews/ShopReviewsInbox")
+);
+
+export const ShopRatingsReport = lazy(() =>
+  import("../pages/shop-ratings-report/ShopRatingsReport")
+);
+
 export const CustomerDetails = lazy(() =>
   import("../pages/customer-management/customer-details/CustomerDetails")
 );
