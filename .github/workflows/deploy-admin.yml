@@ -1,0 +1,148 @@
+# Careflow-style static Vite admin deploy (no FTP, no server-side npm build).
+name: Deploy Laundry Admin
+
+on:
+  push:
+    branches: [stage]
+  workflow_dispatch:
+
+concurrency:
+  group: laundry-admin-${{ github.ref_name }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Resolve API URL for build
+        id: api
+        run: |
+          if [ "${{ github.ref_name }}" = "main" ]; then
+            echo "url=${LAUNDRY_API_BASE_URL_PROD:-https://prodlaundry.sigisolutions.net/}" >> "$GITHUB_OUTPUT"
+          else
+            echo "url=${LAUNDRY_API_BASE_URL_STAGE:-https://stagelaundry.sigisolutions.net/}" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          LAUNDRY_API_BASE_URL_PROD: ${{ secrets.LAUNDRY_API_BASE_URL_PROD }}
+          LAUNDRY_API_BASE_URL_STAGE: ${{ secrets.LAUNDRY_API_BASE_URL_STAGE }}
+      - name: Build
+        env:
+          CI: true
+          LAUNDRY_API_BASE_URL: ${{ steps.api.outputs.url }}
+          VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
+          VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
+          VITE_FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
+          VITE_FIREBASE_STORAGE_BUCKET: ${{ secrets.VITE_FIREBASE_STORAGE_BUCKET }}
+          VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
+          VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
+          VITE_FIREBASE_VAPID_KEY: ${{ secrets.VITE_FIREBASE_VAPID_KEY }}
+        run: npm run build
+      - name: Package
+        run: |
+          test -f dist/index.html
+          cat > dist/release.json <<EOF
+          {"app":"laundry-admin","commit":"${{ github.sha }}","branch":"${{ github.ref_name }}","deployedAt":"$(date -u +%Y-%m-%dT%H:%M:%SZ)"}
+          EOF
+          tar -czf laundry-admin-release.tar.gz -C dist .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: laundry-admin-release
+          path: laundry-admin-release.tar.gz
+          retention-days: 7
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: ${{ github.ref_name == 'main' && 'production' || 'staging' }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: laundry-admin-release
+      - name: Resolve paths
+        id: target
+        env:
+          ADMIN_DEPLOY_PATH_PROD: ${{ secrets.ADMIN_DEPLOY_PATH_PROD }}
+          ADMIN_DEPLOY_PATH_STAGE: ${{ secrets.ADMIN_DEPLOY_PATH_STAGE }}
+          ADMIN_APP_URL_PROD: ${{ secrets.ADMIN_APP_URL_PROD }}
+          ADMIN_APP_URL_STAGE: ${{ secrets.ADMIN_APP_URL_STAGE }}
+        run: |
+          if [ "${{ github.ref_name }}" = "main" ]; then
+            echo "live_path=${ADMIN_DEPLOY_PATH_PROD:-/home/sigisolutions/adminlaundry.sigisolutions.net}" >> "$GITHUB_OUTPUT"
+            echo "app_url=${ADMIN_APP_URL_PROD:-https://adminlaundry.sigisolutions.net/}" >> "$GITHUB_OUTPUT"
+            echo "deploy_root=/home/sigisolutions/deployments/laundry-admin" >> "$GITHUB_OUTPUT"
+          else
+            echo "live_path=${ADMIN_DEPLOY_PATH_STAGE:-/home/sigisolutions/adminlaundry.sigisolutions.net}" >> "$GITHUB_OUTPUT"
+            echo "app_url=${ADMIN_APP_URL_STAGE:-https://adminlaundry.sigisolutions.net/}" >> "$GITHUB_OUTPUT"
+            echo "deploy_root=/home/sigisolutions/deployments/laundry-admin-stage" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Upload release
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          port: ${{ secrets.SSH_PORT }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          timeout: 60s
+          source: laundry-admin-release.tar.gz
+          target: ${{ steps.target.outputs.deploy_root }}/incoming/
+          overwrite: true
+      - name: Promote release
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          RELEASE_ID: ${{ github.sha }}
+          LIVE_PATH: ${{ steps.target.outputs.live_path }}
+          APP_URL: ${{ steps.target.outputs.app_url }}
+          DEPLOY_ROOT: ${{ steps.target.outputs.deploy_root }}
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          port: ${{ secrets.SSH_PORT }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          timeout: 60s
+          command_timeout: 20m
+          envs: RELEASE_ID,LIVE_PATH,APP_URL,DEPLOY_ROOT
+          script: |
+            set -euo pipefail
+            mkdir -p "$DEPLOY_ROOT"/{incoming,releases,backups,logs} "$LIVE_PATH"
+            IN="$DEPLOY_ROOT/incoming/laundry-admin-release.tar.gz"
+            if [ ! -f "$IN" ]; then
+              IN="$(find "$DEPLOY_ROOT/incoming" -name 'laundry-admin-release.tar.gz' | head -1)"
+            fi
+            test -f "$IN"
+            RELEASE_PATH="$DEPLOY_ROOT/releases/$RELEASE_ID"
+            BACKUP_FILE="$DEPLOY_ROOT/backups/backup-$(date -u +%Y%m%d%H%M%S).tar.gz"
+            rm -rf "$RELEASE_PATH"; mkdir -p "$RELEASE_PATH"
+            tar -xzf "$IN" -C "$RELEASE_PATH"
+            test -f "$RELEASE_PATH/index.html"
+            if [ -d "$LIVE_PATH" ] && [ "$(ls -A "$LIVE_PATH" 2>/dev/null | head -1)" ]; then
+              tar --exclude=.well-known --exclude=cgi-bin -czf "$BACKUP_FILE" -C "$LIVE_PATH" . || true
+            fi
+            rsync -az --delete \
+              --exclude=".htaccess" --exclude=".well-known" --exclude="cgi-bin" \
+              "$RELEASE_PATH/" "$LIVE_PATH/"
+            if [ ! -f "$LIVE_PATH/.htaccess" ]; then
+              cat > "$LIVE_PATH/.htaccess" <<'HT'
+            <IfModule mod_rewrite.c>
+              RewriteEngine On
+              RewriteBase /
+              RewriteCond %{REQUEST_FILENAME} -f [OR]
+              RewriteCond %{REQUEST_FILENAME} -d
+              RewriteRule ^ - [L]
+              RewriteRule ^ index.html [L]
+            </IfModule>
+            HT
+            fi
+            echo "$RELEASE_ID" > "$DEPLOY_ROOT/current-release.txt"
+            curl -fsS --retry 3 "$APP_URL" >/dev/null
+            ls -1dt "$DEPLOY_ROOT/releases"/* 2>/dev/null | tail -n +11 | xargs -r rm -rf
+            ls -1t "$DEPLOY_ROOT/backups"/backup-*.tar.gz 2>/dev/null | tail -n +11 | xargs -r rm -f
+            echo "Admin deploy complete $RELEASE_ID"

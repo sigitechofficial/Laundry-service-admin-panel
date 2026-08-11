@@ -1,29 +1,22 @@
-name: Deploy to cPanel VPS
+# DEPRECATED — replaced by Careflow-style `.github/workflows/deploy-admin.yml`
+name: Legacy Admin Deploy (DEPRECATED)
 
 on:
-  push:
-    branches:
-      - main
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: 'Type USE_LEGACY_ADMIN to acknowledge'
+        required: true
+        type: string
 
 jobs:
-  deploy:
+  blocked:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Deploy via SSH
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.SERVER_HOST }}
-          username: ${{ secrets.SERVER_USER }}
-          key: ${{ secrets.SERVER_SSH_KEY }}
-          port: 22 
-          script: |
-            export NVM_DIR="$HOME/.nvm"
-            [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
-
-            cd /home/servipr/nextapps/laundryadmin || exit
-            git pull origin main
-            npm install
-            npm run build
-            pm2 restart laundryadmin || pm2 start npm --name "laundryadmin" -- start
-            pm2 save
+      - run: |
+          if [ "${{ github.event.inputs.confirmation }}" != "USE_LEGACY_ADMIN" ]; then
+            echo "Use Actions → Deploy Laundry Admin"
+            exit 1
+          fi
+          echo "Legacy Next/PM2 git-pull deploy is retired. Use deploy-admin.yml"
+          exit 1

@@ -1,0 +1,104 @@
+name: Rollback Laundry Admin
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        type: choice
+        options: [staging, production]
+      rollback_type:
+        required: true
+        type: choice
+        options: [list-available, previous-release, specific-release, latest-backup, specific-backup]
+      target:
+        required: false
+        type: string
+      confirmation:
+        description: 'Type ROLLBACK to confirm'
+        required: false
+        type: string
+
+concurrency:
+  group: laundry-admin-${{ github.event.inputs.environment }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  rollback:
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment }}
+    steps:
+      - name: Validate
+        run: |
+          if [ "${{ github.event.inputs.rollback_type }}" != "list-available" ] && \
+             [ "${{ github.event.inputs.confirmation }}" != "ROLLBACK" ]; then
+            echo "Type ROLLBACK"; exit 1
+          fi
+      - name: Rollback on VPS
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          ENV_NAME: ${{ github.event.inputs.environment }}
+          ROLLBACK_TYPE: ${{ github.event.inputs.rollback_type }}
+          TARGET: ${{ github.event.inputs.target }}
+          ADMIN_DEPLOY_PATH_PROD: ${{ secrets.ADMIN_DEPLOY_PATH_PROD }}
+          ADMIN_DEPLOY_PATH_STAGE: ${{ secrets.ADMIN_DEPLOY_PATH_STAGE }}
+          ADMIN_APP_URL_PROD: ${{ secrets.ADMIN_APP_URL_PROD }}
+          ADMIN_APP_URL_STAGE: ${{ secrets.ADMIN_APP_URL_STAGE }}
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          port: ${{ secrets.SSH_PORT }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          envs: ENV_NAME,ROLLBACK_TYPE,TARGET,ADMIN_DEPLOY_PATH_PROD,ADMIN_DEPLOY_PATH_STAGE,ADMIN_APP_URL_PROD,ADMIN_APP_URL_STAGE
+          script: |
+            set -euo pipefail
+            if [ "$ENV_NAME" = "production" ]; then
+              LIVE_PATH="${ADMIN_DEPLOY_PATH_PROD:-/home/sigisolutions/adminlaundry.sigisolutions.net}"
+              APP_URL="${ADMIN_APP_URL_PROD:-https://adminlaundry.sigisolutions.net/}"
+              DEPLOY_ROOT=/home/sigisolutions/deployments/laundry-admin
+            else
+              LIVE_PATH="${ADMIN_DEPLOY_PATH_STAGE:-/home/sigisolutions/adminlaundry.sigisolutions.net}"
+              APP_URL="${ADMIN_APP_URL_STAGE:-https://adminlaundry.sigisolutions.net/}"
+              DEPLOY_ROOT=/home/sigisolutions/deployments/laundry-admin-stage
+            fi
+            RELEASES="$DEPLOY_ROOT/releases"
+            BACKUPS="$DEPLOY_ROOT/backups"
+            mkdir -p "$RELEASES" "$BACKUPS" "$DEPLOY_ROOT/logs"
+            if [ "$ROLLBACK_TYPE" = "list-available" ]; then
+              echo "Current:"; cat "$DEPLOY_ROOT/current-release.txt" 2>/dev/null || true
+              echo "Releases:"; ls -1dt "$RELEASES"/* 2>/dev/null | sed 's#.*/##' | head -10 || true
+              echo "Backups:"; ls -1t "$BACKUPS"/backup-*.tar.gz 2>/dev/null | sed 's#.*/##' | head -10 || true
+              exit 0
+            fi
+            PRE="$BACKUPS/pre-rollback-$(date -u +%Y%m%d%H%M%S).tar.gz"
+            tar --exclude=.well-known --exclude=cgi-bin -czf "$PRE" -C "$LIVE_PATH" .
+            SOURCE=
+            if [ "$ROLLBACK_TYPE" = "previous-release" ]; then
+              CUR=$(cat "$DEPLOY_ROOT/current-release.txt" 2>/dev/null || true)
+              for d in $(ls -1dt "$RELEASES"/* 2>/dev/null || true); do
+                [ "$(basename "$d")" != "$CUR" ] || continue
+                SOURCE="$d"; break
+              done
+            elif [ "$ROLLBACK_TYPE" = "specific-release" ]; then
+              SOURCE="$RELEASES/$TARGET"
+            elif [ "$ROLLBACK_TYPE" = "latest-backup" ]; then
+              SOURCE="$(ls -1t "$BACKUPS"/backup-*.tar.gz | head -1)"
+            elif [ "$ROLLBACK_TYPE" = "specific-backup" ]; then
+              SOURCE="$BACKUPS/$TARGET"
+            fi
+            test -n "$SOURCE"
+            TMP="$DEPLOY_ROOT/manual-rollback-temp"
+            rm -rf "$TMP"; mkdir -p "$TMP"
+            if [ -f "$SOURCE" ]; then
+              tar -xzf "$SOURCE" -C "$TMP"; SRC="$TMP"
+            else
+              SRC="$SOURCE"
+            fi
+            test -f "$SRC/index.html"
+            rsync -az --delete --exclude=.htaccess --exclude=.well-known --exclude=cgi-bin "$SRC/" "$LIVE_PATH/"
+            curl -fsS --retry 3 "$APP_URL" >/dev/null
+            echo "Admin rollback OK from $SOURCE"
