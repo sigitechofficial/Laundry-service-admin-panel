@@ -719,6 +719,14 @@ export const api = createApi({
       invalidatesTags: ["AdminNotificationPreferences"],
     }),
 
+    demoAdminNotificationAlert: builder.mutation({
+      query: (body) => ({
+        url: "admin/notification-preferences/demo",
+        method: "POST",
+        body,
+      }),
+    }),
+
     getServiceComparison: builder.query({
       query: (bookingId) => ({
         url: `admin/bookings/${bookingId}/service-comparison`,
@@ -1726,6 +1734,7 @@ export const {
   useSendAdminNotificationMutation,
   useGetAdminNotificationPreferencesQuery,
   useUpdateAdminNotificationPreferencesMutation,
+  useDemoAdminNotificationAlertMutation,
   useGetServiceComparisonQuery,
   useConfirmCashRemittanceMutation,
   useRejectCashRemittanceMutation,
