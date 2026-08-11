@@ -5,13 +5,12 @@ import {
   DialogActions,
   Button,
   Typography,
-  List,
-  ListItemButton,
-  ListItemText,
   Chip,
   CircularProgress,
   Box,
   Alert,
+  Stack,
+  Radio,
 } from "@mui/material";
 import { useEffect, useMemo, useState } from "react";
 import dayjs from "dayjs";
@@ -31,33 +30,21 @@ function formatTimeHm(value) {
   return `${String(Number(match[1])).padStart(2, "0")}:${match[2]}`;
 }
 
-function shopDayHoursLabel(shop) {
+function shopHoursLabel(shop) {
   const day = shop?.todayDayOfWeek || null;
   const open = formatTimeHm(shop?.todayOpenTime);
   const close = formatTimeHm(shop?.todayCloseTime);
 
   if (day && open && close && shop?.todayScheduleActive !== false) {
-    return `${day} ${open} – ${close}`;
+    return `Today (${day}): ${open} – ${close}`;
   }
   if (day) {
-    return `${day} · Closed today`;
+    return `Today (${day}): closed`;
   }
-  return null;
+  return "Hours unavailable";
 }
 
-function shopPrimaryLabel(shop) {
-  const name = shop?.isCurrentShop
-    ? `${shop.shopName} (current)`
-    : shop?.shopName || "Shop";
-  const hours = shopDayHoursLabel(shop);
-  return hours ? `${name} · ${hours}` : name;
-}
-
-function pickupSecondaryLabel(payload, bookingSnapshot, isCurrentShop) {
-  if (isCurrentShop) {
-    return "Current shop — choose another shop";
-  }
-
+function formatPickupLabel(payload, bookingSnapshot) {
   const collectionDate =
     payload?.collectionDate || bookingSnapshot?.collectionDate;
   const timeFrom =
@@ -66,21 +53,15 @@ function pickupSecondaryLabel(payload, bookingSnapshot, isCurrentShop) {
     payload?.collectionTimeTo || bookingSnapshot?.collectionTimeTo;
 
   const datePart = dayjs(collectionDate).isValid()
-    ? dayjs(collectionDate).format("ddd DD MMM")
+    ? dayjs(collectionDate).format("ddd D MMM")
     : null;
   const from = formatTimeHm(timeFrom);
   const to = formatTimeHm(timeTo);
 
-  if (datePart && from && to) {
-    return `Pickup: ${datePart} · ${from} – ${to}`;
-  }
-  if (datePart && from) {
-    return `Pickup: ${datePart} · ${from}`;
-  }
-  if (from && to) {
-    return `Pickup: ${from} – ${to}`;
-  }
-  return "Pickup time unavailable";
+  if (datePart && from && to) return `${datePart}, ${from} – ${to}`;
+  if (datePart && from) return `${datePart}, ${from}`;
+  if (from && to) return `${from} – ${to}`;
+  return null;
 }
 
 export default function AssignOrderModal({
@@ -111,7 +92,6 @@ export default function AssignOrderModal({
     bookingSnapshot?.zoneName ||
     null;
   const zoneId = payload?.zoneId ?? bookingSnapshot?.zoneId ?? null;
-  const assignableShops = shops.filter((shop) => shop.canAssign);
   const hasShopList = shops.length > 0;
   const blockingError = isError && !hasShopList;
   const refreshWarning =
@@ -122,6 +102,8 @@ export default function AssignOrderModal({
   const isReassign =
     Boolean(payload?.currentLaundryShopId) ||
     isReassignBooking(bookingSnapshot);
+  const pickupLabel = formatPickupLabel(payload, bookingSnapshot);
+  const orderRef = payload?.orderTrackId || bookingId;
 
   const filteredShops = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -172,168 +154,216 @@ export default function AssignOrderModal({
   const errorMessage =
     error?.data?.message ||
     "Could not load shops. Order may be out for pickup, completed, or invoice finalized.";
-  const isPlatformClosedError =
-    typeof error?.data?.message === "string" &&
-    error.data.message.toLowerCase().includes("platform is closed");
+
+  const selectedShop = shops.find((s) => s.laundryShopId === selectedShopId);
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>
-        {isReassign ? "Reassign order to shop" : "Assign order to shop"}
+      <DialogTitle sx={{ pb: 1 }}>
+        {isReassign ? "Reassign shop" : "Assign shop"}
       </DialogTitle>
-      <DialogContent>
+      <DialogContent sx={{ pt: 1 }}>
         {isLoading && !hasShopList && (
-          <Box sx={{ display: "flex", justifyContent: "center", py: 3 }}>
+          <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
             <CircularProgress size={32} />
           </Box>
         )}
+
         {blockingError && (
-          <>
-            <Typography color="error" sx={{ py: 2 }}>
-              {errorMessage}
-            </Typography>
-            {isPlatformClosedError && (
-              <Alert severity="info" sx={{ mb: 2, fontSize: 13 }}>
-                This restriction was removed in the latest backend. Deploy the
-                updated API (or point admin to your local backend) and restart
-                the server.
-              </Alert>
-            )}
-          </>
+          <Typography color="error" sx={{ py: 2 }}>
+            {errorMessage}
+          </Typography>
         )}
+
         {refreshWarning && (
           <Alert severity="warning" sx={{ mb: 2, fontSize: 13 }}>
             {refreshWarning}
           </Alert>
         )}
+
         {(!isLoading || hasShopList) && !blockingError && (
-          <>
+          <Stack spacing={2}>
             {isReassign && (
-              <Alert severity="warning" sx={{ mb: 2, fontSize: 13 }}>
-                Reassign is only allowed before the driver goes out for pickup.
-                Card payments already collected stay on the order (no double
-                charge).
+              <Alert severity="warning" sx={{ fontSize: 13 }}>
+                Reassign only before the driver goes out for pickup. Card
+                payments already collected stay on the order.
               </Alert>
             )}
-            <Typography sx={{ mb: 1, fontSize: 14, color: "#64748B" }}>
-              Order #{payload?.orderTrackId || bookingId}
-              {payload?.invoiceStatus
-                ? ` · Invoice: ${payload.invoiceStatus}`
-                : ""}
-            </Typography>
+
+            {/* Order + zone context — once, not repeated per shop */}
             <Box
               sx={{
-                mb: 2,
-                px: 1.5,
-                py: 1,
-                borderRadius: 1,
+                p: 1.5,
+                borderRadius: 1.5,
                 bgcolor: "#F8FAFC",
                 border: "1px solid #E2E8F0",
               }}
             >
-              <Typography sx={{ fontSize: 13, color: "#334155", fontWeight: 600 }}>
-                Zone: {zoneLabel || (zoneId != null ? `ID ${zoneId}` : "Unknown")}
-              </Typography>
-              <Typography sx={{ fontSize: 12, color: "#64748B", mt: 0.25 }}>
-                Only shops in this order&apos;s zone are listed
-                {hasShopList ? ` (${shops.length})` : ""}.
-              </Typography>
+              <Stack
+                direction={{ xs: "column", sm: "row" }}
+                spacing={1.5}
+                justifyContent="space-between"
+              >
+                <Box>
+                  <Typography
+                    sx={{ fontSize: 11, color: "#64748B", fontWeight: 600, letterSpacing: 0.4 }}
+                  >
+                    ORDER
+                  </Typography>
+                  <Typography sx={{ fontSize: 15, fontWeight: 700, color: "#0F172A" }}>
+                    #{orderRef}
+                  </Typography>
+                  {pickupLabel && (
+                    <Typography sx={{ fontSize: 13, color: "#475569", mt: 0.25 }}>
+                      Pickup {pickupLabel}
+                    </Typography>
+                  )}
+                </Box>
+                <Box sx={{ textAlign: { sm: "right" } }}>
+                  <Typography
+                    sx={{ fontSize: 11, color: "#64748B", fontWeight: 600, letterSpacing: 0.4 }}
+                  >
+                    ZONE
+                  </Typography>
+                  <Typography sx={{ fontSize: 15, fontWeight: 700, color: "#0F172A" }}>
+                    {zoneLabel ||
+                      (zoneId != null ? `Zone #${zoneId}` : "Unknown zone")}
+                  </Typography>
+                  <Typography sx={{ fontSize: 12, color: "#64748B", mt: 0.25 }}>
+                    {shops.length} shop{shops.length === 1 ? "" : "s"} in this zone
+                  </Typography>
+                </Box>
+              </Stack>
             </Box>
+
             {payload?.currentLaundryShopId && (
-              <Typography sx={{ mb: 2, fontSize: 13, color: "#475569" }}>
-                Currently assigned to shop ID {payload.currentLaundryShopId}.
-                Select a different shop to reassign.
+              <Typography sx={{ fontSize: 13, color: "#475569" }}>
+                Currently assigned to shop #{payload.currentLaundryShopId}. Pick
+                a different shop to reassign.
               </Typography>
             )}
-            <Typography sx={{ mb: 1.5, fontSize: 13, color: "#64748B" }}>
-              Select a shop. The assigned shop receives the order immediately in
-              their active list.
-            </Typography>
+
             {hasShopList && (
-              <Box sx={{ mb: 1.5 }}>
-                <Search
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search shops by name or ID…"
-                />
-              </Box>
+              <Search
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search shop name…"
+              />
             )}
-            {hasShopList && assignableShops.length === 0 && (
-              <Alert severity="info" sx={{ mb: 2, fontSize: 13 }}>
-                All shops in this zone appear closed on the current schedule. You
-                can still select a shop if assignment is allowed.
-              </Alert>
-            )}
+
             {shops.length === 0 ? (
-              <Typography sx={{ color: "#64748B" }}>
-                No active shops in this zone.
-              </Typography>
+              <Alert severity="info">No active shops in this zone.</Alert>
             ) : filteredShops.length === 0 ? (
               <Typography sx={{ color: "#64748B", py: 1 }}>
                 No shops match “{searchQuery.trim()}”.
               </Typography>
             ) : (
-              <List
-                dense
-                sx={{
-                  maxHeight: 360,
-                  overflowY: "auto",
-                  pr: 0.5,
-                }}
+              <Stack
+                spacing={1}
+                sx={{ maxHeight: 380, overflowY: "auto", pr: 0.5 }}
               >
-                {filteredShops.map((shop) => (
-                  <ListItemButton
-                    key={shop.laundryShopId}
-                    selected={selectedShopId === shop.laundryShopId}
-                    disabled={shop.isCurrentShop}
-                    onClick={() =>
-                      !shop.isCurrentShop &&
-                      setSelectedShopId(shop.laundryShopId)
-                    }
-                    sx={{
-                      borderRadius: 1,
-                      mb: 0.5,
-                      border: "1px solid #E2E8F0",
-                      opacity: shop.isCurrentShop ? 0.5 : 1,
-                    }}
-                  >
-                    <ListItemText
-                      primary={shopPrimaryLabel(shop)}
-                      secondary={pickupSecondaryLabel(
-                        payload,
-                        bookingSnapshot,
-                        shop.isCurrentShop
-                      )}
-                    />
-                    <Chip
-                      size="small"
-                      label={shop.isOpenNow ? "Open" : "Closed"}
-                      color={shop.isOpenNow ? "success" : "default"}
-                    />
-                  </ListItemButton>
-                ))}
-              </List>
+                {filteredShops.map((shop) => {
+                  const selected = selectedShopId === shop.laundryShopId;
+                  const disabled = shop.isCurrentShop;
+                  return (
+                    <Box
+                      key={shop.laundryShopId}
+                      onClick={() =>
+                        !disabled && setSelectedShopId(shop.laundryShopId)
+                      }
+                      sx={{
+                        display: "flex",
+                        alignItems: "flex-start",
+                        gap: 1,
+                        p: 1.5,
+                        borderRadius: 1.5,
+                        border: selected
+                          ? "2px solid #000099"
+                          : "1px solid #E2E8F0",
+                        bgcolor: selected
+                          ? "rgba(0, 0, 153, 0.04)"
+                          : "#fff",
+                        cursor: disabled ? "not-allowed" : "pointer",
+                        opacity: disabled ? 0.55 : 1,
+                        transition: "border-color 0.15s, background 0.15s",
+                        "&:hover": disabled
+                          ? undefined
+                          : {
+                              borderColor: selected ? "#000099" : "#94A3B8",
+                            },
+                      }}
+                    >
+                      <Radio
+                        checked={selected}
+                        disabled={disabled}
+                        size="small"
+                        sx={{ mt: -0.25, p: 0.5 }}
+                        tabIndex={-1}
+                      />
+                      <Box sx={{ flex: 1, minWidth: 0 }}>
+                        <Stack
+                          direction="row"
+                          spacing={1}
+                          alignItems="center"
+                          justifyContent="space-between"
+                        >
+                          <Typography
+                            sx={{
+                              fontSize: 15,
+                              fontWeight: 700,
+                              color: "#0F172A",
+                              lineHeight: 1.3,
+                            }}
+                          >
+                            {shop.shopName || `Shop #${shop.laundryShopId}`}
+                            {shop.isCurrentShop ? " (current)" : ""}
+                          </Typography>
+                          <Chip
+                            size="small"
+                            label={shop.isOpenNow ? "Open" : "Closed"}
+                            color={shop.isOpenNow ? "success" : "default"}
+                            sx={{ height: 22, fontSize: 11, flexShrink: 0 }}
+                          />
+                        </Stack>
+                        <Typography
+                          sx={{ fontSize: 12.5, color: "#64748B", mt: 0.5 }}
+                        >
+                          {shopHoursLabel(shop)}
+                        </Typography>
+                      </Box>
+                    </Box>
+                  );
+                })}
+              </Stack>
             )}
-          </>
+
+            {selectedShop && (
+              <Typography sx={{ fontSize: 13, color: "#334155" }}>
+                Selected: <strong>{selectedShop.shopName}</strong>
+              </Typography>
+            )}
+          </Stack>
         )}
       </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose} disabled={isAssigning}>
+      <DialogActions sx={{ px: 3, pb: 2 }}>
+        <Button onClick={onClose} disabled={isAssigning} sx={{ textTransform: "none" }}>
           Cancel
         </Button>
         <Button
           variant="contained"
           onClick={handleAssign}
-          disabled={isAssigning || !selectedShopId || (isLoading && !hasShopList)}
-          sx={{ bgcolor: "#000099" }}
+          disabled={
+            isAssigning || !selectedShopId || (isLoading && !hasShopList)
+          }
+          sx={{ bgcolor: "#000099", textTransform: "none", minWidth: 120 }}
         >
           {isAssigning
             ? isReassign
               ? "Reassigning…"
               : "Assigning…"
             : isReassign
-              ? "Reassign"
-              : "Assign"}
+              ? "Reassign shop"
+              : "Assign shop"}
         </Button>
       </DialogActions>
     </Dialog>
