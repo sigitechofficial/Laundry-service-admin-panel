@@ -22,6 +22,7 @@ import {
   useRegisterAdminFcmTokenMutation,
 } from "../../store/services/api";
 import { requestDeviceToken } from "../../utilities/requestFCMToken";
+import { ensureAdminFcmRegistered } from "../../utilities/adminWebNotifications";
 
 const CATEGORY_LABELS = {
   pickup: "Pickup",
@@ -106,9 +107,13 @@ export default function AdminNotificationSettingsPage() {
         );
         return;
       }
-      await registerFcm({ dvToken: token }).unwrap();
+      const result = await ensureAdminFcmRegistered();
+      if (!result?.ok) {
+        // Fallback to explicit API if ensure used cached race
+        await registerFcm({ dvToken: token }).unwrap();
+      }
       setFcmStatus("ok");
-      success("FCM token registered. You can run Demo now.");
+      success("FCM token registered. Website notifications are ready — try Demo.");
     } catch (err) {
       setFcmStatus("error");
       showError(err?.data?.message || "Failed to register FCM token");

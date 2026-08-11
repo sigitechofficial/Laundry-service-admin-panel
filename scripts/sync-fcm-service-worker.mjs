@@ -80,13 +80,50 @@ importScripts("https://www.gstatic.com/firebasejs/${FB_VERSION}/firebase-messagi
 firebase.initializeApp(${JSON.stringify(firebaseConfig, null, 2)});
 
 const messaging = firebase.messaging();
+
+function resolveTitleBody(payload) {
+  var n = payload && payload.notification ? payload.notification : {};
+  var d = payload && payload.data ? payload.data : {};
+  var title = n.title || d.title || d.alertType || "Laundry Admin";
+  var body = n.body || d.body || d.message || "";
+  return { title: String(title), body: String(body) };
+}
+
 messaging.onBackgroundMessage(function (payload) {
-  const notificationTitle = payload.notification?.title || "Notification";
-  const notificationOptions = {
-    body: payload.notification?.body || "",
-    icon: "/images/logo1.png",
-  };
-  self.registration.showNotification(notificationTitle, notificationOptions);
+  var resolved = resolveTitleBody(payload || {});
+  var d = (payload && payload.data) || {};
+  self.registration.showNotification(resolved.title, {
+    body: resolved.body,
+    icon: "/images/logo.png",
+    data: d,
+    tag: d.alertType || d.type || "laundry-admin",
+  });
+});
+
+self.addEventListener("notificationclick", function (event) {
+  event.notification.close();
+  var data = event.notification.data || {};
+  var path = "/";
+  if (data.alertType === "payment_failed" || data.type === "payment_failed") {
+    path = "/orders/payment-failures";
+  } else if (data.bookingId && String(data.bookingId) !== "0") {
+    path = "/orders/order-details/" + data.bookingId;
+  } else if (data.alertType || data.type) {
+    path = "/admin-notification-settings";
+  }
+  event.waitUntil(
+    clients.matchAll({ type: "window", includeUncontrolled: true }).then(function (clientList) {
+      for (var i = 0; i < clientList.length; i++) {
+        var client = clientList[i];
+        if ("focus" in client) {
+          client.focus();
+          if ("navigate" in client) client.navigate(path);
+          return;
+        }
+      }
+      if (clients.openWindow) return clients.openWindow(path);
+    })
+  );
 });
 `;
 
