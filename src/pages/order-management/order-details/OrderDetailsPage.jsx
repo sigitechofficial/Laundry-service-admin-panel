@@ -55,6 +55,28 @@ const SECTION_HEADER_SX = {
   bgcolor: "#FFFFFF",
 };
 
+function getPaymentStatusBadge(status) {
+  const normalized = String(status || "pending").toLowerCase();
+  if (normalized === "paid") {
+    return { bg: "#D1FAE5", color: "#065F46", label: "Paid" };
+  }
+  if (normalized === "failed") {
+    return { bg: "#FEE2E2", color: "#991B1B", label: "Failed" };
+  }
+  return { bg: "#FEF3C7", color: "#92400E", label: "Pending" };
+}
+
+function formatPaymentType(value) {
+  const normalized = String(value || "card").toLowerCase();
+  return normalized === "cash" ? "Cash" : "Card";
+}
+
+function formatMoney(amount, symbol = "£") {
+  const n = Number(amount);
+  if (!Number.isFinite(n)) return `${symbol}0.00`;
+  return `${symbol}${n.toFixed(2)}`;
+}
+
 function getStatusBadge(status) {
   const normalized = String(status || "").toLowerCase();
   if (normalized.includes("complete")) return statusStyleMap.completed;
@@ -534,6 +556,17 @@ export default function OrderDetailsPage() {
   }, [selectedItemsCategoryKey, selectedServiceData]);
 
   const orderTotal = totalAmount.toFixed(2);
+  const paymentSummary = orderData?.paymentSummary;
+  const paymentStatusBadge = getPaymentStatusBadge(
+    paymentSummary?.billingPaymentStatus ?? orderData?.billingDetail?.paymentStatus
+  );
+  const paymentCurrencySymbol = paymentSummary?.currencySymbol ?? "£";
+  const amountDueNow = Number(
+    paymentSummary?.amountDueNow ??
+      (String(orderData?.billingDetail?.paymentStatus || "").toLowerCase() === "paid"
+        ? 0
+        : totalAmount)
+  );
   const invoiceView = useMemo(
     () => buildInvoiceView(invoiceDetails, shopName),
     [invoiceDetails, shopName]
@@ -899,7 +932,7 @@ export default function OrderDetailsPage() {
                   px: 2,
                 }}
               >
-                {isFetchingInvoice ? "Generating..." : "Generate Invoice"}
+                {isFetchingInvoice ? "Loading..." : "View / Print Invoice"}
               </Button>
             ) : null}
             {canShowAdminAssign ? (
@@ -1652,6 +1685,45 @@ export default function OrderDetailsPage() {
                   ${tipAmount.toFixed(2)}
                 </Typography>
               </Box>
+              <Box className="flex items-center justify-between" sx={{ py: 0.9 }}>
+                <Typography variant="body2" color="text.secondary">
+                  Payment Status
+                </Typography>
+                <Box
+                  sx={{
+                    px: 1.2,
+                    py: 0.35,
+                    borderRadius: "999px",
+                    bgcolor: paymentStatusBadge.bg,
+                    color: paymentStatusBadge.color,
+                    fontSize: 12,
+                    fontWeight: 700,
+                  }}
+                >
+                  {paymentStatusBadge.label}
+                </Box>
+              </Box>
+              <Box className="flex items-center justify-between" sx={{ py: 0.9 }}>
+                <Typography variant="body2" color="text.secondary">
+                  Amount Due
+                </Typography>
+                <Typography
+                  variant="body2"
+                  sx={{
+                    fontWeight: 700,
+                    color: amountDueNow > 0 ? "#B45309" : "#065F46",
+                  }}
+                >
+                  {formatMoney(amountDueNow, paymentCurrencySymbol)}
+                </Typography>
+              </Box>
+              {paymentSummary?.paymentStateLabel ? (
+                <Box sx={{ py: 0.5 }}>
+                  <Typography variant="caption" sx={{ fontSize: 11, color: "#64748B" }}>
+                    {paymentSummary.paymentStateLabel}
+                  </Typography>
+                </Box>
+              ) : null}
               <Box className="flex items-center justify-between pt-2.5 mt-2.5" sx={{ borderTop: "1px solid #E4E7EC" }}>
                 <Typography fontFamily="Switzer" fontWeight={700}>
                   Total
@@ -1850,6 +1922,110 @@ export default function OrderDetailsPage() {
         </Box>
 
         <Box sx={{ display: "flex", flexDirection: "column", rowGap: 2.5 }}>
+          <Paper sx={CARD_SX}>
+            <Box sx={SECTION_HEADER_SX}>
+              <Box className="flex items-center gap-1.5">
+                <Box sx={{ width: 6, height: 6, borderRadius: "50%", bgcolor: "#34D399" }} />
+                <Typography
+                  variant="caption"
+                  color="text.secondary"
+                  sx={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}
+                >
+                  Payment
+                </Typography>
+              </Box>
+            </Box>
+            <Box sx={{ p: 2.5 }} className="space-y-3">
+              <Box className="flex justify-between gap-3">
+                <Typography
+                  variant="caption"
+                  color="text.secondary"
+                  sx={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em" }}
+                >
+                  Method
+                </Typography>
+                <Typography sx={{ fontSize: 13, fontWeight: 500, color: "#475569" }} textAlign="right">
+                  {formatPaymentType(paymentSummary?.paymentType ?? orderData?.paymentType)}
+                </Typography>
+              </Box>
+              <Box className="flex justify-between gap-3 items-center">
+                <Typography
+                  variant="caption"
+                  color="text.secondary"
+                  sx={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em" }}
+                >
+                  Status
+                </Typography>
+                <Box
+                  sx={{
+                    px: 1.2,
+                    py: 0.35,
+                    borderRadius: "999px",
+                    bgcolor: paymentStatusBadge.bg,
+                    color: paymentStatusBadge.color,
+                    fontSize: 12,
+                    fontWeight: 700,
+                  }}
+                >
+                  {paymentStatusBadge.label}
+                </Box>
+              </Box>
+              <Box className="flex justify-between gap-3">
+                <Typography
+                  variant="caption"
+                  color="text.secondary"
+                  sx={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em" }}
+                >
+                  Amount Due
+                </Typography>
+                <Typography
+                  sx={{
+                    fontSize: 13,
+                    fontWeight: 700,
+                    color: amountDueNow > 0 ? "#B45309" : "#065F46",
+                  }}
+                  textAlign="right"
+                >
+                  {formatMoney(amountDueNow, paymentCurrencySymbol)}
+                </Typography>
+              </Box>
+              {paymentSummary?.paidAtBooking?.totalPaid > 0 ? (
+                <Box className="flex justify-between gap-3">
+                  <Typography
+                    variant="caption"
+                    color="text.secondary"
+                    sx={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em" }}
+                  >
+                    Paid at Booking
+                  </Typography>
+                  <Typography sx={{ fontSize: 13, fontWeight: 500, color: "#475569" }} textAlign="right">
+                    {formatMoney(paymentSummary.paidAtBooking.totalPaid, paymentCurrencySymbol)}
+                  </Typography>
+                </Box>
+              ) : null}
+              {paymentSummary?.paymentStateLabel ? (
+                <Typography variant="caption" sx={{ fontSize: 11, color: "#64748B", display: "block" }}>
+                  {paymentSummary.paymentStateLabel}
+                </Typography>
+              ) : null}
+              {orderData?.invoiceStatus ? (
+                <Box className="flex justify-between gap-3">
+                  <Typography
+                    variant="caption"
+                    color="text.secondary"
+                    sx={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em" }}
+                  >
+                    Invoice
+                  </Typography>
+                  <Typography sx={{ fontSize: 13, fontWeight: 500, color: "#475569" }} textAlign="right">
+                    {String(orderData.invoiceStatus).charAt(0).toUpperCase() +
+                      String(orderData.invoiceStatus).slice(1)}
+                  </Typography>
+                </Box>
+              ) : null}
+            </Box>
+          </Paper>
+
           <Paper sx={CARD_SX}>
             <Box sx={SECTION_HEADER_SX}>
               <Box className="flex items-center gap-1.5">

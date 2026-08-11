@@ -4,7 +4,7 @@ import baseQueryWithReauth from "./baseQueryWithReauth";
 export const api = createApi({
   reducerPath: "api",
   baseQuery: baseQueryWithReauth,
-  tagTypes: ["ServiceConfig", "SupportContact", "PlatformOperationalHours", "Orders", "Coupons", "Banners", "AccountDeletionReasons", "PendingAgents", "RejectedAgents", "AgentSettlement", "NotifyLogs", "PaymentFailures"],
+  tagTypes: ["ServiceConfig", "SupportContact", "PlatformOperationalHours", "Orders", "Coupons", "Banners", "AccountDeletionReasons", "PendingAgents", "RejectedAgents", "AgentSettlement", "NotifyLogs", "PaymentFailures", "AdminNotificationPreferences"],
 
   endpoints: (builder) => {
     const normalizeServiceId = (id) => {
@@ -679,6 +679,23 @@ export const api = createApi({
         method: "POST",
         body,
       }),
+    }),
+
+    getAdminNotificationPreferences: builder.query({
+      query: () => ({
+        url: "admin/notification-preferences",
+        method: "GET",
+      }),
+      providesTags: ["AdminNotificationPreferences"],
+    }),
+
+    updateAdminNotificationPreferences: builder.mutation({
+      query: (body) => ({
+        url: "admin/notification-preferences",
+        method: "PATCH",
+        body,
+      }),
+      invalidatesTags: ["AdminNotificationPreferences"],
     }),
 
     getServiceComparison: builder.query({
@@ -1684,6 +1701,8 @@ export const {
   useLazySearchNotificationRecipientsQuery,
   usePreviewAdminNotificationMutation,
   useSendAdminNotificationMutation,
+  useGetAdminNotificationPreferencesQuery,
+  useUpdateAdminNotificationPreferencesMutation,
   useGetServiceComparisonQuery,
   useConfirmCashRemittanceMutation,
   useRejectCashRemittanceMutation,

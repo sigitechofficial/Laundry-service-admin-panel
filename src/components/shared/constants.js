@@ -282,6 +282,12 @@ export const sidebarList = [
     size: "23px",
   },
   {
+    label: "Alert Settings",
+    Icon: TbSettings,
+    path: "/admin-notification-settings",
+    size: "23px",
+  },
+  {
     label: "Delete Account Reasons",
     Icon: TbTrash,
     path: "/delete-account-reasons",

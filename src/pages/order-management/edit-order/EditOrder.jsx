@@ -601,9 +601,15 @@ export default function EditOrder() {
         postCode: orderData?.dropOffAddress?.postalCode || "",
         country: orderData?.dropOffAddress?.country || "",
         deliveryFee: "0.00",
-        driverTip: orderData?.tips?.[0]?.amount || "0.00",
-        minimumOrderFee: "0.00",
-        serviceCharge: "0.00",
+        driverTip: orderData?.tips?.[0]?.amount != null
+          ? Number(orderData.tips[0].amount).toFixed(2)
+          : "0.00",
+        minimumOrderFee: orderData?.billingDetail?.upfrontAmount != null
+          ? Number(orderData.billingDetail.upfrontAmount).toFixed(2)
+          : "0.00",
+        serviceCharge: orderData?.billingDetail?.serviceCharge != null
+          ? Number(orderData.billingDetail.serviceCharge).toFixed(2)
+          : "0.00",
       });
 
       setDropdowns({
@@ -817,6 +823,32 @@ export default function EditOrder() {
         services: services,
         totalItems: totalItems,
         tipAmount: formData.driverTip || "0.00",
+        billingData: (() => {
+          const oldServiceCharge = Number(orderData?.billingDetail?.serviceCharge ?? 0);
+          const oldMinimum = Number(orderData?.billingDetail?.upfrontAmount ?? 0);
+          const oldTotal = Number(
+            orderData?.billingDetail?.total ?? orderData?.orderAmount ?? 0
+          );
+          const oldTip = Number(orderData?.tips?.[0]?.amount ?? 0);
+          const newServiceCharge = parseFloat(formData.serviceCharge) || 0;
+          const newMinimum = parseFloat(formData.minimumOrderFee) || 0;
+          const newTip = parseFloat(formData.driverTip) || 0;
+          const discount = Number(orderData?.billingDetail?.discount ?? 0);
+          const total = parseFloat(
+            (
+              oldTotal +
+              (newServiceCharge - oldServiceCharge) +
+              (newMinimum - oldMinimum) +
+              (newTip - oldTip)
+            ).toFixed(2)
+          );
+          return {
+            upfrontAmount: newMinimum,
+            serviceCharge: newServiceCharge,
+            discount,
+            total,
+          };
+        })(),
         ...(dropdowns.status
           ? { bookingStatusId: Number(dropdowns.status) }
           : {}),
@@ -1448,7 +1480,7 @@ export default function EditOrder() {
                   disabled={isFetchingInvoice}
                   size="medium"
                 >
-                  {isFetchingInvoice ? "Generating..." : "Generate Invoice"}
+                  {isFetchingInvoice ? "Loading..." : "View / Print Invoice"}
                 </ButtonWhite>
                 <ButtonBlue onClick={handleSave} disabled={isSaving} size="medium">
                   {isSaving ? "Saving..." : "Save Changes"}
@@ -2308,7 +2340,7 @@ export default function EditOrder() {
                       opacity: isFetchingInvoice ? 0.7 : 1,
                     }}
                   >
-                    {isFetchingInvoice ? "Generating..." : "Generate Invoice"}
+                    {isFetchingInvoice ? "Loading..." : "View / Print Invoice"}
                   </Box>
                 </Box>
               </Paper>

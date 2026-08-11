@@ -45,6 +45,7 @@ import {
   NotifyLogsPage,
   FcmDebugPage,
   SendNotificationsPage,
+  AdminNotificationSettingsPage,
 } from "../routes/AsyncComponent";
 
 export const privateRoutes = [
@@ -108,6 +109,11 @@ export const privateRoutes = [
     path: "/send-notifications",
     element: SendNotificationsPage,
     resourceKey: "send_notifications_page",
+  },
+  {
+    path: "/admin-notification-settings",
+    element: AdminNotificationSettingsPage,
+    resourceKey: "admin_notification_settings_page",
   },
   {
     path: "/delete-account-reasons",
