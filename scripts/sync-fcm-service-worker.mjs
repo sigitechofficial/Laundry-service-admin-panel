@@ -1,6 +1,7 @@
 /**
  * Writes public/firebase-messaging-sw.js from .env / .env.local
  * Uses LAUNDRY_FIREBASE_* or VITE_FIREBASE_* (same as the main app).
+ * Falls back to laundry-app-bf43c web config when env is empty.
  */
 import fs from "fs";
 import path from "path";
@@ -8,6 +9,15 @@ import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(__dirname, "..");
+
+const DEFAULT_FIREBASE_WEB_CONFIG = {
+  apiKey: "AIzaSyDdZLCsf0CQN_DIkE0mAOmRv9_pvlRq2qg",
+  authDomain: "laundry-app-bf43c.firebaseapp.com",
+  projectId: "laundry-app-bf43c",
+  storageBucket: "laundry-app-bf43c.firebasestorage.app",
+  messagingSenderId: "880600214434",
+  appId: "1:880600214434:web:9f770646a7fcf4d95ee0fb",
+};
 
 function parseEnvFile(filePath) {
   if (!fs.existsSync(filePath)) return {};
@@ -33,26 +43,33 @@ const env = {
 };
 
 const firebaseConfig = {
-  apiKey: env.LAUNDRY_FIREBASE_API_KEY || env.VITE_FIREBASE_API_KEY || "",
-  authDomain: env.LAUNDRY_FIREBASE_AUTH_DOMAIN || env.VITE_FIREBASE_AUTH_DOMAIN || "",
-  projectId: env.LAUNDRY_FIREBASE_PROJECT_ID || env.VITE_FIREBASE_PROJECT_ID || "",
-  storageBucket: env.LAUNDRY_FIREBASE_STORAGE_BUCKET || env.VITE_FIREBASE_STORAGE_BUCKET || "",
+  apiKey:
+    env.LAUNDRY_FIREBASE_API_KEY ||
+    env.VITE_FIREBASE_API_KEY ||
+    DEFAULT_FIREBASE_WEB_CONFIG.apiKey,
+  authDomain:
+    env.LAUNDRY_FIREBASE_AUTH_DOMAIN ||
+    env.VITE_FIREBASE_AUTH_DOMAIN ||
+    DEFAULT_FIREBASE_WEB_CONFIG.authDomain,
+  projectId:
+    env.LAUNDRY_FIREBASE_PROJECT_ID ||
+    env.VITE_FIREBASE_PROJECT_ID ||
+    DEFAULT_FIREBASE_WEB_CONFIG.projectId,
+  storageBucket:
+    env.LAUNDRY_FIREBASE_STORAGE_BUCKET ||
+    env.VITE_FIREBASE_STORAGE_BUCKET ||
+    DEFAULT_FIREBASE_WEB_CONFIG.storageBucket,
   messagingSenderId:
-    env.LAUNDRY_FIREBASE_MESSAGING_SENDER_ID || env.VITE_FIREBASE_MESSAGING_SENDER_ID || "",
-  appId: env.LAUNDRY_FIREBASE_APP_ID || env.VITE_FIREBASE_APP_ID || "",
+    env.LAUNDRY_FIREBASE_MESSAGING_SENDER_ID ||
+    env.VITE_FIREBASE_MESSAGING_SENDER_ID ||
+    DEFAULT_FIREBASE_WEB_CONFIG.messagingSenderId,
+  appId:
+    env.LAUNDRY_FIREBASE_APP_ID ||
+    env.VITE_FIREBASE_APP_ID ||
+    DEFAULT_FIREBASE_WEB_CONFIG.appId,
 };
 
 const outPath = path.join(root, "public", "firebase-messaging-sw.js");
-
-if (!firebaseConfig.apiKey) {
-  const stub = `// Stub: set LAUNDRY_FIREBASE_* or VITE_FIREBASE_* in .env then run: npm run sync:fcm-sw (or npm run dev)
-self.addEventListener("install", () => self.skipWaiting());
-self.addEventListener("activate", (e) => e.waitUntil(self.clients.claim()));
-`;
-  fs.writeFileSync(outPath, stub, "utf8");
-  console.log("Wrote stub (no LAUNDRY_FIREBASE_API_KEY):", outPath);
-  process.exit(0);
-}
 
 // Match Firebase compat line used in your Firebase Console / web app (10.12.x works with this project).
 const FB_VERSION = "10.12.2";
@@ -74,4 +91,4 @@ messaging.onBackgroundMessage(function (payload) {
 `;
 
 fs.writeFileSync(outPath, sw, "utf8");
-console.log("Wrote", outPath);
+console.log("Wrote", outPath, "projectId=", firebaseConfig.projectId);
