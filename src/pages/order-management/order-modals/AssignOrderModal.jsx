@@ -13,13 +13,14 @@ import {
   Box,
   Alert,
 } from "@mui/material";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import dayjs from "dayjs";
 import {
   useGetBookingAssignableShopsQuery,
   useAssignBookingToShopMutation,
 } from "../../../store/services/api";
 import useToaster from "../../../components/ui/Toaster";
+import Search from "../../../components/ui/Search";
 import { isReassignBooking } from "../../../shared/adminAssignGate";
 
 function formatTimeHm(value) {
@@ -91,6 +92,7 @@ export default function AssignOrderModal({
 }) {
   const toast = useToaster();
   const [selectedShopId, setSelectedShopId] = useState(null);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const { data, isLoading, isError, error } =
     useGetBookingAssignableShopsQuery(bookingId, {
@@ -103,6 +105,12 @@ export default function AssignOrderModal({
 
   const payload = data?.data ?? data ?? {};
   const shops = payload?.shops ?? [];
+  const zoneLabel =
+    payload?.zoneName ||
+    bookingSnapshot?.zone?.name ||
+    bookingSnapshot?.zoneName ||
+    null;
+  const zoneId = payload?.zoneId ?? bookingSnapshot?.zoneId ?? null;
   const assignableShops = shops.filter((shop) => shop.canAssign);
   const hasShopList = shops.length > 0;
   const blockingError = isError && !hasShopList;
@@ -115,11 +123,31 @@ export default function AssignOrderModal({
     Boolean(payload?.currentLaundryShopId) ||
     isReassignBooking(bookingSnapshot);
 
+  const filteredShops = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return shops;
+    return shops.filter((shop) => {
+      const name = String(shop.shopName || "").toLowerCase();
+      const id = String(shop.laundryShopId || "");
+      return name.includes(q) || id.includes(q);
+    });
+  }, [shops, searchQuery]);
+
   useEffect(() => {
     if (!open) {
       setSelectedShopId(null);
+      setSearchQuery("");
     }
   }, [open]);
+
+  useEffect(() => {
+    if (
+      selectedShopId &&
+      !filteredShops.some((s) => s.laundryShopId === selectedShopId)
+    ) {
+      setSelectedShopId(null);
+    }
+  }, [filteredShops, selectedShopId]);
 
   const handleAssign = async () => {
     if (!selectedShopId) {
@@ -193,16 +221,43 @@ export default function AssignOrderModal({
                 ? ` · Invoice: ${payload.invoiceStatus}`
                 : ""}
             </Typography>
+            <Box
+              sx={{
+                mb: 2,
+                px: 1.5,
+                py: 1,
+                borderRadius: 1,
+                bgcolor: "#F8FAFC",
+                border: "1px solid #E2E8F0",
+              }}
+            >
+              <Typography sx={{ fontSize: 13, color: "#334155", fontWeight: 600 }}>
+                Zone: {zoneLabel || (zoneId != null ? `ID ${zoneId}` : "Unknown")}
+              </Typography>
+              <Typography sx={{ fontSize: 12, color: "#64748B", mt: 0.25 }}>
+                Only shops in this order&apos;s zone are listed
+                {hasShopList ? ` (${shops.length})` : ""}.
+              </Typography>
+            </Box>
             {payload?.currentLaundryShopId && (
               <Typography sx={{ mb: 2, fontSize: 13, color: "#475569" }}>
                 Currently assigned to shop ID {payload.currentLaundryShopId}.
                 Select a different shop to reassign.
               </Typography>
             )}
-            <Typography sx={{ mb: 2, fontSize: 13, color: "#64748B" }}>
-              Select a shop in this zone. The assigned shop receives the order
-              immediately in their active list.
+            <Typography sx={{ mb: 1.5, fontSize: 13, color: "#64748B" }}>
+              Select a shop. The assigned shop receives the order immediately in
+              their active list.
             </Typography>
+            {hasShopList && (
+              <Box sx={{ mb: 1.5 }}>
+                <Search
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search shops by name or ID…"
+                />
+              </Box>
+            )}
             {hasShopList && assignableShops.length === 0 && (
               <Alert severity="info" sx={{ mb: 2, fontSize: 13 }}>
                 All shops in this zone appear closed on the current schedule. You
@@ -211,11 +266,22 @@ export default function AssignOrderModal({
             )}
             {shops.length === 0 ? (
               <Typography sx={{ color: "#64748B" }}>
-                No shops in this zone.
+                No active shops in this zone.
+              </Typography>
+            ) : filteredShops.length === 0 ? (
+              <Typography sx={{ color: "#64748B", py: 1 }}>
+                No shops match “{searchQuery.trim()}”.
               </Typography>
             ) : (
-              <List dense>
-                {shops.map((shop) => (
+              <List
+                dense
+                sx={{
+                  maxHeight: 360,
+                  overflowY: "auto",
+                  pr: 0.5,
+                }}
+              >
+                {filteredShops.map((shop) => (
                   <ListItemButton
                     key={shop.laundryShopId}
                     selected={selectedShopId === shop.laundryShopId}
