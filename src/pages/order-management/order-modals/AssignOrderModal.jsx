@@ -17,10 +17,16 @@ import dayjs from "dayjs";
 import {
   useGetBookingAssignableShopsQuery,
   useAssignBookingToShopMutation,
+  useGetAllZonesQuery,
+  useGetZoneByIdQuery,
 } from "../../../store/services/api";
 import useToaster from "../../../components/ui/Toaster";
 import Search from "../../../components/ui/Search";
 import { isReassignBooking } from "../../../shared/adminAssignGate";
+import {
+  zonesArrayFromGetZonesResponse,
+  unwrapZoneFromApiResponse,
+} from "../../../utilities/zonesList";
 
 function formatTimeHm(value) {
   if (!value) return null;
@@ -85,13 +91,59 @@ export default function AssignOrderModal({
     useAssignBookingToShopMutation();
 
   const payload = data?.data ?? data ?? {};
-  const shops = payload?.shops ?? [];
-  const zoneLabel =
-    payload?.zoneName ||
-    bookingSnapshot?.zone?.name ||
-    bookingSnapshot?.zoneName ||
-    null;
   const zoneId = payload?.zoneId ?? bookingSnapshot?.zoneId ?? null;
+
+  const { data: zonesRes } = useGetAllZonesQuery(undefined, {
+    skip: !open,
+  });
+  const { data: zoneByIdRes } = useGetZoneByIdQuery(zoneId, {
+    skip: !open || zoneId == null || zoneId === "",
+  });
+
+  const zoneLabel = useMemo(() => {
+    const fromPayload =
+      payload?.zoneName ||
+      bookingSnapshot?.zone?.name ||
+      bookingSnapshot?.zoneName ||
+      null;
+    if (fromPayload && String(fromPayload).trim()) {
+      return String(fromPayload).trim();
+    }
+
+    const zones = zonesArrayFromGetZonesResponse(zonesRes);
+    const fromList = zones.find(
+      (z) => String(z?.id ?? z?.zoneId) === String(zoneId)
+    );
+    const listName = fromList?.name ?? fromList?.zoneName;
+    if (listName && String(listName).trim()) {
+      return String(listName).trim();
+    }
+
+    const byId = unwrapZoneFromApiResponse(zoneByIdRes);
+    const byIdName = byId?.name ?? byId?.zoneName;
+    if (byIdName && String(byIdName).trim()) {
+      return String(byIdName).trim();
+    }
+
+    return null;
+  }, [
+    payload?.zoneName,
+    bookingSnapshot?.zone?.name,
+    bookingSnapshot?.zoneName,
+    zonesRes,
+    zoneByIdRes,
+    zoneId,
+  ]);
+
+  // Hard filter: only shops that belong to this order's zone.
+  const shops = useMemo(() => {
+    const list = Array.isArray(payload?.shops) ? payload.shops : [];
+    if (zoneId == null) return list;
+    return list.filter(
+      (shop) =>
+        shop?.zoneId == null || Number(shop.zoneId) === Number(zoneId)
+    );
+  }, [payload?.shops, zoneId]);
   const hasShopList = shops.length > 0;
   const blockingError = isError && !hasShopList;
   const refreshWarning =
@@ -104,6 +156,14 @@ export default function AssignOrderModal({
     isReassignBooking(bookingSnapshot);
   const pickupLabel = formatPickupLabel(payload, bookingSnapshot);
   const orderRef = payload?.orderTrackId || bookingId;
+  const zoneDisplay =
+    zoneLabel && zoneId != null
+      ? `${zoneLabel} (#${zoneId})`
+      : zoneLabel
+        ? zoneLabel
+        : zoneId != null
+          ? `Zone #${zoneId}`
+          : "Unknown zone";
 
   const filteredShops = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -226,8 +286,7 @@ export default function AssignOrderModal({
                     ZONE
                   </Typography>
                   <Typography sx={{ fontSize: 15, fontWeight: 700, color: "#0F172A" }}>
-                    {zoneLabel ||
-                      (zoneId != null ? `Zone #${zoneId}` : "Unknown zone")}
+                    {zoneDisplay}
                   </Typography>
                   <Typography sx={{ fontSize: 12, color: "#64748B", mt: 0.25 }}>
                     {shops.length} shop{shops.length === 1 ? "" : "s"} in this zone
