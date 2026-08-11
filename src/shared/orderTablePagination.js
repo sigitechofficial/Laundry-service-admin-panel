@@ -1,7 +1,10 @@
 /**
- * Footer total for order list tables — always from the list API, not client row count.
+ * Footer total for order/shop list tables — always from the list API, not client row count.
+ * @param {object} apiResponse - RTK query response (`{ data: { ... } }`)
+ * @param {string} [listCountField] - e.g. `"total"`
+ * @param {string} [listArrayField] - e.g. `"AllShopsData"`; used only when API omits total/pagination (legacy)
  */
-export function getBackendTableTotal(apiResponse, listCountField) {
+export function getBackendTableTotal(apiResponse, listCountField, listArrayField) {
   const body = apiResponse?.data;
   if (!body || typeof body !== "object") return 0;
 
@@ -17,6 +20,21 @@ export function getBackendTableTotal(apiResponse, listCountField) {
 
   if (listCountField && body[listCountField] != null) {
     return toCount(body[listCountField]);
+  }
+
+  if (body.totalRecords != null) {
+    return toCount(body.totalRecords);
+  }
+
+  // Legacy APIs that return the full list without pagination meta
+  if (
+    listArrayField &&
+    Array.isArray(body[listArrayField]) &&
+    body.pagination == null &&
+    body.total == null &&
+    body.totalRecords == null
+  ) {
+    return body[listArrayField].length;
   }
 
   return 0;

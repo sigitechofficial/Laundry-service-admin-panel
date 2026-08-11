@@ -72,6 +72,7 @@ const DataTable = ({
   const [pageSize, setPageSize] = useState(externalPageSize);
   const [sortConfig, setSortConfig] = useState({
     field: null,
+    sortField: null,
     direction: "asc",
   });
 
@@ -160,24 +161,47 @@ const DataTable = ({
     return data.filter((row) => rowSearchBlob(row).includes(q));
   }, [data, searchTerm, serverSidePagination]);
 
-  // 🔹 Sorting logic
+  // 🔹 Sorting logic (supports col.sortField for stacked/composite columns)
   const sortedData = React.useMemo(() => {
     if (!sortConfig.field) return filteredData;
 
+    const sortKey = sortConfig.sortField || sortConfig.field;
+
     return [...filteredData].sort((a, b) => {
-      const aVal = a[sortConfig.field];
-      const bVal = b[sortConfig.field];
+      let aVal = a[sortKey];
+      let bVal = b[sortKey];
 
-      if (aVal == null) return 1;
-      if (bVal == null) return -1;
+      if (aVal == null || aVal === "") return 1;
+      if (bVal == null || bVal === "") return -1;
 
-      if (typeof aVal === "number" && typeof bVal === "number") {
-        return sortConfig.direction === "asc" ? aVal - bVal : bVal - aVal;
+      const aNum = typeof aVal === "number" ? aVal : Number(aVal);
+      const bNum = typeof bVal === "number" ? bVal : Number(bVal);
+      const bothNumeric =
+        typeof aVal === "number" ||
+        typeof bVal === "number" ||
+        (aVal !== "" &&
+          bVal !== "" &&
+          !Number.isNaN(aNum) &&
+          !Number.isNaN(bNum) &&
+          String(aVal).trim() !== "" &&
+          /^-?\d+(\.\d+)?$/.test(String(aVal).trim()) &&
+          /^-?\d+(\.\d+)?$/.test(String(bVal).trim()));
+
+      if (bothNumeric && !Number.isNaN(aNum) && !Number.isNaN(bNum)) {
+        return sortConfig.direction === "asc" ? aNum - bNum : bNum - aNum;
       }
 
-      return sortConfig.direction === "asc"
-        ? String(aVal).localeCompare(String(bVal))
-        : String(bVal).localeCompare(String(aVal));
+      if (typeof aVal === "boolean" && typeof bVal === "boolean") {
+        return sortConfig.direction === "asc"
+          ? Number(aVal) - Number(bVal)
+          : Number(bVal) - Number(aVal);
+      }
+
+      const cmp = String(aVal).localeCompare(String(bVal), undefined, {
+        numeric: true,
+        sensitivity: "base",
+      });
+      return sortConfig.direction === "asc" ? cmp : -cmp;
     });
   }, [filteredData, sortConfig]);
 
@@ -191,16 +215,19 @@ const DataTable = ({
   const paginatedData = serverSidePagination ? sortedData : sortedData.slice(startIndex, endIndex);
 
   // 🔹 Handle sorting toggle
-  const handleSort = (field) => {
+  const handleSort = (col) => {
+    if (!col || col.sortable === false) return;
+    const field = col.field;
+    const sortField = col.sortField || col.field;
     setSortConfig((prev) => {
       if (prev.field === field) {
-        // toggle direction
         return {
           field,
+          sortField,
           direction: prev.direction === "asc" ? "desc" : "asc",
         };
       }
-      return { field, direction: "asc" };
+      return { field, sortField, direction: "asc" };
     });
   };
 
@@ -421,13 +448,13 @@ const DataTable = ({
                         : isStickyRight
                         ? { style: { zIndex: 130 + rightRank } }
                         : {})}
-                      onClick={() => handleSort(col.field)}
+                      onClick={() => handleSort(col)}
                       align={col.align || "left"}
                       sx={{
                         ":hover": {
-                          backgroundColor: "#F3F4F6",
+                          backgroundColor: isSortable ? "#F3F4F6" : "#FAFAFA",
                         },
-                        cursor: "pointer",
+                        cursor: isSortable ? "pointer" : "default",
                         width: col.width || "auto",
                         minWidth: col.minWidth || "auto",
                         backgroundColor: "#FAFAFA",
@@ -438,6 +465,7 @@ const DataTable = ({
                         borderBottom: "none",
                         overflow: "hidden",
                         textOverflow: "ellipsis",
+                        userSelect: "none",
                         ...(isStickyLeft && {
                           position: "sticky",
                           left: stickyLeftOffsetPx(colIndex),

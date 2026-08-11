@@ -18,3 +18,7 @@ export const dateTimeFormat = "DD MMM YYYY hh:mm A";
 /** Order list tables: stay visible while scrolling horizontally */
 export const ORDER_TABLE_STICKY_LEFT_FIELDS = ["orderId", "orderPlacedAt"];
 export const ORDER_TABLE_STICKY_RIGHT_FIELDS = ["OrderStatus", "actions"];
+
+/** Shop list tables: stay visible while scrolling horizontally */
+export const SHOP_TABLE_STICKY_LEFT_FIELDS = ["name"];
+export const SHOP_TABLE_STICKY_RIGHT_FIELDS = ["status", "actions"];

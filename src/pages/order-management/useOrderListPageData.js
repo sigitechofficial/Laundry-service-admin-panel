@@ -18,7 +18,7 @@ export function resolveOrderListResponse({ data, currentData, isFetching }) {
  */
 export function useOrderListPageData(
   queryResult,
-  { pickRows, totalCountField, isSearchPending = false }
+  { pickRows, totalCountField, listArrayField, isSearchPending = false }
 ) {
   const { data, currentData, isLoading, isFetching, refetch } = queryResult;
 
@@ -44,8 +44,8 @@ export function useOrderListPageData(
 
   const totalRows = useMemo(() => {
     if (responseBody == null) return 0;
-    return getBackendTableTotal(responseBody, totalCountField);
-  }, [responseBody, totalCountField]);
+    return getBackendTableTotal(responseBody, totalCountField, listArrayField);
+  }, [responseBody, totalCountField, listArrayField]);
 
   return {
     rows,

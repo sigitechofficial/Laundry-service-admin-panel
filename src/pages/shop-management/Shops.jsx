@@ -1,21 +1,24 @@
 import { useNavigate } from "react-router-dom";
-import DataTable from "../../components/ui/DataTable";
-import ActionButtons from "../../components/ui/ActionButtons";
-import StatusPill from "../../components/ui/StatusPill";
-import ChangeStatus from "../../components/ui/Switch";
 import { Delay } from "../../components/shared/Loaders";
-import { useState } from "react";
+import { useMemo, useState, useCallback } from "react";
 import InputFieldBordered from "../../components/ui/InputFieldBordered";
-import { Box } from "@mui/material";
+import { Typography } from "@mui/material";
 import ModalComponent from "../../components/shared/Modal";
 import StatCard from "../../components/ui/StatCard";
 import {
   useGetShopsDataQuery,
   useEditShopMutation,
-  useDeleteShopMutation,
 } from "../../store/services/api";
 import useToaster from "../../components/ui/Toaster";
 import DeleteShopModal from "./DeleteShopModal";
+import { useShopListTableFilters } from "./useShopListTableFilters";
+import ShopListDataTable from "./ShopListDataTable";
+import { useOrderListPageData } from "../order-management/useOrderListPageData";
+import { buildShopListColumns, mapShopToRow } from "./shopListTable";
+import {
+  SHOP_TABLE_STICKY_LEFT_FIELDS,
+  SHOP_TABLE_STICKY_RIGHT_FIELDS,
+} from "../../shared/constants";
 
 export default function Shops() {
   const [editModalOpen, setEditModalOpen] = useState(false);
@@ -25,43 +28,66 @@ export default function Shops() {
   const navigate = useNavigate();
   const { success, error } = useToaster();
 
-  const { data: shopsResponse, isLoading, refetch } = useGetShopsDataQuery();
+  const tableFilters = useShopListTableFilters(25);
+  const listQuery = useGetShopsDataQuery(tableFilters.apiParams);
+  const pickRows = useCallback((res) => res?.data?.AllShopsData, []);
+
+  const {
+    rows: shops,
+    totalRows: backendTotalRows,
+    isTableLoading,
+    isLoading,
+    refetch,
+  } = useOrderListPageData(listQuery, {
+    pickRows,
+    totalCountField: "total",
+    listArrayField: "AllShopsData",
+    isSearchPending: tableFilters.isSearchPending,
+  });
+
+  // Prefer API total; if meta is missing/0 but rows exist, estimate from page + row count
+  const totalRows = useMemo(() => {
+    if (backendTotalRows > 0) return backendTotalRows;
+    if (shops.length === 0) return 0;
+    return (tableFilters.page - 1) * tableFilters.pageSize + shops.length;
+  }, [
+    backendTotalRows,
+    shops.length,
+    tableFilters.page,
+    tableFilters.pageSize,
+  ]);
+
+  const topPerformingShops = useMemo(() => {
+    const body = listQuery.currentData ?? listQuery.data;
+    const list = body?.data?.topPerformingShops;
+    return Array.isArray(list) ? list : [];
+  }, [listQuery.currentData, listQuery.data]);
+
   const [editShop, { isLoading: isEditing }] = useEditShopMutation();
 
-  const shops = shopsResponse?.data?.AllShopsData || [];
-  const topPerformingShops = shopsResponse?.data?.topPerformingShops || [];
+  const shopsData = useMemo(
+    () => shops.map((item) => mapShopToRow(item)),
+    [shops]
+  );
 
-  const shopsData = shops.map((item, index) => {
-    const addr = item?.addressDb;
-    const biz = item?.businessInfo;
-    const addressParts = [
-      addr?.streetAddress,
-      addr?.district,
-      addr?.province,
-      addr?.city?.name,
-      addr?.country?.name,
-    ].filter(Boolean);
-    const address = addressParts.join(", ") || "-";
-    const status = !!addr?.zone?.status;
-    return {
-      id: item.id,
-      sl: index + 1,
-      customerId: item.id,
-      name: item?.shopName ?? item?.name ?? "",
-      email: biz?.email ?? item?.email ?? "",
-      phoneNumber: biz?.phoneNum ?? item?.phone ?? item?.phoneNum ?? "",
-      amountSpent: addr?.TotalRevenue ?? item?.totalRevenue ?? 0,
-      totalOrders: addr?.TotalBookingCount ?? item?.totalOrders ?? 0,
-      pendingOrders: addr?.PendingBookingCount ?? 0,
-      lastOrderDate: item?.lastOrderDate ?? "-",
-      address,
-      zone: addr?.zone?.name ?? "-",
-      city: addr?.city?.name ?? "-",
-      country: addr?.country?.name ?? "-",
-      status,
-      changeStatus: status,
-    };
-  });
+  const tableFilterKey = useMemo(
+    () =>
+      [
+        tableFilters.zoneId,
+        tableFilters.statusId,
+        tableFilters.debouncedSearch,
+        tableFilters.dateRange?.startDate?.valueOf?.() ??
+          tableFilters.dateRange?.startDate,
+        tableFilters.dateRange?.endDate?.valueOf?.() ??
+          tableFilters.dateRange?.endDate,
+      ].join("|"),
+    [
+      tableFilters.zoneId,
+      tableFilters.statusId,
+      tableFilters.debouncedSearch,
+      tableFilters.dateRange,
+    ]
+  );
 
   const handleSaveEdit = async () => {
     if (!editData?.id) return;
@@ -86,15 +112,29 @@ export default function Shops() {
       }
     } catch (err) {
       const msg =
-        err?.data?.message ?? err?.data?.error ?? err?.message ?? "Failed to update shop";
+        err?.data?.message ??
+        err?.data?.error ??
+        err?.message ??
+        "Failed to update shop";
       error(msg);
     }
   };
 
-  const handleDeleteClick = (row) => {
+  const handleDeleteClick = useCallback((row) => {
     setShopToDelete(row);
     setDeleteModalOpen(true);
-  };
+  }, []);
+
+  const handleEditClick = useCallback((row) => {
+    setEditData({
+      id: row.id,
+      name: row.name,
+      email: row.email,
+      phone: row.phoneNumber,
+      address: row.address,
+    });
+    setEditModalOpen(true);
+  }, []);
 
   const handleDeleteSuccess = () => {
     setDeleteModalOpen(false);
@@ -102,132 +142,27 @@ export default function Shops() {
     refetch();
   };
 
-  const customerColumns = [
-    {
-      field: "sl",
-      headerName: "SL",
-      flex: 0.08,
-      minWidth: 60,
-    },
-    {
-      field: "customerId",
-      headerName: "ID",
-      flex: 0.08,
-      minWidth: 80,
-    },
-    {
-      field: "name",
-      headerName: "Shop Name",
-      flex: 0.14,
-      minWidth: 140,
-    },
-    {
-      field: "email",
-      headerName: "Email",
-      flex: 0.14,
-      minWidth: 160,
-    },
-    {
-      field: "phoneNumber",
-      headerName: "Phone",
-      flex: 0.12,
-      minWidth: 120,
-    },
-    {
-      field: "address",
-      headerName: "Address",
-      flex: 0.18,
-      minWidth: 200,
-    },
-    {
-      field: "zone",
-      headerName: "Zone",
-      flex: 0.1,
-      minWidth: 100,
-    },
-    {
-      field: "city",
-      headerName: "City",
-      flex: 0.1,
-      minWidth: 100,
-    },
-    {
-      field: "country",
-      headerName: "Country",
-      flex: 0.1,
-      minWidth: 120,
-    },
-    {
-      field: "totalOrders",
-      headerName: "Total Bookings",
-      flex: 0.1,
-      minWidth: 120,
-      type: "number",
-    },
-    {
-      field: "pendingOrders",
-      headerName: "Pending",
-      flex: 0.08,
-      minWidth: 90,
-      type: "number",
-    },
-    {
-      field: "amountSpent",
-      headerName: "Total Revenue",
-      flex: 0.1,
-      minWidth: 120,
-    },
-    {
-      field: "status",
-      headerName: "Status",
-      flex: 0.08,
-      minWidth: 100,
-      renderCell: (row) => (
-        <StatusPill status={row.status ? "active" : "block"} />
-      ),
-      sortable: false,
-    },
-    {
-      field: "changeStatus",
-      headerName: "Change Status",
-      flex: 0.1,
-      minWidth: 160,
-      type: "switch",
-      renderCell: (row) => (
-        <ChangeStatus width={"45px"} checked={row.changeStatus} />
-      ),
-      sortable: false,
-    },
-    {
-      field: "actions",
-      headerName: "Actions",
-      flex: 0.15,
-      minWidth: 200,
-      renderCell: (row) => (
-        <ActionButtons
-          onView={() => navigate(`/shop-management/details/${row?.id}`)}
-          onEdit={() => {
-            setEditData({
-              id: row.id,
-              name: row.name,
-              email: row.email,
-              phone: row.phoneNumber,
-              address: row.address,
-            });
-            setEditModalOpen(true);
-          }}
-          onDelete={() => handleDeleteClick(row)}
-        />
-      ),
-      sortable: false,
-    },
-  ];
+  const customerColumns = useMemo(
+    () =>
+      buildShopListColumns({
+        navigate,
+        onEdit: handleEditClick,
+        onDelete: handleDeleteClick,
+      }),
+    [navigate, handleEditClick, handleDeleteClick]
+  );
 
-  if (isLoading) {
+  if (isLoading && shops.length === 0 && !tableFilters.hasActiveFilters) {
     return <Delay />;
   }
 
-  const statCardColors = ["bg-purple50", "bg-red50", "bg-green50", "bg-green200", "bg-yellow50"];
+  const statCardColors = [
+    "bg-purple50",
+    "bg-red50",
+    "bg-green50",
+    "bg-green200",
+    "bg-yellow50",
+  ];
 
   return (
     <div className="w-full !space-y-11 !mt-0">
@@ -241,12 +176,43 @@ export default function Shops() {
           />
         ))}
       </div>
-      <DataTable
-        data={shopsData}
-        columns={customerColumns}
-        searchPlaceholder="Search by shop name, email, address..."
-        height={600}
-      />
+
+      <Typography
+        variant="body2"
+        sx={{ fontSize: 13, color: "text.secondary", mt: -4 }}
+      >
+        Cards and table use the same zone, registration date, status, and search
+        filters{tableFilters.zoneId ? " (including zone)" : ""}. The table is
+        paginated — use the footer to see more rows. Shop and actions stay
+        pinned while scrolling.
+      </Typography>
+
+      <div className="w-full min-w-0">
+        <ShopListDataTable
+          key={tableFilterKey}
+          data={shopsData}
+          columns={customerColumns}
+          totalRows={totalRows}
+          page={tableFilters.page}
+          pageSize={tableFilters.pageSize}
+          onPageChange={tableFilters.setPage}
+          onPageSizeChange={tableFilters.setPageSize}
+          zoneId={tableFilters.zoneId}
+          onZoneIdChange={tableFilters.setZoneId}
+          statusId={tableFilters.statusId}
+          onStatusIdChange={tableFilters.setStatusId}
+          dateRange={tableFilters.dateRange}
+          onDateRangeChange={tableFilters.setDateRange}
+          onClearFilters={tableFilters.clearFilters}
+          hasActiveFilters={tableFilters.hasActiveFilters}
+          searchInput={tableFilters.searchInput}
+          onSearchInputChange={tableFilters.setSearchInput}
+          isTableLoading={isTableLoading}
+          stickyLeftFields={SHOP_TABLE_STICKY_LEFT_FIELDS}
+          stickyRightFields={SHOP_TABLE_STICKY_RIGHT_FIELDS}
+        />
+      </div>
+
       <ModalComponent
         open={editModalOpen}
         title={editData ? "Edit Shop" : "Edit"}

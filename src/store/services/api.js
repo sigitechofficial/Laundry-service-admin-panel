@@ -566,9 +566,10 @@ export const api = createApi({
     }),
 
     getShopsData: builder.query({
-      query: () => ({
+      query: (params = {}) => ({
         url: "admin/getShopsData",
         method: "GET",
+        params,
       }),
     }),
 
