@@ -1,6 +1,5 @@
 import { Box, Typography } from "@mui/material";
 import { BsCardList } from "../../../shared/icons/index";
-import { Delay } from "../../../components/shared/Loaders";
 import StatCard from "../../../components/ui/StatCard";
 import { useState, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
@@ -32,9 +31,7 @@ export default function PendingOrders() {
     rows: orderBookings,
     totalRows,
     isTableLoading,
-    isLoading,
     refetch,
-    tableFilterKey,
   } = useOrderListPageQueries({
     tableFilters,
     useListQuery: useGetPendingOrdersQuery,
@@ -77,8 +74,6 @@ export default function PendingOrders() {
     [navigate, orderStatuses]
   );
 
-  if (isLoading && orderBookings.length === 0) return <Delay />;
-
   return (
     <>
     <div className="!space-y-11">
@@ -117,9 +112,8 @@ export default function PendingOrders() {
             </Typography>
 
             <div className="w-full min-w-0">
-              <OrderListDataTable
-                key={tableFilterKey}
-                data={customersData}
+                <OrderListDataTable
+                  data={customersData}
                 columns={customerColumns}
                 totalRows={totalRows}
                 page={tableFilters.page}

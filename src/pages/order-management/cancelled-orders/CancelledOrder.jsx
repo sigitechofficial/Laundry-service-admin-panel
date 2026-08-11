@@ -1,6 +1,5 @@
 import { Box, Typography } from "@mui/material";
 import { BsCardList } from "../../../shared/icons/index";
-import { Delay } from "../../../components/shared/Loaders";
 import StatCard from "../../../components/ui/StatCard";
 import { useState, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
@@ -31,9 +30,7 @@ export default function CancelledOrders() {
     rows: orderBookings,
     totalRows,
     isTableLoading,
-    isLoading,
     refetch,
-    tableFilterKey,
   } = useOrderListPageQueries({
     tableFilters,
     useListQuery: useGetCancelledOrdersQuery,
@@ -69,8 +66,6 @@ export default function CancelledOrders() {
       }),
     [navigate, orderStatuses]
   );
-
-  if (isLoading && orderBookings.length === 0) return <Delay />;
 
   return (
     <>
@@ -110,9 +105,8 @@ export default function CancelledOrders() {
             </Typography>
 
             <div className="w-full min-w-0">
-              <OrderListDataTable
-                key={tableFilterKey}
-                data={customersData}
+                <OrderListDataTable
+                  data={customersData}
                 columns={customerColumns}
                 totalRows={totalRows}
                 page={tableFilters.page}

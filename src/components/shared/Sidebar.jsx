@@ -62,8 +62,11 @@ function Sidebar() {
   const isSidebarhide = useMediaQuery(sidebarHide);
   const isDesktop = useMediaQuery(breakPoints.desktop);
 
-  // Fetch order counts
-  const { data: orderCountsData } = useGetOrdersCountQuery();
+  // Sidebar badges: unfiltered counts. Share RTK cache with order pages when
+  // they also request unfiltered stats; do not force-refetch on every remount.
+  const { data: orderCountsData } = useGetOrdersCountQuery(undefined, {
+    refetchOnMountOrArgChange: 60,
+  });
 
   // Get order count for a specific menu item label
   const getOrderCount = (label) => {

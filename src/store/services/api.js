@@ -449,7 +449,9 @@ export const api = createApi({
         params: orderListQueryParams({ ...params, page: 1, limit: 1 }),
       }),
       providesTags: ["Orders"],
-      refetchOnMountOrArgChange: true,
+      // Avoid refetching on every sidebar/page remount; mutations still invalidate via tags.
+      refetchOnMountOrArgChange: 60,
+      keepUnusedDataFor: 120,
       transformResponse: (response) => {
         const root = response?.data !== undefined ? response : { data: response };
         const d = root.data && typeof root.data === "object" ? root.data : {};
@@ -482,7 +484,8 @@ export const api = createApi({
         params: orderListQueryParams(params),
       }),
       providesTags: ["Orders"],
-      refetchOnMountOrArgChange: true,
+      refetchOnMountOrArgChange: 30,
+      keepUnusedDataFor: 60,
     }),
 
     getPendingOrders: builder.query({
@@ -492,7 +495,8 @@ export const api = createApi({
         params: orderListQueryParams(params),
       }),
       providesTags: ["Orders"],
-      refetchOnMountOrArgChange: true,
+      refetchOnMountOrArgChange: 30,
+      keepUnusedDataFor: 60,
     }),
 
     getBookingAssignableShops: builder.query({
@@ -518,7 +522,8 @@ export const api = createApi({
         params: orderListQueryParams(params),
       }),
       providesTags: ["Orders"],
-      refetchOnMountOrArgChange: true,
+      refetchOnMountOrArgChange: 30,
+      keepUnusedDataFor: 60,
     }),
 
     getCancelledOrders: builder.query({
@@ -528,7 +533,8 @@ export const api = createApi({
         params: orderListQueryParams(params),
       }),
       providesTags: ["Orders"],
-      refetchOnMountOrArgChange: true,
+      refetchOnMountOrArgChange: 30,
+      keepUnusedDataFor: 60,
     }),
 
     getOnHoldBookings: builder.query({
@@ -538,7 +544,8 @@ export const api = createApi({
         params: orderListQueryParams(params),
       }),
       providesTags: ["Orders"],
-      refetchOnMountOrArgChange: true,
+      refetchOnMountOrArgChange: 30,
+      keepUnusedDataFor: 60,
     }),
 
     getPaymentFailures: builder.query({
@@ -563,6 +570,8 @@ export const api = createApi({
         url: "admin/allOrderStatuses",
         method: "GET",
       }),
+      refetchOnMountOrArgChange: 300,
+      keepUnusedDataFor: 600,
     }),
 
     getShopsData: builder.query({
@@ -801,6 +810,8 @@ export const api = createApi({
         method: "GET",
         credentials: "include",
       }),
+      refetchOnMountOrArgChange: 300,
+      keepUnusedDataFor: 600,
     }),
     getZoneById: builder.query({
       query: (id) => ({

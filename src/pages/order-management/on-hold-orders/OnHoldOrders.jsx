@@ -1,6 +1,5 @@
 import { Box, Typography } from "@mui/material";
 import { BsCardList } from "../../../shared/icons/index";
-import { Delay } from "../../../components/shared/Loaders";
 import StatCard from "../../../components/ui/StatCard";
 import { useState, useMemo, useCallback } from "react";
 import dayjs from "dayjs";
@@ -44,9 +43,7 @@ export default function OnHoldOrders() {
     rows: orderBookings,
     totalRows,
     isTableLoading,
-    isLoading,
     refetch,
-    tableFilterKey,
   } = useOrderListPageQueries({
     tableFilters,
     useListQuery: useGetOnHoldBookingsQuery,
@@ -250,8 +247,6 @@ export default function OnHoldOrders() {
     [navigate, orderStatuses]
   );
 
-  if (isLoading && orderBookings.length === 0) return <Delay />;
-
   return (
     <>
     <div className="!space-y-11">
@@ -290,9 +285,8 @@ export default function OnHoldOrders() {
             </Typography>
 
             <div className="w-full min-w-0">
-              <OrderListDataTable
-                key={tableFilterKey}
-                data={customersData}
+                <OrderListDataTable
+                  data={customersData}
                 columns={customerColumns}
                 totalRows={totalRows}
                 page={tableFilters.page}
