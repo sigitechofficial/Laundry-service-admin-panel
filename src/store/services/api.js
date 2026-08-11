@@ -1791,6 +1791,7 @@ export const {
   useUpdateAdminEmployeeStatusMutation,
   useDeleteAdminEmployeeMutation,
   useGetAllZonesQuery,
+  useGetZoneByIdQuery,
   useLazyGetZoneByIdQuery,
   useGetAllCountriesQuery,
   useGetCitiesByCountryIdQuery,
