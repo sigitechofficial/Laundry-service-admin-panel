@@ -14,13 +14,25 @@ export const api = createApi({
     };
 
     const orderListQueryParams = (params = {}) => {
-      const { page = 1, limit = 25, zoneId, status, startDate, endDate, search } = params;
+      const {
+        page = 1,
+        limit = 25,
+        zoneId,
+        status,
+        startDate,
+        endDate,
+        search,
+        includeCounts,
+      } = params;
       const q = { page, limit };
       if (zoneId != null && String(zoneId).trim() !== "") q.zoneId = zoneId;
       if (status != null && String(status).trim() !== "") q.status = status;
       if (startDate) q.startDate = startDate;
       if (endDate) q.endDate = endDate;
       if (search != null && String(search).trim() !== "") q.search = String(search).trim();
+      if (includeCounts === true || includeCounts === 1 || includeCounts === "1") {
+        q.includeCounts = 1;
+      }
       return q;
     };
 

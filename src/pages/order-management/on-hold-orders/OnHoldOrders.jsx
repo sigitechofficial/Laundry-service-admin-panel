@@ -44,6 +44,7 @@ export default function OnHoldOrders() {
     totalRows,
     isTableLoading,
     refetch,
+    embeddedCounts,
   } = useOrderListPageQueries({
     tableFilters,
     useListQuery: useGetOnHoldBookingsQuery,
@@ -51,7 +52,7 @@ export default function OnHoldOrders() {
     totalCountField: "onHoldOrdersCount",
   });
   const { dashboardStats, refetchCounts } =
-    useOrderListStatsQuery(statsQueryParams);
+    useOrderListStatsQuery(statsQueryParams, embeddedCounts);
   const { data: statusesResponse } = useGetAllOrderStatusesQuery();
   const orderStatuses = useMemo(
     () => (Array.isArray(statusesResponse?.data) ? statusesResponse.data : []),

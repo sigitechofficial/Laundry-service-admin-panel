@@ -31,6 +31,7 @@ export default function CancelledOrders() {
     totalRows,
     isTableLoading,
     refetch,
+    embeddedCounts,
   } = useOrderListPageQueries({
     tableFilters,
     useListQuery: useGetCancelledOrdersQuery,
@@ -38,7 +39,7 @@ export default function CancelledOrders() {
     totalCountField: "cancelBookingCount",
   });
   const { dashboardStats, refetchCounts } =
-    useOrderListStatsQuery(statsQueryParams);
+    useOrderListStatsQuery(statsQueryParams, embeddedCounts);
   const { data: statusesResponse } = useGetAllOrderStatusesQuery();
   const orderStatuses = useMemo(
     () => (Array.isArray(statusesResponse?.data) ? statusesResponse.data : []),

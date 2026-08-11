@@ -8,6 +8,7 @@ export function buildOrderListApiParams({
   statusId,
   dateRange,
   search,
+  includeCounts = true,
 }) {
   const params = { page, limit };
   if (zoneId != null && String(zoneId).trim() !== "") {
@@ -22,6 +23,9 @@ export function buildOrderListApiParams({
   }
   if (search != null && String(search).trim() !== "") {
     params.search = String(search).trim();
+  }
+  if (includeCounts) {
+    params.includeCounts = 1;
   }
   return params;
 }
@@ -40,6 +44,7 @@ export function buildOrderStatsQueryParams({
     statusId,
     dateRange,
     search,
+    includeCounts: false,
   });
   const { page, limit, ...rest } = full;
   return rest;

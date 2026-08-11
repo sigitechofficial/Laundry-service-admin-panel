@@ -32,6 +32,7 @@ export default function PendingOrders() {
     totalRows,
     isTableLoading,
     refetch,
+    embeddedCounts,
   } = useOrderListPageQueries({
     tableFilters,
     useListQuery: useGetPendingOrdersQuery,
@@ -39,7 +40,7 @@ export default function PendingOrders() {
     totalCountField: "pendingOrdersCount",
   });
   const { dashboardStats, refetchCounts } =
-    useOrderListStatsQuery(statsQueryParams);
+    useOrderListStatsQuery(statsQueryParams, embeddedCounts);
   const { data: statusesResponse } = useGetAllOrderStatusesQuery();
   const orderStatuses = useMemo(
     () => (Array.isArray(statusesResponse?.data) ? statusesResponse.data : []),

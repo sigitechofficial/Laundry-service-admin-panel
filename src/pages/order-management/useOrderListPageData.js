@@ -47,6 +47,13 @@ export function useOrderListPageData(
     return getBackendTableTotal(responseBody, totalCountField, listArrayField);
   }, [responseBody, totalCountField, listArrayField]);
 
+  /** Embedded dashboard counts from list API when includeCounts=1 */
+  const embeddedCounts = useMemo(() => {
+    if (responseBody == null) return undefined;
+    const counts = responseBody?.data?.counts;
+    return counts && typeof counts === "object" ? counts : undefined;
+  }, [responseBody]);
+
   return {
     rows,
     totalRows,
@@ -54,5 +61,6 @@ export function useOrderListPageData(
     isLoading,
     refetch,
     isStaleListCache,
+    embeddedCounts,
   };
 }

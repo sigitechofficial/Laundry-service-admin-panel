@@ -32,13 +32,14 @@ export default function ShopManagement() {
     totalRows,
     isTableLoading,
     refetch,
+    embeddedCounts,
   } = useOrderListPageQueries({
     tableFilters,
     useListQuery: useGetAllOrderQuery,
     pickRows,
   });
   const { dashboardStats, refetchCounts } =
-    useOrderListStatsQuery(statsQueryParams);
+    useOrderListStatsQuery(statsQueryParams, embeddedCounts);
   const { data: statusesResponse } = useGetAllOrderStatusesQuery();
   const orderStatuses = useMemo(
     () => (Array.isArray(statusesResponse?.data) ? statusesResponse.data : []),
