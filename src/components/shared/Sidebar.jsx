@@ -75,6 +75,8 @@ function Sidebar() {
     const counts = orderCountsData.data;
 
     switch (label) {
+      case "Action Required":
+        return counts.actionRequiredCount || 0;
       case "All Order":
         return counts.allOrderCount || 0;
       case "Complete":

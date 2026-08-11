@@ -29,6 +29,7 @@ import {
   CancelledOrders,
   OnHoldOrders,
   PaymentFailures,
+  ActionRequiredOrders,
   EditOrder,
   OrderDetails,
   CountriesAndCities,
@@ -174,6 +175,11 @@ export const privateRoutes = [
     path: "/faq",
     element: FAQ,
     resourceKey: "faq_Page",
+  },
+  {
+    path: "/orders/action-required",
+    element: ActionRequiredOrders,
+    resourceKey: "order_action-required_Page",
   },
   {
     path: "/orders/all-orders",

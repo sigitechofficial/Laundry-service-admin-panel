@@ -33,6 +33,11 @@ export const sidebarList = [
     size: "24px",
     children: [
       {
+        label: "Action Required",
+        path: "/orders/action-required",
+        size: "24px",
+      },
+      {
         label: "All Order",
         path: "/orders/all-orders",
         size: "24px",
