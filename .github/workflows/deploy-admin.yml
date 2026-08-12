@@ -87,10 +87,11 @@ jobs:
       - name: Upload release
         uses: appleboy/scp-action@v0.1.7
         with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          port: ${{ secrets.SSH_PORT }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          # Prefer SSH_* (same as API repo); fall back to legacy SERVER_* secrets.
+          host: ${{ secrets.SSH_HOST || secrets.SERVER_HOST }}
+          username: ${{ secrets.SSH_USER || secrets.SERVER_USER }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          key: ${{ secrets.SSH_PRIVATE_KEY || secrets.SERVER_SSH_KEY }}
           timeout: 60s
           source: laundry-admin-release.tar.gz
           target: ${{ steps.target.outputs.deploy_root }}/incoming/
@@ -103,10 +104,10 @@ jobs:
           APP_URL: ${{ steps.target.outputs.app_url }}
           DEPLOY_ROOT: ${{ steps.target.outputs.deploy_root }}
         with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          port: ${{ secrets.SSH_PORT }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          host: ${{ secrets.SSH_HOST || secrets.SERVER_HOST }}
+          username: ${{ secrets.SSH_USER || secrets.SERVER_USER }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          key: ${{ secrets.SSH_PRIVATE_KEY || secrets.SERVER_SSH_KEY }}
           timeout: 60s
           command_timeout: 20m
           envs: RELEASE_ID,LIVE_PATH,APP_URL,DEPLOY_ROOT
