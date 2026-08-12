@@ -135,11 +135,31 @@ export default function AddEmployeeModal({
     }));
   }, [countries]);
 
-  const { data: rolesRes } = useGetAllRolesQuery(undefined, { skip: !open });
+  const { data: rolesRes } = useGetAllRolesQuery(
+    forShopEmployees ? "agent_shop_staff" : "admin_portal",
+    { skip: !open }
+  );
   const roles = useMemo(() => {
     const d = rolesRes?.data;
-    return Array.isArray(d) ? d : [];
-  }, [rolesRes?.data]);
+    const list = Array.isArray(d) ? d : [];
+    // Client-side safety net: never mix Admin vs Agent employee roles in the picker
+    if (forShopEmployees) {
+      return list.filter((r) => {
+        const id = Number(r.id);
+        const audience = r.audience;
+        if (audience === "agent_shop_staff") return true;
+        if (audience === "admin_portal") return false;
+        return id === 6 || id === 8;
+      });
+    }
+    return list.filter((r) => {
+      const id = Number(r.id);
+      const audience = r.audience;
+      if (audience === "agent_shop_staff") return false;
+      if (id === 6 || id === 8) return false;
+      return true;
+    });
+  }, [rolesRes?.data, forShopEmployees]);
   const roleOptions = useMemo(() => {
     return roles.map((r) => ({ value: String(r.id), label: r.name ?? String(r.id) }));
   }, [roles]);
