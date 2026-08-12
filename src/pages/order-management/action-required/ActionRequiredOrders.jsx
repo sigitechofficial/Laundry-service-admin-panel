@@ -21,7 +21,8 @@ const FILTERS = [
   { value: "all", label: "All" },
   { value: "payment_failed", label: "Payment" },
   { value: "on_hold", label: "On hold" },
-  { value: "needs_assignment", label: "Unassigned" },
+  { value: "needs_assignment", label: "Unassigned shop" },
+  { value: "needs_staff", label: "Needs staff" },
   { value: "pickup_reschedule", label: "Pickup" },
   { value: "delivery_failed", label: "Delivery" },
 ];
@@ -30,6 +31,7 @@ const REASON_COLORS = {
   payment_failed: "error",
   on_hold: "warning",
   needs_assignment: "warning",
+  needs_staff: "warning",
   pickup_reschedule: "info",
   delivery_failed: "error",
 };

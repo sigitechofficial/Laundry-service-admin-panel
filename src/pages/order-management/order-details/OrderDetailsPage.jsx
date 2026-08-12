@@ -814,7 +814,66 @@ export default function OrderDetailsPage() {
       )
     : "Not captured";
 
+  const shopOwnerUserId =
+    orderData?.shopOwnerUserId ?? orderData?.laundryShop?.userId ?? null;
+  const formatStaffLabel = (user, assigneeId, shopHeldFlag) => {
+    const id =
+      assigneeId != null
+        ? Number(assigneeId)
+        : user?.id != null
+          ? Number(user.id)
+          : null;
+    const ownerId = shopOwnerUserId != null ? Number(shopOwnerUserId) : null;
+    if (
+      shopHeldFlag === true ||
+      id == null ||
+      (ownerId != null && id === ownerId)
+    ) {
+      return "Shop owner";
+    }
+    if (!user) return "Unassigned";
+    const name = [user.firstName, user.lastName].filter(Boolean).join(" ").trim();
+    return name || "Assigned staff";
+  };
+  const pickupDriverLabel = formatStaffLabel(
+    orderData?.driver,
+    orderData?.driverId,
+    orderData?.isPickupShopHeld
+  );
+  const deliveryDriverLabel = formatStaffLabel(
+    orderData?.deliveryDriver,
+    orderData?.deliveryDriverId,
+    orderData?.isDeliveryShopHeld
+  );
+
+  const personName = (u) => {
+    if (!u) return null;
+    const n = [u.firstName, u.lastName].filter(Boolean).join(" ").trim();
+    return n || null;
+  };
+
+  const assignmentActivityRows = (orderData?.assignmentEvents || []).map((ev) => {
+    const action = String(ev.action || "").toLowerCase();
+    const leg = String(ev.assignmentType || "leg");
+    const source = ev.source ? ` (${ev.source})` : "";
+    const from = personName(ev.fromUser);
+    const to = personName(ev.toUser);
+    let text = `${action || "event"} · ${leg}${source}`;
+    if (action === "unassign" || ev.source === "self_return") {
+      text = `${from || "Staff"} returned ${leg} to shop owner${source}`;
+    } else if (to) {
+      text = `${leg} ${action || "assigned"} → ${to}${source}`;
+    }
+    return {
+      text,
+      time: dayjs(ev.createdAt).isValid()
+        ? dayjs(ev.createdAt).format("ddd DD MMM · HH:mm")
+        : "—",
+    };
+  });
+
   const activityRows = [
+    ...assignmentActivityRows,
     {
       text: `Order ${statusBadge.label.toLowerCase()}`,
       time: formatDateTime(
@@ -833,8 +892,10 @@ export default function OrderDetailsPage() {
     },
     {
       text: "Order placed",
-      time: dayjs(orderData?.created_at).isValid()
-        ? dayjs(orderData?.created_at).format("ddd DD MMM · HH:mm")
+      time: dayjs(orderData?.created_at || orderData?.createdAt).isValid()
+        ? dayjs(orderData?.created_at || orderData?.createdAt).format(
+            "ddd DD MMM · HH:mm"
+          )
         : `Order #${orderData?.orderTrackId || orderData?.id}`,
     },
   ];
@@ -2130,13 +2191,19 @@ export default function OrderDetailsPage() {
                     variant="body2"
                     sx={{
                       fontSize: 14,
-                      color: orderData?.driver ? "#334155" : "#94A3B8",
-                      fontStyle: orderData?.driver ? "normal" : "italic",
+                      color:
+                        pickupDriverLabel === "Shop owner" ||
+                        pickupDriverLabel === "Unassigned"
+                          ? "#94A3B8"
+                          : "#334155",
+                      fontStyle:
+                        pickupDriverLabel === "Shop owner" ||
+                        pickupDriverLabel === "Unassigned"
+                          ? "italic"
+                          : "normal",
                     }}
                   >
-                    {orderData?.driver
-                      ? `${orderData.driver.firstName} ${orderData.driver.lastName}`
-                      : "Unassigned"}
+                    {pickupDriverLabel}
                   </Typography>
                 </Box>
               </Box>
@@ -2159,16 +2226,18 @@ export default function OrderDetailsPage() {
                     sx={{
                       fontSize: 14,
                       color:
-                        orderData?.deliveryDriver || orderData?.driver ? "#334155" : "#94A3B8",
+                        deliveryDriverLabel === "Shop owner" ||
+                        deliveryDriverLabel === "Unassigned"
+                          ? "#94A3B8"
+                          : "#334155",
                       fontStyle:
-                        orderData?.deliveryDriver || orderData?.driver ? "normal" : "italic",
+                        deliveryDriverLabel === "Shop owner" ||
+                        deliveryDriverLabel === "Unassigned"
+                          ? "italic"
+                          : "normal",
                     }}
                   >
-                    {orderData?.deliveryDriver
-                      ? `${orderData.deliveryDriver.firstName} ${orderData.deliveryDriver.lastName}`
-                      : orderData?.driver
-                        ? `${orderData.driver.firstName} ${orderData.driver.lastName}`
-                        : "Unassigned"}
+                    {deliveryDriverLabel}
                   </Typography>
                 </Box>
               </Box>
