@@ -35,7 +35,7 @@ const defaultValues = {
   firstName: "",
   lastName: "",
   email: "",
-  countryCode: "+92",
+  countryCode: "+44",
   phoneNumber: "",
 };
 
@@ -114,11 +114,11 @@ export default function EditDriverModal({ open, onClose, driverData, onDriverUpd
       let phone = driverData.phoneNum || driverData.phone || "";
       
       // Get country code - use from API if available, otherwise try to extract from phone
-      let code = driverData.countryCode || "+92"; // default to +92 if not provided
+      let code = driverData.countryCode || "+44"; // default UK if not provided
 
       // If country code is not in API response, try to extract it from phone number
       if (!driverData.countryCode && phone) {
-        const matchedCode = ["+971", "+966", "+92", "+1", "+44", "+91"].find(
+        const matchedCode = ["+971", "+966", "+44", "+92", "+91", "+1"].find(
           (c) => phone.startsWith(c)
         );
         if (matchedCode) {

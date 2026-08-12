@@ -2,11 +2,11 @@ import React from "react";
 import { Box, Typography, Select, MenuItem } from "@mui/material";
 import { TbChevronDown } from "../../shared/icons/index";
 
-// Common country codes with flags (using emoji for simplicity)
+// Common country codes with flags (UK first — platform default)
 const countryCodes = [
-  { code: "+92", flag: "🇵🇰", country: "Pakistan" },
-  { code: "+1", flag: "🇺🇸", country: "United States" },
   { code: "+44", flag: "🇬🇧", country: "United Kingdom" },
+  { code: "+1", flag: "🇺🇸", country: "United States" },
+  { code: "+92", flag: "🇵🇰", country: "Pakistan" },
   { code: "+91", flag: "🇮🇳", country: "India" },
   { code: "+971", flag: "🇦🇪", country: "UAE" },
   { code: "+966", flag: "🇸🇦", country: "Saudi Arabia" },
@@ -42,7 +42,7 @@ export default function PhoneNumberInput({
       <Box className="flex gap-2">
         {/* Country Code Selector */}
         <Select
-          value={countryCode || "+92"}
+          value={countryCode || "+44"}
           onChange={(e) => onCountryCodeChange(e.target.value)}
           IconComponent={CustomDropdownIcon}
           sx={{
@@ -97,31 +97,3 @@ export default function PhoneNumberInput({
     </Box>
   );
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

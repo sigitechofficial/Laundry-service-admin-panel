@@ -74,6 +74,7 @@ const normalizeFeatureOptions = (featuresResponse) => {
       id: item?.id ?? item?.featureId ?? item?.permissionId ?? idx + 1,
       title: item?.title ?? item?.name ?? item?.key ?? `Feature ${idx + 1}`,
       key: item?.key,
+      featureOf: item?.featureOf ?? item?.feature_of ?? null,
       /** Per-role CRUD rows from GET /admin/getFeatures (match by roleId when editing). */
       permissions: Array.isArray(item?.permissions) ? item.permissions : [],
     }));
@@ -91,6 +92,13 @@ const pickCrud = (obj) => ({
   delete: Boolean(obj?.delete),
 });
 
+const isAgentShopStaffRole = (role) => {
+  const id = Number(role?.id);
+  return role?.audience === "agent_shop_staff" || id === 6 || id === 8;
+};
+
+const AGENT_FEATURE_OF = new Set(["Agent", "Agent Employee", "both"]);
+
 export default function RolePermission() {
   const { success, error } = useToaster();
   const { data: rolesRes, isLoading: isRolesLoading, refetch: refetchRoles } = useGetAllRolesQuery();
@@ -100,12 +108,21 @@ export default function RolePermission() {
   const [updateRole, { isLoading: isUpdatingRole }] = useUpdateRoleMutation();
 
   const roles = useMemo(() => extractList(rolesRes, ["roles", "items", "rows"]), [rolesRes]);
+  const agentShopRoles = useMemo(
+    () => roles.filter((r) => isAgentShopStaffRole(r)),
+    [roles]
+  );
+  const otherRoles = useMemo(
+    () => roles.filter((r) => !isAgentShopStaffRole(r)),
+    [roles]
+  );
   const permissionOptions = useMemo(() => normalizeFeatureOptions(featuresRes), [featuresRes]);
 
   const [permissionModal, setPermissionModal] = useState(false);
   const [roleModal, setRoleModal] = useState(false);
   const [isEditRoleMode, setIsEditRoleMode] = useState(false);
   const [editingRoleId, setEditingRoleId] = useState(null);
+  const [editingIsAgentShop, setEditingIsAgentShop] = useState(false);
 
   const [permissionPath, setPermissionPath] = useState("");
   const [featureOf, setFeatureOf] = useState(DEFAULT_FEATURE_OF);
@@ -115,6 +132,14 @@ export default function RolePermission() {
   const [roleName, setRoleName] = useState("");
   const [roleStatus, setRoleStatus] = useState(true);
   const [roleSelections, setRoleSelections] = useState({});
+
+  const editablePermissionOptions = useMemo(() => {
+    if (!editingIsAgentShop) return permissionOptions;
+    return permissionOptions.filter((f) => {
+      if (!f.featureOf) return true; // include if API omitted featureOf
+      return AGENT_FEATURE_OF.has(f.featureOf);
+    });
+  }, [permissionOptions, editingIsAgentShop]);
 
   useEffect(() => {
     setRoleSelections((prev) => {
@@ -159,6 +184,7 @@ export default function RolePermission() {
     setRoleModal(false);
     setIsEditRoleMode(false);
     setEditingRoleId(null);
+    setEditingIsAgentShop(false);
     setRoleName("");
     setRoleStatus(true);
     setRoleSelections((prev) => {
@@ -196,7 +222,11 @@ export default function RolePermission() {
     const name = roleName.trim();
     if (!name) return error("Role name is required.");
 
-    const permissionRole = permissionOptions
+    const featuresForSubmit = editingIsAgentShop
+      ? editablePermissionOptions
+      : permissionOptions;
+
+    const permissionRole = featuresForSubmit
       .map((feature) => {
         const actions = roleSelections[String(feature.id)] || {};
         const hasAny = ACTION_OPTIONS.some((action) => actions[action]);
@@ -214,7 +244,7 @@ export default function RolePermission() {
       })
       .filter(Boolean);
 
-    if (!isEditRoleMode && !permissionRole.length) {
+    if (!permissionRole.length) {
       return error("Select at least one permission.");
     }
 
@@ -222,17 +252,23 @@ export default function RolePermission() {
       if (isEditRoleMode) {
         await updateRole({
           id: editingRoleId,
+          // System agent shop roles: send name for display but backend ignores rename
           name,
           status: roleStatus,
           permissionRole,
         }).unwrap();
-        success("Role updated successfully.");
+        success(
+          editingIsAgentShop
+            ? "Agent shop feature defaults updated (ops rights unchanged)."
+            : "Role updated successfully."
+        );
       } else {
         await addLaundryRole({ name, permissionRole }).unwrap();
         success("Role added successfully.");
       }
       closeRoleModal();
       refetchRoles();
+      refetchFeatures();
     } catch (err) {
       error(err?.data?.message ?? (isEditRoleMode ? "Failed to update role." : "Failed to add role."));
     }
@@ -242,8 +278,11 @@ export default function RolePermission() {
     const roleId = role?.id;
     if (!roleId) return;
 
+    const agentShop = isAgentShopStaffRole(role);
+
     setIsEditRoleMode(true);
     setEditingRoleId(roleId);
+    setEditingIsAgentShop(agentShop);
     setRoleName(role?.name || "");
     setRoleStatus(Boolean(role?.status));
 
@@ -254,8 +293,14 @@ export default function RolePermission() {
         .map((e) => [Number(e.id), e?.permissions])
     );
 
+    const featuresForEdit = agentShop
+      ? permissionOptions.filter(
+          (f) => !f.featureOf || AGENT_FEATURE_OF.has(f.featureOf)
+        )
+      : permissionOptions;
+
     const next = {};
-    permissionOptions.forEach((feature) => {
+    featuresForEdit.forEach((feature) => {
       const fid = Number(feature.id);
       const fromFeatures = feature.permissions?.find(
         (p) => Number(p?.roleId) === Number(roleId)
@@ -267,6 +312,113 @@ export default function RolePermission() {
 
     setRoleSelections(next);
     setRoleModal(true);
+  };
+
+  const renderRolesTable = (list, { allowEditAlways = true } = {}) => {
+    if (!list.length) {
+      return (
+        <Typography variant="body2" color="grey.400">
+          No roles found.
+        </Typography>
+      );
+    }
+    return (
+      <TableContainer component={Paper} elevation={0} sx={{ border: "1px solid #E5E7EB", borderRadius: "12px" }}>
+        <Table size="small">
+          <TableHead>
+            <TableRow sx={{ bgcolor: "#F8FAFC" }}>
+              {["ID", "Role Name", "Status", "Created At", "Updated At", "Actions"].map((header) => (
+                <TableCell
+                  key={header}
+                  sx={{
+                    fontSize: 11,
+                    fontWeight: 700,
+                    color: "#94A3B8",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.06em",
+                    borderBottom: "1px solid #E2E8F0",
+                  }}
+                >
+                  {header}
+                </TableCell>
+              ))}
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {list.map((role) => (
+              <TableRow key={role?.id ?? role?.name} hover>
+                <TableCell sx={{ fontSize: 13, fontWeight: 700, color: "#1E293B" }}>
+                  {role?.id ?? "-"}
+                </TableCell>
+                <TableCell sx={{ fontSize: 13, color: "#334155" }}>
+                  <Box className="flex items-center gap-2 flex-wrap">
+                    <span>{role?.name ?? `Role ${role?.id ?? ""}`}</span>
+                    {isAgentShopStaffRole(role) && (
+                      <Chip
+                        size="small"
+                        label="Agent employee"
+                        sx={{ fontSize: 10, fontWeight: 700, bgcolor: "#E0F2FE", color: "#0369A1" }}
+                      />
+                    )}
+                    {role?.audience === "admin_portal" && (
+                      <Chip
+                        size="small"
+                        label="Admin employee"
+                        sx={{ fontSize: 10, fontWeight: 700, bgcolor: "#F3E8FF", color: "#7E22CE" }}
+                      />
+                    )}
+                    {role?.isSystem && (
+                      <Chip
+                        size="small"
+                        label="System"
+                        sx={{ fontSize: 10, fontWeight: 700, bgcolor: "#FEF3C7", color: "#B45309" }}
+                      />
+                    )}
+                  </Box>
+                </TableCell>
+                <TableCell>
+                  <Chip
+                    size="small"
+                    label={role?.status ? "Active" : "Inactive"}
+                    sx={{
+                      fontSize: 11,
+                      fontWeight: 700,
+                      bgcolor: role?.status ? "#DCFCE7" : "#F1F5F9",
+                      color: role?.status ? "#15803D" : "#64748B",
+                    }}
+                  />
+                </TableCell>
+                <TableCell sx={{ fontSize: 12, color: "#64748B" }}>
+                  {role?.createdAt ? new Date(role.createdAt).toLocaleString() : "-"}
+                </TableCell>
+                <TableCell sx={{ fontSize: 12, color: "#64748B" }}>
+                  {role?.updatedAt ? new Date(role.updatedAt).toLocaleString() : "-"}
+                </TableCell>
+                <TableCell>
+                  {allowEditAlways || isAgentShopStaffRole(role) ? (
+                    <Button
+                      size="small"
+                      onClick={() => openEditRoleModal(role)}
+                      sx={{ textTransform: "none", minWidth: 0 }}
+                    >
+                      {isAgentShopStaffRole(role) ? "Edit feature defaults" : "Edit"}
+                    </Button>
+                  ) : (
+                    <Button
+                      size="small"
+                      onClick={() => openEditRoleModal(role)}
+                      sx={{ textTransform: "none", minWidth: 0 }}
+                    >
+                      Edit
+                    </Button>
+                  )}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </TableContainer>
+    );
   };
 
   if (isRolesLoading) return <Delay />;
@@ -296,6 +448,7 @@ export default function RolePermission() {
             onClick={() => {
               setIsEditRoleMode(false);
               setEditingRoleId(null);
+              setEditingIsAgentShop(false);
               setRoleStatus(true);
               setRoleName("");
               resetRoleSelectionsToEmpty();
@@ -308,79 +461,22 @@ export default function RolePermission() {
         </Box>
       </Box>
 
+      <Box className="rounded-xl bg-white !p-6 !space-y-3">
+        <Typography variant="h6" color="grey.20" fontFamily="Switzer">
+          Agent shop defaults
+        </Typography>
+        <Typography variant="body2" color="grey.400">
+          Laundry Shop Driver (6) and Manager (8). Edit feature menu CRUD here.
+          Accept / assign / team / wallet rights are fixed by role and do not change with these checkboxes.
+        </Typography>
+        {renderRolesTable(agentShopRoles)}
+      </Box>
+
       <Box className="rounded-xl bg-white !p-6 !space-y-4">
         <Typography variant="h6" color="grey.20" fontFamily="Switzer">
-          Existing Roles
+          Admin / custom roles
         </Typography>
-
-        {!roles.length ? (
-          <Typography variant="body2" color="grey.400">
-            No roles found.
-          </Typography>
-        ) : (
-          <TableContainer component={Paper} elevation={0} sx={{ border: "1px solid #E5E7EB", borderRadius: "12px" }}>
-            <Table size="small">
-              <TableHead>
-                <TableRow sx={{ bgcolor: "#F8FAFC" }}>
-                  {["ID", "Role Name", "Status", "Created At", "Updated At", "Actions"].map((header) => (
-                    <TableCell
-                      key={header}
-                      sx={{
-                        fontSize: 11,
-                        fontWeight: 700,
-                        color: "#94A3B8",
-                        textTransform: "uppercase",
-                        letterSpacing: "0.06em",
-                        borderBottom: "1px solid #E2E8F0",
-                      }}
-                    >
-                      {header}
-                    </TableCell>
-                  ))}
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {roles.map((role) => (
-                  <TableRow key={role?.id ?? role?.name} hover>
-                    <TableCell sx={{ fontSize: 13, fontWeight: 700, color: "#1E293B" }}>
-                      {role?.id ?? "-"}
-                    </TableCell>
-                    <TableCell sx={{ fontSize: 13, color: "#334155" }}>
-                      {role?.name ?? `Role ${role?.id ?? ""}`}
-                    </TableCell>
-                    <TableCell>
-                      <Chip
-                        size="small"
-                        label={role?.status ? "Active" : "Inactive"}
-                        sx={{
-                          fontSize: 11,
-                          fontWeight: 700,
-                          bgcolor: role?.status ? "#DCFCE7" : "#F1F5F9",
-                          color: role?.status ? "#15803D" : "#64748B",
-                        }}
-                      />
-                    </TableCell>
-                    <TableCell sx={{ fontSize: 12, color: "#64748B" }}>
-                      {role?.createdAt ? new Date(role.createdAt).toLocaleString() : "-"}
-                    </TableCell>
-                    <TableCell sx={{ fontSize: 12, color: "#64748B" }}>
-                      {role?.updatedAt ? new Date(role.updatedAt).toLocaleString() : "-"}
-                    </TableCell>
-                    <TableCell>
-                      <Button
-                        size="small"
-                        onClick={() => openEditRoleModal(role)}
-                        sx={{ textTransform: "none", minWidth: 0 }}
-                      >
-                        Edit
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        )}
+        {renderRolesTable(otherRoles)}
       </Box>
 
       <ModalComponent
@@ -493,7 +589,13 @@ export default function RolePermission() {
       <ModalComponent
         open={roleModal}
         onClose={closeRoleModal}
-        title={isEditRoleMode ? "Update Role" : "Create New Role"}
+        title={
+          isEditRoleMode
+            ? editingIsAgentShop
+              ? "Edit Agent shop feature defaults"
+              : "Update Role"
+            : "Create New Role"
+        }
         width={680}
         primaryAction={{
           label: isEditRoleMode ? "Update Role" : "Add Role",
@@ -507,16 +609,22 @@ export default function RolePermission() {
       >
         <Box className="!space-y-6">
           <Typography variant="body1" color="grey.400">
-            {isEditRoleMode
-              ? "Update role details and permissions."
-              : "Define a new role and assign permission."}
+            {editingIsAgentShop
+              ? "Update feature menu permissions for this Agent employee role. Does not change accept, assign, team, or wallet rights."
+              : isEditRoleMode
+                ? "Update role details and permissions."
+                : "Define a new role and assign permission."}
           </Typography>
 
           <InputFieldModal
             title="Role Name"
             placeholder="Enter full name"
             value={roleName}
-            onChange={(e) => setRoleName(e.target.value)}
+            onChange={(e) => {
+              if (editingIsAgentShop) return;
+              setRoleName(e.target.value);
+            }}
+            disabled={editingIsAgentShop}
           />
 
           <Box className="flex items-center justify-between rounded-lg border border-[#E5E7EB] !px-3 !py-2.5">
@@ -531,16 +639,18 @@ export default function RolePermission() {
               Assign Permission
             </Typography>
             <Typography variant="body2" color="grey.400">
-              Select the permission for this role.
+              {editingIsAgentShop
+                ? "Only Agent / Agent Employee / both features are shown."
+                : "Select the permission for this role."}
             </Typography>
 
-            {!permissionOptions.length ? (
+            {!editablePermissionOptions.length ? (
               <Typography variant="body2" color="grey.400">
                 No permissions found. Add permissions first.
               </Typography>
             ) : (
               <Box className="!space-y-4">
-                {permissionOptions.map((feature) => (
+                {editablePermissionOptions.map((feature) => (
                   <Box key={feature.id} className="!space-y-2">
                     <Typography variant="body1" fontFamily="Switzer" color="grey.20">
                       {pretty(feature.title)}

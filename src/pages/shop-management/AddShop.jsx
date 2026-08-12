@@ -63,7 +63,7 @@ export default function ShopProfile() {
     email: "",
     password: "",
     phoneNum: "",
-    countryCode: "+92",
+    countryCode: "+44",
     countryId: "",
     cityId: "",
     noOfEmployee: "",
@@ -293,7 +293,7 @@ export default function ShopProfile() {
         email: formData.email,
         password: formData.password,
         phoneNum: formData.phoneNum,
-        countryCode: formData.countryCode || "+92",
+        countryCode: formData.countryCode || "+44",
         countryId: Number(formData.countryId) || formData.countryId,
         cityId: Number(formData.cityId) || formData.cityId,
         zoneId: formData.zone ? Number(formData.zone) : undefined,
@@ -447,13 +447,13 @@ export default function ShopProfile() {
           />
           <InputFieldBordered
             title="Phone"
-            placeholder="+92"
+            placeholder="7123456789"
             value={formData.phoneNum}
             onChange={handleChange("phoneNum")}
           />
           <InputFieldBordered
             title="Country Code"
-            placeholder="+92"
+            placeholder="+44"
             value={formData.countryCode}
             onChange={handleChange("countryCode")}
           />

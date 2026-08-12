@@ -47,7 +47,7 @@ const defaultValues = {
   email: "",
   password: "",
   confirmPassword: "",
-  countryCode: "+92",
+  countryCode: "+44",
   phoneNumber: "",
 };
 
@@ -100,11 +100,11 @@ export default function NewDriverModal({ open, onClose, onDriverAdded, driverDat
       // Parse phone number if it includes country code
       // Note: phoneNum might not be in mini details, so we'll leave it empty if not available
       let phone = driverData.phone || driverData.phoneNum || "";
-      let code = "+92"; // default
+      let code = "+44"; // default UK
 
       // Try to extract country code from phone number
       if (phone) {
-        const matchedCode = ["+971", "+966", "+92", "+1", "+44", "+91"].find(
+        const matchedCode = ["+971", "+966", "+44", "+92", "+91", "+1"].find(
           (c) => phone.startsWith(c)
         );
         if (matchedCode) {

@@ -11,7 +11,20 @@ import {
 
 const cellSx = { py: 0.5, lineHeight: 1.35, maxWidth: 280 };
 
-function formatDriverName(user) {
+function formatDriverName(user, { shopOwnerUserId = null, assigneeId = null } = {}) {
+  if (assigneeId == null && !user) return null;
+  const ownerId =
+    shopOwnerUserId != null ? Number(shopOwnerUserId) : null;
+  const id =
+    assigneeId != null
+      ? Number(assigneeId)
+      : user?.id != null
+        ? Number(user.id)
+        : null;
+  if (id == null && !user) return null;
+  if (ownerId != null && (id == null || id === ownerId)) {
+    return "Shop owner";
+  }
   if (!user) return null;
   const name = [user.firstName, user.lastName].filter(Boolean).join(" ").trim();
   return name || null;
@@ -249,8 +262,18 @@ export function mapBookingToOrderListRow(booking) {
     (booking?.customerSelectedServices ?? []).map((s) => s?.service?.name)
   );
   const serviceType = services.join(", ");
-  const pickupDriver = formatDriverName(booking?.driver);
-  const deliveryDriver = formatDriverName(booking?.deliveryDriver);
+  const shopOwnerUserId =
+    booking?.laundryShop?.userId ?? booking?.shopOwnerUserId ?? null;
+  const pickupDriver =
+    formatDriverName(booking?.driver, {
+      shopOwnerUserId,
+      assigneeId: booking?.driverId,
+    }) || "—";
+  const deliveryDriver =
+    formatDriverName(booking?.deliveryDriver, {
+      shopOwnerUserId,
+      assigneeId: booking?.deliveryDriverId,
+    }) || "—";
   const orderDisplayId = booking?.orderTrackId || booking?.id;
   const onHoldCount = booking?.OnHoldConfirmations?.length ?? 0;
   const costAmount =
