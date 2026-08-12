@@ -5,6 +5,9 @@ import {
   Typography,
   Button,
   Paper,
+  Chip,
+  Rating,
+  Stack,
 } from "@mui/material";
 import dayjs from "dayjs";
 import { Delay } from "../../../components/shared/Loaders";
@@ -20,6 +23,7 @@ import {
   useGetAllOrderStatusesQuery,
   useLazyInvoiceCreationQuery,
   useGetServiceComparisonQuery,
+  useGetShopReviewByBookingQuery,
 } from "../../../store/services/api";
 import { BASE_URL } from "../../../utilities/URL";
 import { canEditOrderFromBooking } from "../../../shared/orderEditStatusGate";
@@ -337,6 +341,11 @@ export default function OrderDetailsPage() {
     orderData?.laundryShop?.name ||
     "";
   const bookingId = orderData?.id || orderId;
+
+  const { data: shopReviewResponse } = useGetShopReviewByBookingQuery(bookingId, {
+    skip: !bookingId,
+  });
+  const shopReview = shopReviewResponse?.data || null;
 
   const { data: orderItemsResponse, isLoading: isLoadingItems } =
     useGetOrderItemsSheetQuery(bookingId, {
@@ -2064,6 +2073,59 @@ export default function OrderDetailsPage() {
                   {orderData?.frequency || "Just Once"}
                 </Typography>
               </Box>
+            </Box>
+          </Paper>
+
+          <Paper sx={CARD_SX}>
+            <Box sx={SECTION_HEADER_SX}>
+              <Box className="flex items-center gap-1.5">
+                <Box sx={{ width: 6, height: 6, borderRadius: "50%", bgcolor: "#FBBF24" }} />
+                <Typography
+                  variant="caption"
+                  color="text.secondary"
+                  sx={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}
+                >
+                  Customer Review
+                </Typography>
+              </Box>
+            </Box>
+            <Box sx={{ p: 2.5 }} className="space-y-3">
+              {!shopReview ? (
+                <Typography sx={{ fontSize: 13, color: "#64748B" }}>
+                  No review submitted for this order yet.
+                </Typography>
+              ) : (
+                <>
+                  <Box className="flex items-center justify-between gap-3">
+                    <Rating value={Number(shopReview.rating) || 0} readOnly size="small" />
+                    <Chip
+                      size="small"
+                      label={shopReview.visibility || "published"}
+                      color={shopReview.visibility === "hidden" ? "default" : "success"}
+                    />
+                  </Box>
+                  <Stack direction="row" gap={0.75} flexWrap="wrap">
+                    {(shopReview.reasons || []).map((r) => (
+                      <Chip
+                        key={`${r.code}-${r.label}`}
+                        size="small"
+                        variant="outlined"
+                        color={r.sentiment === "positive" ? "success" : "error"}
+                        label={r.otherText ? `${r.label}: ${r.otherText}` : r.label || r.code}
+                      />
+                    ))}
+                  </Stack>
+                  <Typography sx={{ fontSize: 13, color: "#334155" }}>
+                    {shopReview.comment || "No written comment"}
+                  </Typography>
+                  <Typography sx={{ fontSize: 11, color: "#94A3B8" }}>
+                    {shopReview.customerName || "Customer"}
+                    {shopReview.submittedAt
+                      ? ` · ${dayjs(shopReview.submittedAt).format("DD MMM YYYY, HH:mm")}`
+                      : ""}
+                  </Typography>
+                </>
+              )}
             </Box>
           </Paper>
 

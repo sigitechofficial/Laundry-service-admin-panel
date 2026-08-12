@@ -1468,6 +1468,16 @@ export const api = createApi({
       invalidatesTags: ["ShopReviews", "ShopRatingsReport"],
     }),
 
+    getShopReviewByBooking: builder.query({
+      query: (bookingId) => ({
+        url: `admin/shopReviews/by-booking/${bookingId}`,
+        method: "GET",
+      }),
+      providesTags: (result, error, bookingId) => [
+        { type: "ShopReviews", id: `booking-${bookingId}` },
+      ],
+    }),
+
     getShopRatingsReport: builder.query({
       query: (params = {}) => ({
         url: "admin/reports/shop-ratings",
@@ -1918,6 +1928,7 @@ export const {
   useGetShopReviewsQuery,
   useHideShopReviewMutation,
   useUnhideShopReviewMutation,
+  useGetShopReviewByBookingQuery,
   useGetShopRatingsReportQuery,
   useGetReviewReasonInsightsQuery,
   useAddNoShowPolicyMutation,

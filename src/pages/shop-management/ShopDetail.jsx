@@ -16,6 +16,9 @@ import {
   TableRow,
   TextField,
   MenuItem,
+  Rating,
+  LinearProgress,
+  Stack,
 } from "@mui/material";
 import {
   MdOutlineLocationOn,
@@ -32,6 +35,7 @@ import {
   useGetShopDetailsQuery,
   useGetAllEmployeesWithShopInfoQuery,
   useEditShopMutation,
+  useGetShopReviewsQuery,
 } from "../../store/services/api";
 import { Delay } from "../../components/shared/Loaders";
 import dayjs from "dayjs";
@@ -154,6 +158,39 @@ export default function ShopDetails() {
 
   const shop = shopResponse?.data ?? shopResponse;
   const biz = shop?.businessInfo;
+  const businessInfoId = biz?.id || shop?.businessInfoId || shop?.id;
+  const { data: shopReviewsResponse } = useGetShopReviewsQuery(
+    { businessInfoId, limit: 20, page: 1 },
+    { skip: !businessInfoId }
+  );
+  // Admin list endpoint returns { reviews, pagination }; public shop endpoint returns summary+reviews.
+  // Prefer filtered admin inbox shape; fall back if backend adds summary later.
+  const shopReviewsPayload = shopReviewsResponse?.data || {};
+  const shopReviewRows = Array.isArray(shopReviewsPayload.reviews)
+    ? shopReviewsPayload.reviews
+    : [];
+  const shopRatingSummary = useMemo(() => {
+    if (!shopReviewRows.length) {
+      return { avg: 0, count: 0, histogram: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 } };
+    }
+    const hist = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+    let sum = 0;
+    let n = 0;
+    for (const r of shopReviewRows) {
+      if (r.visibility && r.visibility !== "published") continue;
+      const rating = Number(r.rating);
+      if (rating >= 1 && rating <= 5) {
+        hist[rating] += 1;
+        sum += rating;
+        n += 1;
+      }
+    }
+    return {
+      avg: n ? Math.round((sum / n) * 10) / 10 : 0,
+      count: n,
+      histogram: hist,
+    };
+  }, [shopReviewRows]);
   const addr = shop?.addressDb;
   const orders = shop?.orders ?? shop?.bookingDetails ?? [];
   const allEmployees = employeesResponse?.data?.employees ?? [];
@@ -539,8 +576,12 @@ export default function ShopDetails() {
           </Box>
           <Box className="flex gap-2.5 flex-wrap">
             <Box sx={{ px: 2.4, py: 1.6, borderRadius: "12px", border: "1px solid #E2E8F0", bgcolor: "#F8FAFC" }}>
-              <Typography sx={{ fontSize: 31, fontWeight: 700, lineHeight: 1, color: "#0F172A" }}>4.8</Typography>
-              <Typography sx={{ fontSize: 11, color: "#64748B", mt: 0.4 }}>Rating</Typography>
+              <Typography sx={{ fontSize: 31, fontWeight: 700, lineHeight: 1, color: "#0F172A" }}>
+                {shopRatingSummary.count > 0 ? shopRatingSummary.avg.toFixed(1) : "—"}
+              </Typography>
+              <Typography sx={{ fontSize: 11, color: "#64748B", mt: 0.4 }}>
+                Rating{shopRatingSummary.count > 0 ? ` (${shopRatingSummary.count})` : ""}
+              </Typography>
             </Box>
             <Box sx={{ px: 2.4, py: 1.6, borderRadius: "12px", border: "1px solid #E2E8F0", bgcolor: "#F8FAFC" }}>
               <Typography sx={{ fontSize: 31, fontWeight: 700, lineHeight: 1, color: "#0F172A" }}>{orders.length}</Typography>
@@ -566,6 +607,7 @@ export default function ShopDetails() {
         >
           <Tab value="overview" label="Overview" />
           <Tab value="orders" label="Orders" />
+          <Tab value="reviews" label={`Reviews (${shopRatingSummary.count})`} />
           <Tab value="staff" label="Staff" />
           <Tab value="documents" label="Documents" />
           <Tab value="settings" label="Settings" />
@@ -574,6 +616,98 @@ export default function ShopDetails() {
       </Paper>
 
       <Box sx={{ py: 3, px: 0 }}>
+        {activeTab === "reviews" && (
+          <Paper sx={{ ...CARD_SX, p: 2.5 }}>
+            <Box className="flex items-center justify-between flex-wrap gap-3" sx={{ mb: 2 }}>
+              <Box>
+                <Typography sx={{ fontSize: 18, fontWeight: 700 }}>Customer reviews</Typography>
+                <Typography sx={{ fontSize: 13, color: "#64748B" }}>
+                  Per-order feedback for this shop
+                </Typography>
+              </Box>
+              <Box className="flex items-center gap-2">
+                <Rating value={shopRatingSummary.avg || 0} precision={0.1} readOnly />
+                <Typography sx={{ fontSize: 14, color: "#334155" }}>
+                  {shopRatingSummary.count > 0
+                    ? `${shopRatingSummary.avg.toFixed(1)} · ${shopRatingSummary.count} reviews`
+                    : "No reviews yet"}
+                </Typography>
+              </Box>
+            </Box>
+
+            {shopRatingSummary.count > 0 && (
+              <Box sx={{ mb: 2.5, maxWidth: 420 }}>
+                {[5, 4, 3, 2, 1].map((star) => {
+                  const n = shopRatingSummary.histogram[star] || 0;
+                  const pct = shopRatingSummary.count
+                    ? Math.round((n / shopRatingSummary.count) * 100)
+                    : 0;
+                  return (
+                    <Box key={star} className="flex items-center gap-2" sx={{ mb: 0.8 }}>
+                      <Typography sx={{ width: 14, fontSize: 12 }}>{star}</Typography>
+                      <LinearProgress
+                        variant="determinate"
+                        value={pct}
+                        sx={{ flex: 1, height: 6, borderRadius: 4 }}
+                      />
+                      <Typography sx={{ width: 28, fontSize: 12, color: "#64748B" }}>{n}</Typography>
+                    </Box>
+                  );
+                })}
+              </Box>
+            )}
+
+            {shopReviewRows.length === 0 ? (
+              <Typography sx={{ color: "#64748B", fontSize: 14 }}>
+                No customer reviews for this shop yet.
+              </Typography>
+            ) : (
+              <Stack spacing={1.5}>
+                {shopReviewRows.map((r) => (
+                  <Box
+                    key={r.id}
+                    sx={{
+                      p: 1.75,
+                      border: "1px solid #E2E8F0",
+                      borderRadius: "12px",
+                      bgcolor: "#F8FAFC",
+                    }}
+                  >
+                    <Box className="flex items-center justify-between gap-2 flex-wrap">
+                      <Typography sx={{ fontSize: 13, fontWeight: 600 }}>
+                        Order {r.orderTrackId || r.bookingId}
+                      </Typography>
+                      <Rating value={Number(r.rating) || 0} size="small" readOnly />
+                    </Box>
+                    <Typography sx={{ fontSize: 12, color: "#64748B", mt: 0.5 }}>
+                      {r.customer?.name || r.customerName || "Customer"}
+                      {r.submittedAt
+                        ? ` · ${dayjs(r.submittedAt).format("DD MMM YYYY")}`
+                        : ""}
+                    </Typography>
+                    <Stack direction="row" gap={0.5} flexWrap="wrap" sx={{ mt: 1 }}>
+                      {(r.reasons || []).map((reason) => (
+                        <Chip
+                          key={`${r.id}-${reason.code}`}
+                          size="small"
+                          variant="outlined"
+                          color={reason.sentiment === "positive" ? "success" : "error"}
+                          label={reason.label || reason.code}
+                        />
+                      ))}
+                    </Stack>
+                    {r.comment ? (
+                      <Typography sx={{ fontSize: 13, color: "#334155", mt: 1 }}>
+                        {r.comment}
+                      </Typography>
+                    ) : null}
+                  </Box>
+                ))}
+              </Stack>
+            )}
+          </Paper>
+        )}
+
         {activeTab === "overview" && (
           <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", xl: "2fr 1fr" }, gap: 2.5 }}>
             <Box sx={{ display: "flex", flexDirection: "column", rowGap: 2.5 }}>
