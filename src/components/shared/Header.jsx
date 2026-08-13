@@ -21,6 +21,7 @@ import { useDispatch } from "react-redux";
 import { toggleSidebar } from "../../store/slices/uiSlice";
 import { clearAuthTokens, getUserProfile } from "../../utilities/authStorage";
 import useToaster from "../ui/Toaster";
+import DeploymentInfo from "../ui/DeploymentInfo";
 
 function displayNameFromProfile(profile) {
   const full = [profile?.firstName, profile?.lastName].filter(Boolean).join(" ").trim();
@@ -166,6 +167,7 @@ export default function Header() {
 
         {!isFullWidth ? (
           <Box display="flex" justifyContent="flex-end" alignItems="center" gap="16px" pr="60px">
+            <DeploymentInfo variant="header" />
             <Box display="flex" alignItems="center">
               <IconButton aria-label="Notifications">
                 <VscBellDot size="24px" color="black" />
@@ -177,6 +179,7 @@ export default function Header() {
           </Box>
         ) : (
           <Box display="flex" alignItems="center" gap={1} className="!mr-14">
+            <DeploymentInfo variant="header" />
             <IconButton aria-label="Account menu" onClick={openMenu} size="small">
               <Box
                 display="flex"

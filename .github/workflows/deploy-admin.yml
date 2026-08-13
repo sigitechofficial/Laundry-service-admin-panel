@@ -1,9 +1,12 @@
-# Careflow-style static Vite admin deploy (no FTP, no server-side npm build).
+# Admin UI is hosted on AWS Amplify (branches: dev = staging, main = prod).
+# This workflow is the leftover VPS/Apache path — keep DEPLOY_ADMIN_TO_VPS=false
+# unless you intentionally serve admin from the VPS again.
 name: Deploy Laundry Admin
 
 on:
   push:
-    branches: [stage]
+    # Amplify watches `dev` + `main`. These names only matter if VPS deploy is re-enabled.
+    branches: [dev, stage, main]
   workflow_dispatch:
 
 concurrency:
@@ -14,7 +17,47 @@ permissions:
   contents: read
 
 jobs:
+  gate:
+    name: Admin deploy gate (Amplify vs VPS)
+    runs-on: ubuntu-latest
+    outputs:
+      deploy: ${{ steps.decide.outputs.deploy }}
+    steps:
+      - id: decide
+        run: |
+          set -euo pipefail
+          # ============================================================
+          # Admin live host = AWS Amplify
+          #   Amplify branch `dev`  → staging admin
+          #   Amplify branch `main` → production admin
+          # Leave DEPLOY_ADMIN_TO_VPS=false so GitHub does not also rsync Apache.
+          # ============================================================
+          DEPLOY_ADMIN_TO_VPS=false
+
+          # ============================================================
+          # TOGGLE: auto-deploy VPS prod on `git push origin main`
+          # (ignored while DEPLOY_ADMIN_TO_VPS=false)
+          # ============================================================
+          AUTO_DEPLOY_PROD_ON_PUSH_MAIN=false
+
+          REF="${{ github.ref_name }}"
+          EVENT="${{ github.event_name }}"
+          OK=false
+          if [ "$DEPLOY_ADMIN_TO_VPS" = "true" ]; then
+            if [ "$EVENT" = "workflow_dispatch" ]; then OK=true; fi
+            # Staging-like branches if you ever re-enable VPS admin
+            if [ "$REF" = "dev" ] || [ "$REF" = "stage" ]; then OK=true; fi
+            if [ "$REF" = "main" ] && [ "$AUTO_DEPLOY_PROD_ON_PUSH_MAIN" = "true" ]; then OK=true; fi
+          fi
+          echo "deploy=$OK" >> "$GITHUB_OUTPUT"
+          echo "DEPLOY_ADMIN_TO_VPS=$DEPLOY_ADMIN_TO_VPS AUTO_DEPLOY_PROD_ON_PUSH_MAIN=$AUTO_DEPLOY_PROD_ON_PUSH_MAIN ref=$REF event=$EVENT deploy=$OK"
+          if [ "$OK" != "true" ]; then
+            echo "Skipping VPS admin deploy. Amplify builds: push to \`dev\` (stage admin) or \`main\` (prod admin). Flip DEPLOY_ADMIN_TO_VPS only if you need Apache again."
+          fi
+
   build:
+    needs: gate
+    if: needs.gate.outputs.deploy == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -26,6 +69,7 @@ jobs:
       - name: Resolve API URL for build
         id: api
         run: |
+          # Amplify/VPS: main = prod API; dev|stage = stage API
           if [ "${{ github.ref_name }}" = "main" ]; then
             echo "url=${LAUNDRY_API_BASE_URL_PROD:-https://prodlaundry.sigisolutions.net/}" >> "$GITHUB_OUTPUT"
           else
@@ -38,6 +82,9 @@ jobs:
         env:
           CI: true
           LAUNDRY_API_BASE_URL: ${{ steps.api.outputs.url }}
+          VITE_APP_COMMIT: ${{ github.sha }}
+          VITE_APP_BRANCH: ${{ github.ref_name }}
+          VITE_APP_DEPLOYED_AT: ${{ github.event.head_commit.timestamp }}
           VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
           VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
           VITE_FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
@@ -45,13 +92,17 @@ jobs:
           VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
           VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
           VITE_FIREBASE_VAPID_KEY: ${{ secrets.VITE_FIREBASE_VAPID_KEY }}
-        run: npm run build
+        run: |
+          export VITE_APP_DEPLOYED_AT="${VITE_APP_DEPLOYED_AT:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}"
+          npm run write:release
+          npm run build
+          # Ensure dist has the same fingerprint Amplify would publish
+          cp -f public/release.json dist/release.json
+          cat dist/release.json
       - name: Package
         run: |
           test -f dist/index.html
-          cat > dist/release.json <<EOF
-          {"app":"laundry-admin","commit":"${{ github.sha }}","branch":"${{ github.ref_name }}","deployedAt":"$(date -u +%Y-%m-%dT%H:%M:%SZ)"}
-          EOF
+          test -f dist/release.json
           tar -czf laundry-admin-release.tar.gz -C dist .
       - uses: actions/upload-artifact@v4
         with:
@@ -60,7 +111,8 @@ jobs:
           retention-days: 7
 
   deploy:
-    needs: build
+    needs: [gate, build]
+    if: needs.gate.outputs.deploy == 'true'
     runs-on: ubuntu-latest
     environment: ${{ github.ref_name == 'main' && 'production' || 'staging' }}
     steps:
@@ -80,8 +132,9 @@ jobs:
             echo "app_url=${ADMIN_APP_URL_PROD:-https://adminlaundry.sigisolutions.net/}" >> "$GITHUB_OUTPUT"
             echo "deploy_root=/home/sigisolutions/deployments/laundry-admin" >> "$GITHUB_OUTPUT"
           else
-            echo "live_path=${ADMIN_DEPLOY_PATH_STAGE:-/home/sigisolutions/adminlaundry.sigisolutions.net}" >> "$GITHUB_OUTPUT"
-            echo "app_url=${ADMIN_APP_URL_STAGE:-https://adminlaundry.sigisolutions.net/}" >> "$GITHUB_OUTPUT"
+            # Prefer a real stage docroot secret; do not default to the same path as prod.
+            echo "live_path=${ADMIN_DEPLOY_PATH_STAGE:-/home/sigisolutions/stagelaundryadmin.sigisolutions.net}" >> "$GITHUB_OUTPUT"
+            echo "app_url=${ADMIN_APP_URL_STAGE:-https://stagelaundryadmin.sigisolutions.net/}" >> "$GITHUB_OUTPUT"
             echo "deploy_root=/home/sigisolutions/deployments/laundry-admin-stage" >> "$GITHUB_OUTPUT"
           fi
       - name: Upload release

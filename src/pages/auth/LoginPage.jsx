@@ -18,6 +18,7 @@ import {
   persistAdminLoginSession,
   persistZoneAdminLoginSession,
 } from "../../utilities/authStorage";
+import DeploymentInfo from "../../components/ui/DeploymentInfo";
 
 export default function LoginPage() {
   const { success, error } = useToaster();
@@ -223,6 +224,8 @@ export default function LoginPage() {
           </form>
         )}
       </Box>
+
+      <DeploymentInfo variant="login" />
 
       <div className="absolute top-1/6 w-[500px] h-[800px] rotate-45 bg-blue50/20 shadow-particle -right-[230px] z-0"></div>
 

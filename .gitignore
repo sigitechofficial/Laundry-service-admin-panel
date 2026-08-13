@@ -19,6 +19,8 @@ dist-ssr
 
 # Generated from .env via npm run sync:fcm-sw (contains Firebase web config)
 public/firebase-messaging-sw.js
+# Generated at build / predev (Amplify commit fingerprint)
+public/release.json
 .env.production
 .env.development
 .env*.local

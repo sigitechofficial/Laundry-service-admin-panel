@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "predev": "npm run sync:fcm-sw",
+    "predev": "npm run sync:fcm-sw && npm run write:release",
     "dev": "npx vite --host --port 5174",
-    "prebuild": "npm run sync:fcm-sw",
+    "prebuild": "npm run sync:fcm-sw && npm run write:release",
     "build": "vite build",
     "build:production": "vite build --mode production",
     "preview": "vite preview --port 2424",
@@ -14,6 +14,7 @@
     "tunnel:localtunnel": "npx localtunnel --port 2424",
     "tunnel:cloudflare": "npx cloudflared tunnel --url http://localhost:2424",
     "sync:fcm-sw": "node scripts/sync-fcm-service-worker.mjs",
+    "write:release": "node scripts/write-release-info.mjs",
     "check-env": "node scripts/check-env.js",
     "setup-api-key": "node scripts/setup-google-maps-key.js"
   },

@@ -288,6 +288,8 @@ export function mapBookingToOrderListRow(booking) {
     : "—";
   const statusTitle = resolveOrderStatusTitle(booking);
   const schedulePhase = resolveOrderSchedulePhase(booking, statusTitle);
+  const paymentDeliveryGate = booking?.paymentDeliveryGate || null;
+  const paymentWaitingAdmin = paymentDeliveryGate === "waiting_admin";
 
   return {
     id: booking?.id,
@@ -310,6 +312,8 @@ export function mapBookingToOrderListRow(booking) {
     schedulePhase,
     costAmount,
     OrderStatus: statusTitle,
+    paymentWaitingAdmin,
+    paymentDeliveryGate,
     zoneId: booking?.zoneId ?? null,
     _booking: booking,
     canAdminAssign: canAdminAssignOrReassignFromBooking(booking),
@@ -329,6 +333,7 @@ export function mapBookingToOrderListRow(booking) {
       shopName: shopLabel || "",
       cost: formatOrderMoney(costAmount),
       status: resolveOrderStatusTitle(booking),
+      paymentHold: paymentWaitingAdmin ? "Payment hold — admin" : "",
     },
   };
 }
@@ -498,22 +503,40 @@ export function buildOrderListColumns({
     {
       field: "OrderStatus",
       headerName: "Status",
-      minWidth: 140,
+      minWidth: 160,
       renderCell: (row) => (
-        <Chip
-          size="small"
-          label={row.OrderStatus || "—"}
-          sx={{
-            height: 26,
-            maxWidth: 160,
-            fontSize: 11,
-            fontWeight: 600,
-            "& .MuiChip-label": {
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-            },
-          }}
-        />
+        <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
+          <Chip
+            size="small"
+            label={row.OrderStatus || "—"}
+            sx={{
+              height: 26,
+              maxWidth: 160,
+              fontSize: 11,
+              fontWeight: 600,
+              "& .MuiChip-label": {
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+              },
+            }}
+          />
+          {row.paymentWaitingAdmin ? (
+            <Chip
+              size="small"
+              color="error"
+              variant="outlined"
+              label="Payment hold"
+              onClick={() => navigate("/orders/payment-failures")}
+              sx={{
+                height: 22,
+                maxWidth: 140,
+                fontSize: 10,
+                fontWeight: 700,
+                cursor: "pointer",
+              }}
+            />
+          ) : null}
+        </Box>
       ),
     },
     {

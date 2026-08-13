@@ -1,0 +1,21 @@
+version: 1
+# Amplify: connect branch `dev` (staging) and `main` (production).
+frontend:
+  phases:
+    preBuild:
+      commands:
+        - npm ci
+        - export VITE_APP_COMMIT="${AWS_COMMIT_ID:-local}"
+        - export VITE_APP_BRANCH="${AWS_BRANCH:-unknown}"
+        - export VITE_APP_DEPLOYED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+        - node scripts/write-release-info.mjs
+    build:
+      commands:
+        - npm run build
+  artifacts:
+    baseDirectory: dist
+    files:
+      - "**/*"
+  cache:
+    paths:
+      - node_modules/**/*
