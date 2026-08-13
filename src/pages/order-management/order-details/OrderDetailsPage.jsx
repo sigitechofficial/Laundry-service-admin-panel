@@ -844,6 +844,12 @@ export default function OrderDetailsPage() {
     const name = [user.firstName, user.lastName].filter(Boolean).join(" ").trim();
     return name || "Assigned staff";
   };
+  const personName = (u) => {
+    if (!u) return null;
+    const n = [u.firstName, u.lastName].filter(Boolean).join(" ").trim();
+    return n || null;
+  };
+
   const pickupDriverLabel = formatStaffLabel(
     orderData?.driver,
     orderData?.driverId,
@@ -854,12 +860,14 @@ export default function OrderDetailsPage() {
     orderData?.deliveryDriverId,
     orderData?.isDeliveryShopHeld
   );
-
-  const personName = (u) => {
-    if (!u) return null;
-    const n = [u.firstName, u.lastName].filter(Boolean).join(" ").trim();
-    return n || null;
-  };
+  const pickupCompletedByLabel =
+    orderData?.pickupCompletedByName ||
+    personName(orderData?.pickupCompletedBy) ||
+    null;
+  const deliveryCompletedByLabel =
+    orderData?.deliveryCompletedByName ||
+    personName(orderData?.deliveryCompletedBy) ||
+    null;
 
   const assignmentActivityRows = (orderData?.assignmentEvents || []).map((ev) => {
     const action = String(ev.action || "").toLowerCase();
@@ -868,7 +876,9 @@ export default function OrderDetailsPage() {
     const from = personName(ev.fromUser);
     const to = personName(ev.toUser);
     let text = `${action || "event"} · ${leg}${source}`;
-    if (action === "unassign" || ev.source === "self_return") {
+    if (action === "complete") {
+      text = `${leg} completed by ${to || from || "staff"}${source}`;
+    } else if (action === "unassign" || ev.source === "self_return") {
       text = `${from || "Staff"} returned ${leg} to shop owner${source}`;
     } else if (to) {
       text = `${leg} ${action || "assigned"} → ${to}${source}`;
@@ -2268,6 +2278,19 @@ export default function OrderDetailsPage() {
                     {pickupDriverLabel}
                   </Typography>
                 </Box>
+                {pickupCompletedByLabel ? (
+                  <Typography
+                    variant="caption"
+                    sx={{ mt: 0.75, display: "block", color: "#64748B", fontSize: 12 }}
+                  >
+                    Completed by {pickupCompletedByLabel}
+                    {orderData?.pickupCompletedAt
+                      ? ` · ${dayjs(orderData.pickupCompletedAt).isValid()
+                          ? dayjs(orderData.pickupCompletedAt).format("DD MMM YYYY · HH:mm")
+                          : ""}`
+                      : ""}
+                  </Typography>
+                ) : null}
               </Box>
               <Box>
                 <Typography variant="caption" sx={{ color: "#059669", fontWeight: 700, fontSize: 10 }}>
@@ -2302,6 +2325,19 @@ export default function OrderDetailsPage() {
                     {deliveryDriverLabel}
                   </Typography>
                 </Box>
+                {deliveryCompletedByLabel ? (
+                  <Typography
+                    variant="caption"
+                    sx={{ mt: 0.75, display: "block", color: "#64748B", fontSize: 12 }}
+                  >
+                    Completed by {deliveryCompletedByLabel}
+                    {orderData?.deliveryCompletedAt
+                      ? ` · ${dayjs(orderData.deliveryCompletedAt).isValid()
+                          ? dayjs(orderData.deliveryCompletedAt).format("DD MMM YYYY · HH:mm")
+                          : ""}`
+                      : ""}
+                  </Typography>
+                ) : null}
               </Box>
             </Box>
           </Paper>
