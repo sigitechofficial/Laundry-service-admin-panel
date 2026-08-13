@@ -4,6 +4,7 @@ import {
   ServiceManagement,
   ServicesPage,
   AddOnServicesPage,
+  RepairCatalogPage,
   CategoriesPage,
   PreferencesPage,
   ServiceDashboardPage,
@@ -73,6 +74,11 @@ export const privateRoutes = [
     path: "/services-management/add-on-services",
     element: AddOnServicesPage,
     resourceKey: "add_on_services_page",
+  },
+  {
+    path: "/services-management/repair-catalog",
+    element: RepairCatalogPage,
+    resourceKey: "services_page",
   },
   {
     path: "/services-management/categories",

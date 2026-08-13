@@ -97,6 +97,11 @@ export const sidebarList = [
         size: "22px",
       },
       {
+        label: "Repair Catalog",
+        path: "/services-management/repair-catalog",
+        size: "22px",
+      },
+      {
         label: "Categories",
         path: "/services-management/categories",
         size: "24px",

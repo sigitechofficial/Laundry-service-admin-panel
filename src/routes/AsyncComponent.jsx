@@ -11,6 +11,9 @@ export const ServicesPage = lazy(() =>
 export const AddOnServicesPage = lazy(() =>
   import("../pages/services-management/AddOnServicesPage")
 );
+export const RepairCatalogPage = lazy(() =>
+  import("../pages/services-management/RepairCatalogPage")
+);
 export const CategoriesPage = lazy(() =>
   import("../pages/services-management/CategoriesPage")
 );

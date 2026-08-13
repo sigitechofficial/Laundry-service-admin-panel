@@ -4,7 +4,7 @@ import baseQueryWithReauth from "./baseQueryWithReauth";
 export const api = createApi({
   reducerPath: "api",
   baseQuery: baseQueryWithReauth,
-  tagTypes: ["ServiceConfig", "SupportContact", "PlatformOperationalHours", "Orders", "Coupons", "Banners", "AccountDeletionReasons", "ReviewReasonCodes", "ShopReviews", "ShopRatingsReport", "PendingAgents", "RejectedAgents", "AgentSettlement", "NotifyLogs", "PaymentFailures", "AdminNotificationPreferences", "ActionRequiredOrders"],
+  tagTypes: ["ServiceConfig", "SupportContact", "PlatformOperationalHours", "Orders", "Coupons", "Banners", "AccountDeletionReasons", "ReviewReasonCodes", "ShopReviews", "ShopRatingsReport", "PendingAgents", "RejectedAgents", "AgentSettlement", "NotifyLogs", "PaymentFailures", "AdminNotificationPreferences", "ActionRequiredOrders", "RepairGarments", "RepairOptions"],
 
   endpoints: (builder) => {
     const normalizeServiceId = (id) => {
@@ -155,6 +155,82 @@ export const api = createApi({
         url: `admin/deleteAddOnCategory/${addOnCategoryId}`,
         method: "DELETE",
       }),
+    }),
+
+    getRepairGarments: builder.query({
+      query: () => ({
+        url: "admin/getRepairGarments",
+        method: "GET",
+      }),
+      providesTags: ["RepairGarments"],
+    }),
+
+    createRepairGarment: builder.mutation({
+      query: (body) => ({
+        url: "admin/createRepairGarment",
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: ["RepairGarments"],
+    }),
+
+    updateRepairGarment: builder.mutation({
+      query: ({ repairGarmentId, body }) => ({
+        url: `admin/updateRepairGarment/${repairGarmentId}`,
+        method: "PATCH",
+        body,
+      }),
+      invalidatesTags: ["RepairGarments"],
+    }),
+
+    deleteRepairGarment: builder.mutation({
+      query: (repairGarmentId) => ({
+        url: `admin/deleteRepairGarment/${repairGarmentId}`,
+        method: "DELETE",
+      }),
+      invalidatesTags: ["RepairGarments"],
+    }),
+
+    getRepairOptions: builder.query({
+      query: () => ({
+        url: "admin/getRepairOptions",
+        method: "GET",
+      }),
+      providesTags: ["RepairOptions"],
+    }),
+
+    createRepairOption: builder.mutation({
+      query: (body) => ({
+        url: "admin/createRepairOption",
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: ["RepairOptions", "RepairGarments"],
+    }),
+
+    updateRepairOption: builder.mutation({
+      query: ({ repairOptionId, body }) => ({
+        url: `admin/updateRepairOption/${repairOptionId}`,
+        method: "PATCH",
+        body,
+      }),
+      invalidatesTags: ["RepairOptions", "RepairGarments"],
+    }),
+
+    deleteRepairOption: builder.mutation({
+      query: (repairOptionId) => ({
+        url: `admin/deleteRepairOption/${repairOptionId}`,
+        method: "DELETE",
+      }),
+      invalidatesTags: ["RepairOptions", "RepairGarments"],
+    }),
+
+    seedRepairCatalog: builder.mutation({
+      query: () => ({
+        url: "admin/seedRepairCatalog",
+        method: "POST",
+      }),
+      invalidatesTags: ["RepairOptions", "RepairGarments"],
     }),
 
     dashboardData: builder.query({
@@ -1790,6 +1866,15 @@ export const {
   useUpdateAddOnCategoryMutation,
   useUpdateAddOnCategoriesSortOrderMutation,
   useDeleteAddOnCategoryMutation,
+  useGetRepairGarmentsQuery,
+  useCreateRepairGarmentMutation,
+  useUpdateRepairGarmentMutation,
+  useDeleteRepairGarmentMutation,
+  useGetRepairOptionsQuery,
+  useCreateRepairOptionMutation,
+  useUpdateRepairOptionMutation,
+  useDeleteRepairOptionMutation,
+  useSeedRepairCatalogMutation,
   useAddPreferenceMutation,
   useAddPreferenceValueMutation,
   useAddCategoryMutation,
