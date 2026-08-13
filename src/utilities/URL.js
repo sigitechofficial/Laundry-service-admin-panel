@@ -1,8 +1,8 @@
 // export const BASE_URL = "http://localhost:8083/";
-// export const BASE_URL = "https://prodlaundry.sigisolutions.net/";
+// export const BASE_URL = "https://stagelaundry.sigisolutions.net/";
 export const BASE_URL =
   import.meta.env.LAUNDRY_API_BASE_URL ||
-  "https://stagelaundry.sigisolutions.net/";
+  "https://prodlaundry.sigisolutions.net/";
 
 export const googleApiKey =
   import.meta.env.LAUNDRY_GOOGLE_MAPS_KEY ||
