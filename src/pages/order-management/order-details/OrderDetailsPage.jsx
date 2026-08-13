@@ -397,7 +397,11 @@ export default function OrderDetailsPage() {
   }, [orderItemsData]);
   const selectedServiceGroups = useMemo(() => {
     const rows = Array.isArray(orderData?.customerSelectedServices)
-      ? orderData.customerSelectedServices.filter((it) => Number(it?.items) > 0)
+      ? orderData.customerSelectedServices.filter(
+          (it) =>
+            Number(it?.items) > 0 ||
+            (Array.isArray(it?.repairItems) && it.repairItems.length > 0)
+        )
       : [];
     const map = {};
     rows.forEach((it) => {
@@ -409,11 +413,26 @@ export default function OrderDetailsPage() {
           items: [],
         };
       }
+      const repairItems = Array.isArray(it?.repairItems) ? it.repairItems : [];
+      const repairLabel = repairItems
+        .map((r) => r?.garmentName)
+        .filter(Boolean)
+        .join(", ");
       map[sid].items.push({
         id: it?.id,
-        itemName: it?.subCategory?.name || it?.category?.name || "Item",
+        itemName:
+          repairLabel ||
+          it?.subCategory?.name ||
+          it?.category?.name ||
+          "Item",
         categoryName: it?.category?.name || "",
-        qty: Number(it?.items) || 0,
+        qty:
+          Number(it?.items) ||
+          repairItems.reduce(
+            (sum, r) => sum + (Number(r?.quantity) || 1),
+            0
+          ) ||
+          0,
         unitPrice: Number(it?.categoryPrice || it?.subCategory?.price || 0),
         serviceImage: it?.service?.image || "",
         addOns: Array.isArray(it?.addOns) ? it.addOns : [],
@@ -422,6 +441,8 @@ export default function OrderDetailsPage() {
               .map((p) => p?.preferenceValue?.value)
               .filter(Boolean)
           : [],
+        repairItems,
+        instruction: it?.serviceInstruction || "",
       });
     });
     return Object.values(map);
@@ -566,6 +587,9 @@ export default function OrderDetailsPage() {
 
   const orderTotal = totalAmount.toFixed(2);
   const paymentSummary = orderData?.paymentSummary;
+  const paymentWaitingAdmin =
+    orderData?.paymentDeliveryGate === "waiting_admin" ||
+    paymentSummary?.paymentWaitingAdmin === true;
   const paymentStatusBadge = getPaymentStatusBadge(
     paymentSummary?.billingPaymentStatus ?? orderData?.billingDetail?.paymentStatus
   );
@@ -1091,6 +1115,16 @@ export default function OrderDetailsPage() {
                         {statusBadge.label}
                       </Typography>
                     </Box>
+                    {paymentWaitingAdmin ? (
+                      <Chip
+                        size="small"
+                        color="error"
+                        variant="filled"
+                        label="Payment hold — admin action"
+                        onClick={() => navigate("/orders/payment-failures")}
+                        sx={{ height: 26, fontWeight: 700, fontSize: 10, cursor: "pointer" }}
+                      />
+                    ) : null}
                     <Box
                       sx={{
                         px: 1.3,
@@ -1712,6 +1746,73 @@ export default function OrderDetailsPage() {
                               Preferences: {item.preferences.join(", ")}
                             </Typography>
                           )}
+                          {(item.repairItems || []).length > 0 && (
+                            <Box sx={{ mt: 0.75, display: "flex", flexDirection: "column", gap: 0.6 }}>
+                              {(item.repairItems || []).map((ri, rIdx) => {
+                                const optionNames = (ri?.options || [])
+                                  .map((o) => o?.optionName)
+                                  .filter(Boolean)
+                                  .join(", ");
+                                const images = Array.isArray(ri?.images) ? ri.images : [];
+                                return (
+                                  <Box
+                                    key={`repair-${item.id}-${rIdx}`}
+                                    sx={{
+                                      p: 1,
+                                      borderRadius: "8px",
+                                      bgcolor: "#F8FAFC",
+                                      border: "1px solid #E2E8F0",
+                                    }}
+                                  >
+                                    <Typography sx={{ fontSize: 12, fontWeight: 600, color: "#0F172A" }}>
+                                      {ri?.garmentName || "Garment"}
+                                      {ri?.quantity > 1 ? ` ×${ri.quantity}` : ""}
+                                    </Typography>
+                                    {optionNames ? (
+                                      <Typography sx={{ fontSize: 11, color: "#475569", mt: 0.25 }}>
+                                        {optionNames}
+                                      </Typography>
+                                    ) : null}
+                                    {ri?.instruction ? (
+                                      <Typography sx={{ fontSize: 11, color: "#64748B", mt: 0.25, fontStyle: "italic" }}>
+                                        {ri.instruction}
+                                      </Typography>
+                                    ) : null}
+                                    {images.length > 0 ? (
+                                      <Box sx={{ mt: 0.6, display: "flex", gap: 0.6, flexWrap: "wrap" }}>
+                                        {images.map((img, ii) => {
+                                          const path = img?.imageUrl || "";
+                                          const src = String(path).startsWith("http")
+                                            ? path
+                                            : `${BASE_URL}/${path}`.replace(/([^:]\/)\/+/g, "$1");
+                                          return (
+                                            <Box
+                                              key={`ri-img-${rIdx}-${ii}`}
+                                              component="img"
+                                              src={src}
+                                              alt=""
+                                              sx={{
+                                                width: 48,
+                                                height: 48,
+                                                objectFit: "cover",
+                                                borderRadius: "6px",
+                                                border: "1px solid #E2E8F0",
+                                              }}
+                                            />
+                                          );
+                                        })}
+                                      </Box>
+                                    ) : null}
+                                  </Box>
+                                );
+                              })}
+                            </Box>
+                          )}
+                          {item.instruction ? (
+                            <Typography sx={{ mt: 0.55, fontSize: 11, color: "#64748B", fontStyle: "italic" }}>
+                              Note: {item.instruction}
+                            </Typography>
+                          ) : null}
                         </Box>
                       );
                     })}
@@ -2050,6 +2151,33 @@ export default function OrderDetailsPage() {
                   {paymentStatusBadge.label}
                 </Box>
               </Box>
+              {paymentWaitingAdmin ? (
+                <Box
+                  sx={{
+                    mt: 0.5,
+                    p: 1.25,
+                    borderRadius: 1.5,
+                    bgcolor: "#FEF2F2",
+                    border: "1px solid #FECACA",
+                  }}
+                >
+                  <Typography sx={{ fontSize: 12, fontWeight: 700, color: "#991B1B" }}>
+                    Flagged: payment not processed — delivery held
+                  </Typography>
+                  <Typography sx={{ fontSize: 11, color: "#7F1D1D", mt: 0.5 }}>
+                    Agent is waiting for admin instruction. Resolve under Payment Failures
+                    (shift to cash or allow proceed).
+                  </Typography>
+                  <Button
+                    size="small"
+                    color="error"
+                    sx={{ mt: 1, textTransform: "none", fontWeight: 700 }}
+                    onClick={() => navigate("/orders/payment-failures")}
+                  >
+                    Open Payment Failures
+                  </Button>
+                </Box>
+              ) : null}
               <Box className="flex justify-between gap-3">
                 <Typography
                   variant="caption"
