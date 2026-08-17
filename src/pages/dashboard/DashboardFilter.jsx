@@ -9,9 +9,8 @@ import {
 const DEFAULT_PERIOD_OPTIONS = [
   { value: "all", label: "All Time" },
   { value: "today", label: "Today" },
-  { value: "this_week", label: "This Week" },
+  { value: "this_week", label: "Last 7 days" },
   { value: "this_month", label: "This Month" },
-  { value: "custom", label: "Custom" },
 ];
 
 function normalizeZones(data) {
@@ -52,15 +51,36 @@ export default function DashboardFilter({
     { skip: !filters.countryId }
   );
 
+  const allZones = useMemo(() => normalizeZones(zonesRes?.data), [zonesRes?.data]);
+
   const zoneOptions = useMemo(() => {
-    const zones = normalizeZones(zonesRes?.data);
-    return zones
+    return allZones
+      .filter((z) => {
+        const zCity = z.cityId ?? z.city?.id;
+        const zCountry =
+          z.countryId ?? z.city?.countryId ?? z.country?.id ?? null;
+
+        if (filters.cityId) {
+          return zCity == null || String(zCity) === String(filters.cityId);
+        }
+        if (filters.countryId) {
+          // Prefer zone.countryId; fall back to matching city list when present
+          if (zCountry != null) {
+            return String(zCountry) === String(filters.countryId);
+          }
+          if (zCity == null) return true;
+          const cities = normalizeCities(citiesRes?.data);
+          if (!cities.length) return true;
+          return cities.some((c) => String(c.id) === String(zCity));
+        }
+        return true;
+      })
       .map((z) => ({
         value: String(z.id ?? z.zoneId ?? ""),
         label: z.name ?? z.zoneName ?? String(z.id ?? z.zoneId ?? ""),
       }))
       .filter((opt) => opt.value !== "");
-  }, [zonesRes?.data]);
+  }, [allZones, filters.cityId, filters.countryId, citiesRes?.data]);
 
   const countryOptions = useMemo(() => {
     const countries = normalizeCountries(countriesRes?.data);
@@ -82,7 +102,14 @@ export default function DashboardFilter({
     const val = e.target.value;
     let next = { ...filters, [field]: val };
     if (field === "countryId") {
-      next = { ...next, cityId: "" };
+      next = { ...next, cityId: "", zoneId: "" };
+    }
+    if (field === "cityId") {
+      next = { ...next, zoneId: "" };
+    }
+    // Period placeholder "" → treat as all time
+    if (field === "period" && !val) {
+      next = { ...next, period: "all" };
     }
     if (value === undefined) {
       setSelectedFilters(next);
@@ -91,13 +118,13 @@ export default function DashboardFilter({
   };
 
   return (
-    <div className="flex items-center gap-4">
+    <div className="flex items-center gap-4 flex-wrap justify-end">
       <SelectField
         onChange={handleFilterChange("countryId")}
         options={countryOptions}
         value={filters.countryId || ""}
-        placeholder="Country"
-        width={"140px"}
+        placeholder="All countries"
+        width={"150px"}
         radius="4px"
         height="44px"
         bgcolor={"white"}
@@ -107,7 +134,13 @@ export default function DashboardFilter({
         onChange={handleFilterChange("cityId")}
         options={cityOptions}
         value={filters.cityId || ""}
-        placeholder={filters.countryId ? (citiesLoading ? "Loading…" : "City") : "City"}
+        placeholder={
+          !filters.countryId
+            ? "All cities"
+            : citiesLoading
+              ? "Loading…"
+              : "All cities"
+        }
         width={"140px"}
         radius="4px"
         height="44px"
@@ -119,7 +152,7 @@ export default function DashboardFilter({
         onChange={handleFilterChange("zoneId")}
         options={zoneOptions}
         value={filters.zoneId || ""}
-        placeholder="Zone"
+        placeholder="All zones"
         width={"140px"}
         radius="4px"
         height="44px"
@@ -131,7 +164,7 @@ export default function DashboardFilter({
         options={periodOptions}
         value={filters.period || "all"}
         placeholder="All Time"
-        width={"120px"}
+        width={"130px"}
         radius="4px"
         height="44px"
         bgcolor={"white"}

@@ -39,8 +39,12 @@ export default function LoginPage() {
     handleSubmit,
     formState: { errors },
     watch,
+    setValue,
   } = useForm({
     resolver: yupResolver(loginSchema),
+    mode: "onSubmit",
+    reValidateMode: "onChange",
+    shouldFocusError: true,
     defaultValues: {
       email: localStorage.getItem("rememberedEmail") || "",
       password: "",
@@ -52,6 +56,14 @@ export default function LoginPage() {
 
   const handleLogin = (role) => {
     navigate(`/auth/login?role=${role}`);
+  };
+
+  const onInvalid = (formErrors) => {
+    const message =
+      formErrors?.email?.message ||
+      formErrors?.password?.message ||
+      "Please fill in email and password.";
+    error(message);
   };
 
   const handleSubmitData = async (data) => {
@@ -136,7 +148,12 @@ export default function LoginPage() {
           </div>
         ) : (
           <form
-            onSubmit={handleSubmit(handleSubmitData)}
+            noValidate
+            onSubmit={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              handleSubmit(handleSubmitData, onInvalid)(e);
+            }}
             className="w-full !px-24 font-Inter !space-y-7"
           >
             {/* Email */}
@@ -147,13 +164,17 @@ export default function LoginPage() {
 
               <input
                 {...register("email")}
-                type="email"
+                id="email"
+                type="text"
+                autoComplete="username"
                 placeholder="Email"
                 className="outline-none border border-grey30 rounded-lg !px-5 h-[52px] font-medium"
               />
 
               {errors.email && (
-                <p className="text-red-500 text-sm">{errors.email.message}</p>
+                <p className="text-error text-sm font-medium">
+                  {errors.email.message}
+                </p>
               )}
             </div>
 
@@ -166,7 +187,9 @@ export default function LoginPage() {
               <Box className="relative w-full">
                 <input
                   {...register("password")}
+                  id="password"
                   type={seePassword ? "text" : "password"}
+                  autoComplete="current-password"
                   placeholder="Password"
                   className="w-full outline-none border border-grey30 rounded-lg !px-5 h-[52px] font-medium"
                 />
@@ -185,7 +208,7 @@ export default function LoginPage() {
               </Box>
 
               {errors.password && (
-                <p className="text-red-500 text-sm">
+                <p className="text-error text-sm font-medium">
                   {errors.password.message}
                 </p>
               )}
@@ -194,13 +217,13 @@ export default function LoginPage() {
             {/* Remember Me */}
             <div className="flex items-center">
               <Checkbox
-                {...register("rememberMe")}
                 size="medium"
                 sx={{
                   color: "black",
                   "&.Mui-checked": { color: "blue.100" },
                 }}
-                checked={formValues.rememberMe}
+                checked={!!formValues.rememberMe}
+                onChange={(_, checked) => setValue("rememberMe", checked)}
               />
 
               <Typography variant="body1">Remember Me</Typography>
@@ -209,6 +232,7 @@ export default function LoginPage() {
             {/* Buttons */}
             <Box className="flex items-center justify-end gap-x-5">
               <ButtonWhite
+                type="button"
                 text="Cancel"
                 width={"150px"}
                 onClick={() => navigate("/auth/login")}

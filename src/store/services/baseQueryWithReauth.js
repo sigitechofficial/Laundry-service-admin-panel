@@ -92,16 +92,33 @@ const shouldForceLogout = (error) => {
   return false;
 };
 
+/** Login/sign-in calls also return 401 for bad credentials — do not hard-redirect. */
+const isCredentialAuthRequest = (args) => {
+  const url = typeof args === "string" ? args : args?.url;
+  if (!url) return false;
+  const path = String(url).toLowerCase();
+  return (
+    path.includes("adminsignin") ||
+    path.includes("zoneadminsignin") ||
+    path.includes("/login") ||
+    path.includes("sign-in") ||
+    path.includes("signin")
+  );
+};
+
 const baseQueryWithReauth = async (args, api, extraOptions) => {
   const result = await baseQuery(args, api, extraOptions);
 
-  if (shouldForceLogout(result?.error)) {
+  if (shouldForceLogout(result?.error) && !isCredentialAuthRequest(args)) {
     console.warn("Session expired/invalid. Logging out...");
     document.cookie =
       "accessToken=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
     clearAuthTokens();
     localStorage.removeItem("login_status");
-    window.location.href = "/auth/login";
+    // Avoid reload loop if already on the login screen
+    if (!window.location.pathname.includes("/auth/login")) {
+      window.location.href = "/auth/login";
+    }
   }
 
   return result;

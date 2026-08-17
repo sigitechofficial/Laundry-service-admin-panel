@@ -4,7 +4,7 @@ import baseQueryWithReauth from "./baseQueryWithReauth";
 export const api = createApi({
   reducerPath: "api",
   baseQuery: baseQueryWithReauth,
-  tagTypes: ["ServiceConfig", "SupportContact", "PlatformOperationalHours", "Orders", "Coupons", "Banners", "AccountDeletionReasons", "ReviewReasonCodes", "ShopReviews", "ShopRatingsReport", "PendingAgents", "RejectedAgents", "AgentSettlement", "NotifyLogs", "PaymentFailures", "AdminNotificationPreferences", "ActionRequiredOrders", "RepairGarments", "RepairOptions"],
+  tagTypes: ["ServiceConfig", "SupportContact", "PlatformOperationalHours", "Orders", "Coupons", "Banners", "AccountDeletionReasons", "ReviewReasonCodes", "ShopReviews", "ShopRatingsReport", "PendingAgents", "RejectedAgents", "AgentSettlement", "NotifyLogs", "PaymentFailures", "AdminNotificationPreferences", "ActionRequiredOrders", "RepairGarments", "RepairOptions", "Zones"],
 
   endpoints: (builder) => {
     const normalizeServiceId = (id) => {
@@ -234,10 +234,33 @@ export const api = createApi({
     }),
 
     dashboardData: builder.query({
-      query: () => ({
-        url: `admin/adminDashboard`,
-        method: "GET",
-      }),
+      query: (params = {}) => {
+        const q = {};
+        if (params.zoneId) q.zoneId = params.zoneId;
+        if (params.cityId) q.cityId = params.cityId;
+        if (params.countryId) q.countryId = params.countryId;
+        if (params.period) q.period = params.period;
+        if (params.startDate) q.startDate = params.startDate;
+        if (params.endDate) q.endDate = params.endDate;
+        return {
+          url: "admin/adminDashboard",
+          method: "GET",
+          params: q,
+        };
+      },
+      // Cache per filter set
+      serializeQueryArgs: ({ queryArgs }) => {
+        const p = queryArgs || {};
+        return [
+          p.countryId || "",
+          p.cityId || "",
+          p.zoneId || "",
+          p.period || "all",
+          p.startDate || "",
+          p.endDate || "",
+        ].join("|");
+      },
+      keepUnusedDataFor: 60,
     }),
 
     addService: builder.mutation({
@@ -924,8 +947,10 @@ export const api = createApi({
         method: "GET",
         credentials: "include",
       }),
-      refetchOnMountOrArgChange: 300,
-      keepUnusedDataFor: 600,
+      providesTags: [{ type: "Zones", id: "LIST" }],
+      // Mutations invalidate LIST; keep a short mount window for other pages sharing this query.
+      refetchOnMountOrArgChange: 60,
+      keepUnusedDataFor: 300,
     }),
     getZoneById: builder.query({
       query: (id) => ({
@@ -933,6 +958,9 @@ export const api = createApi({
         method: "GET",
         credentials: "include",
       }),
+      // Normalize cache key so number/string ids share one entry + matching tags.
+      serializeQueryArgs: ({ queryArgs }) => String(queryArgs),
+      providesTags: (result, error, id) => [{ type: "Zones", id: String(id) }],
     }),
     getAllCountries: builder.query({
       query: () => ({
@@ -1032,6 +1060,7 @@ export const api = createApi({
         method: "POST",
         body,
       }),
+      invalidatesTags: [{ type: "Zones", id: "LIST" }],
     }),
 
     addZoneByPostcodes: builder.mutation({
@@ -1040,6 +1069,7 @@ export const api = createApi({
         method: "POST",
         body,
       }),
+      invalidatesTags: [{ type: "Zones", id: "LIST" }],
     }),
 
     editZoneByPostcodes: builder.mutation({
@@ -1048,6 +1078,10 @@ export const api = createApi({
         method: "PUT",
         body,
       }),
+      invalidatesTags: (result, error, { id }) => [
+        { type: "Zones", id: "LIST" },
+        { type: "Zones", id: String(id) },
+      ],
     }),
 
     deleteZone: builder.mutation({
@@ -1055,6 +1089,10 @@ export const api = createApi({
         url: `admin/delete-zone?zoneId=${zoneId}`,
         method: "DELETE",
       }),
+      invalidatesTags: (result, error, zoneId) => [
+        { type: "Zones", id: "LIST" },
+        { type: "Zones", id: String(zoneId) },
+      ],
     }),
 
     updateDriver: builder.mutation({

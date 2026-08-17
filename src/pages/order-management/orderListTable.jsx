@@ -135,7 +135,7 @@ export function resolveOrderSchedulePhase(booking, statusTitle) {
   return "neutral";
 }
 
-function LabelValue({ label, value, muted = false, active = false, tone = "pickup" }) {
+export function LabelValue({ label, value, muted = false, active = false, tone = "pickup" }) {
   if (!value || value === "—") {
     return (
       <Typography variant="body2" sx={{ fontSize: 13, color: "text.disabled" }}>

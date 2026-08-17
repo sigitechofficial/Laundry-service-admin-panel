@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -12,7 +12,6 @@ import {
 } from "chart.js";
 import { Line } from "react-chartjs-2";
 
-// Register components
 ChartJS.register(
   CategoryScale,
   LinearScale,
@@ -24,35 +23,37 @@ ChartJS.register(
   Legend
 );
 
-export default function AreaChart() {
-  const data = {
-    labels: [
-      "January",
-      "February",
-      "March",
-      "April",
-      "May",
-      "June",
-      "July",
-      "August",
-      "September",
-      "October",
-      "November",
-      "December",
-    ],
-    datasets: [
-      {
-        label: "Revenue",
-        data: [60, 130, 90, 70, 75, 110, 100, 80, 55, 40, 65, 50],
-        borderColor: "#379465",
-        backgroundColor: "#3794651F",
-        fill: true,
-        tension: 0.3,
-        pointRadius: 3,
-        pointBackgroundColor: "#379465",
-      },
-    ],
-  };
+export default function AreaChart({ labels = [], values = [] }) {
+  const safeLabels = labels.length ? labels : ["No data"];
+  const safeValues = useMemo(
+    () =>
+      labels.length
+        ? values.map((v) => {
+            const n = Number(v);
+            return Number.isFinite(n) ? n : 0;
+          })
+        : [0],
+    [labels, values]
+  );
+
+  const data = useMemo(
+    () => ({
+      labels: safeLabels,
+      datasets: [
+        {
+          label: "Admin revenue",
+          data: safeValues,
+          borderColor: "#379465",
+          backgroundColor: "#3794651F",
+          fill: true,
+          tension: 0.3,
+          pointRadius: 3,
+          pointBackgroundColor: "#379465",
+        },
+      ],
+    }),
+    [safeLabels, safeValues]
+  );
 
   const options = {
     responsive: true,
@@ -64,9 +65,6 @@ export default function AreaChart() {
     scales: {
       y: {
         beginAtZero: true,
-        ticks: {
-          stepSize: 200,
-        },
         grid: { display: false },
       },
       x: {
@@ -75,17 +73,14 @@ export default function AreaChart() {
     },
   };
 
-  // Plugin to fill only chart area with white
   const chartAreaBackground = {
     id: "chartAreaBackground",
     beforeDraw: (chart) => {
-      const {
-        ctx,
-        chartArea: { left, top, width, height },
-      } = chart;
+      const { ctx, chartArea } = chart;
+      if (!chartArea) return;
       ctx.save();
       ctx.fillStyle = "white";
-      ctx.fillRect(left, top, width, height);
+      ctx.fillRect(chartArea.left, chartArea.top, chartArea.width, chartArea.height);
       ctx.restore();
     },
   };

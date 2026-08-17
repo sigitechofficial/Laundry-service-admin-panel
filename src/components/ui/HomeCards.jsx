@@ -1,3 +1,5 @@
+import FigureShimmer from "./FigureShimmer";
+
 export default function HomeCards(props) {
   const {
     Icon,
@@ -7,6 +9,7 @@ export default function HomeCards(props) {
     title,
     total,
     description,
+    loading = false,
     ...rest
   } = props;
 
@@ -23,12 +26,13 @@ export default function HomeCards(props) {
           <Icon size={24} color={iconColor} />
         </div>
         <h2 className="text-secondary font-Inter text-sm !mb-2">{title}</h2>
-        <p className="text-dark text-xl 2xl:text-3xl font-Inter font-semibold">
-          {/* {props?.title?.toLowerCase()?.includes("revenue")
-            ? `${props?.currecncyunit ? props?.currecncyunit:'£'}${(parseFloat(props?.total))?.toFixed(2)}`
-            : props?.total} */}
-          {total}
-        </p>
+        {loading ? (
+          <FigureShimmer width={120} height={32} />
+        ) : (
+          <p className="text-dark text-xl 2xl:text-3xl font-Inter font-semibold">
+            {total}
+          </p>
+        )}
       </div>
     </div>
   );

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { Bar } from "react-chartjs-2";
 import {
   Chart as ChartJS,
@@ -10,7 +10,6 @@ import {
   Legend,
 } from "chart.js";
 
-// Register Chart.js components
 ChartJS.register(
   CategoryScale,
   LinearScale,
@@ -20,62 +19,62 @@ ChartJS.register(
   Legend
 );
 
-export default function HorizontalBarChart() {
-  const data = {
-    labels: ["Dry Cleaning", "Wash & Fold", "Ironing", "Repair", "Washing"], // left side labels
-    datasets: [
-      {
-        label: "Number of Requests",
-        data: [150, 250, 100, 300, 100], // your values
-        backgroundColor: [
-          "#27AE60",
-          "#2980B9",
-          "#16A085",
-          "#D35400",
-          "#8E44AD",
-        ], // different color for each bar
-        borderRadius: 4,
-      },
-    ],
-  };
+const COLORS = ["#27AE60", "#2980B9", "#16A085", "#D35400", "#8E44AD"];
+
+export default function HorizontalBarChart({ labels = [], values = [] }) {
+  const safeLabels = labels.length ? labels : ["No data"];
+  const safeValues = labels.length ? values : [0];
+
+  const data = useMemo(
+    () => ({
+      labels: safeLabels,
+      datasets: [
+        {
+          label: "Number of orders",
+          data: safeValues,
+          backgroundColor: safeLabels.map((_, i) => COLORS[i % COLORS.length]),
+          borderRadius: 4,
+        },
+      ],
+    }),
+    [safeLabels, safeValues]
+  );
 
   const options = {
-    indexAxis: "y", // horizontal bars
+    indexAxis: "y",
     responsive: true,
+    maintainAspectRatio: false,
     plugins: {
       legend: { display: false },
       tooltip: { enabled: true },
     },
     scales: {
       x: {
-        ticks: { stepSize: 100 },
+        beginAtZero: true,
         grid: {
           drawTicks: false,
           drawBorder: false,
-          color: "transparent", // remove grid lines
+          color: "transparent",
         },
       },
       y: {
         grid: {
           drawTicks: false,
           drawBorder: false,
-          color: "transparent", // remove grid lines
+          color: "transparent",
         },
       },
     },
   };
 
-  // Plugin to fill only chart area with white
   const chartAreaBackground = {
     id: "chartAreaBackground",
     beforeDraw: (chart) => {
-      const {
-        ctx,
-        chartArea: { left, top, width, height },
-      } = chart;
+      const { ctx, chartArea } = chart;
+      if (!chartArea) return;
       ctx.save();
-      ctx.fillStyle = "white"; // white background
-      ctx.fillRect(left, top, width, height);
+      ctx.fillStyle = "white";
+      ctx.fillRect(chartArea.left, chartArea.top, chartArea.width, chartArea.height);
       ctx.restore();
     },
   };

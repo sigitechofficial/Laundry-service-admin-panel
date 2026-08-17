@@ -8,6 +8,8 @@ import {
   Chip,
   Rating,
   Stack,
+  Select,
+  MenuItem,
 } from "@mui/material";
 import dayjs from "dayjs";
 import { Delay } from "../../../components/shared/Loaders";
@@ -24,6 +26,7 @@ import {
   useLazyInvoiceCreationQuery,
   useGetServiceComparisonQuery,
   useGetShopReviewByBookingQuery,
+  useEditOrderMutation,
 } from "../../../store/services/api";
 import { BASE_URL } from "../../../utilities/URL";
 import { canEditOrderFromBooking } from "../../../shared/orderEditStatusGate";
@@ -326,7 +329,7 @@ export default function OrderDetailsPage() {
   const navigate = useNavigate();
   const { id } = useParams();
   const orderId = Number(id);
-  const { error: showError } = useToaster();
+  const { error: showError, success } = useToaster();
 
   const { data: orderResponse, isLoading, refetch: refetchOrder } =
     useGetOrderForEditQuery(orderId, {
@@ -334,6 +337,8 @@ export default function OrderDetailsPage() {
   });
   const { data: statusesResponse } = useGetAllOrderStatusesQuery();
   const [fetchInvoice, { isFetching: isFetchingInvoice }] = useLazyInvoiceCreationQuery();
+  const [editOrder, { isLoading: isUpdatingStatus }] = useEditOrderMutation();
+  const [selectedStatusId, setSelectedStatusId] = useState("");
   const orderData = orderResponse?.data;
   const shopName =
     orderData?.laundryShop?.bussinessInformations?.[0]?.shopName ||
@@ -360,10 +365,85 @@ export default function OrderDetailsPage() {
 
   const orderItemsData = orderItemsResponse?.data;
   const statusBadge = getStatusBadge(orderData?.bookingStatus?.title);
-  const orderStatusOptions = useMemo(
-    () => (Array.isArray(statusesResponse?.data) ? statusesResponse.data : []),
-    [statusesResponse?.data]
-  );
+  const orderStatusOptions = useMemo(() => {
+    const list = Array.isArray(statusesResponse?.data)
+      ? statusesResponse.data
+      : [];
+    // Stage DB has many duplicate status rows; keep lowest id per title.
+    const sorted = [...list].sort(
+      (a, b) => Number(a?.id ?? 0) - Number(b?.id ?? 0)
+    );
+    const seen = new Set();
+    const unique = [];
+    for (const option of sorted) {
+      const key = String(option?.title ?? "")
+        .trim()
+        .toLowerCase();
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      unique.push(option);
+    }
+    const currentId = orderData?.bookingStatusId;
+    if (
+      currentId != null &&
+      !unique.some((o) => Number(o.id) === Number(currentId))
+    ) {
+      const current =
+        list.find((o) => Number(o.id) === Number(currentId)) ||
+        (orderData?.bookingStatus
+          ? {
+              id: currentId,
+              title: orderData.bookingStatus.title,
+            }
+          : null);
+      if (current) unique.unshift(current);
+    }
+    return unique;
+  }, [
+    statusesResponse?.data,
+    orderData?.bookingStatusId,
+    orderData?.bookingStatus,
+  ]);
+
+  useEffect(() => {
+    if (
+      orderData?.bookingStatusId !== undefined &&
+      orderData?.bookingStatusId !== null
+    ) {
+      setSelectedStatusId(String(orderData.bookingStatusId));
+      return;
+    }
+    setSelectedStatusId("");
+  }, [orderData?.bookingStatusId, orderId]);
+
+  const statusDirty =
+    selectedStatusId !== "" &&
+    String(orderData?.bookingStatusId ?? "") !== selectedStatusId;
+
+  const handleUpdateStatus = async () => {
+    if (!orderId || !selectedStatusId) return;
+    if (!statusDirty) {
+      showError("Select a different status to update.");
+      return;
+    }
+    try {
+      const response = await editOrder({
+        orderId,
+        body: { bookingStatusId: Number(selectedStatusId) },
+      }).unwrap();
+      if (response?.status === "1" || response?.status === 1) {
+        success(response?.message || "Order status updated.");
+        await refetchOrder();
+      } else {
+        showError(response?.message || "Failed to update order status.");
+      }
+    } catch (err) {
+      showError(
+        err?.data?.message || err?.message || "Failed to update order status."
+      );
+    }
+  };
+
   const canShowGenerateInvoice = useMemo(() => {
     if (!orderData) return false;
     return canEditOrderFromBooking(orderData, orderStatusOptions);
@@ -1141,6 +1221,81 @@ export default function OrderDetailsPage() {
                         {orderData.frequency || "Just Once"}
                       </Typography>
                     </Box>
+                  </Box>
+
+                  <Box
+                    sx={{
+                      mt: 1.5,
+                      display: "flex",
+                      flexWrap: "wrap",
+                      alignItems: "center",
+                      gap: 1,
+                      maxWidth: 520,
+                    }}
+                  >
+                    <Select
+                      value={selectedStatusId}
+                      onChange={(e) => setSelectedStatusId(e.target.value)}
+                      size="small"
+                      displayEmpty
+                      disabled={isUpdatingStatus || !orderStatusOptions.length}
+                      sx={{
+                        minWidth: 220,
+                        flex: "1 1 220px",
+                        height: 40,
+                        borderRadius: "8px",
+                        border: "1px solid #E2E8F0",
+                        bgcolor: "#fff",
+                        fontFamily: "Switzer",
+                        fontSize: 13,
+                        "& .MuiSelect-select": {
+                          py: "8px",
+                          px: "12px",
+                          display: "flex",
+                          alignItems: "center",
+                        },
+                        "& .MuiOutlinedInput-notchedOutline": { border: "none" },
+                      }}
+                      MenuProps={{
+                        PaperProps: { sx: { maxHeight: 320 } },
+                      }}
+                    >
+                      {orderStatusOptions.length ? (
+                        orderStatusOptions.map((option) => (
+                          <MenuItem key={option.id} value={String(option.id)}>
+                            {option.title}
+                          </MenuItem>
+                        ))
+                      ) : (
+                        <MenuItem value="" disabled>
+                          No status available
+                        </MenuItem>
+                      )}
+                    </Select>
+                    <Button
+                      variant="contained"
+                      onClick={handleUpdateStatus}
+                      disabled={
+                        isUpdatingStatus || !statusDirty || !selectedStatusId
+                      }
+                      sx={{
+                        textTransform: "none",
+                        borderRadius: "8px",
+                        bgcolor: "#000099",
+                        color: "#fff",
+                        fontWeight: 600,
+                        fontSize: 13,
+                        minHeight: 40,
+                        px: 2,
+                        "&:hover": { bgcolor: "#00007A" },
+                        "&.Mui-disabled": {
+                          bgcolor: "#CBD5E1",
+                          color: "#fff",
+                        },
+                      }}
+                    >
+                      {isUpdatingStatus ? "Updating..." : "Update Status"}
+                    </Button>
                   </Box>
                 </Box>
 

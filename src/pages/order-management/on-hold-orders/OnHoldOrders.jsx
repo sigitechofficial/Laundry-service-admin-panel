@@ -272,7 +272,7 @@ export default function OnHoldOrders() {
 
               <StatCard
                 title="On Hold ORDERS"
-                value={dashboardStats.onHold}
+                value={totalRows}
                 bgColor="bg-green50"
               />
             </div>
@@ -281,8 +281,8 @@ export default function OnHoldOrders() {
               variant="body2"
               sx={{ fontSize: 13, color: "text.secondary", mt: -4 }}
             >
-              On-hold count is system-wide ({totalRows} in this list). Table is
-              paginated when the API supports page/limit (after backend deploy).
+              On-hold list ({totalRows} matching filters). Table is paginated —
+              use the footer to browse all on-hold orders.
             </Typography>
 
             <div className="w-full min-w-0">

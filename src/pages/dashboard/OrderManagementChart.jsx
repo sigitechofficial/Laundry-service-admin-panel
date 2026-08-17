@@ -10,7 +10,6 @@ import {
 } from "chart.js";
 import { Bar } from "react-chartjs-2";
 
-// Register Chart.js components
 ChartJS.register(
   CategoryScale,
   LinearScale,
@@ -24,8 +23,9 @@ const chartAreaBackground = {
   id: "chartAreaBackground",
   beforeDraw: (chart) => {
     const { ctx, chartArea } = chart;
+    if (!chartArea) return;
     ctx.save();
-    ctx.fillStyle = "white"; // ✅ white background only behind bars
+    ctx.fillStyle = "white";
     ctx.fillRect(
       chartArea.left,
       chartArea.top,
@@ -36,13 +36,23 @@ const chartAreaBackground = {
   },
 };
 
-export default function OrderManagementChart() {
+export default function OrderManagementChart({
+  pending = 0,
+  inProgress = 0,
+  outForDelivery = 0,
+  completed = 0,
+}) {
   const data = {
     labels: ["Pending", "In-Progress", "Out for Delivery", "Completed"],
     datasets: [
       {
         label: "Orders",
-        data: [50, 200, 100, 450], // example values
+        data: [
+          Number(pending) || 0,
+          Number(inProgress) || 0,
+          Number(outForDelivery) || 0,
+          Number(completed) || 0,
+        ],
         backgroundColor: ["#FFC107", "#007BFF", "#05A0B7", "#28A745"],
         borderRadius: 0,
       },
@@ -54,15 +64,7 @@ export default function OrderManagementChart() {
     maintainAspectRatio: false,
     plugins: {
       legend: { display: false },
-      title: {
-        display: true,
-        // text: "Orders Management",
-        font: {
-          size: 18,
-          weight: "bold",
-          family: "Inter", // ✅ use Inter font
-        },
-      },
+      title: { display: false },
       tooltip: {
         titleFont: { family: "Inter" },
         bodyFont: { family: "Inter" },
@@ -71,23 +73,12 @@ export default function OrderManagementChart() {
     scales: {
       y: {
         beginAtZero: true,
-        grid: {
-          display: false, // ✅ remove horizontal lines
-          drawBorder: false,
-        },
-        ticks: {
-          font: { family: "Inter" },
-          stepSize: 100,
-        },
+        grid: { display: false, drawBorder: false },
+        ticks: { font: { family: "Inter" } },
       },
       x: {
-        grid: {
-          display: false, // ✅ remove vertical lines
-          drawBorder: false,
-        },
-        ticks: {
-          font: { family: "Inter" },
-        },
+        grid: { display: false, drawBorder: false },
+        ticks: { font: { family: "Inter" } },
       },
     },
   };

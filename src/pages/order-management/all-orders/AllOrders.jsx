@@ -92,7 +92,7 @@ export default function ShopManagement() {
               <div className="grid sm:grid-cols-2 md:grid-cols-4 gap-7 font-Inter">
                 <StatCard
                   title="TOTAL ORDERS"
-                  value={dashboardStats.total}
+                  value={totalRows}
                   bgColor="bg-purple50"
                 />
                 <StatCard

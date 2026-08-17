@@ -2,13 +2,17 @@ import { useMemo, useState } from "react";
 import {
   Box,
   Button,
-  Menu,
+  Popover,
   Typography,
 } from "@mui/material";
 import FiltersButton from "../../components/ui/FiltersButton";
 import SelectField from "../../components/ui/SelectField";
 import { TbFilter } from "../../shared/icons/index";
 
+/**
+ * Shared Filters control for order tables (All / Pending / Complete / … / Action Required).
+ * Uses Popover (not Menu) so nested SelectField status dropdown works reliably.
+ */
 export default function OrderFiltersPopover({
   statusId,
   onStatusChange,
@@ -43,7 +47,7 @@ export default function OrderFiltersPopover({
         Icon={<TbFilter size="20px" color="#9CA3AF" />}
         onClick={(e) => setAnchorEl(e.currentTarget)}
       />
-      <Menu
+      <Popover
         anchorEl={anchorEl}
         open={open}
         onClose={handleClose}
@@ -69,7 +73,7 @@ export default function OrderFiltersPopover({
         </Typography>
 
         {showStatusFilter ? (
-          <Box sx={{ mb: 2 }}>
+          <Box sx={{ mb: 2 }} onMouseDown={(e) => e.stopPropagation()}>
             <SelectField
               title="Order status"
               value={statusId || ""}
@@ -119,7 +123,7 @@ export default function OrderFiltersPopover({
             Done
           </Button>
         </Box>
-      </Menu>
+      </Popover>
     </>
   );
 }

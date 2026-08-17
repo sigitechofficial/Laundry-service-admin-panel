@@ -7,11 +7,13 @@ export const loginSchema = yup
   .object({
     email: yup
       .string()
-      .email("Invalid email format")
-      .required("Email is required"),
+      .trim()
+      .required("Email is required")
+      .email("Invalid email format"),
     password: yup
       .string()
-      .min(6, "Password must be at least 6 characters")
-      .required("Password is required"),
+      .required("Password is required")
+      .min(6, "Password must be at least 6 characters"),
+    rememberMe: yup.boolean().default(false),
   })
   .required();

@@ -91,8 +91,8 @@ export default function CompleteOrders() {
               />
 
               <StatCard
-                title="COMPELETED ORDERS"
-                value={dashboardStats.completed}
+                title="COMPLETED ORDERS"
+                value={totalRows}
                 bgColor="bg-green50"
               />
             </div>
@@ -101,8 +101,8 @@ export default function CompleteOrders() {
               variant="body2"
               sx={{ fontSize: 13, color: "text.secondary", mt: -4 }}
             >
-              Completed count is system-wide ({totalRows} in this list). Table is
-              paginated — use the footer to browse all completed orders.
+              Completed list ({totalRows} matching filters). Table is paginated —
+              use the footer to browse all completed orders.
             </Typography>
 
             <div className="w-full min-w-0">

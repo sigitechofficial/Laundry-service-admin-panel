@@ -1,12 +1,7 @@
 import { useState, useEffect, useMemo, Fragment, useRef, useCallback } from "react";
 import { Box, Button, CircularProgress, IconButton, Typography, Checkbox, FormControlLabel } from "@mui/material";
 import { BsCardList, TbPlus } from "../../shared/icons/index";
-import Search from "../../components/ui/Search";
-import FiltersButton from "../../components/ui/FiltersButton";
-import DateRangeSelector from "../../components/ui/DateRangeSelector";
 import DataTable from "../../components/ui/DataTable";
-import StatusPill from "../../components/ui/StatusPill";
-import ChangeStatus from "../../components/ui/Switch";
 import ActionButtons from "../../components/ui/ActionButtons";
 import ModalComponent from "../../components/shared/Modal";
 import { useNavigate } from "react-router-dom";
@@ -24,9 +19,9 @@ import {
 import { useSelector } from "react-redux";
 import { Delay } from "../../components/shared/Loaders";
 import ButtonBlueLight from "../../components/ui/ButtonBlueLight";
-import { dateTimeFormat } from "../../shared/constants";
 import SelectField from "../../components/ui/SelectField";
 import { googleApiKey } from "../../utilities/URL";
+import ZoneFiltersPopover from "./ZoneFiltersPopover";
 import {
   GoogleMap,
   useLoadScript,
@@ -97,6 +92,96 @@ function formatPaymentMethodsLabel(methods) {
     .filter((opt) => methods?.includes(opt.value))
     .map((opt) => opt.label);
   return labels.length ? labels.join(", ") : "N/A";
+}
+
+function postcodesFingerprint(list) {
+  const normalized = (Array.isArray(list) ? list : [])
+    .map((pc) => String(pc ?? "").trim().replace(/\s+/g, "").toUpperCase())
+    .filter(Boolean);
+  return [...new Set(normalized)].sort().join("|");
+}
+
+function normalizeZonePostcodeList(raw) {
+  let list = raw;
+  if (typeof list === "string") {
+    const trimmed = list.trim();
+    if (!trimmed) return [];
+    try {
+      list = JSON.parse(trimmed);
+    } catch {
+      list = trimmed.split(/[\n,;]+/).map((p) => p.trim()).filter(Boolean);
+    }
+  }
+  if (!Array.isArray(list)) return [];
+  const seen = new Set();
+  const out = [];
+  for (const item of list) {
+    const pc = String(item ?? "").trim();
+    if (!pc) continue;
+    const key = pc.replace(/\s+/g, "").toUpperCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(pc);
+  }
+  return out;
+}
+
+function formatZonePostcodesLabel(raw) {
+  const list = normalizeZonePostcodeList(raw);
+  if (!list.length) return "—";
+  if (list.length <= 3) return list.join(", ");
+  return `${list.slice(0, 3).join(", ")} +${list.length - 3}`;
+}
+
+function formatZoneCurrencyLabel(zone) {
+  const unit = zone?.currencyUnitZ;
+  if (unit?.name && unit?.symbol) return `${unit.name} (${unit.symbol})`;
+  if (unit?.name) return unit.name;
+  if (unit?.symbol) return unit.symbol;
+  return "—";
+}
+
+function formatZoneAdminLabel(zone) {
+  const admin = zone?.zoneAdmin;
+  if (admin) {
+    const name = [admin.firstName, admin.lastName].filter(Boolean).join(" ").trim();
+    if (name) return name;
+    if (admin.email) return admin.email;
+  }
+  if (zone?.zoneAdminId) return `Admin #${zone.zoneAdminId}`;
+  return "Unassigned";
+}
+
+function formatMoneyCell(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return "—";
+  return n.toFixed(2);
+}
+
+function csvEscape(value) {
+  const s = String(value ?? "");
+  if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+  return s;
+}
+
+function downloadZonesCsv(rows, columns) {
+  const exportCols = (columns || []).filter(
+    (c) => c.field && c.field !== "actions" && c.headerName
+  );
+  const header = exportCols.map((c) => csvEscape(c.headerName)).join(",");
+  const lines = (rows || []).map((row) =>
+    exportCols.map((c) => csvEscape(row[c.field])).join(",")
+  );
+  const csv = [header, ...lines].join("\r\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `zones-${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }
 
 /** If Google’s viewport is larger than this for a full unit postcode, it’s closer to sector than unit — use tight hex. */
@@ -280,8 +365,9 @@ export default function ZoneManagement() {
     libraries,
   });
 
-  const [_dateRange, setDateRange] = useState(null);
-  const [_searchTerm, setSearchTerm] = useState("");
+  const [filterCity, setFilterCity] = useState("");
+  const [filterPaymentMethod, setFilterPaymentMethod] = useState("");
+  const [filterAssignment, setFilterAssignment] = useState("");
 
   // Map state
   const [center, setCenter] = useState({ lat: 31.5497, lng: 74.3436 }); // Lahore coordinates
@@ -332,16 +418,19 @@ export default function ZoneManagement() {
   });
   const [isEditMode, setIsEditMode] = useState(false);
   const [editingZoneId, setEditingZoneId] = useState(null);
+  /** Normalized postcode set when edit modal opened — omit postcodes on save if unchanged. */
+  const [editBaselinePostcodesKey, setEditBaselinePostcodesKey] = useState("");
   console.log("🚀 ~ ZoneManagement ~ add:", add);
   const { success, error: showError } = useToaster();
-  const { isLoading, refetch: refetchZones } = useGetAllZonesQuery();
+  const { data: zonesQueryData, isLoading } = useGetAllZonesQuery();
   const { isLoading: _countriesLoading } = useGetAllCountriesQuery();
   const { data: allCitiesData } = useGetAllCitiesQuery();
   const [addZoneByPostcodes, { isLoading: isAddingZone }] = useAddZoneByPostcodesMutation();
   const [editZoneByPostcodes, { isLoading: isEditingZone }] = useEditZoneByPostcodesMutation();
   const [deleteZone] = useDeleteZoneMutation();
   const [fetchZoneById] = useLazyGetZoneByIdQuery();
-  const zones = useSelector((state) => state?.apiData?.zones);
+  // Single source: RTK Query. Mutations invalidate Zones tags → list/detail refetch.
+  const zones = zonesQueryData?.data;
   const countries = useSelector((state) => state?.apiData?.countries);
   const cities = useSelector((state) => state?.apiData?.cities);
   const units = useSelector((state) => state?.apiData?.units);
@@ -432,39 +521,92 @@ export default function ZoneManagement() {
   console.log("🚀 ~ ZoneManagement ~ cities:", cities);
 
   // Map zone data
-  const zonesData = zones?.zones?.map((zone, index) => {
-    return {
-      id: zone.id,
-      sl: index + 1,
-      zoneId: zone.id,
-      zoneName: zone.name,
-      zoneDistance: zone.distanceUnitId || "N/A",
-      radius: "N/A",
-      coordinates: zone.coordinates?.coordinates?.[0]?.[0]?.[0]
-        ? `${zone.coordinates.coordinates[0][0][0].toFixed(
-          2
-        )}, ${zone.coordinates.coordinates[0][0][1].toFixed(2)}`
-        : "N/A",
-      currency: zone.currencyUnitId || "N/A",
-      paymentMethod: formatPaymentMethodsLabel(
-        parseZonePaymentMethods(
-          zone.paymentMethod ??
-            zone.paymentMehtod ??
-            zone.payment_method ??
-            zone.paymentMethods
-        )
-      ),
-      deliveryCharges: zone.serviceCharge || 0,
-      noOfShops: "N/A",
-      expressDelivery: "N/A",
-      zoneAssign: zone.zoneAdminId ? `Admin ${zone.zoneAdminId}` : "Unassigned",
-      commission: zone.agentCommissionPercent ?? (100 - (zone.zoneAdminComission || 20)),
-      status: zone.status,
-      createdAt: zone.createdAt,
-      updatedAt: zone.updatedAt,
-      rawZone: zone,
-    };
-  });
+  const zonesData = useMemo(
+    () =>
+      (zones?.zones || []).map((zone, index) => {
+        const postcodes = normalizeZonePostcodeList(zone.postcodes);
+        const isAssigned = Boolean(zone.zoneAdminId || zone.zoneAdmin);
+        return {
+          id: zone.id,
+          sl: index + 1,
+          zoneId: zone.id,
+          zoneName: zone.name,
+          city: zone?.city?.name || "—",
+          postcodes: formatZonePostcodesLabel(postcodes),
+          currency: formatZoneCurrencyLabel(zone),
+          paymentMethod: formatPaymentMethodsLabel(
+            parseZonePaymentMethods(
+              zone.paymentMethod ??
+                zone.paymentMehtod ??
+                zone.payment_method ??
+                zone.paymentMethods
+            )
+          ),
+          zoneMinimumAmount: formatMoneyCell(zone.zoneMinimumAmount),
+          serviceFee: formatMoneyCell(zone.serviceCharge),
+          noOfShops: (() => {
+            const n = Number(zone.shopCount ?? zone.shops);
+            return Number.isFinite(n) ? n : 0;
+          })(),
+          zoneAssign: formatZoneAdminLabel(zone),
+          _isAssigned: isAssigned,
+          commission:
+            zone.agentCommissionPercent ??
+            (zone.zoneAdminComission != null
+              ? 100 - zone.zoneAdminComission
+              : "—"),
+          status: zone.status,
+          createdAt: zone.createdAt,
+          updatedAt: zone.updatedAt,
+          rawZone: zone,
+        };
+      }),
+    [zones?.zones]
+  );
+
+  const zoneFilterCityOptions = useMemo(() => {
+    const seen = new Set();
+    const opts = [];
+    for (const row of zonesData) {
+      const name = String(row.city || "").trim();
+      if (!name || name === "—" || seen.has(name)) continue;
+      seen.add(name);
+      opts.push({ value: name, label: name });
+    }
+    return opts.sort((a, b) => a.label.localeCompare(b.label));
+  }, [zonesData]);
+
+  const zoneFilterPaymentOptions = useMemo(() => {
+    const seen = new Set();
+    const opts = [];
+    for (const row of zonesData) {
+      const label = String(row.paymentMethod || "").trim();
+      if (!label || label === "N/A" || seen.has(label)) continue;
+      seen.add(label);
+      opts.push({ value: label, label });
+    }
+    return opts;
+  }, [zonesData]);
+
+  const hasZoneFilters = Boolean(
+    filterCity || filterPaymentMethod || filterAssignment
+  );
+
+  const filteredZonesData = useMemo(() => {
+    let rows = zonesData;
+    if (filterCity) {
+      rows = rows.filter((r) => String(r.city) === filterCity);
+    }
+    if (filterPaymentMethod) {
+      rows = rows.filter((r) => String(r.paymentMethod) === filterPaymentMethod);
+    }
+    if (filterAssignment === "assigned") {
+      rows = rows.filter((r) => r._isAssigned);
+    } else if (filterAssignment === "unassigned") {
+      rows = rows.filter((r) => !r._isAssigned);
+    }
+    return rows.map((row, index) => ({ ...row, sl: index + 1 }));
+  }, [zonesData, filterCity, filterPaymentMethod, filterAssignment]);
 
   const extractZonePostcodes = (zone) => {
     const postcodeRegex = /\b[A-Z]{1,2}\d[A-Z\d]?\s?\d[A-Z]{2}\b/i;
@@ -745,7 +887,7 @@ export default function ZoneManagement() {
       const zoneId = rowZone.id || row?.id || null;
 
       setIsEditMode(true);
-      setEditingZoneId(zoneId);
+      setEditingZoneId(zoneId != null ? String(zoneId) : null);
       // Open modal first, then hydrate edit values
       setAdd((prev) => ({ ...prev, open: true }));
 
@@ -753,8 +895,9 @@ export default function ZoneManagement() {
       let zone = rowZone;
       if (zoneId) {
         try {
-          const zoneResponse = await fetchZoneById(zoneId, true).unwrap();
-          // Keep row values as fallback because getZoneById can omit some optional fields.
+          // Force network fetch for edit form (avoid stale detail after list edits).
+          const zoneResponse = await fetchZoneById(String(zoneId), false).unwrap();
+          // Prefer fresh API fields; keep row only for nested/optional fallbacks.
           zone = {
             ...(rowZone || {}),
             ...(zoneResponse?.data || {}),
@@ -876,6 +1019,9 @@ export default function ZoneManagement() {
       setAddedPostcodes(newPostcodeDataList);
       setMultiplePostcodeHighlights(newHighlights);
       setPostalCodeMarkers(newMarkers);
+      setEditBaselinePostcodesKey(
+        postcodesFingerprint(newPostcodeDataList.map((pc) => pc.postcode))
+      );
 
       if (lastCenterPoint) {
         setCenter(lastCenterPoint);
@@ -905,7 +1051,7 @@ export default function ZoneManagement() {
       } else {
         showError(res?.message || "Failed to delete zone.");
       }
-      refetchZones();
+      // LIST tag invalidation refreshes useGetAllZonesQuery
     } catch (err) {
       showError(err?.data?.message || "Failed to delete zone.");
     }
@@ -916,94 +1062,85 @@ export default function ZoneManagement() {
     {
       field: "sl",
       headerName: "SL",
-      flex: 0.15,
-      minWidth: 100,
+      flex: 0.08,
+      minWidth: 70,
       align: "center",
     },
     {
       field: "zoneName",
       headerName: "Zone Name",
-      flex: 0.19,
-      minWidth: 200,
-      align: "center",
-    },
-    {
-      field: "zoneDistance",
-      headerName: "Zone Distance (km)",
       flex: 0.18,
-      minWidth: 250,
+      minWidth: 160,
+      align: "left",
+    },
+    {
+      field: "city",
+      headerName: "City",
+      flex: 0.12,
+      minWidth: 120,
       align: "center",
     },
     {
-      field: "radius",
-      headerName: "Radius (km)",
+      field: "postcodes",
+      headerName: "Postcodes",
       flex: 0.18,
-      minWidth: 200,
-      align: "center",
-    },
-    {
-      field: "coordinates",
-      headerName: "Coordinates",
-      flex: 0.15,
-      minWidth: 200,
-      align: "center",
+      minWidth: 180,
+      align: "left",
     },
     {
       field: "currency",
       headerName: "Currency",
-      flex: 0.1,
-      minWidth: 130,
-      type: "number",
+      flex: 0.12,
+      minWidth: 120,
       align: "center",
     },
     {
       field: "paymentMethod",
       headerName: "Payment Method",
       flex: 0.12,
-      minWidth: 200,
+      minWidth: 130,
       align: "center",
     },
     {
-      field: "deliveryCharges",
-      headerName: "Deliver Charges",
+      field: "zoneMinimumAmount",
+      headerName: "Zone Minimum",
       flex: 0.12,
-      minWidth: 200,
+      minWidth: 120,
       align: "center",
     },
     {
-      field: "noOfShops",
-      headerName: "No of Shops",
-      flex: 0.12,
-      minWidth: 200,
-      align: "center",
-    },
-    {
-      field: "expressDelivery",
-      headerName: "Express Delivery",
-      flex: 0.12,
-      minWidth: 200,
-      align: "center",
-    },
-    {
-      field: "zoneAssign",
-      headerName: "Zone Assign",
-      flex: 0.12,
-      minWidth: 200,
+      field: "serviceFee",
+      headerName: "Service Fee",
+      flex: 0.1,
+      minWidth: 110,
       align: "center",
     },
     {
       field: "commission",
       headerName: "Agent commission %",
       flex: 0.12,
-      minWidth: 200,
+      minWidth: 150,
       align: "center",
     },
-
+    {
+      field: "noOfShops",
+      headerName: "No of Shops",
+      flex: 0.1,
+      minWidth: 110,
+      align: "center",
+    },
+    {
+      field: "zoneAssign",
+      headerName: "Zone Assign",
+      flex: 0.14,
+      minWidth: 140,
+      align: "center",
+    },
     {
       field: "actions",
       headerName: "Actions",
-      flex: 0.15,
-      minWidth: 200,
+      flex: 0.12,
+      minWidth: 140,
       sortable: false,
       align: "center",
       renderCell: (params) => (
@@ -1051,6 +1188,7 @@ export default function ZoneManagement() {
       setEditPendingMapCenter(null);
       setIsEditPostcodesLoading(false);
       setPostcodeAddSectionVisible(true);
+      setEditBaselinePostcodesKey("");
       if (map) {
         map.setOptions({ draggableCursor: "pointer" });
       }
@@ -1058,6 +1196,7 @@ export default function ZoneManagement() {
       // Just open the modal for add
       setIsEditMode(false);
       setEditingZoneId(null);
+      setEditBaselinePostcodesKey("");
       setAdd((prev) => ({
         ...prev,
         open: true,
@@ -1167,6 +1306,12 @@ export default function ZoneManagement() {
           status: true,
           isActive: true,
         };
+        // If postcodes were not changed in the form, omit them so fee/min/commission
+        // updates are not blocked by London postcode re-validation / geocode.
+        const currentKey = postcodesFingerprint(postcodes);
+        if (editBaselinePostcodesKey && currentKey === editBaselinePostcodesKey) {
+          delete editPayload.postcodes;
+        }
         const result = await editZoneByPostcodes({
           id: editingZoneId,
           body: editPayload,
@@ -1184,11 +1329,9 @@ export default function ZoneManagement() {
       setMultiplePostcodeHighlights([]);
       setPostalCodeMarkers([]);
       setCoordinates([]);
+      setEditBaselinePostcodesKey("");
       handleToggle();
-
-      // Refetch zones to show the updated list
-      refetchZones();
-
+      // Zones LIST + detail tags invalidated by the mutation — no manual refetch.
     } catch (err) {
       console.error("Error adding zone:", err);
       showError(err?.data?.message || "Failed to add zone. Please try again.");
@@ -1196,37 +1339,21 @@ export default function ZoneManagement() {
   };
 
 
-  const handleDateChange = (selectedRange) => {
-    console.log("Selected Date Range:", selectedRange);
-    setDateRange(selectedRange);
-
-    // You can use the date range for filtering zones
-    if (selectedRange) {
-      console.log(
-        "Start Date:",
-        selectedRange.startDate.format(dateTimeFormat)
-      );
-      console.log("End Date:", selectedRange.endDate.format(dateTimeFormat));
-      console.log("Label:", selectedRange.label);
-      console.log("Type:", selectedRange.type);
+  const handleDownload = () => {
+    if (!filteredZonesData?.length) {
+      showError("No zones to download.");
+      return;
     }
+    downloadZonesCsv(filteredZonesData, zoneColumns);
+    success("Zones CSV downloaded.");
   };
 
-  const handleSearchChange = (searchTerm) => {
-    setSearchTerm(searchTerm);
-    console.log("Search term:", searchTerm);
-    // Implement search logic here - filter the zonesData
+  const clearZoneFilters = () => {
+    setFilterCity("");
+    setFilterPaymentMethod("");
+    setFilterAssignment("");
   };
 
-  const handleFilter = () => {
-    console.log("Filter button clicked");
-    // Open filter modal or apply filters
-  };
-
-  const handleDownload = (data) => {
-    console.log("Download zones data:", data);
-    // Implement download functionality (CSV, Excel, etc.)
-  };
   const handelCountryChange = (e) => {
     const selectedCountryId = e.target.value;
     const selectedCountry = Array.isArray(countries)
@@ -1747,6 +1874,11 @@ export default function ZoneManagement() {
     const zoneMinimumNum = parseFloat(String(minRaw).trim());
     if (!Number.isFinite(zoneMinimumNum) || zoneMinimumNum < 0) return false;
 
+    const feeRaw = add.serviceCharge ?? add.deliveryCharges;
+    if (feeRaw === "" || feeRaw === null || feeRaw === undefined) return false;
+    const serviceFeeNum = parseFloat(String(feeRaw).trim());
+    if (!Number.isFinite(serviceFeeNum) || serviceFeeNum < 0) return false;
+
     const commRaw = add.zoneCommission;
     if (commRaw === "" || commRaw === null || commRaw === undefined) return false;
     const zoneCommissionNum = parseFloat(String(commRaw).trim());
@@ -1760,6 +1892,8 @@ export default function ZoneManagement() {
     add.cityId,
     add.zoneName,
     add.zoneMinimumAmount,
+    add.serviceCharge,
+    add.deliveryCharges,
     add.zoneCommission,
     add.zoneCurrency,
     addedPostcodes.length,
@@ -2119,14 +2253,14 @@ export default function ZoneManagement() {
                 </Box>
                 <Box className="flex flex-col gap-y-3">
                   <label htmlFor="zoneCommission" className="text-grey40">
-                    Agent commission %
+                    Agent commission % (paid to agent)
                   </label>
                   <InputFieldModal
                     name="zoneCommission"
                     type="number"
                     value={add.zoneCommission}
                     onChange={handleChange}
-                    placeholder="e.g. 80 — percent of order total paid to agent"
+                    placeholder="e.g. 80 — percent the agent/shop receives"
                   />
                 </Box>
 
@@ -2284,14 +2418,26 @@ export default function ZoneManagement() {
 
             <div className="w-full overflow-auto">
               <DataTable
-                data={zonesData}
+                data={filteredZonesData}
                 columns={zoneColumns}
-                searchPlaceholder="Search by zone name, city, area..."
-                onSearch={handleSearchChange}
-                onFilter={handleFilter}
-                onDateRangeChange={handleDateChange}
+                searchPlaceholder="Search by zone name, city, postcode..."
+                showDateRange={false}
+                showFilters={false}
+                filtersSlot={
+                  <ZoneFiltersPopover
+                    city={filterCity}
+                    onCityChange={setFilterCity}
+                    paymentMethod={filterPaymentMethod}
+                    onPaymentMethodChange={setFilterPaymentMethod}
+                    assignment={filterAssignment}
+                    onAssignmentChange={setFilterAssignment}
+                    cityOptions={zoneFilterCityOptions}
+                    paymentOptions={zoneFilterPaymentOptions}
+                    onClearFilters={clearZoneFilters}
+                    hasActiveFilters={hasZoneFilters}
+                  />
+                }
                 onDownload={handleDownload}
-                onRowAction={handleRowAction}
                 height={600}
               />
             </div>

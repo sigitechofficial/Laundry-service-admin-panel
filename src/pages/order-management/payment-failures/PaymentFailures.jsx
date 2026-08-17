@@ -80,6 +80,8 @@ export default function PaymentFailures() {
   });
 
   const failures = data?.data?.failures || [];
+  const failureTotal =
+    data?.data?.totalCount ?? data?.data?.count ?? failures.length;
 
   const tableData = useMemo(
     () =>
@@ -284,10 +286,16 @@ export default function PaymentFailures() {
       <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, mb: 2 }}>
         <BsCardList size={22} />
         <Typography variant="h4">Payment Failures</Typography>
+        <Typography variant="body2" color="text.secondary">
+          ({failureTotal})
+        </Typography>
       </Box>
       <Typography variant="body2" sx={{ mb: 2, color: "text.secondary" }}>
         Card auto-charge failures waiting for admin. Shift to cash, allow
         proceed, or keep waiting after customer support contact.
+        {failures.length < failureTotal
+          ? ` Showing ${failures.length} of ${failureTotal}.`
+          : null}
       </Typography>
       <DataTable
         data={tableData}

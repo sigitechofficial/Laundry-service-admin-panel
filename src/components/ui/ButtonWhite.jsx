@@ -14,9 +14,11 @@ export default function ButtonWhite({
   width,
   children,
   size = "large",
+  type = "button",
 }) {
   return (
     <Button
+      type={type}
       onClick={onClick}
       variant="outlined"
       sx={{

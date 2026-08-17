@@ -14,16 +14,29 @@ import DataTable from "../../../components/ui/DataTable";
 import useToaster from "../../../components/ui/Toaster";
 import dayjs from "dayjs";
 import { useNavigate } from "react-router-dom";
-import { useGetActionRequiredOrdersQuery } from "../../../store/services/api";
+import { useGetActionRequiredOrdersQuery, useGetAllOrderStatusesQuery } from "../../../store/services/api";
 import { dateTimeFormat } from "../../../shared/constants";
+import OrderZoneFilter from "../OrderZoneFilter";
+import OrderFiltersPopover from "../OrderFiltersPopover";
+import {
+  LabelValue,
+  resolveOrderSchedulePhase,
+} from "../orderListTable";
 
+/**
+ * Column roles:
+ * - Status → booking pipeline state
+ * - Why action needed → admin exception reason chip(s)
+ * - Pickup & delivery → scheduled slots (same pattern as other order tabs)
+ */
 const FILTERS = [
   { value: "all", label: "All" },
   { value: "payment_failed", label: "Payment" },
   { value: "on_hold", label: "On hold" },
   { value: "needs_assignment", label: "Unassigned shop" },
-  { value: "needs_staff", label: "Needs staff" },
+  { value: "overdue_pickup", label: "Overdue pickup" },
   { value: "pickup_reschedule", label: "Pickup" },
+  { value: "overdue_delivery", label: "Overdue delivery" },
   { value: "delivery_failed", label: "Delivery" },
 ];
 
@@ -31,8 +44,9 @@ const REASON_COLORS = {
   payment_failed: "error",
   on_hold: "warning",
   needs_assignment: "warning",
-  needs_staff: "warning",
+  overdue_pickup: "warning",
   pickup_reschedule: "info",
+  overdue_delivery: "warning",
   delivery_failed: "error",
 };
 
@@ -46,12 +60,64 @@ function openPathForItem(item) {
   return `/orders/details/${item.id}`;
 }
 
+function schedulePhaseForRow(row) {
+  const reasons = row.reasons || [];
+  if (
+    reasons.includes("overdue_pickup") ||
+    reasons.includes("pickup_reschedule")
+  ) {
+    return "pickup";
+  }
+  if (
+    reasons.includes("overdue_delivery") ||
+    reasons.includes("delivery_failed")
+  ) {
+    return "delivery";
+  }
+  return resolveOrderSchedulePhase(row, row.bookingStatusTitle);
+}
+
 export default function ActionRequiredOrders() {
   const navigate = useNavigate();
   const { error: showError } = useToaster();
   const [filter, setFilter] = useState("all");
-  const { data, isLoading, isError, refetch, isFetching } =
-    useGetActionRequiredOrdersQuery();
+  const [zoneId, setZoneId] = useState("");
+  const [statusId, setStatusId] = useState("");
+  const [dateRange, setDateRange] = useState(null);
+
+  const { data: statusesResponse } = useGetAllOrderStatusesQuery();
+  const orderStatuses = useMemo(
+    () => (Array.isArray(statusesResponse?.data) ? statusesResponse.data : []),
+    [statusesResponse?.data]
+  );
+
+  const listParams = useMemo(() => {
+    const params = {};
+    if (filter !== "all") params.reason = filter;
+    if (zoneId != null && String(zoneId).trim() !== "") {
+      params.zoneId = String(zoneId);
+    }
+    if (dateRange?.startDate && dateRange?.endDate) {
+      params.startDate = dayjs(dateRange.startDate).format("YYYY-MM-DD");
+      params.endDate = dayjs(dateRange.endDate).format("YYYY-MM-DD");
+    }
+    return params;
+  }, [filter, zoneId, dateRange]);
+
+  const hasActiveFilters = Boolean(
+    (zoneId != null && String(zoneId).trim() !== "") ||
+      (statusId != null && String(statusId).trim() !== "") ||
+      (dateRange?.startDate && dateRange?.endDate)
+  );
+
+  const clearFilters = () => {
+    setZoneId("");
+    setStatusId("");
+    setDateRange(null);
+  };
+
+  const { data, currentData, isLoading, isError, refetch, isFetching } =
+    useGetActionRequiredOrdersQuery(listParams);
 
   useEffect(() => {
     if (isError) {
@@ -59,37 +125,56 @@ export default function ActionRequiredOrders() {
     }
   }, [isError, showError]);
 
-  const items = data?.data?.items || [];
-  const countsByReason = data?.data?.countsByReason || {};
-  const total = data?.data?.count ?? items.length;
+  const payload = currentData ?? (isFetching ? undefined : data);
+  const items = payload?.data?.items || [];
+  const countsByReason = payload?.data?.countsByReason || {};
+  const total =
+    payload?.data?.totalCount ?? payload?.data?.count ?? items.length;
 
-  const filtered = useMemo(() => {
-    if (filter === "all") return items;
-    return items.filter((row) => (row.reasons || []).includes(filter));
-  }, [items, filter]);
+  const visibleItems = useMemo(() => {
+    if (statusId == null || String(statusId).trim() === "") return items;
+    const want = Number(statusId);
+    return items.filter((row) => Number(row.bookingStatusId) === want);
+  }, [items, statusId]);
+
+  const listCount = visibleItems.length;
 
   const tableData = useMemo(
     () =>
-      filtered.map((row) => ({
-        id: row.id,
-        orderId: row.orderTrackId || String(row.id),
-        customer: row.customer?.name || "—",
-        phone: row.customer?.phoneNum || "—",
-        zone: row.zoneName || "—",
-        status: row.bookingStatusTitle || `Status ${row.bookingStatusId}`,
-        reasons: row.reasonLabels || [],
-        reasonKeys: row.reasons || [],
-        detail:
-          row.paymentFailureReason ||
-          (row.pickupRescheduleRequired
-            ? "Customer must reschedule pickup"
-            : "—"),
-        updatedAt: row.updatedAt
-          ? dayjs(row.updatedAt).format(dateTimeFormat)
-          : "—",
-        raw: row,
-      })),
-    [filtered]
+      visibleItems.map((row) => {
+        const placedRaw = row.createdAt;
+        const pickupDateTime = row.collectionDate
+          ? dayjs(row.collectionDate).format(dateTimeFormat)
+          : "—";
+        const deliveryDateTime = row.deliveryDate
+          ? dayjs(row.deliveryDate).format(dateTimeFormat)
+          : "—";
+        return {
+          id: row.id,
+          orderId: row.orderTrackId || String(row.id),
+          orderPlacedAt: placedRaw ? dayjs(placedRaw).valueOf() : 0,
+          orderPlaced: placedRaw
+            ? dayjs(placedRaw).format(dateTimeFormat)
+            : "—",
+          customer: row.customer?.name || "—",
+          phone: row.customer?.phoneNum || "—",
+          zone: row.zoneName || "—",
+          status: row.bookingStatusTitle || `Status ${row.bookingStatusId}`,
+          reasons: row.reasonLabels || [],
+          reasonKeys: row.reasons || [],
+          pickupAt: row.collectionDate
+            ? dayjs(row.collectionDate).valueOf()
+            : 0,
+          pickupDateTime,
+          deliveryDateTime,
+          schedulePhase: schedulePhaseForRow(row),
+          updatedAt: row.updatedAt
+            ? dayjs(row.updatedAt).format(dateTimeFormat)
+            : "—",
+          raw: row,
+        };
+      }),
+    [visibleItems]
   );
 
   const columns = useMemo(
@@ -109,10 +194,43 @@ export default function ActionRequiredOrders() {
           </Typography>
         ),
       },
+      {
+        field: "orderPlaced",
+        headerName: "Order placed",
+        minWidth: 170,
+        sortField: "orderPlacedAt",
+      },
       { field: "customer", headerName: "Customer", minWidth: 140 },
       { field: "phone", headerName: "Phone", minWidth: 120 },
       { field: "zone", headerName: "Zone", minWidth: 100 },
-      { field: "status", headerName: "Status", minWidth: 130 },
+      {
+        field: "pickupAt",
+        headerName: "Pickup & delivery",
+        minWidth: 200,
+        wrap: true,
+        renderCell: (row) => (
+          <Box
+            sx={{ py: 0.5, lineHeight: 1.35, maxWidth: 280, whiteSpace: "normal" }}
+            title={`Pickup: ${row.pickupDateTime}\nDelivery: ${row.deliveryDateTime}`}
+          >
+            <LabelValue
+              label="Pickup"
+              value={row.pickupDateTime}
+              tone="pickup"
+              active={row.schedulePhase === "pickup"}
+              muted={row.schedulePhase === "delivery"}
+            />
+            <LabelValue
+              label="Delivery"
+              value={row.deliveryDateTime}
+              tone="delivery"
+              active={row.schedulePhase === "delivery"}
+              muted={row.schedulePhase === "pickup"}
+            />
+          </Box>
+        ),
+      },
+      { field: "status", headerName: "Status", minWidth: 150 },
       {
         field: "reasons",
         headerName: "Why action needed",
@@ -132,12 +250,6 @@ export default function ActionRequiredOrders() {
             ))}
           </Stack>
         ),
-      },
-      {
-        field: "detail",
-        headerName: "Detail",
-        minWidth: 200,
-        wrap: true,
       },
       { field: "updatedAt", headerName: "Updated", minWidth: 150 },
       {
@@ -170,11 +282,20 @@ export default function ActionRequiredOrders() {
       <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, mb: 1 }}>
         <BsCardList size={22} />
         <Typography variant="h4">Action Required</Typography>
-        <Chip label={`${total} orders`} color="warning" size="small" />
+        <Chip
+          label={
+            filter === "all"
+              ? `${total} orders`
+              : `${listCount} in this filter · ${total} total`
+          }
+          color="warning"
+          size="small"
+        />
       </Box>
       <Typography variant="body2" sx={{ mb: 2, color: "text.secondary" }}>
-        Orders that need admin attention — payment failures, on hold, unassigned
-        shops, failed pickup/delivery. Clear blockers from this list first.
+        Status is the order pipeline. Why action needed is the admin blocker.
+        Pickup & delivery shows the scheduled slots. Use zone and order-placed
+        date like other order tabs; reason tabs above narrow the blocker type.
       </Typography>
 
       <Stack
@@ -191,7 +312,11 @@ export default function ActionRequiredOrders() {
           onChange={(_e, v) => v && setFilter(v)}
         >
           {FILTERS.map((f) => (
-            <ToggleButton key={f.value} value={f.value} sx={{ textTransform: "none" }}>
+            <ToggleButton
+              key={f.value}
+              value={f.value}
+              sx={{ textTransform: "none" }}
+            >
               {f.label}
               {f.value !== "all" && countsByReason[f.value] != null
                 ? ` (${countsByReason[f.value]})`
@@ -215,12 +340,33 @@ export default function ActionRequiredOrders() {
         data={tableData}
         columns={columns}
         searchPlaceholder="Search action-required orders..."
-        stickyLeftFields={["orderId"]}
+        stickyLeftFields={["orderId", "orderPlaced"]}
         stickyRightFields={["actions"]}
-        emptyMessage="No action-required orders — you're clear."
+        emptyMessage={
+          hasActiveFilters
+            ? "No orders match these filters"
+            : filter === "all"
+              ? "No action-required orders — you're clear."
+              : `No orders in “${FILTERS.find((f) => f.value === filter)?.label || filter}”.`
+        }
         isLoading={isFetching && !isLoading}
-        showDateRange={false}
+        showDateRange
+        dateRangeValue={dateRange}
+        onDateRangeChange={setDateRange}
         showDownload={false}
+        toolbarExtra={
+          <OrderZoneFilter value={zoneId} onChange={setZoneId} />
+        }
+        filtersSlot={
+          <OrderFiltersPopover
+            statusId={statusId}
+            onStatusChange={setStatusId}
+            orderStatuses={orderStatuses}
+            showStatusFilter
+            onClearFilters={clearFilters}
+            hasActiveFilters={hasActiveFilters}
+          />
+        }
       />
     </Box>
   );

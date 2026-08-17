@@ -92,7 +92,7 @@ export default function CancelledOrders() {
 
               <StatCard
                 title="Cancelled ORDERS"
-                value={dashboardStats.cancelled}
+                value={totalRows}
                 bgColor="bg-green50"
               />
             </div>
@@ -101,8 +101,8 @@ export default function CancelledOrders() {
               variant="body2"
               sx={{ fontSize: 13, color: "text.secondary", mt: -4 }}
             >
-              Cancelled count is system-wide ({totalRows} in this list). Table is
-              paginated — use the footer to browse all cancelled orders.
+              Cancelled list ({totalRows} matching filters). Table is paginated —
+              use the footer to browse all cancelled orders.
             </Typography>
 
             <div className="w-full min-w-0">

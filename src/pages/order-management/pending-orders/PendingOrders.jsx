@@ -99,7 +99,7 @@ export default function PendingOrders() {
 
               <StatCard
                 title="Pending ORDERS"
-                value={dashboardStats.pending}
+                value={totalRows}
                 bgColor="bg-green50"
               />
             </div>
@@ -108,8 +108,9 @@ export default function PendingOrders() {
               variant="body2"
               sx={{ fontSize: 13, color: "text.secondary", mt: -4 }}
             >
-              Pending list ({totalRows} matching filters). Table is paginated —
-              use the footer to browse all pending orders.
+              Pending list matches the sidebar badge filter ({totalRows}{" "}
+              matching). Table is paginated — use the footer to browse all
+              pending orders.
             </Typography>
 
             <div className="w-full min-w-0">
