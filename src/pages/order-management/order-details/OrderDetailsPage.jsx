@@ -2574,6 +2574,15 @@ export default function OrderDetailsPage() {
                       : ""}
                   </Typography>
                 ) : null}
+                {orderData?.geofenceCompliance?.hasAnyOverride ? (
+                  <Chip
+                    size="small"
+                    color="warning"
+                    variant="outlined"
+                    label="Geofence override recorded"
+                    sx={{ mt: 1 }}
+                  />
+                ) : null}
               </Box>
               <Box>
                 <Typography variant="caption" sx={{ color: "#059669", fontWeight: 700, fontSize: 10 }}>

@@ -208,6 +208,18 @@ export const PlatformOperationalHours = lazy(() =>
   import("../pages/policies-management/PlatformOperationalHours")
 );
 
+export const RuntimeChecks = lazy(() =>
+  import("../pages/policies-management/RuntimeChecks")
+);
+
+export const FailAttemptInstructionsPage = lazy(() =>
+  import("../pages/policies-management/FailAttemptInstructionsPage")
+);
+
+export const LocationCompliancePage = lazy(() =>
+  import("../pages/policies-management/LocationCompliancePage")
+);
+
 export const PromoCodesPage = lazy(() =>
   import("../pages/promotion/PromoCodesPage")
 );

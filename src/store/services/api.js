@@ -4,7 +4,7 @@ import baseQueryWithReauth from "./baseQueryWithReauth";
 export const api = createApi({
   reducerPath: "api",
   baseQuery: baseQueryWithReauth,
-  tagTypes: ["ServiceConfig", "SupportContact", "PlatformOperationalHours", "Orders", "Coupons", "Banners", "AccountDeletionReasons", "ReviewReasonCodes", "ShopReviews", "ShopRatingsReport", "PendingAgents", "RejectedAgents", "AgentSettlement", "NotifyLogs", "PaymentFailures", "AdminNotificationPreferences", "ActionRequiredOrders", "RepairGarments", "RepairOptions", "Zones"],
+  tagTypes: ["ServiceConfig", "SupportContact", "PlatformOperationalHours", "RuntimeSettings", "Orders", "Coupons", "Banners", "AccountDeletionReasons", "ReviewReasonCodes", "ShopReviews", "ShopRatingsReport", "PendingAgents", "RejectedAgents", "AgentSettlement", "NotifyLogs", "PaymentFailures", "AdminNotificationPreferences", "ActionRequiredOrders", "RepairGarments", "RepairOptions", "Zones"],
 
   endpoints: (builder) => {
     const normalizeServiceId = (id) => {
@@ -1711,7 +1711,7 @@ export const api = createApi({
     updateReschedulePolicy: builder.mutation({
       query: ({ id, body }) => ({
         url: `admin/updateReschedulePolicy/${id}`,
-        method: "PATCH",
+        method: "PUT",
         body,
       }),
     }),
@@ -1815,6 +1815,112 @@ export const api = createApi({
         body,
       }),
       invalidatesTags: ["PlatformOperationalHours"],
+    }),
+
+    getRuntimeSettings: builder.query({
+      query: () => ({
+        url: "admin/runtimeSettings",
+        method: "GET",
+      }),
+      providesTags: ["RuntimeSettings"],
+    }),
+
+    updateRuntimeSettings: builder.mutation({
+      query: (body) => ({
+        url: "admin/runtimeSettings",
+        method: "PUT",
+        body,
+      }),
+      invalidatesTags: ["RuntimeSettings"],
+    }),
+
+    getFailAttemptInstructionSets: builder.query({
+      query: (scope) => ({
+        url: scope
+          ? `admin/failAttemptInstructions?scope=${scope}`
+          : "admin/failAttemptInstructions",
+        method: "GET",
+      }),
+      providesTags: ["FailAttemptInstructions"],
+    }),
+
+    createFailAttemptInstruction: builder.mutation({
+      query: ({ setId, ...body }) => ({
+        url: `admin/failAttemptInstructions/${setId}/items`,
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: ["FailAttemptInstructions"],
+    }),
+
+    updateFailAttemptInstruction: builder.mutation({
+      query: ({ instructionId, ...body }) => ({
+        url: `admin/failAttemptInstructions/items/${instructionId}`,
+        method: "PATCH",
+        body,
+      }),
+      invalidatesTags: ["FailAttemptInstructions"],
+    }),
+
+    reorderFailAttemptInstructions: builder.mutation({
+      query: ({ setId, orderedIds }) => ({
+        url: `admin/failAttemptInstructions/${setId}/reorder`,
+        method: "POST",
+        body: { orderedIds },
+      }),
+      invalidatesTags: ["FailAttemptInstructions"],
+    }),
+
+    createZoneFailAttemptSet: builder.mutation({
+      query: (body) => ({
+        url: "admin/failAttemptInstructions/zone-set",
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: ["FailAttemptInstructions"],
+    }),
+
+    setFailAttemptSetActive: builder.mutation({
+      query: ({ setId, isActive }) => ({
+        url: `admin/failAttemptInstructions/${setId}/active`,
+        method: "PATCH",
+        body: { isActive },
+      }),
+      invalidatesTags: ["FailAttemptInstructions"],
+    }),
+
+    getGeofenceOverrideReport: builder.query({
+      query: (params = {}) => {
+        const q = new URLSearchParams();
+        Object.entries(params).forEach(([k, v]) => {
+          if (v != null && v !== "") q.set(k, v);
+        });
+        const qs = q.toString();
+        return {
+          url: qs
+            ? `admin/compliance/geofence-overrides?${qs}`
+            : "admin/compliance/geofence-overrides",
+          method: "GET",
+        };
+      },
+      providesTags: ["ComplianceReport"],
+    }),
+
+    getComplianceEvents: builder.query({
+      query: (params = {}) => {
+        const q = new URLSearchParams();
+        Object.entries(params).forEach(([k, v]) => {
+          if (v != null && v !== "") q.set(k, v);
+        });
+        const qs = q.toString();
+        return {
+          url: qs
+            ? `admin/compliance/events?${qs}`
+            : "admin/compliance/events",
+          method: "GET",
+        };
+      },
+      providesTags: ["ComplianceEvents"],
     }),
 
     getAllCoupons: builder.query({
@@ -2077,6 +2183,16 @@ export const {
   useGetSupportContactQuery,
   useGetPlatformOperationalHoursQuery,
   useUpdatePlatformOperationalHoursMutation,
+  useGetRuntimeSettingsQuery,
+  useUpdateRuntimeSettingsMutation,
+  useGetFailAttemptInstructionSetsQuery,
+  useCreateFailAttemptInstructionMutation,
+  useUpdateFailAttemptInstructionMutation,
+  useReorderFailAttemptInstructionsMutation,
+  useCreateZoneFailAttemptSetMutation,
+  useSetFailAttemptSetActiveMutation,
+  useGetGeofenceOverrideReportQuery,
+  useGetComplianceEventsQuery,
   useGetBookingAssignableShopsQuery,
   useAssignBookingToShopMutation,
   useGetAllCouponsQuery,

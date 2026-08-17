@@ -202,6 +202,16 @@ export const sidebarList = [
         size: "24px",
       },
       {
+        label: "Fail attempt instructions",
+        path: "/policies-management/fail-attempt-instructions",
+        size: "24px",
+      },
+      {
+        label: "Location compliance",
+        path: "/policies-management/location-compliance",
+        size: "24px",
+      },
+      {
         label: "Reschedule Policy",
         path: "/policies-management/reschedule-policy",
         size: "24px",
@@ -209,6 +219,11 @@ export const sidebarList = [
       {
         label: "Operational Hours",
         path: "/policies-management/platform-operational-hours",
+        size: "24px",
+      },
+      {
+        label: "Runtime checks",
+        path: "/policies-management/runtime-checks",
         size: "24px",
       },
     ],

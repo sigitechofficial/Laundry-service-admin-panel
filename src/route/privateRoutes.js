@@ -45,6 +45,9 @@ import {
   NoShowPolicy,
   ReschedulePolicy,
   PlatformOperationalHours,
+  RuntimeChecks,
+  FailAttemptInstructionsPage,
+  LocationCompliancePage,
   PromoCodesPage,
   BannersPage,
   NotifyLogsPage,
@@ -289,6 +292,21 @@ export const privateRoutes = [
     path: "/policies-management/platform-operational-hours",
     element: PlatformOperationalHours,
     resourceKey: "platform_operational_hours_page",
+  },
+  {
+    path: "/policies-management/runtime-checks",
+    element: RuntimeChecks,
+    resourceKey: "policies_management_page",
+  },
+  {
+    path: "/policies-management/fail-attempt-instructions",
+    element: FailAttemptInstructionsPage,
+    resourceKey: "policies_management_page",
+  },
+  {
+    path: "/policies-management/location-compliance",
+    element: LocationCompliancePage,
+    resourceKey: "policies_management_page",
   },
   {
     path: "/promotion/promo-codes",
