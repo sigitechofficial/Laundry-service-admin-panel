@@ -973,6 +973,32 @@ export default function OrderDetailsPage() {
     personName(orderData?.deliveryCompletedBy) ||
     null;
 
+  const attemptRows = Array.isArray(orderData?.attempts) ? orderData.attempts : [];
+
+  const formatAttemptFeeLabel = (attempt) => {
+    const currency = attempt?.feeCurrency || "£";
+    const sep = String(currency).length > 1 ? " " : "";
+    const amount = Number(attempt?.feeAmount || 0).toFixed(2);
+    if (attempt?.feeCharged) return `Charged ${currency}${sep}${amount}`;
+    if (attempt?.feeWaived && attempt?.feeWaiveReason) {
+      return `No fee · ${attempt.feeWaiveReason}`;
+    }
+    return "No fee";
+  };
+
+  const attemptActivityRows = attemptRows
+    .filter((a) => String(a.status || "").toLowerCase() === "failed")
+    .map((a) => {
+      const type = String(a.attemptType || "attempt");
+      const reason = a.failureReasonLabel || a.failureReason || "Reason not recorded";
+      return {
+        text: `${type} failed · ${reason} · ${formatAttemptFeeLabel(a)}`,
+        time: dayjs(a.failedAt || a.updatedAt).isValid()
+          ? dayjs(a.failedAt || a.updatedAt).format("ddd DD MMM · HH:mm")
+          : "—",
+      };
+    });
+
   const assignmentActivityRows = (orderData?.assignmentEvents || []).map((ev) => {
     const action = String(ev.action || "").toLowerCase();
     const leg = String(ev.assignmentType || "leg");
@@ -996,6 +1022,7 @@ export default function OrderDetailsPage() {
   });
 
   const activityRows = [
+    ...attemptActivityRows,
     ...assignmentActivityRows,
     {
       text: `Order ${statusBadge.label.toLowerCase()}`,
@@ -2631,6 +2658,108 @@ export default function OrderDetailsPage() {
                   </Typography>
                 ) : null}
               </Box>
+            </Box>
+          </Paper>
+
+          <Paper sx={CARD_SX}>
+            <Box sx={SECTION_HEADER_SX}>
+              <Box className="flex items-center gap-1.5">
+                <Box sx={{ width: 6, height: 6, borderRadius: "50%", bgcolor: "#F87171" }} />
+                <Typography
+                  variant="caption"
+                  color="text.secondary"
+                  sx={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}
+                >
+                  Attempt outcomes
+                </Typography>
+              </Box>
+            </Box>
+            <Box sx={{ p: 2.5 }} className="space-y-3">
+              {attemptRows.length ? (
+                attemptRows.map((attempt) => {
+                  const failed = String(attempt.status || "").toLowerCase() === "failed";
+                  const feeCharged = Boolean(attempt.feeCharged);
+                  return (
+                    <Box
+                      key={attempt.id}
+                      sx={{
+                        p: 1.5,
+                        borderRadius: "10px",
+                        border: "1px solid #E5E7EB",
+                        bgcolor: failed ? "#FFF7F7" : "#F8FAFC",
+                      }}
+                    >
+                      <Box className="flex items-center justify-between gap-2" sx={{ mb: 0.75 }}>
+                        <Typography
+                          variant="caption"
+                          sx={{
+                            fontWeight: 700,
+                            fontSize: 10,
+                            letterSpacing: "0.06em",
+                            textTransform: "uppercase",
+                            color: attempt.attemptType === "delivery" ? "#059669" : "#2563EB",
+                          }}
+                        >
+                          {attempt.attemptType || "attempt"} #{attempt.attemptNumber || "—"}
+                        </Typography>
+                        <Chip
+                          size="small"
+                          label={String(attempt.status || "—")}
+                          sx={{
+                            height: 22,
+                            fontSize: 11,
+                            fontWeight: 700,
+                            textTransform: "capitalize",
+                            bgcolor: failed ? "#FEE2E2" : "#E2E8F0",
+                            color: failed ? "#991B1B" : "#334155",
+                          }}
+                        />
+                      </Box>
+                      {failed ? (
+                        <>
+                          <Typography variant="body2" sx={{ fontSize: 13, fontWeight: 600, color: "#0F172A" }}>
+                            {attempt.failureReasonLabel || attempt.failureReason || "Reason not recorded"}
+                          </Typography>
+                          {attempt.failureReasonNote ? (
+                            <Typography variant="caption" sx={{ display: "block", mt: 0.5, color: "#64748B" }}>
+                              Note: {attempt.failureReasonNote}
+                            </Typography>
+                          ) : null}
+                          <Chip
+                            size="small"
+                            label={formatAttemptFeeLabel(attempt)}
+                            sx={{
+                              mt: 1,
+                              height: 22,
+                              fontSize: 11,
+                              fontWeight: 700,
+                              bgcolor: feeCharged ? "#FFEDD5" : "#D1FAE5",
+                              color: feeCharged ? "#9A3412" : "#065F46",
+                            }}
+                          />
+                        </>
+                      ) : (
+                        <Typography variant="caption" sx={{ color: "#64748B" }}>
+                          {attempt.completedAt
+                            ? `Completed ${dayjs(attempt.completedAt).isValid()
+                                ? dayjs(attempt.completedAt).format("DD MMM YYYY · HH:mm")
+                                : ""}`
+                            : String(attempt.status || "Open")}
+                        </Typography>
+                      )}
+                      {attempt.driverName ? (
+                        <Typography variant="caption" sx={{ display: "block", mt: 0.75, color: "#94A3B8" }}>
+                          By {attempt.driverName}
+                        </Typography>
+                      ) : null}
+                    </Box>
+                  );
+                })
+              ) : (
+                <Typography variant="body2" sx={{ color: "#94A3B8", fontSize: 13 }}>
+                  No pickup or delivery attempts recorded yet.
+                </Typography>
+              )}
             </Box>
           </Paper>
 

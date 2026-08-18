@@ -4,7 +4,7 @@ import baseQueryWithReauth from "./baseQueryWithReauth";
 export const api = createApi({
   reducerPath: "api",
   baseQuery: baseQueryWithReauth,
-  tagTypes: ["ServiceConfig", "SupportContact", "PlatformOperationalHours", "RuntimeSettings", "Orders", "Coupons", "Banners", "AccountDeletionReasons", "ReviewReasonCodes", "ShopReviews", "ShopRatingsReport", "PendingAgents", "RejectedAgents", "AgentSettlement", "NotifyLogs", "PaymentFailures", "AdminNotificationPreferences", "ActionRequiredOrders", "RepairGarments", "RepairOptions", "Zones"],
+  tagTypes: ["ServiceConfig", "SupportContact", "PlatformOperationalHours", "RuntimeSettings", "Orders", "Coupons", "Banners", "AccountDeletionReasons", "ReviewReasonCodes", "ShopReviews", "ShopRatingsReport", "PendingAgents", "RejectedAgents", "AgentSettlement", "NotifyLogs", "PaymentFailures", "AdminNotificationPreferences", "ActionRequiredOrders", "RepairGarments", "RepairOptions", "Zones", "FailAttemptInstructions", "FailAttemptReasons"],
 
   endpoints: (builder) => {
     const normalizeServiceId = (id) => {
@@ -1889,6 +1889,34 @@ export const api = createApi({
       invalidatesTags: ["FailAttemptInstructions"],
     }),
 
+    getFailAttemptReasons: builder.query({
+      query: (scope) => ({
+        url: scope
+          ? `admin/failAttemptReasons?scope=${scope}`
+          : "admin/failAttemptReasons",
+        method: "GET",
+      }),
+      providesTags: ["FailAttemptReasons"],
+    }),
+
+    createFailAttemptReason: builder.mutation({
+      query: (body) => ({
+        url: "admin/failAttemptReasons",
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: ["FailAttemptReasons"],
+    }),
+
+    updateFailAttemptReason: builder.mutation({
+      query: ({ reasonId, ...body }) => ({
+        url: `admin/failAttemptReasons/${reasonId}`,
+        method: "PATCH",
+        body,
+      }),
+      invalidatesTags: ["FailAttemptReasons"],
+    }),
+
     getGeofenceOverrideReport: builder.query({
       query: (params = {}) => {
         const q = new URLSearchParams();
@@ -2191,6 +2219,9 @@ export const {
   useReorderFailAttemptInstructionsMutation,
   useCreateZoneFailAttemptSetMutation,
   useSetFailAttemptSetActiveMutation,
+  useGetFailAttemptReasonsQuery,
+  useCreateFailAttemptReasonMutation,
+  useUpdateFailAttemptReasonMutation,
   useGetGeofenceOverrideReportQuery,
   useGetComplianceEventsQuery,
   useGetBookingAssignableShopsQuery,

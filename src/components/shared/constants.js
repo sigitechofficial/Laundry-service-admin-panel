@@ -202,7 +202,7 @@ export const sidebarList = [
         size: "24px",
       },
       {
-        label: "Fail attempt instructions",
+        label: "Fail attempt settings",
         path: "/policies-management/fail-attempt-instructions",
         size: "24px",
       },

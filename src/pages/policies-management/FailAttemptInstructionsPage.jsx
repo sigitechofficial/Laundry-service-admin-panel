@@ -27,6 +27,7 @@ import {
 } from "../../store/services/api";
 import { Delay } from "../../components/shared/Loaders";
 import SelectField from "../../components/ui/SelectField";
+import FailAttemptReasonsSection from "./FailAttemptReasonsSection";
 
 function unwrapSets(res) {
   const d = res?.data !== undefined ? res.data : res;
@@ -37,6 +38,7 @@ function unwrapSets(res) {
 
 export default function FailAttemptInstructionsPage() {
   const { success, error: showError } = useToaster();
+  const [pageTab, setPageTab] = useState("checklist");
   const [scope, setScope] = useState("pickup");
   const [addOpen, setAddOpen] = useState(false);
   const [title, setTitle] = useState("");
@@ -131,13 +133,33 @@ export default function FailAttemptInstructionsPage() {
     }
   };
 
-  if (isLoading) return <Delay />;
-
   return (
     <Box sx={{ p: 3 }}>
       <Typography variant="h5" fontWeight={700} mb={1}>
-        Fail attempt instructions
+        Fail attempt settings
       </Typography>
+      <Typography color="text.secondary" mb={2}>
+        Reasons agents pick when an attempt fails, plus the checklist they
+        must acknowledge. Fee and no-fee reasons both appear in the app and
+        on the order.
+      </Typography>
+
+      <Tabs
+        value={pageTab}
+        onChange={(_, v) => setPageTab(v)}
+        sx={{ mb: 2, borderBottom: "1px solid #E5E7EB" }}
+      >
+        <Tab value="checklist" label="Checklist" />
+        <Tab value="reasons" label="Fail reasons" />
+      </Tabs>
+
+      {pageTab === "reasons" ? <FailAttemptReasonsSection /> : null}
+
+      {pageTab === "checklist" ? (
+      <>
+      {isLoading ? <Delay /> : null}
+      {!isLoading ? (
+      <>
       <Typography color="text.secondary" mb={2}>
         Checklist shown to agents before marking pickup or delivery failed.
         Disabled items never appear in the app. Required items must be
@@ -329,6 +351,10 @@ export default function FailAttemptInstructionsPage() {
           </Button>
         </DialogActions>
       </Dialog>
+      </>
+      ) : null}
+      </>
+      ) : null}
     </Box>
   );
 }
