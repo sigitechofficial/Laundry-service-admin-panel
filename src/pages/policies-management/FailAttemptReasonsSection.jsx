@@ -50,6 +50,7 @@ export default function FailAttemptReasonsSection() {
   const [description, setDescription] = useState("");
   const [scope, setScope] = useState("both");
   const [chargesFee, setChargesFee] = useState(false);
+  const [requiresCompliance, setRequiresCompliance] = useState(false);
   const [requiresNote, setRequiresNote] = useState(false);
 
   const reasons = useMemo(() => unwrapReasons(data), [data]);
@@ -61,6 +62,7 @@ export default function FailAttemptReasonsSection() {
     setDescription("");
     setScope("both");
     setChargesFee(false);
+    setRequiresCompliance(false);
     setRequiresNote(false);
   };
 
@@ -82,6 +84,7 @@ export default function FailAttemptReasonsSection() {
         description: description.trim() || null,
         scope,
         chargesFee,
+        requiresCompliance,
         requiresNote,
         status: true,
       }).unwrap();
@@ -99,9 +102,9 @@ export default function FailAttemptReasonsSection() {
   return (
     <Box>
       <Typography color="text.secondary" mb={2}>
-        Agents must pick one of these reasons when marking pickup or delivery
-        failed. Reasons that charge a no-show fee and reasons that do not are
-        both shown in the app and on the order.
+        Agents pick a reason only — they never see fee vs no-fee. Fee outcome
+        stays on the order. Checklist appears in the app only when
+        “Checklist” is on.
       </Typography>
 
       <Alert severity="info" sx={{ mb: 2 }}>
@@ -142,6 +145,9 @@ export default function FailAttemptReasonsSection() {
                   />
                   {row.requiresNote ? (
                     <Chip size="small" variant="outlined" label="Note required" />
+                  ) : null}
+                  {row.requiresCompliance ? (
+                    <Chip size="small" variant="outlined" label="Checklist" />
                   ) : null}
                 </Stack>
                 <Typography fontWeight={700}>{row.label}</Typography>
@@ -194,6 +200,23 @@ export default function FailAttemptReasonsSection() {
                     />
                   }
                   label="Charges fee"
+                />
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={Boolean(row.requiresCompliance)}
+                      onChange={(e) =>
+                        toggleField(
+                          row,
+                          { requiresCompliance: e.target.checked },
+                          e.target.checked
+                            ? "Checklist required for this reason"
+                            : "Checklist skipped for this reason"
+                        )
+                      }
+                    />
+                  }
+                  label="Checklist"
                 />
                 <FormControlLabel
                   control={
@@ -257,6 +280,15 @@ export default function FailAttemptReasonsSection() {
                 />
               }
               label="May charge a no-show fee"
+            />
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={requiresCompliance}
+                  onChange={(e) => setRequiresCompliance(e.target.checked)}
+                />
+              }
+              label="Require on-site checklist in the agent app"
             />
             <FormControlLabel
               control={
