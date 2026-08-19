@@ -40,37 +40,25 @@ import {
 import AssignOrderModal from "../order-modals/AssignOrderModal";
 import OrderAssignActionButton from "../order-modals/OrderAssignActionButton";
 import { canAdminAssignOrReassignFromBooking } from "../../../shared/adminAssignGate";
-
-const statusStyleMap = {
-  completed: { bg: "#D1FAE5", color: "#065F46", label: "Completed" },
-  pending: { bg: "#FEF3C7", color: "#92400E", label: "Pending" },
-  cancelled: { bg: "#FEE2E2", color: "#991B1B", label: "Cancelled" },
-  hold: { bg: "#FEF3C7", color: "#92400E", label: "On Hold" },
-};
-
-const CARD_SX = {
-  borderRadius: "12px",
-  border: "1px solid #E5E7EB",
-  boxShadow: "0 1px 4px 0 rgb(0 0 0 / 0.06), 0 4px 16px -4px rgb(0 0 0 / 0.04)",
-  overflow: "hidden",
-};
-
-const SECTION_HEADER_SX = {
-  px: 2.5,
-  py: 1.75,
-  borderBottom: "1px solid #F1F5F9",
-  bgcolor: "#FFFFFF",
-};
+import {
+  OD,
+  CARD_SX,
+  SECTION_HEADER_SX,
+  sectionLabelSx,
+  primaryBtnSx,
+  secondaryBtnSx,
+  statusTone,
+  paymentTone,
+} from "./orderDetailsTheme";
+import {
+  OdSectionTitle,
+  OdMetaRow,
+  OdStatCell,
+  OdTimeline,
+} from "./OrderDetailsChrome";
 
 function getPaymentStatusBadge(status) {
-  const normalized = String(status || "pending").toLowerCase();
-  if (normalized === "paid") {
-    return { bg: "#D1FAE5", color: "#065F46", label: "Paid" };
-  }
-  if (normalized === "failed") {
-    return { bg: "#FEE2E2", color: "#991B1B", label: "Failed" };
-  }
-  return { bg: "#FEF3C7", color: "#92400E", label: "Pending" };
+  return paymentTone(status);
 }
 
 function formatPaymentType(value) {
@@ -85,12 +73,8 @@ function formatMoney(amount, symbol = "£") {
 }
 
 function getStatusBadge(status) {
-  const normalized = String(status || "").toLowerCase();
-  if (normalized.includes("complete")) return statusStyleMap.completed;
-  if (normalized.includes("pending")) return statusStyleMap.pending;
-  if (normalized.includes("cancel")) return statusStyleMap.cancelled;
-  if (normalized.includes("hold")) return statusStyleMap.hold;
-  return { bg: "#E5E7EB", color: "#374151", label: status || "Unknown" };
+  const tone = statusTone(status);
+  return { ...tone, label: status || "Unknown" };
 }
 
 function formatDateTime(date, timeFrom, timeTo, fallback = "N/A") {
@@ -626,6 +610,7 @@ export default function OrderDetailsPage() {
   });
   const [invoiceDetails, setInvoiceDetails] = useState(null);
   const [assignModalOpen, setAssignModalOpen] = useState(false);
+  const [customerCompareExpanded, setCustomerCompareExpanded] = useState(false);
   const selectedItemsServiceIdResolved =
     selectedItemsServiceId || selectedServiceGroups?.[0]?.serviceId || "";
 
@@ -996,6 +981,7 @@ export default function OrderDetailsPage() {
         time: dayjs(a.failedAt || a.updatedAt).isValid()
           ? dayjs(a.failedAt || a.updatedAt).format("ddd DD MMM · HH:mm")
           : "—",
+        tone: "error",
       };
     });
 
@@ -1018,6 +1004,7 @@ export default function OrderDetailsPage() {
       time: dayjs(ev.createdAt).isValid()
         ? dayjs(ev.createdAt).format("ddd DD MMM · HH:mm")
         : "—",
+      tone: action === "complete" ? "completed" : "system",
     };
   });
 
@@ -1031,6 +1018,9 @@ export default function OrderDetailsPage() {
         orderData?.deliveryTimeFrom,
         orderData?.deliveryTimeTo
       ),
+      tone: String(statusBadge.label || "").toLowerCase().includes("complete")
+        ? "completed"
+        : "system",
     },
     {
       text: `Items collected (${pickupItemsCount || 0})`,
@@ -1039,6 +1029,7 @@ export default function OrderDetailsPage() {
         orderData?.collectionTimeFrom,
         orderData?.collectionTimeTo
       ),
+      tone: pickupItemsCount > 0 ? "completed" : "system",
     },
     {
       text: "Order placed",
@@ -1047,6 +1038,7 @@ export default function OrderDetailsPage() {
             "ddd DD MMM · HH:mm"
           )
         : `Order #${orderData?.orderTrackId || orderData?.id}`,
+      tone: "neutral",
     },
   ];
 
@@ -1071,9 +1063,18 @@ export default function OrderDetailsPage() {
 
   return (
     <>
-    <Box sx={{ pb: 1, width: "100%", display: "flex", flexDirection: "column", gap: 2.5 }}>
-      <Paper sx={{ ...CARD_SX, px: 2.5, py: 1.75 }}>
-        <Box className="flex items-center justify-between gap-3 flex-wrap">
+    <Box
+      sx={{
+        pb: 1,
+        width: "100%",
+        display: "flex",
+        flexDirection: "column",
+        gap: 2,
+        fontFamily: OD.font,
+        maxWidth: 1240,
+      }}
+    >
+      <Box className="flex items-center justify-between gap-3 flex-wrap">
           <Box className="flex items-center gap-2">
             <button
               type="button"
@@ -1081,14 +1082,22 @@ export default function OrderDetailsPage() {
               aria-label="Go back"
               className="flex items-center justify-center p-1 rounded-lg hover:bg-grey50 transition-colors"
             >
-              <TbChevronLeft size={20} />
+              <TbChevronLeft size={20} color={OD.inkSoft} />
             </button>
             <Box>
-              <Typography sx={{ fontSize: 18, fontWeight: 700, color: "#0F172A" }}>
-                Order Details
+              <Typography sx={{ fontSize: 11, color: OD.inkFaint, fontFamily: OD.font, mb: 0.25 }}>
+                Order Management / Order details
               </Typography>
-              <Typography sx={{ fontSize: 12, color: "#64748B" }}>
-                #{orderData.orderTrackId || orderData.id}
+              <Typography
+                sx={{
+                  fontSize: 22,
+                  fontWeight: 700,
+                  color: OD.ink,
+                  fontFamily: OD.fontTight,
+                  lineHeight: 1.2,
+                }}
+              >
+                Order #{orderData.orderTrackId || orderData.id}
               </Typography>
             </Box>
           </Box>
@@ -1104,8 +1113,8 @@ export default function OrderDetailsPage() {
                 width: 40,
                 height: 40,
                 borderRadius: "8px",
-                borderColor: "#E2E8F0",
-                color: "#64748B",
+                borderColor: OD.line,
+                color: OD.inkSoft,
               }}
             >
               <TbChevronLeft size={22} />
@@ -1120,8 +1129,8 @@ export default function OrderDetailsPage() {
                 width: 40,
                 height: 40,
                 borderRadius: "8px",
-                borderColor: "#E2E8F0",
-                color: "#64748B",
+                borderColor: OD.line,
+                color: OD.inkSoft,
               }}
             >
               <TbChevronRight size={22} />
@@ -1131,17 +1140,7 @@ export default function OrderDetailsPage() {
                 variant="outlined"
                 onClick={handleOpenInvoiceModal}
                 disabled={isFetchingInvoice}
-                sx={{
-                  textTransform: "none",
-                  borderRadius: "8px",
-                  borderColor: "#D0D5DD",
-                  color: "#344054",
-                  bgcolor: "#fff",
-                  fontWeight: 600,
-                  fontSize: 13,
-                  minHeight: 40,
-                  px: 2,
-                }}
+                sx={secondaryBtnSx}
               >
                 {isFetchingInvoice ? "Loading..." : "View / Print Invoice"}
               </Button>
@@ -1156,225 +1155,144 @@ export default function OrderDetailsPage() {
             <Button
               variant="contained"
               onClick={() => navigate(`/orders/edit/${orderId}`)}
-              sx={{
-                textTransform: "none",
-                borderRadius: "8px",
-                bgcolor: "#000099",
-                color: "#fff",
-                fontWeight: 600,
-                fontSize: 13,
-                minHeight: 40,
-                px: 2,
-                "&:hover": { bgcolor: "#00007A" },
-              }}
+              sx={primaryBtnSx}
             >
               Edit Order
             </Button>
           </Box>
         </Box>
-      </Paper>
-      <Box className="grid grid-cols-1 xl:grid-cols-[1fr_304px] gap-5">
+      <Box className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-5">
         <Box sx={{ display: "flex", flexDirection: "column", rowGap: 2.5 }}>
           <Paper sx={CARD_SX}>
-            <Box sx={{ p: 2.5 }}>
+            <Box
+              sx={{
+                p: 2,
+                display: "flex",
+                flexWrap: "wrap",
+                alignItems: "center",
+                gap: 1.5,
+              }}
+            >
               <Box
                 sx={{
-                  display: "grid",
-                  gridTemplateColumns: { xs: "1fr", md: "1fr auto" },
-                  alignItems: "start",
-                  gap: 2,
+                  bgcolor: statusBadge.bg,
+                  color: statusBadge.color,
+                  px: 1.4,
+                  minHeight: 28,
+                  borderRadius: "999px",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 0.75,
                 }}
               >
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
-                  <Typography
-                    variant="caption"
-                    color="text.secondary"
-                    sx={{
-                      fontSize: 10,
-                      letterSpacing: "0.08em",
-                      fontWeight: 700,
-                      textTransform: "uppercase",
-                    }}
-                  >
-                    Order ID
-                  </Typography>
-                  <Typography
-                    fontFamily="Switzer"
-                    fontWeight={700}
-                    sx={{ lineHeight: 1.1, fontSize: 28, color: "#0F172A" }}
-                  >
-                    #{orderData.orderTrackId || orderData.id}
-                  </Typography>
-                  <Box className="flex items-center gap-2 flex-wrap">
-                    <Box
-                      sx={{
-                        bgcolor: statusBadge.bg,
-                        color: statusBadge.color,
-                        px: 1.6,
-                        minHeight: 26,
-                        borderRadius: "999px",
-                        display: "inline-flex",
-                        alignItems: "center",
-                        border: "1px solid rgba(0,0,0,0.08)",
-                      }}
-                    >
-                      <Typography variant="caption" fontWeight={700} sx={{ fontSize: 10 }}>
-                        {statusBadge.label}
-                      </Typography>
-                    </Box>
-                    {paymentWaitingAdmin ? (
-                      <Chip
-                        size="small"
-                        color="error"
-                        variant="filled"
-                        label="Payment hold — admin action"
-                        onClick={() => navigate("/orders/payment-failures")}
-                        sx={{ height: 26, fontWeight: 700, fontSize: 10, cursor: "pointer" }}
-                      />
-                    ) : null}
-                    <Box
-                      sx={{
-                        px: 1.3,
-                        minHeight: 26,
-                        borderRadius: "999px",
-                        bgcolor: "#EFF6FF",
-                        color: "#2563EB",
-                        border: "1px solid #BFDBFE",
-                        display: "inline-flex",
-                        alignItems: "center",
-                      }}
-                    >
-                      <Typography variant="caption" sx={{ fontWeight: 700, fontSize: 10 }}>
-                        {orderData.frequency || "Just Once"}
-                      </Typography>
-                    </Box>
-                  </Box>
-
-                  <Box
-                    sx={{
-                      mt: 1.5,
-                      display: "flex",
-                      flexWrap: "wrap",
-                      alignItems: "center",
-                      gap: 1,
-                      maxWidth: 520,
-                    }}
-                  >
-                    <Select
-                      value={selectedStatusId}
-                      onChange={(e) => setSelectedStatusId(e.target.value)}
-                      size="small"
-                      displayEmpty
-                      disabled={isUpdatingStatus || !orderStatusOptions.length}
-                      sx={{
-                        minWidth: 220,
-                        flex: "1 1 220px",
-                        height: 40,
-                        borderRadius: "8px",
-                        border: "1px solid #E2E8F0",
-                        bgcolor: "#fff",
-                        fontFamily: "Switzer",
-                        fontSize: 13,
-                        "& .MuiSelect-select": {
-                          py: "8px",
-                          px: "12px",
-                          display: "flex",
-                          alignItems: "center",
-                        },
-                        "& .MuiOutlinedInput-notchedOutline": { border: "none" },
-                      }}
-                      MenuProps={{
-                        PaperProps: { sx: { maxHeight: 320 } },
-                      }}
-                    >
-                      {orderStatusOptions.length ? (
-                        orderStatusOptions.map((option) => (
-                          <MenuItem key={option.id} value={String(option.id)}>
-                            {option.title}
-                          </MenuItem>
-                        ))
-                      ) : (
-                        <MenuItem value="" disabled>
-                          No status available
-                        </MenuItem>
-                      )}
-                    </Select>
-                    <Button
-                      variant="contained"
-                      onClick={handleUpdateStatus}
-                      disabled={
-                        isUpdatingStatus || !statusDirty || !selectedStatusId
-                      }
-                      sx={{
-                        textTransform: "none",
-                        borderRadius: "8px",
-                        bgcolor: "#000099",
-                        color: "#fff",
-                        fontWeight: 600,
-                        fontSize: 13,
-                        minHeight: 40,
-                        px: 2,
-                        "&:hover": { bgcolor: "#00007A" },
-                        "&.Mui-disabled": {
-                          bgcolor: "#CBD5E1",
-                          color: "#fff",
-                        },
-                      }}
-                    >
-                      {isUpdatingStatus ? "Updating..." : "Update Status"}
-                    </Button>
-                  </Box>
-                </Box>
-
-                <Box
+                <Box sx={{ width: 7, height: 7, borderRadius: "50%", bgcolor: statusBadge.dot || statusBadge.color }} />
+                <Typography sx={{ fontSize: 12, fontWeight: 700, fontFamily: OD.font }}>
+                  {statusBadge.label}
+                </Typography>
+              </Box>
+              <Box
+                sx={{
+                  px: 1.2,
+                  minHeight: 28,
+                  borderRadius: "999px",
+                  bgcolor: OD.accentSoft,
+                  color: OD.accent,
+                  border: `1px solid ${OD.accent}22`,
+                  display: "inline-flex",
+                  alignItems: "center",
+                }}
+              >
+                <Typography sx={{ fontWeight: 700, fontSize: 11, fontFamily: OD.font }}>
+                  {orderData.frequency || "Just Once"}
+                </Typography>
+              </Box>
+              {paymentWaitingAdmin ? (
+                <Chip
+                  size="small"
+                  label="Payment hold — admin action"
+                  onClick={() => navigate("/orders/payment-failures")}
                   sx={{
-                    display: "flex",
-                    justifyContent: "flex-end",
-                    gap: 1.2,
+                    height: 28,
+                    fontWeight: 700,
+                    fontSize: 10,
+                    cursor: "pointer",
+                    bgcolor: OD.redSoft,
+                    color: OD.red,
+                  }}
+                />
+              ) : null}
+
+              <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 1, ml: { md: "auto" } }}>
+                <Select
+                  value={selectedStatusId}
+                  onChange={(e) => setSelectedStatusId(e.target.value)}
+                  size="small"
+                  displayEmpty
+                  disabled={isUpdatingStatus || !orderStatusOptions.length}
+                  sx={{
+                    minWidth: 180,
+                    height: 40,
+                    borderRadius: "8px",
+                    border: `1px solid ${OD.line}`,
+                    bgcolor: "#fff",
+                    fontFamily: OD.font,
+                    fontSize: 13,
+                    "& .MuiSelect-select": {
+                      py: "8px",
+                      px: "12px",
+                      display: "flex",
+                      alignItems: "center",
+                    },
+                    "& .MuiOutlinedInput-notchedOutline": { border: "none" },
+                  }}
+                  MenuProps={{
+                    PaperProps: { sx: { maxHeight: 320 } },
                   }}
                 >
-                  <Paper
+                  {orderStatusOptions.length ? (
+                    orderStatusOptions.map((option) => (
+                      <MenuItem key={option.id} value={String(option.id)}>
+                        {option.title}
+                      </MenuItem>
+                    ))
+                  ) : (
+                    <MenuItem value="" disabled>
+                      No status available
+                    </MenuItem>
+                  )}
+                </Select>
+                <Button
+                  variant="contained"
+                  onClick={handleUpdateStatus}
+                  disabled={
+                    isUpdatingStatus || !statusDirty || !selectedStatusId
+                  }
+                  sx={primaryBtnSx}
+                >
+                  {isUpdatingStatus ? "Updating..." : "Update"}
+                </Button>
+                <Box sx={{ pl: { sm: 1.5 }, ml: { sm: 0.5 }, borderLeft: { sm: `1px solid ${OD.line}` } }}>
+                  <Typography sx={{ ...sectionLabelSx, mb: 0.25 }}>
+                    Order Total
+                  </Typography>
+                  <Typography
                     sx={{
-                      border: "1px solid #E2E8F0",
-                      borderRadius: "10px",
-                      boxShadow: "none",
-                      p: 1.5,
+                      fontFamily: OD.fontTight,
+                      fontWeight: 800,
+                      color: OD.accent,
+                      fontSize: 26,
+                      lineHeight: 1,
                     }}
                   >
-                    <Typography
-                      variant="caption"
-                      color="text.secondary"
-                      sx={{ fontSize: 10, textTransform: "uppercase", fontWeight: 700 }}
-                    >
-                      Order Total
-                    </Typography>
-                    <Typography
-                      fontFamily="Switzer"
-                      fontWeight={700}
-                      color="#0000A0"
-                      sx={{ mt: 0.35, fontSize: 24, lineHeight: 1 }}
-                    >
-                      ${orderTotal}
-                    </Typography>
-                  </Paper>
+                    {formatMoney(totalAmount, paymentCurrencySymbol)}
+                  </Typography>
                 </Box>
               </Box>
             </Box>
           </Paper>
 
           <Paper sx={CARD_SX}>
-            <Box sx={SECTION_HEADER_SX}>
-              <Box className="flex items-center gap-1.5">
-                <Box sx={{ width: 6, height: 6, borderRadius: "50%", bgcolor: "#93C5FD" }} />
-                <Typography
-                  variant="caption"
-                  color="text.secondary"
-                  sx={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}
-                >
-                  Collection & Delivery
-                </Typography>
-              </Box>
-            </Box>
+            <OdSectionTitle>Collection & Delivery</OdSectionTitle>
             <Box className="grid grid-cols-1 md:grid-cols-2" sx={{ bgcolor: "#FCFDFE" }}>
               <Box
                 sx={{
@@ -1385,18 +1303,18 @@ export default function OrderDetailsPage() {
               >
                 <Box className="flex items-center justify-between gap-2 mb-1.5">
                   <Box className="flex items-center gap-2">
-                    <TbFileDescription size={16} color="#2563EB" />
-                    <Typography variant="caption" sx={{ color: "#2563EB", fontWeight: 700, fontSize: 10, letterSpacing: "0.05em" }}>
+                    <TbFileDescription size={16} color={OD.accent} />
+                    <Typography variant="caption" sx={{ color: OD.accent, fontWeight: 700, fontSize: 10, letterSpacing: "0.05em", fontFamily: OD.font }}>
                       COLLECTION
                     </Typography>
                   </Box>
-                  <Box sx={{ px: 1.1, py: 0.35, borderRadius: "999px", bgcolor: "#EFF6FF", border: "1px solid #BFDBFE" }}>
-                    <Typography sx={{ fontSize: 10, color: "#1D4ED8", fontWeight: 700 }}>
-                      Pickup Window
+                  <Box sx={{ px: 1.1, py: 0.35, borderRadius: "999px", bgcolor: OD.accentSoft, border: `1px solid ${OD.accent}22` }}>
+                    <Typography sx={{ fontSize: 10, color: OD.accent, fontWeight: 700, fontFamily: OD.font }}>
+                      Pickup window
                     </Typography>
                   </Box>
                 </Box>
-                <Typography fontFamily="Switzer" fontWeight={700} sx={{ fontSize: 20, color: "#0F172A", lineHeight: 1.2 }}>
+                <Typography sx={{ fontFamily: OD.fontTight, fontWeight: 700, fontSize: 20, color: OD.ink, lineHeight: 1.2 }}>
                   {orderData.collectionTimeFrom || "N/A"} -{" "}
                   {orderData.collectionTimeTo || "N/A"}
                 </Typography>
@@ -1405,32 +1323,10 @@ export default function OrderDetailsPage() {
                     ? dayjs(orderData.collectionDate).format("ddd DD MMM YYYY")
                     : "N/A"}
                 </Typography>
-                <Box sx={{ mt: 2, pt: 1.6, borderTop: "1px solid #E9EEF5" }}>
-                  <TbFileDescription size={16} color="#2563EB" />
-                  <Typography
-                    variant="caption"
-                    color="text.secondary"
-                    sx={{ fontWeight: 700, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.06em" }}
-                  >
-                    Proof of Pickup
-                  </Typography>
-                  <Box sx={{ mt: 1, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1 }}>
-                    <Paper sx={{ p: 1, border: "1px solid #E2E8F0", boxShadow: "none", borderRadius: "8px", bgcolor: "#fff" }}>
-                      <Typography sx={{ fontSize: 10, color: "#64748B", textTransform: "uppercase", fontWeight: 700 }}>
-                        Items Counted
-                      </Typography>
-                      <Typography sx={{ fontSize: 14, fontWeight: 700, color: "#0F172A" }}>
-                        {pickupItemsDisplayCount || 0}
-                      </Typography>
-                    </Paper>
-                    <Paper sx={{ p: 1, border: "1px solid #E2E8F0", boxShadow: "none", borderRadius: "8px", bgcolor: "#fff" }}>
-                      <Typography sx={{ fontSize: 10, color: "#64748B", textTransform: "uppercase", fontWeight: 700 }}>
-                        Images
-                      </Typography>
-                      <Typography sx={{ fontSize: 14, fontWeight: 700, color: "#0F172A" }}>
-                        {pickupProofs.length || 0}
-                      </Typography>
-                    </Paper>
+                <Box sx={{ mt: 2, pt: 1.6, borderTop: `1px solid ${OD.line}` }}>
+                  <Box sx={{ mt: 0, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1 }}>
+                    <OdStatCell label="Items counted" value={pickupItemsDisplayCount || 0} warnZero />
+                    <OdStatCell label="Proof images" value={pickupProofs.length || 0} warnZero />
                   </Box>
                   {pickupProofs.some((p) => p.note) && (
                     <Paper
@@ -1448,17 +1344,17 @@ export default function OrderDetailsPage() {
                 <Box className="flex items-center justify-between gap-2 mb-1.5">
                   <Box className="flex items-center gap-2">
                     <MdOutlineStore size={16} color="#059669" />
-                    <Typography variant="caption" sx={{ color: "#059669", fontWeight: 700, fontSize: 10, letterSpacing: "0.05em" }}>
+                    <Typography variant="caption" sx={{ color: OD.green, fontWeight: 700, fontSize: 10, letterSpacing: "0.05em", fontFamily: OD.font }}>
                       DELIVERY
                     </Typography>
                   </Box>
-                  <Box sx={{ px: 1.1, py: 0.35, borderRadius: "999px", bgcolor: "#ECFDF5", border: "1px solid #A7F3D0" }}>
-                    <Typography sx={{ fontSize: 10, color: "#047857", fontWeight: 700 }}>
-                      Drop-off Window
+                  <Box sx={{ px: 1.1, py: 0.35, borderRadius: "999px", bgcolor: OD.greenSoft, border: `1px solid ${OD.green}33` }}>
+                    <Typography sx={{ fontSize: 10, color: OD.green, fontWeight: 700, fontFamily: OD.font }}>
+                      Drop-off window
                     </Typography>
                   </Box>
                 </Box>
-                <Typography fontFamily="Switzer" fontWeight={700} sx={{ fontSize: 20, color: "#0F172A", lineHeight: 1.2 }}>
+                <Typography sx={{ fontFamily: OD.fontTight, fontWeight: 700, fontSize: 20, color: OD.ink, lineHeight: 1.2 }}>
                   {orderData.deliveryTimeFrom || "N/A"} -{" "}
                   {orderData.deliveryTimeTo || "N/A"}
                 </Typography>
@@ -1467,27 +1363,10 @@ export default function OrderDetailsPage() {
                     ? dayjs(orderData.deliveryDate).format("ddd DD MMM YYYY")
                     : "N/A"}
                 </Typography>
-                <Box sx={{ mt: 2, pt: 1.6, borderTop: "1px solid #E9EEF5" }}>
-                  <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                    Proof of Delivery
-                  </Typography>
-                  <Box sx={{ mt: 1, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1 }}>
-                    <Paper sx={{ p: 1, border: "1px solid #E2E8F0", boxShadow: "none", borderRadius: "8px", bgcolor: "#fff" }}>
-                      <Typography sx={{ fontSize: 10, color: "#64748B", textTransform: "uppercase", fontWeight: 700 }}>
-                        Items Counted
-                      </Typography>
-                      <Typography sx={{ fontSize: 14, fontWeight: 700, color: "#0F172A" }}>
-                        {deliveryItemsDisplayCount || 0}
-                      </Typography>
-                    </Paper>
-                    <Paper sx={{ p: 1, border: "1px solid #E2E8F0", boxShadow: "none", borderRadius: "8px", bgcolor: "#fff" }}>
-                      <Typography sx={{ fontSize: 10, color: "#64748B", textTransform: "uppercase", fontWeight: 700 }}>
-                        Images
-                      </Typography>
-                      <Typography sx={{ fontSize: 14, fontWeight: 700, color: "#0F172A" }}>
-                        {deliveryProofs.length || 0}
-                      </Typography>
-                    </Paper>
+                <Box sx={{ mt: 2, pt: 1.6, borderTop: `1px solid ${OD.line}` }}>
+                  <Box sx={{ mt: 0, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1 }}>
+                    <OdStatCell label="Items counted" value={deliveryItemsDisplayCount || 0} warnZero />
+                    <OdStatCell label="Proof images" value={deliveryProofs.length || 0} warnZero />
                   </Box>
                   {pickupItemsCount > deliveryItemsCount && (
                     <Paper
@@ -1509,12 +1388,7 @@ export default function OrderDetailsPage() {
               className="flex items-center justify-between"
             >
               <Box className="flex items-center gap-1.5">
-                <Box sx={{ width: 6, height: 6, borderRadius: "50%", bgcolor: "#A78BFA" }} />
-                <Typography
-                  variant="caption"
-                  color="text.secondary"
-                  sx={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}
-                >
+                <Typography sx={sectionLabelSx}>
                   Proof of Collection & Delivery
                 </Typography>
               </Box>
@@ -1537,7 +1411,7 @@ export default function OrderDetailsPage() {
                   borderBottom: { xs: "1px solid #E4E7EC", md: "none" },
                 }}
               >
-                <Typography variant="caption" sx={{ color: "#2563EB", fontWeight: 700, fontSize: 10 }}>
+                <Typography variant="caption" sx={{ color: OD.accent, fontWeight: 700, fontSize: 10, fontFamily: OD.font }}>
                   PROOF OF PICKUP
                 </Typography>
                 <Box className="grid grid-cols-3 gap-2 mt-2">
@@ -1704,32 +1578,20 @@ export default function OrderDetailsPage() {
               sx={SECTION_HEADER_SX}
               className="flex items-center justify-between"
             >
-              <Box className="flex items-center gap-1.5">
-                <Box sx={{ width: 6, height: 6, borderRadius: "50%", bgcolor: "#34D399" }} />
-                <Typography
-                  variant="caption"
-                  color="text.secondary"
-                  sx={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}
-                >
-                  Order Items
-                </Typography>
-              </Box>
+              <Typography sx={sectionLabelSx}>Order Items</Typography>
               <Box
                 sx={{
                   px: 1.4,
-                  minHeight: 30,
+                  minHeight: 26,
                   borderRadius: "6px",
-                  bgcolor: "#ECFDF3",
-                  border: "1px solid #86EFAC",
+                  bgcolor: OD.accentSoft,
                   display: "inline-flex",
                   alignItems: "center",
                   justifyContent: "center",
                 }}
               >
                 <Typography
-                  variant="caption"
-                  color="#15803D"
-                  sx={{ fontWeight: 700, fontSize: 11, lineHeight: 1.1, display: "flex", alignItems: "center" }}
+                  sx={{ fontWeight: 700, fontSize: 11, color: OD.accent, fontFamily: OD.font }}
                 >
                   {selectedServiceGroups.length || 0} service(s)
                 </Typography>
@@ -1767,9 +1629,9 @@ export default function OrderDetailsPage() {
                               maxWidth: 112,
                               px: 1.25,
                               py: 1.25,
-                              borderRadius: "12px",
-                              border: "none",
-                              bgcolor: active ? "#EFF6FF" : "#F8FAFC",
+                              borderRadius: "10px",
+                              border: active ? `1.5px solid ${OD.accent}` : `1px solid ${OD.line}`,
+                              bgcolor: active ? OD.accentSoft : OD.canvas,
                               cursor: "pointer",
                             }}
                           >
@@ -1794,7 +1656,7 @@ export default function OrderDetailsPage() {
                                 <Typography sx={{ fontSize: 15, color: "#94A3B8" }}>{initial}</Typography>
                               )}
                             </Box>
-                            <Typography sx={{ fontSize: 12, fontWeight: 600, lineHeight: 1.25, color: active ? "#2563EB" : "#64748B" }}>
+                            <Typography sx={{ fontSize: 12, fontWeight: 600, lineHeight: 1.25, color: active ? OD.accent : OD.inkSoft, fontFamily: OD.font }}>
                               {serviceGroup.serviceName}
                             </Typography>
                             <Typography sx={{ mt: 0.35, fontSize: 11, color: "#475569" }}>
@@ -1821,9 +1683,9 @@ export default function OrderDetailsPage() {
                           bgcolor: "transparent",
                           fontWeight: 700,
                           fontSize: 14,
-                          color: selectedItemsCategoryKey === "all" ? "#2563EB" : "#64748B",
+                          color: selectedItemsCategoryKey === "all" ? OD.accent : OD.inkSoft,
                           borderBottom: "2px solid",
-                          borderBottomColor: selectedItemsCategoryKey === "all" ? "#2563EB" : "transparent",
+                          borderBottomColor: selectedItemsCategoryKey === "all" ? OD.accent : "transparent",
                           mb: "-1px",
                           cursor: "pointer",
                         }}
@@ -1843,9 +1705,9 @@ export default function OrderDetailsPage() {
                             whiteSpace: "nowrap",
                             fontWeight: 700,
                             fontSize: 14,
-                            color: selectedItemsCategoryKey === tab.key ? "#2563EB" : "#64748B",
+                            color: selectedItemsCategoryKey === tab.key ? OD.accent : OD.inkSoft,
                             borderBottom: "2px solid",
-                            borderBottomColor: selectedItemsCategoryKey === tab.key ? "#2563EB" : "transparent",
+                            borderBottomColor: selectedItemsCategoryKey === tab.key ? OD.accent : "transparent",
                             mb: "-1px",
                             cursor: "pointer",
                           }}
@@ -1856,75 +1718,68 @@ export default function OrderDetailsPage() {
                     </Box>
                   </Box>
 
-                  <Box
-                    sx={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 1,
-                      mt: 0.25,
-                    }}
-                  >
-                    <Box sx={{ width: 4, height: 22, bgcolor: "#2563EB", borderRadius: 1 }} />
-                    <Typography sx={{ fontWeight: 700, fontSize: 16, color: "#0F172A" }}>
-                      {selectedItemsCategoryKey === "all" ? "Items" : selectedItemsCategoryKey}
-                    </Typography>
-                  </Box>
-                  <Box sx={{ display: "flex", flexDirection: "column", gap: 1.2 }}>
+                  <Box sx={{ overflowX: "auto", border: `1px solid ${OD.line}`, borderRadius: "8px" }}>
+                    <Box
+                      component="table"
+                      sx={{
+                        width: "100%",
+                        borderCollapse: "collapse",
+                        fontFamily: OD.font,
+                        "& th": {
+                          textAlign: "left",
+                          fontSize: 11,
+                          fontWeight: 700,
+                          color: OD.inkFaint,
+                          letterSpacing: "0.04em",
+                          textTransform: "uppercase",
+                          px: 1.5,
+                          py: 1.1,
+                          bgcolor: OD.canvas,
+                          borderBottom: `1px solid ${OD.line}`,
+                        },
+                        "& td": {
+                          px: 1.5,
+                          py: 1.25,
+                          borderBottom: `1px solid ${OD.line}`,
+                          verticalAlign: "top",
+                          fontSize: 13,
+                          color: OD.ink,
+                        },
+                        "& th.num, & td.num": { textAlign: "right" },
+                      }}
+                    >
+                      <Box component="thead">
+                        <Box component="tr">
+                          <Box component="th">Item</Box>
+                          <Box component="th" className="num">Unit price</Box>
+                          <Box component="th" className="num">Qty</Box>
+                          <Box component="th" className="num">Amount</Box>
+                        </Box>
+                      </Box>
+                      <Box component="tbody">
                     {visibleOrderItems.map((item) => {
                       const lineTotal = (item.qty || 0) * (item.unitPrice || 0);
                       return (
-                        <Box
-                          key={`item-${item.id}`}
-                          sx={{
-                            border: "1px solid #E5E7EB",
-                            borderRadius: "12px",
-                            p: 1.5,
-                            bgcolor: "#fff",
-                          }}
-                        >
-                          <Box
-                            sx={{
-                              display: "flex",
-                              justifyContent: "space-between",
-                              alignItems: "flex-start",
-                              gap: 1,
-                            }}
-                          >
-                            <Box>
-                              <Typography sx={{ fontSize: 14, fontWeight: 700, color: "#0F172A" }}>
+                        <Box component="tr" key={`item-${item.id}`}>
+                          <Box component="td">
+                              <Typography sx={{ fontSize: 13, fontWeight: 700, color: OD.ink, fontFamily: OD.font }}>
                                 {item.itemName}
                               </Typography>
-                              <Typography sx={{ fontSize: 11, color: "#64748B" }}>
+                              <Typography sx={{ fontSize: 11, color: OD.inkSoft, fontFamily: OD.font }}>
                                 {item.categoryName || selectedServiceData?.serviceName}
                               </Typography>
-                              <Typography sx={{ mt: 0.45, fontSize: 13, color: "#0F172A", fontWeight: 600 }}>
-                                ${item.unitPrice.toFixed(2)}{" "}
-                                <Box component="span" sx={{ color: "#94A3B8", fontWeight: 500 }}>
-                                  / piece
-                                </Box>
-                              </Typography>
-                            </Box>
-                            <Box sx={{ textAlign: "right" }}>
-                              <Typography sx={{ fontSize: 11, color: "#334155" }}>
-                                Qty: <b>{item.qty}</b>
-                              </Typography>
-                              <Typography sx={{ mt: 0.4, fontSize: 22, fontWeight: 700, color: "#0F172A" }}>
-                                ${lineTotal.toFixed(2)}
-                              </Typography>
-                            </Box>
-                          </Box>
-                          {(item.addOns || []).length > 0 && (
+                              {(item.addOns || []).length > 0 && (
                             <Box sx={{ mt: 0.75 }}>
                               {(item.addOns || []).map((ad, idx) => (
-                                <Typography key={`addon-${item.id}-${idx}`} sx={{ fontSize: 11, color: "#475569" }}>
+                                <Typography key={`addon-${item.id}-${idx}`} sx={{ fontSize: 11, color: OD.inkSoft }}>
                                   + {Number(ad?.quantity || 1)}x {ad?.name || ad?.addOnService?.name || "Add-on"} (
-                                  ${((Number(ad?.quantity || 1) * Number(ad?.price || 0))).toFixed(2)})
+                                  {formatMoney(Number(ad?.quantity || 1) * Number(ad?.price || 0), paymentCurrencySymbol)})
                                 </Typography>
                               ))}
                             </Box>
                           )}
                           {(item.preferences || []).length > 0 && (
-                            <Typography sx={{ mt: 0.55, fontSize: 11, color: "#64748B" }}>
+                            <Typography sx={{ mt: 0.55, fontSize: 11, color: OD.inkSoft }}>
                               Preferences: {item.preferences.join(", ")}
                             </Typography>
                           )}
@@ -1942,21 +1797,21 @@ export default function OrderDetailsPage() {
                                     sx={{
                                       p: 1,
                                       borderRadius: "8px",
-                                      bgcolor: "#F8FAFC",
-                                      border: "1px solid #E2E8F0",
+                                      bgcolor: OD.canvas,
+                                      border: `1px solid ${OD.line}`,
                                     }}
                                   >
-                                    <Typography sx={{ fontSize: 12, fontWeight: 600, color: "#0F172A" }}>
+                                    <Typography sx={{ fontSize: 12, fontWeight: 600, color: OD.ink }}>
                                       {ri?.garmentName || "Garment"}
                                       {ri?.quantity > 1 ? ` ×${ri.quantity}` : ""}
                                     </Typography>
                                     {optionNames ? (
-                                      <Typography sx={{ fontSize: 11, color: "#475569", mt: 0.25 }}>
+                                      <Typography sx={{ fontSize: 11, color: OD.inkSoft, mt: 0.25 }}>
                                         {optionNames}
                                       </Typography>
                                     ) : null}
                                     {ri?.instruction ? (
-                                      <Typography sx={{ fontSize: 11, color: "#64748B", mt: 0.25, fontStyle: "italic" }}>
+                                      <Typography sx={{ fontSize: 11, color: OD.inkFaint, mt: 0.25, fontStyle: "italic" }}>
                                         {ri.instruction}
                                       </Typography>
                                     ) : null}
@@ -1978,7 +1833,7 @@ export default function OrderDetailsPage() {
                                                 height: 48,
                                                 objectFit: "cover",
                                                 borderRadius: "6px",
-                                                border: "1px solid #E2E8F0",
+                                                border: `1px solid ${OD.line}`,
                                               }}
                                             />
                                           );
@@ -1991,66 +1846,80 @@ export default function OrderDetailsPage() {
                             </Box>
                           )}
                           {item.instruction ? (
-                            <Typography sx={{ mt: 0.55, fontSize: 11, color: "#64748B", fontStyle: "italic" }}>
+                            <Typography sx={{ mt: 0.55, fontSize: 11, color: OD.inkFaint, fontStyle: "italic" }}>
                               Note: {item.instruction}
                             </Typography>
                           ) : null}
+                          </Box>
+                          <Box component="td" className="num">
+                            {formatMoney(item.unitPrice, paymentCurrencySymbol)}
+                          </Box>
+                          <Box component="td" className="num">{item.qty}</Box>
+                          <Box component="td" className="num" sx={{ fontWeight: 700 }}>
+                            {formatMoney(lineTotal, paymentCurrencySymbol)}
+                          </Box>
                         </Box>
                       );
                     })}
+                      </Box>
+                    </Box>
                   </Box>
                 </>
               )}
             </Box>
 
-            <Box sx={{ p: 2.5, borderTop: "1px solid #E4E7EC", bgcolor: "#FCFCFD", display: "flex", flexDirection: "column", rowGap: 0.4 }}>
-              <Box className="flex items-center justify-between" sx={{ py: 0.9 }}>
-                <Typography variant="body2" color="text.secondary">
+            <Box sx={{ p: 2.5, borderTop: `1px solid ${OD.line}`, bgcolor: OD.card, display: "flex", flexDirection: "column", rowGap: 0.2 }}>
+              <Box className="flex items-center justify-between" sx={{ py: 0.7 }}>
+                <Typography sx={{ fontSize: 13, color: OD.inkSoft }}>
                   Services subtotal
                 </Typography>
-                <Typography variant="body2">${servicesSubtotalAmount.toFixed(2)}</Typography>
-              </Box>
-              <Box className="flex items-center justify-between" sx={{ py: 0.9 }}>
-                <Typography variant="body2" color="text.secondary">
-                  Minimum Order Fee
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  -${Math.abs(minimumOrderFeeAmount).toFixed(2)}
+                <Typography sx={{ fontSize: 13, color: OD.ink }}>
+                  {formatMoney(servicesSubtotalAmount, paymentCurrencySymbol)}
                 </Typography>
               </Box>
-              <Box className="flex items-center justify-between" sx={{ py: 0.9 }}>
-                <Typography variant="body2" color="text.secondary">
-                  Service Charge
+              <Box className="flex items-center justify-between" sx={{ py: 0.7 }}>
+                <Typography sx={{ fontSize: 13, color: OD.inkSoft }}>
+                  Minimum order fee
                 </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  ${serviceChargeAmount.toFixed(2)}
+                <Typography sx={{ fontSize: 13, color: OD.red, fontWeight: 600 }}>
+                  -{formatMoney(Math.abs(minimumOrderFeeAmount), paymentCurrencySymbol)}
                 </Typography>
               </Box>
-              <Box className="flex items-center justify-between" sx={{ py: 0.9 }}>
-                <Typography variant="body2" color="text.secondary">
+              <Box className="flex items-center justify-between" sx={{ py: 0.7 }}>
+                <Typography sx={{ fontSize: 13, color: OD.inkSoft }}>
+                  Service charge
+                </Typography>
+                <Typography sx={{ fontSize: 13, color: OD.ink }}>
+                  {formatMoney(serviceChargeAmount, paymentCurrencySymbol)}
+                </Typography>
+              </Box>
+              <Box className="flex items-center justify-between" sx={{ py: 0.7 }}>
+                <Typography sx={{ fontSize: 13, color: OD.inkSoft }}>
                   Subtotal
                 </Typography>
-                <Typography variant="body2">${orderSubtotalAmount.toFixed(2)}</Typography>
-              </Box>
-              <Box className="flex items-center justify-between" sx={{ py: 0.9 }}>
-                <Typography variant="body2" color="text.secondary">
-                  Delivery Fee
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  ${deliveryFeeAmount.toFixed(2)}
+                <Typography sx={{ fontSize: 13, color: OD.ink }}>
+                  {formatMoney(orderSubtotalAmount, paymentCurrencySymbol)}
                 </Typography>
               </Box>
-              <Box className="flex items-center justify-between" sx={{ py: 0.9 }}>
-                <Typography variant="body2" color="text.secondary">
-                  Driver Tip
+              <Box className="flex items-center justify-between" sx={{ py: 0.7 }}>
+                <Typography sx={{ fontSize: 13, color: OD.inkSoft }}>
+                  Delivery fee
                 </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  ${tipAmount.toFixed(2)}
+                <Typography sx={{ fontSize: 13, color: OD.ink }}>
+                  {formatMoney(deliveryFeeAmount, paymentCurrencySymbol)}
                 </Typography>
               </Box>
-              <Box className="flex items-center justify-between" sx={{ py: 0.9 }}>
-                <Typography variant="body2" color="text.secondary">
-                  Payment Status
+              <Box className="flex items-center justify-between" sx={{ py: 0.7 }}>
+                <Typography sx={{ fontSize: 13, color: OD.inkSoft }}>
+                  Driver tip
+                </Typography>
+                <Typography sx={{ fontSize: 13, color: OD.ink }}>
+                  {formatMoney(tipAmount, paymentCurrencySymbol)}
+                </Typography>
+              </Box>
+              <Box className="flex items-center justify-between" sx={{ py: 0.7 }}>
+                <Typography sx={{ fontSize: 13, color: OD.inkSoft }}>
+                  Payment status
                 </Typography>
                 <Box
                   sx={{
@@ -2066,15 +1935,15 @@ export default function OrderDetailsPage() {
                   {paymentStatusBadge.label}
                 </Box>
               </Box>
-              <Box className="flex items-center justify-between" sx={{ py: 0.9 }}>
-                <Typography variant="body2" color="text.secondary">
-                  Amount Due
+              <Box className="flex items-center justify-between" sx={{ py: 0.7 }}>
+                <Typography sx={{ fontSize: 13, color: OD.inkSoft }}>
+                  Amount due
                 </Typography>
                 <Typography
-                  variant="body2"
                   sx={{
+                    fontSize: 13,
                     fontWeight: 700,
-                    color: amountDueNow > 0 ? "#B45309" : "#065F46",
+                    color: amountDueNow > 0 ? OD.red : OD.green,
                   }}
                 >
                   {formatMoney(amountDueNow, paymentCurrencySymbol)}
@@ -2082,17 +1951,17 @@ export default function OrderDetailsPage() {
               </Box>
               {paymentSummary?.paymentStateLabel ? (
                 <Box sx={{ py: 0.5 }}>
-                  <Typography variant="caption" sx={{ fontSize: 11, color: "#64748B" }}>
+                  <Typography sx={{ fontSize: 11, color: OD.inkFaint }}>
                     {paymentSummary.paymentStateLabel}
                   </Typography>
                 </Box>
               ) : null}
-              <Box className="flex items-center justify-between pt-2.5 mt-2.5" sx={{ borderTop: "1px solid #E4E7EC" }}>
-                <Typography fontFamily="Switzer" fontWeight={700}>
+              <Box className="flex items-center justify-between pt-2 mt-1.5" sx={{ borderTop: `1px solid ${OD.line}` }}>
+                <Typography sx={{ fontFamily: OD.fontTight, fontWeight: 800, fontSize: 20, color: OD.ink }}>
                   Total
                 </Typography>
-                <Typography fontFamily="Switzer" fontWeight={700} color="primary.main">
-                  ${orderTotal}
+                <Typography sx={{ fontFamily: OD.fontTight, fontWeight: 800, fontSize: 26, color: OD.accent, lineHeight: 1 }}>
+                  {formatMoney(totalAmount, paymentCurrencySymbol)}
                 </Typography>
               </Box>
             </Box>
@@ -2103,20 +1972,14 @@ export default function OrderDetailsPage() {
             <Paper sx={CARD_SX}>
               <Box sx={SECTION_HEADER_SX} className="flex items-center justify-between">
                 <Box className="flex items-center gap-1.5">
-                  <Box sx={{ width: 6, height: 6, borderRadius: "50%", bgcolor: "#F59E0B" }} />
-                  <Typography variant="caption" color="text.secondary"
-                    sx={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}>
-                    Service Comparison
-                  </Typography>
+                  <Typography sx={sectionLabelSx}>Service Comparison</Typography>
                   {comparisonData?.fallbackToLive && (
-                    <Typography variant="caption"
-                      sx={{ fontSize: 10, color: "#9CA3AF", fontStyle: "italic", ml: 1 }}>
+                    <Typography
+                      sx={{ fontSize: 10, color: OD.inkFaint, fontStyle: "italic", ml: 1 }}
+                    >
                       (customer snapshot missing — showing order services)
                     </Typography>
                   )}
-                </Box>
-                <Box sx={{ px: 1.3, minHeight: 22, borderRadius: "999px", bgcolor: "#FFFBEB", border: "1px solid #FDE68A", display: "inline-flex", alignItems: "center" }}>
-                  <Typography sx={{ fontSize: 10, color: "#B45309", fontWeight: 700 }}>Customer vs Agent</Typography>
                 </Box>
               </Box>
 
@@ -2129,8 +1992,8 @@ export default function OrderDetailsPage() {
                   {/* ── Customer Original ── */}
                   <Box sx={{ p: 2.5, borderRight: { md: "1px solid #E4E7EC" } }}>
                     <Box sx={{ mb: 1.5, display: "flex", alignItems: "center", gap: 1 }}>
-                      <Box sx={{ width: 4, height: 18, bgcolor: "#F59E0B", borderRadius: 1 }} />
-                      <Typography sx={{ fontSize: 11, fontWeight: 700, color: "#92400E", letterSpacing: "0.06em", textTransform: "uppercase" }}>
+                      <Box sx={{ width: 4, height: 18, bgcolor: OD.inkFaint, borderRadius: 1 }} />
+                      <Typography sx={{ fontSize: 11, fontWeight: 700, color: OD.inkSoft, letterSpacing: "0.06em", textTransform: "uppercase", fontFamily: OD.font }}>
                         Customer Selected
                       </Typography>
                     </Box>
@@ -2143,16 +2006,19 @@ export default function OrderDetailsPage() {
                         if (!groups[heading]) groups[heading] = [];
                         groups[heading].push(svc);
                       });
+                      const entries = Object.entries(groups);
+                      const visible = customerCompareExpanded ? entries : entries.slice(0, 2);
+                      const hidden = Math.max(0, entries.length - visible.length);
                       return (
                         <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                          {Object.entries(groups).map(([heading, items]) => (
+                          {visible.map(([heading, items]) => (
                             <Box key={heading}>
-                              <Typography sx={{ fontSize: 11, fontWeight: 700, color: "#92400E", textTransform: "uppercase", letterSpacing: "0.06em", mb: 0.75, borderBottom: "1px solid #FDE68A", pb: 0.4 }}>
+                              <Typography sx={{ fontSize: 11, fontWeight: 700, color: OD.inkSoft, textTransform: "uppercase", letterSpacing: "0.06em", mb: 0.75, borderBottom: `1px solid ${OD.line}`, pb: 0.4 }}>
                                 {heading}
                               </Typography>
                               <Box sx={{ display: "flex", flexDirection: "column", gap: 0.75 }}>
                                 {items.map((svc, idx) => (
-                                  <Box key={`orig-${svc.id || idx}`} sx={{ border: "1px solid #FDE68A", borderRadius: "10px", p: 1.4, bgcolor: "#FFFBEB" }}>
+                                  <Box key={`orig-${svc.id || idx}`} sx={{ border: `1px solid ${OD.line}`, borderRadius: "8px", p: 1.4, bgcolor: OD.canvas }}>
                                     <Typography sx={{ fontSize: 13, fontWeight: 700, color: "#0F172A" }}>
                                       {svc.subCategory?.name || svc.category?.name || "Item"}
                                     </Typography>
@@ -2167,8 +2033,8 @@ export default function OrderDetailsPage() {
                                     {(svc.preferences || []).length > 0 && (
                                       <Box sx={{ mt: 0.75, display: "flex", flexWrap: "wrap", gap: 0.5 }}>
                                         {svc.preferences.map((pref, pi) => (
-                                          <Box key={pi} sx={{ px: 1, py: 0.3, borderRadius: "999px", bgcolor: "#FEF3C7", border: "1px solid #FDE68A" }}>
-                                            <Typography sx={{ fontSize: 10, color: "#92400E", fontWeight: 600 }}>
+                                          <Box key={pi} sx={{ px: 1, py: 0.3, borderRadius: "999px", bgcolor: OD.card, border: `1px solid ${OD.line}` }}>
+                                            <Typography sx={{ fontSize: 10, color: OD.inkSoft, fontWeight: 600 }}>
                                               {pref.preferenceType?.name && `${pref.preferenceType.name}: `}{pref.preferenceValue?.value || "—"}
                                             </Typography>
                                           </Box>
@@ -2185,15 +2051,28 @@ export default function OrderDetailsPage() {
                               </Box>
                             </Box>
                           ))}
+                          {hidden > 0 ? (
+                            <Button
+                              onClick={() => setCustomerCompareExpanded(true)}
+                              sx={{
+                                ...secondaryBtnSx,
+                                alignSelf: "flex-start",
+                                minHeight: 32,
+                                fontSize: 12,
+                              }}
+                            >
+                              + {hidden} more categories
+                            </Button>
+                          ) : null}
                           {(comparisonData.customerOriginal.bookingPreferences || []).length > 0 && (
                             <Box>
-                              <Typography sx={{ fontSize: 10, color: "#92400E", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", mb: 0.5 }}>
+                              <Typography sx={{ fontSize: 10, color: OD.inkSoft, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", mb: 0.5 }}>
                                 Booking Preferences
                               </Typography>
                               <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
                                 {comparisonData.customerOriginal.bookingPreferences.map((pref, pi) => (
-                                  <Box key={pi} sx={{ px: 1, py: 0.3, borderRadius: "999px", bgcolor: "#FEF3C7", border: "1px solid #FDE68A" }}>
-                                    <Typography sx={{ fontSize: 10, color: "#92400E", fontWeight: 600 }}>
+                                  <Box key={pi} sx={{ px: 1, py: 0.3, borderRadius: "999px", bgcolor: OD.card, border: `1px solid ${OD.line}` }}>
+                                    <Typography sx={{ fontSize: 10, color: OD.inkSoft, fontWeight: 600 }}>
                                       {pref.preferenceType?.name && `${pref.preferenceType.name}: `}{pref.preferenceValue?.value || "—"}
                                     </Typography>
                                   </Box>
@@ -2209,8 +2088,8 @@ export default function OrderDetailsPage() {
                   {/* ── Agent Invoice ── */}
                   <Box sx={{ p: 2.5 }}>
                     <Box sx={{ mb: 1.5, display: "flex", alignItems: "center", gap: 1 }}>
-                      <Box sx={{ width: 4, height: 18, bgcolor: "#000099", borderRadius: 1 }} />
-                      <Typography sx={{ fontSize: 11, fontWeight: 700, color: "#000099", letterSpacing: "0.06em", textTransform: "uppercase" }}>
+                      <Box sx={{ width: 4, height: 18, bgcolor: OD.accent, borderRadius: 1 }} />
+                      <Typography sx={{ fontSize: 11, fontWeight: 700, color: OD.accent, letterSpacing: "0.06em", textTransform: "uppercase", fontFamily: OD.font }}>
                         Agent Invoice
                       </Typography>
                     </Box>
@@ -2245,12 +2124,12 @@ export default function OrderDetailsPage() {
                         <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
                           {Object.entries(groups).map(([heading, items]) => (
                             <Box key={heading}>
-                              <Typography sx={{ fontSize: 11, fontWeight: 700, color: "#000099", textTransform: "uppercase", letterSpacing: "0.06em", mb: 0.75, borderBottom: "1px solid #C7D2FE", pb: 0.4 }}>
+                              <Typography sx={{ fontSize: 11, fontWeight: 700, color: OD.accent, textTransform: "uppercase", letterSpacing: "0.06em", mb: 0.75, borderBottom: `1px solid ${OD.accent}33`, pb: 0.4 }}>
                                 {heading}
                               </Typography>
                               <Box sx={{ display: "flex", flexDirection: "column", gap: 0.75 }}>
                                 {items.map((svc, idx) => (
-                                  <Box key={`agent-${svc.id || idx}`} sx={{ border: "1px solid #C7D2FE", borderRadius: "10px", p: 1.4, bgcolor: "#EEF2FF" }}>
+                                  <Box key={`agent-${svc.id || idx}`} sx={{ border: `1.5px solid ${OD.accent}44`, borderRadius: "8px", p: 1.4, bgcolor: OD.accentSoft }}>
                                     <Typography sx={{ fontSize: 13, fontWeight: 700, color: "#0F172A" }}>
                                       {svc.subCategory?.name || svc.category?.name || "Item"}
                                     </Typography>
@@ -2304,39 +2183,38 @@ export default function OrderDetailsPage() {
 
         <Box sx={{ display: "flex", flexDirection: "column", rowGap: 2.5 }}>
           <Paper sx={CARD_SX}>
-            <Box sx={SECTION_HEADER_SX}>
-              <Box className="flex items-center gap-1.5">
-                <Box sx={{ width: 6, height: 6, borderRadius: "50%", bgcolor: "#34D399" }} />
+            <OdSectionTitle>Payment</OdSectionTitle>
+            <Box sx={{ p: 2.25 }} className="space-y-3">
+              <Box
+                sx={{
+                  p: 1.5,
+                  borderRadius: "8px",
+                  bgcolor: amountDueNow > 0 ? OD.redSoft : OD.greenSoft,
+                  border: `1px solid ${amountDueNow > 0 ? `${OD.red}33` : `${OD.green}33`}`,
+                }}
+              >
+                <Typography sx={{ ...sectionLabelSx, color: amountDueNow > 0 ? OD.red : OD.green }}>
+                  Amount due
+                </Typography>
                 <Typography
-                  variant="caption"
-                  color="text.secondary"
-                  sx={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}
+                  sx={{
+                    mt: 0.4,
+                    fontSize: 22,
+                    fontWeight: 800,
+                    fontFamily: OD.fontTight,
+                    color: amountDueNow > 0 ? OD.red : OD.green,
+                    lineHeight: 1.1,
+                  }}
                 >
-                  Payment
+                  {formatMoney(amountDueNow, paymentCurrencySymbol)}
                 </Typography>
               </Box>
-            </Box>
-            <Box sx={{ p: 2.5 }} className="space-y-3">
-              <Box className="flex justify-between gap-3">
-                <Typography
-                  variant="caption"
-                  color="text.secondary"
-                  sx={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em" }}
-                >
-                  Method
-                </Typography>
-                <Typography sx={{ fontSize: 13, fontWeight: 500, color: "#475569" }} textAlign="right">
-                  {formatPaymentType(paymentSummary?.paymentType ?? orderData?.paymentType)}
-                </Typography>
-              </Box>
+              <OdMetaRow
+                label="Method"
+                value={formatPaymentType(paymentSummary?.paymentType ?? orderData?.paymentType)}
+              />
               <Box className="flex justify-between gap-3 items-center">
-                <Typography
-                  variant="caption"
-                  color="text.secondary"
-                  sx={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em" }}
-                >
-                  Status
-                </Typography>
+                <Typography sx={{ ...sectionLabelSx, fontSize: 11 }}>Status</Typography>
                 <Box
                   sx={{
                     px: 1.2,
@@ -2357,46 +2235,26 @@ export default function OrderDetailsPage() {
                     mt: 0.5,
                     p: 1.25,
                     borderRadius: 1.5,
-                    bgcolor: "#FEF2F2",
-                    border: "1px solid #FECACA",
+                    bgcolor: OD.redSoft,
+                    border: `1px solid ${OD.red}33`,
                   }}
                 >
-                  <Typography sx={{ fontSize: 12, fontWeight: 700, color: "#991B1B" }}>
+                  <Typography sx={{ fontSize: 12, fontWeight: 700, color: OD.red }}>
                     Flagged: payment not processed — delivery held
                   </Typography>
-                  <Typography sx={{ fontSize: 11, color: "#7F1D1D", mt: 0.5 }}>
+                  <Typography sx={{ fontSize: 11, color: OD.red, mt: 0.5 }}>
                     Agent is waiting for admin instruction. Resolve under Payment Failures
                     (shift to cash or allow proceed).
                   </Typography>
                   <Button
                     size="small"
-                    color="error"
-                    sx={{ mt: 1, textTransform: "none", fontWeight: 700 }}
+                    sx={{ mt: 1, textTransform: "none", fontWeight: 700, color: OD.red }}
                     onClick={() => navigate("/orders/payment-failures")}
                   >
                     Open Payment Failures
                   </Button>
                 </Box>
               ) : null}
-              <Box className="flex justify-between gap-3">
-                <Typography
-                  variant="caption"
-                  color="text.secondary"
-                  sx={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em" }}
-                >
-                  Amount Due
-                </Typography>
-                <Typography
-                  sx={{
-                    fontSize: 13,
-                    fontWeight: 700,
-                    color: amountDueNow > 0 ? "#B45309" : "#065F46",
-                  }}
-                  textAlign="right"
-                >
-                  {formatMoney(amountDueNow, paymentCurrencySymbol)}
-                </Typography>
-              </Box>
               {paymentSummary?.paidAtBooking?.totalPaid > 0 ? (
                 <Box className="flex justify-between gap-3">
                   <Typography
@@ -2435,59 +2293,15 @@ export default function OrderDetailsPage() {
           </Paper>
 
           <Paper sx={CARD_SX}>
-            <Box sx={SECTION_HEADER_SX}>
-              <Box className="flex items-center gap-1.5">
-                <Box sx={{ width: 6, height: 6, borderRadius: "50%", bgcolor: "#C4B5FD" }} />
-                <Typography
-                  variant="caption"
-                  color="text.secondary"
-                  sx={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}
-                >
-                  Shop
-                </Typography>
-              </Box>
-            </Box>
-            <Box sx={{ p: 2.5 }} className="space-y-3">
-              <Box className="flex justify-between gap-3">
-                <Typography
-                  variant="caption"
-                  color="text.secondary"
-                  sx={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em" }}
-                >
-                  Shop Name
-                </Typography>
-                <Typography sx={{ fontSize: 13, fontWeight: 500, color: "#475569" }} textAlign="right">
-                  {shopName || "Not assigned"}
-                </Typography>
-              </Box>
-              <Box className="flex justify-between gap-3">
-                <Typography
-                  variant="caption"
-                  color="text.secondary"
-                  sx={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em" }}
-                >
-                  Frequency
-                </Typography>
-                <Typography sx={{ fontSize: 13, fontWeight: 500, color: "#475569" }} textAlign="right">
-                  {orderData?.frequency || "Just Once"}
-                </Typography>
-              </Box>
+            <OdSectionTitle>Shop</OdSectionTitle>
+            <Box sx={{ p: 2.25 }} className="space-y-3">
+              <OdMetaRow label="Shop Name" value={shopName || "Not assigned"} />
+              <OdMetaRow label="Frequency" value={orderData?.frequency || "Just Once"} />
             </Box>
           </Paper>
 
           <Paper sx={CARD_SX}>
-            <Box sx={SECTION_HEADER_SX}>
-              <Box className="flex items-center gap-1.5">
-                <Box sx={{ width: 6, height: 6, borderRadius: "50%", bgcolor: "#FBBF24" }} />
-                <Typography
-                  variant="caption"
-                  color="text.secondary"
-                  sx={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}
-                >
-                  Customer Review
-                </Typography>
-              </Box>
-            </Box>
+            <OdSectionTitle>Customer Review</OdSectionTitle>
             <Box sx={{ p: 2.5 }} className="space-y-3">
               {!shopReview ? (
                 <Typography sx={{ fontSize: 13, color: "#64748B" }}>
@@ -2529,24 +2343,13 @@ export default function OrderDetailsPage() {
           </Paper>
 
           <Paper sx={CARD_SX}>
-            <Box sx={SECTION_HEADER_SX}>
-              <Box className="flex items-center gap-1.5">
-                <Box sx={{ width: 6, height: 6, borderRadius: "50%", bgcolor: "#60A5FA" }} />
-                <Typography
-                  variant="caption"
-                  color="text.secondary"
-                  sx={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}
-                >
-                  Delivery Address
-                </Typography>
-              </Box>
-            </Box>
-            <Box sx={{ p: 2.5 }} className="space-y-3">
-              <Typography variant="caption" sx={{ color: "#2563EB", fontWeight: 700, fontSize: 10 }}>
-                DELIVERY LOCATION
+            <OdSectionTitle>Delivery Address</OdSectionTitle>
+            <Box sx={{ p: 2.25 }} className="space-y-3">
+              <Typography sx={{ fontSize: 13, fontWeight: 700, color: OD.ink, fontFamily: OD.font }}>
+                {`${orderData?.customer?.firstName || ""} ${orderData?.customer?.lastName || ""}`.trim() || "Customer"}
               </Typography>
-              <Typography variant="body2" sx={{ lineHeight: 1.45 }}>
-                {formatAddress(orderData.pickupAddress || orderData.dropOffAddress)}
+              <Typography variant="body2" sx={{ lineHeight: 1.45, color: OD.inkSoft }}>
+                {formatAddress(orderData.dropOffAddress || orderData.pickupAddress)}
               </Typography>
               <Box className="flex justify-between gap-3">
                 <Typography variant="caption" color="text.secondary" sx={{ fontSize: 10, textTransform: "uppercase" }}>
@@ -2560,21 +2363,10 @@ export default function OrderDetailsPage() {
           </Paper>
 
           <Paper sx={CARD_SX}>
-            <Box sx={SECTION_HEADER_SX}>
-              <Box className="flex items-center gap-1.5">
-                <Box sx={{ width: 6, height: 6, borderRadius: "50%", bgcolor: "#FBBF24" }} />
-                <Typography
-                  variant="caption"
-                  color="text.secondary"
-                  sx={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}
-                >
-                  Drivers
-                </Typography>
-              </Box>
-            </Box>
+            <OdSectionTitle>Drivers</OdSectionTitle>
             <Box sx={{ p: 2.5 }} className="space-y-3">
               <Box>
-                <Typography variant="caption" sx={{ color: "#2563EB", fontWeight: 700, fontSize: 10 }}>
+                <Typography variant="caption" sx={{ color: OD.accent, fontWeight: 700, fontSize: 10, fontFamily: OD.font }}>
                   COLLECTION DRIVER
                 </Typography>
                 <Box className="flex items-center gap-2.5 mt-2">
@@ -2680,18 +2472,7 @@ export default function OrderDetailsPage() {
           </Paper>
 
           <Paper sx={CARD_SX}>
-            <Box sx={SECTION_HEADER_SX}>
-              <Box className="flex items-center gap-1.5">
-                <Box sx={{ width: 6, height: 6, borderRadius: "50%", bgcolor: "#F87171" }} />
-                <Typography
-                  variant="caption"
-                  color="text.secondary"
-                  sx={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}
-                >
-                  Attempt outcomes
-                </Typography>
-              </Box>
-            </Box>
+            <OdSectionTitle>Attempt Outcomes</OdSectionTitle>
             <Box sx={{ p: 2.5 }} className="space-y-3">
               {attemptRows.length ? (
                 attemptRows.map((attempt) => {
@@ -2715,7 +2496,7 @@ export default function OrderDetailsPage() {
                             fontSize: 10,
                             letterSpacing: "0.06em",
                             textTransform: "uppercase",
-                            color: attempt.attemptType === "delivery" ? "#059669" : "#2563EB",
+                            color: attempt.attemptType === "delivery" ? OD.green : OD.accent,
                           }}
                         >
                           {attempt.attemptType || "attempt"} #{attempt.attemptNumber || "—"}
@@ -2782,46 +2563,8 @@ export default function OrderDetailsPage() {
           </Paper>
 
           <Paper sx={CARD_SX}>
-            <Box sx={SECTION_HEADER_SX}>
-              <Box className="flex items-center gap-1.5">
-                <Box sx={{ width: 6, height: 6, borderRadius: "50%", bgcolor: "#D1D5DB" }} />
-                <Typography
-                  variant="caption"
-                  color="text.secondary"
-                  sx={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}
-                >
-                  Activity
-                </Typography>
-              </Box>
-            </Box>
-            <Box sx={{ p: 2.5 }} className="space-y-4">
-              {activityRows.map((activity, idx) => (
-                <Box key={idx} className="flex gap-3 items-start">
-                  <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", mt: "3px" }}>
-                    <Box
-                      sx={{
-                        width: 8,
-                        height: 8,
-                        borderRadius: "50%",
-                        bgcolor: idx === 0 ? "#4ADE80" : idx === 1 ? "#60A5FA" : "#CBD5E1",
-                        flexShrink: 0,
-                      }}
-                    />
-                    {idx < activityRows.length - 1 && (
-                      <Box sx={{ width: 1, height: 28, bgcolor: "#E2E8F0", mt: 1 }} />
-                    )}
-                  </Box>
-                  <Box>
-                    <Typography variant="body2" sx={{ fontSize: 12, fontWeight: 600 }}>
-                      {activity.text}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary" sx={{ fontSize: 10 }}>
-                      {activity.time}
-                    </Typography>
-                  </Box>
-                </Box>
-              ))}
-            </Box>
+            <OdSectionTitle>Activity</OdSectionTitle>
+            <OdTimeline rows={activityRows} />
           </Paper>
 
         </Box>
