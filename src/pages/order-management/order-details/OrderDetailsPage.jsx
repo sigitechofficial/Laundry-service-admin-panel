@@ -2111,7 +2111,7 @@ export default function OrderDetailsPage() {
                   {comparisonData?.fallbackToLive && (
                     <Typography variant="caption"
                       sx={{ fontSize: 10, color: "#9CA3AF", fontStyle: "italic", ml: 1 }}>
-                      (snapshot not yet available — showing current services)
+                      (customer snapshot missing — showing order services)
                     </Typography>
                   )}
                 </Box>
@@ -2215,7 +2215,25 @@ export default function OrderDetailsPage() {
                       </Typography>
                     </Box>
                     {(!comparisonData?.agentInvoice?.services?.length) ? (
-                      <Typography variant="caption" color="text.secondary" sx={{ fontSize: 12 }}>No agent services yet</Typography>
+                      <Box
+                        sx={{
+                          border: "1px dashed #C7D2FE",
+                          borderRadius: "10px",
+                          p: 2,
+                          bgcolor: "#F8FAFF",
+                        }}
+                      >
+                        <Typography sx={{ fontSize: 13, fontWeight: 600, color: "#3730A3", mb: 0.5 }}>
+                          {!comparisonData?.invoiceGenerated
+                            ? "Invoice not generated yet"
+                            : "No agent invoice lines"}
+                        </Typography>
+                        <Typography sx={{ fontSize: 12, color: "#64748B", lineHeight: 1.45 }}>
+                          Agent invoice appears here only after the agent creates a
+                          draft or finalized invoice. Customer selected services
+                          stay frozen on the left.
+                        </Typography>
+                      </Box>
                     ) : (() => {
                       const groups = {};
                       (comparisonData.agentInvoice.services || []).forEach((svc) => {
