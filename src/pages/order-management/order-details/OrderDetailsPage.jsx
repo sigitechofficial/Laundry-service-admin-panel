@@ -336,32 +336,19 @@ export default function OrderDetailsPage() {
         };
       }
       const repairItems = Array.isArray(it?.repairItems) ? it.repairItems : [];
-      map[sid].items.push({
-        id: it?.id,
+      const serviceLines = Array.isArray(it?.serviceLines)
+        ? it.serviceLines.filter((l) => Number(l?.items) > 0)
+        : [];
+      const unitPrice = Number(it?.categoryPrice || it?.subCategory?.price || 0);
+      const baseItem = {
         serviceName: it?.service?.name || map[sid].serviceName || "Service",
         itemName: formatAgentInvoiceItemName(it),
         categoryName: it?.category?.name || "",
         subCategoryName: it?.subCategory?.name || "",
         weightKg: it?.subCategory?.weightKg ?? null,
-        qty: (() => {
-          const flat = Number(it?.items);
-          if (flat > 0) return flat;
-          const fromLines = Array.isArray(it?.serviceLines)
-            ? it.serviceLines.reduce((s, l) => s + (Number(l?.items) || 0), 0)
-            : 0;
-          if (fromLines > 0) return fromLines;
-          return repairItems.reduce(
-            (sum, r) => sum + (Number(r?.quantity) || 1),
-            0
-          ) || 0;
-        })(),
-        unitPrice: Number(
-          it?.categoryPrice || it?.subCategory?.price || 0
-        ),
-        unitLabel:
-          Number(it?.subCategory?.weightKg) > 0 ? "/ load" : "/ piece",
+        unitPrice,
+        unitLabel: Number(it?.subCategory?.weightKg) > 0 ? "/ load" : "/ piece",
         serviceImage: it?.service?.image || "",
-        addOns: collectInvoiceAddOns(it).map(normalizeInvoiceAddOn),
         preferences: Array.isArray(it?.selectedServicePreferences)
           ? it.selectedServicePreferences
               .map((p) => p?.preferenceValue?.value)
@@ -369,7 +356,40 @@ export default function OrderDetailsPage() {
           : [],
         repairItems,
         instruction: it?.serviceInstruction || "",
-      });
+      };
+
+      // When agent used serviceLines (multi-line add-on flow), split into one
+      // display row per line so "1x with add-on" and "1x without" stay separate.
+      if (serviceLines.length > 1) {
+        serviceLines.forEach((line, lineIdx) => {
+          const lineAddOns = Array.isArray(line?.addOns) ? line.addOns : [];
+          map[sid].items.push({
+            ...baseItem,
+            id: `${it?.id}-line-${lineIdx}`,
+            qty: Number(line?.items) || 0,
+            addOns: lineAddOns.map(normalizeInvoiceAddOn),
+          });
+        });
+      } else {
+        // Single line or flat row — one display entry as before.
+        const flatQty = (() => {
+          const flat = Number(it?.items);
+          if (flat > 0) return flat;
+          const fromLines = serviceLines.reduce((s, l) => s + (Number(l?.items) || 0), 0);
+          if (fromLines > 0) return fromLines;
+          return repairItems.reduce((sum, r) => sum + (Number(r?.quantity) || 1), 0) || 0;
+        })();
+        const singleLineAddOns =
+          serviceLines.length === 1 && Array.isArray(serviceLines[0]?.addOns)
+            ? serviceLines[0].addOns
+            : null;
+        map[sid].items.push({
+          ...baseItem,
+          id: it?.id,
+          qty: flatQty,
+          addOns: (singleLineAddOns ?? collectInvoiceAddOns(it)).map(normalizeInvoiceAddOn),
+        });
+      }
     });
     return Object.values(map);
   }, [orderData?.customerSelectedServices]);
