@@ -1,8 +1,8 @@
 /**
- * Writes public/firebase-messaging-sw.js from .env / .env.local
+ * Writes public/firebase-messaging-sw.js from process.env, .env / .env.local.
  * Uses LAUNDRY_FIREBASE_* or VITE_FIREBASE_* (same as the main app).
- * Missing local config produces a safe no-op worker; production validation is
- * enforced by vite.config.mjs.
+ * Amplify has no .env file — fall back to the last working laundry-app-bf43c
+ * web config so the production worker is not a no-op.
  */
 import fs from "fs";
 import path from "path";
@@ -10,6 +10,15 @@ import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(__dirname, "..");
+
+const DEFAULT_FIREBASE_WEB_CONFIG = {
+  apiKey: "AIzaSyDdZLCsf0CQN_DIkE0mAOmRv9_pvlRq2qg",
+  authDomain: "laundry-app-bf43c.firebaseapp.com",
+  projectId: "laundry-app-bf43c",
+  storageBucket: "laundry-app-bf43c.firebasestorage.app",
+  messagingSenderId: "880600214434",
+  appId: "1:880600214434:web:9f770646a7fcf4d95ee0fb",
+};
 
 function parseEnvFile(filePath) {
   if (!fs.existsSync(filePath)) return {};
@@ -32,20 +41,34 @@ function parseEnvFile(filePath) {
 const env = {
   ...parseEnvFile(path.join(root, ".env")),
   ...parseEnvFile(path.join(root, ".env.local")),
+  ...process.env,
 };
 
 const firebaseConfig = {
-  apiKey: env.VITE_FIREBASE_API_KEY || env.LAUNDRY_FIREBASE_API_KEY || "",
+  apiKey:
+    env.VITE_FIREBASE_API_KEY ||
+    env.LAUNDRY_FIREBASE_API_KEY ||
+    DEFAULT_FIREBASE_WEB_CONFIG.apiKey,
   authDomain:
-    env.VITE_FIREBASE_AUTH_DOMAIN || env.LAUNDRY_FIREBASE_AUTH_DOMAIN || "",
-  projectId: env.VITE_FIREBASE_PROJECT_ID || env.LAUNDRY_FIREBASE_PROJECT_ID || "",
+    env.VITE_FIREBASE_AUTH_DOMAIN ||
+    env.LAUNDRY_FIREBASE_AUTH_DOMAIN ||
+    DEFAULT_FIREBASE_WEB_CONFIG.authDomain,
+  projectId:
+    env.VITE_FIREBASE_PROJECT_ID ||
+    env.LAUNDRY_FIREBASE_PROJECT_ID ||
+    DEFAULT_FIREBASE_WEB_CONFIG.projectId,
   storageBucket:
-    env.VITE_FIREBASE_STORAGE_BUCKET || env.LAUNDRY_FIREBASE_STORAGE_BUCKET || "",
+    env.VITE_FIREBASE_STORAGE_BUCKET ||
+    env.LAUNDRY_FIREBASE_STORAGE_BUCKET ||
+    DEFAULT_FIREBASE_WEB_CONFIG.storageBucket,
   messagingSenderId:
     env.VITE_FIREBASE_MESSAGING_SENDER_ID ||
     env.LAUNDRY_FIREBASE_MESSAGING_SENDER_ID ||
-    "",
-  appId: env.VITE_FIREBASE_APP_ID || env.LAUNDRY_FIREBASE_APP_ID || "",
+    DEFAULT_FIREBASE_WEB_CONFIG.messagingSenderId,
+  appId:
+    env.VITE_FIREBASE_APP_ID ||
+    env.LAUNDRY_FIREBASE_APP_ID ||
+    DEFAULT_FIREBASE_WEB_CONFIG.appId,
 };
 
 const outPath = path.join(root, "public", "firebase-messaging-sw.js");

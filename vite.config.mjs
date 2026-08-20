@@ -36,18 +36,73 @@ const REQUIRED_PRODUCTION_ENV = [
   "VITE_FIREBASE_VAPID_KEY",
 ];
 
+const PRODUCTION_ENV_ALIASES = {
+  VITE_API_BASE_URL: ["LAUNDRY_API_BASE_URL"],
+  VITE_GOOGLE_MAPS_KEY: ["LAUNDRY_GOOGLE_MAPS_KEY"],
+  VITE_FIREBASE_API_KEY: ["LAUNDRY_FIREBASE_API_KEY"],
+  VITE_FIREBASE_AUTH_DOMAIN: ["LAUNDRY_FIREBASE_AUTH_DOMAIN"],
+  VITE_FIREBASE_PROJECT_ID: ["LAUNDRY_FIREBASE_PROJECT_ID"],
+  VITE_FIREBASE_STORAGE_BUCKET: ["LAUNDRY_FIREBASE_STORAGE_BUCKET"],
+  VITE_FIREBASE_MESSAGING_SENDER_ID: ["LAUNDRY_FIREBASE_MESSAGING_SENDER_ID"],
+  VITE_FIREBASE_APP_ID: ["LAUNDRY_FIREBASE_APP_ID"],
+  VITE_FIREBASE_VAPID_KEY: [
+    "VITE_FIREBASE_MESSAGING_VAPID_KEY",
+    "LAUNDRY_FIREBASE_VAPID_KEY",
+  ],
+};
+
+// Last working Amplify production values (commit 89df315). Console env vars
+// override these. Amplify app dkuj4lgqcrq22 never had VITE_* set, so a hard
+// throw here takes the live admin host down.
+const AMPLIFY_PRODUCTION_DEFAULTS = {
+  VITE_API_BASE_URL: "https://prodlaundry.sigisolutions.net/",
+  VITE_GOOGLE_MAPS_KEY: "AIzaSyADTqd6DhbPp9HHY93FzP4ySblD4fx-bBE",
+  VITE_FIREBASE_API_KEY: "AIzaSyDdZLCsf0CQN_DIkE0mAOmRv9_pvlRq2qg",
+  VITE_FIREBASE_AUTH_DOMAIN: "laundry-app-bf43c.firebaseapp.com",
+  VITE_FIREBASE_PROJECT_ID: "laundry-app-bf43c",
+  VITE_FIREBASE_STORAGE_BUCKET: "laundry-app-bf43c.firebasestorage.app",
+  VITE_FIREBASE_MESSAGING_SENDER_ID: "880600214434",
+  VITE_FIREBASE_APP_ID: "1:880600214434:web:9f770646a7fcf4d95ee0fb",
+  VITE_FIREBASE_VAPID_KEY:
+    "BHqdkpwqEH9B9Rnw_lsvJz9cfuNyo-c8wPXLLexm6X9E0gryGLxztXXvGfqazZL7frP2D6GL9B1MO9JObNiYrRE",
+};
+
+function envValue(env, key) {
+  return String(env[key] || process.env[key] || "").trim();
+}
+
+function applyProductionEnv(env) {
+  for (const key of REQUIRED_PRODUCTION_ENV) {
+    if (envValue(env, key)) continue;
+    const aliasHit = (PRODUCTION_ENV_ALIASES[key] || []).find((alias) =>
+      envValue(env, alias)
+    );
+    const value = aliasHit
+      ? envValue(env, aliasHit)
+      : AMPLIFY_PRODUCTION_DEFAULTS[key];
+    if (!value) continue;
+    env[key] = value;
+    process.env[key] = value;
+    console.warn(
+      `[vite] ${key} missing in production; using ${
+        aliasHit ? `alias ${aliasHit}` : "Amplify production default"
+      }`
+    );
+  }
+
+  const missing = REQUIRED_PRODUCTION_ENV.filter((key) => !envValue(env, key));
+  if (missing.length) {
+    throw new Error(
+      `Missing required production environment variables: ${missing.join(", ")}`
+    );
+  }
+}
+
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, root, "");
   if (mode === "production") {
-    const missing = REQUIRED_PRODUCTION_ENV.filter(
-      (key) => !String(env[key] || "").trim()
-    );
-    if (missing.length) {
-      throw new Error(
-        `Missing required production environment variables: ${missing.join(", ")}`
-      );
-    }
+    applyProductionEnv(env);
   }
 
   const configuredApi = String(

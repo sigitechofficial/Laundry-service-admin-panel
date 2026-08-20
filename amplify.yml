@@ -1,9 +1,12 @@
 version: 1
-# Amplify: connect branch `dev` (staging) and `main` (production).
+# Amplify app dkuj4lgqcrq22: connected Production branch is `dev`.
+# `main` is not connected — pushing main does not update this host.
 frontend:
   phases:
     preBuild:
       commands:
+        - nvm install 20
+        - nvm use 20
         - npm ci
         - npm test
         - export VITE_APP_COMMIT="${AWS_COMMIT_ID:-local}"
