@@ -169,6 +169,45 @@ function normalizeInvoiceAddOn(ad) {
   };
 }
 
+/**
+ * Expand agent invoice CSS rows that use serviceLines into one display row
+ * per line so "1x with add-on" and "1x without" never collapse into Qty:N.
+ */
+function expandAgentInvoiceServices(services) {
+  const list = Array.isArray(services) ? services : [];
+  const out = [];
+  list.forEach((svc) => {
+    const lines = (Array.isArray(svc?.serviceLines) ? svc.serviceLines : []).filter(
+      (l) => Number(l?.items) > 0
+    );
+    if (lines.length > 1) {
+      lines.forEach((line, lineIdx) => {
+        out.push({
+          ...svc,
+          id: `${svc?.id ?? "svc"}-line-${lineIdx}`,
+          items: Number(line?.items) || 0,
+          addOns: Array.isArray(line?.addOns) ? line.addOns : [],
+        });
+      });
+      return;
+    }
+    if (lines.length === 1) {
+      out.push({
+        ...svc,
+        items: Number(lines[0]?.items) || Number(svc?.items) || 0,
+        addOns: Array.isArray(lines[0]?.addOns)
+          ? lines[0].addOns
+          : Array.isArray(svc?.addOns)
+            ? svc.addOns
+            : [],
+      });
+      return;
+    }
+    out.push(svc);
+  });
+  return out;
+}
+
 function formatAddress(address) {
   if (!address) return "N/A";
   const parts = [address.streetAddress, address.district, address.province].filter(
@@ -1561,7 +1600,7 @@ export default function OrderDetailsPage() {
                       <OdEmptyInvoice invoiceGenerated={comparisonData?.invoiceGenerated} />
                     ) : (() => {
                       const groups = {};
-                      (comparisonData.agentInvoice.services || []).forEach((svc) => {
+                      expandAgentInvoiceServices(comparisonData.agentInvoice.services).forEach((svc) => {
                         const heading = svc.service?.name || "Other";
                         if (!groups[heading]) groups[heading] = [];
                         groups[heading].push(svc);
