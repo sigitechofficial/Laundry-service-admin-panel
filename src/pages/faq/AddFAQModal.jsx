@@ -1,15 +1,11 @@
 import { useEffect } from "react";
-import { Box, Typography } from "@mui/material";
 import { useForm, Controller } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
-import ModalComponent from "../../components/shared/Modal";
-import InputFieldModal from "../../components/ui/InputFieldModal";
-import TextareaField from "../../components/ui/TextArea";
-import SelectField from "../../components/ui/SelectField";
+import { Field, Input, Textarea, Select, Modal } from "../../design-system";
 
 // Icon options for customer app – admin picks which icon shows per FAQ
-export const FAQ_ICON_OPTIONS = [
+const FAQ_ICON_OPTIONS = [
   { value: "help", label: "Help" },
   { value: "info", label: "Info" },
   { value: "delivery", label: "Delivery" },
@@ -91,42 +87,32 @@ export default function AddFAQModal({ open, onClose, onSave, isLoading = false, 
   };
 
   return (
-    <ModalComponent
+    <Modal
       open={open}
       onClose={handleClose}
       title={isEdit ? "Edit FAQ" : "Add FAQ"}
-      secondaryAction={{
-        label: "Cancel",
-        onClick: handleClose,
+      onPrimary={() => {
+        if (isLoading) return;
+        handleSubmit(onSubmit)();
       }}
-      primaryAction={{
-        label: isEdit ? "Update" : "Add",
-        onClick: handleSubmit(onSubmit),
-        isLoading: isLoading,
-      }}
+      primaryLabel={isLoading ? (isEdit ? "Updating…" : "Adding…") : isEdit ? "Update" : "Add"}
+      secondaryLabel="Cancel"
     >
-      <Box className="flex flex-col gap-5">
+      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
         <Controller
           name="question"
           control={control}
           render={({ field: { onChange, value } }) => (
-            <Box>
-              <InputFieldModal
-                title="Question"
-                placeholder="Enter the question"
+            <Field label="Question" htmlFor="faq-question" error={errors.question?.message}>
+              <Input
+                id="faq-question"
                 name="question"
+                placeholder="Enter the question"
                 value={value}
                 onChange={(e) => onChange(e.target.value)}
+                error={!!errors.question}
               />
-              {errors.question && (
-                <Typography
-                  variant="caption"
-                  sx={{ color: "error.main", mt: 1, display: "block" }}
-                >
-                  {errors.question.message}
-                </Typography>
-              )}
-            </Box>
+            </Field>
           )}
         />
 
@@ -134,20 +120,18 @@ export default function AddFAQModal({ open, onClose, onSave, isLoading = false, 
           name="icon"
           control={control}
           render={({ field: { onChange, value } }) => (
-            <Box>
-              <SelectField
-                title="Icon"
-                placeholder="Select icon (shown on customer side)"
+            <Field
+              label="Icon"
+              hint="Choose which icon to display with this FAQ on the customer app."
+            >
+              <Select
+                aria-label="Icon"
                 value={value || "help"}
-                onChange={(e) => onChange(e.target.value)}
+                onChange={onChange}
                 options={FAQ_ICON_OPTIONS}
-                fullWidth
-                bgcolor="#F4F7FF"
+                placeholder="Select icon (shown on customer side)"
               />
-              <Typography variant="caption" sx={{ color: "grey.70", mt: 0.5, display: "block" }}>
-                Choose which icon to display with this FAQ on the customer app.
-              </Typography>
-            </Box>
+            </Field>
           )}
         />
 
@@ -155,27 +139,20 @@ export default function AddFAQModal({ open, onClose, onSave, isLoading = false, 
           name="answer"
           control={control}
           render={({ field: { onChange, value } }) => (
-            <Box>
-              <TextareaField
-                title="Answer"
-                placeholder="Enter the answer"
+            <Field label="Answer" htmlFor="faq-answer" error={errors.answer?.message}>
+              <Textarea
+                id="faq-answer"
                 name="answer"
+                placeholder="Enter the answer"
                 value={value}
                 onChange={(e) => onChange(e.target.value)}
                 rows={4}
+                error={!!errors.answer}
               />
-              {errors.answer && (
-                <Typography
-                  variant="caption"
-                  sx={{ color: "error.main", mt: 1, display: "block" }}
-                >
-                  {errors.answer.message}
-                </Typography>
-              )}
-            </Box>
+            </Field>
           )}
         />
-      </Box>
-    </ModalComponent>
+      </div>
+    </Modal>
   );
 }

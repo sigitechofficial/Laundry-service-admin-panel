@@ -1,29 +1,22 @@
-// AuthCheck.js
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import useToaster from "../components/ui/Toaster";
-
-export const setLoginStatus = (data) => {
-  try {
-    localStorage.setItem("login_status", data);
-  } catch (_) {}
-};
+import { clearAuthTokens, hasValidSession } from "../utilities/authStorage";
 
 export const AuthCheck = ({ children }) => {
   const navigate = useNavigate();
-  const { success, info, error } = useToaster();
+  const { info } = useToaster();
+  const allowed = hasValidSession();
 
   useEffect(() => {
-    const loggedIn = localStorage.getItem("login_status");
-    // const token = localStorage.getItem("accessToken");
+    if (allowed) return;
+    clearAuthTokens();
+    info("Please login first !");
+    navigate("/auth/login", { replace: true });
+    // `info` is recreated each render; gate only on session + navigate.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allowed, navigate]);
 
-    if (!loggedIn) {
-      localStorage.removeItem("login_status");
-      localStorage.removeItem("userEmail");
-      info("Please login first !");
-      navigate("/auth/login", { replace: true });
-    }
-  }, [navigate]);
-
+  if (!allowed) return null;
   return children;
 };

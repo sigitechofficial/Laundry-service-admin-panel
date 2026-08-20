@@ -1,5 +1,4 @@
-import { createTheme } from "@mui/material";
-
+/** Legacy palette/type notes. Live UI tokens live on DsShell / CSS — not MUI. */
 export const themeOptions = {
   palette: {
     primary: {
@@ -240,4 +239,4 @@ export const themeOptions = {
   // },
 };
 
-export const theme = createTheme(themeOptions);
+export const theme = themeOptions;

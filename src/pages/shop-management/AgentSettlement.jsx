@@ -1,22 +1,30 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import {
-  Box,
   Button,
-  Card,
-  CardContent,
-  Grid,
-  Tab,
-  Tabs,
-  TextField,
-  Typography,
-} from "@mui/material";
-import dayjs from "dayjs";
-import DataTable from "../../components/ui/DataTable";
-import ModalComponent from "../../components/shared/Modal";
-import InputFieldBordered from "../../components/ui/InputFieldBordered";
+  Field,
+  Input,
+  Modal,
+  Table,
+  Textarea,
+} from "../../design-system";
 import { Delay } from "../../components/shared/Loaders";
 import useToaster from "../../components/ui/Toaster";
-import { formatGbp } from "../../utils/formatGbp";
+import {
+  DATE_TIME_FORMAT,
+  formatDate,
+  formatMoney,
+  resolveCurrencySymbol,
+} from "../../utilities/formatters";
+import {
+  DirectoryActions,
+  DirectoryIdentity,
+  DirectoryMetrics,
+  DirectoryMoney,
+  DirectorySearch,
+  DirectoryTableWrap,
+  DirectoryToolbar,
+  DirectoryViewModal,
+} from "../directory-table/directoryTable";
 import {
   useGetAgentsCashDueQuery,
   useGetPendingRemittancesQuery,
@@ -29,32 +37,77 @@ import {
 
 const isSuccess = (res) => res?.status === "1" || res?.status === 1;
 
+function formatAgentMoney(amount, source) {
+  return formatMoney(amount, resolveCurrencySymbol(source?.currency ?? source), source?.currency);
+}
+
 const emptyActionModal = {
   open: false,
   type: null,
   agentId: null,
   agentName: "",
   remittanceId: null,
+  currency: "",
   maxAmount: 0,
   amount: "",
   note: "",
 };
 
+const TAB_ROW = {
+  display: "flex",
+  flexWrap: "wrap",
+  gap: 8,
+  alignItems: "center",
+  marginBottom: 12,
+};
+
+const PAGE_ROW = {
+  display: "flex",
+  flexWrap: "wrap",
+  gap: 12,
+  alignItems: "center",
+  marginTop: 16,
+};
+
+function matchesSearch(row, term) {
+  if (!term) return true;
+  const q = term.toLowerCase();
+  return Object.entries(row).some(([key, value]) => {
+    if (key === "actions") return false;
+    return String(value ?? "")
+      .toLowerCase()
+      .includes(q);
+  });
+}
+
 export default function AgentSettlement() {
   const { success, error: showError } = useToaster();
   const [tab, setTab] = useState("cash-due");
+  const [searchTerm, setSearchTerm] = useState("");
   const [remittancePage, setRemittancePage] = useState(1);
   const [actionModal, setActionModal] = useState(emptyActionModal);
+  const [viewRow, setViewRow] = useState(null);
   const actingRef = useRef(false);
 
-  const { data: cashDueResponse, isLoading: cashDueLoading, refetch: refetchCashDue } =
-    useGetAgentsCashDueQuery({ page: 1, limit: 100 }, { skip: tab !== "cash-due" });
+  const {
+    data: cashDueResponse,
+    isLoading: cashDueLoading,
+    isError: cashDueError,
+    refetch: refetchCashDue,
+  } = useGetAgentsCashDueQuery(
+    { page: 1, limit: 100 },
+    { skip: tab !== "cash-due" }
+  );
 
-  const { data: remittanceResponse, isLoading: remittanceLoading } =
-    useGetPendingRemittancesQuery(
-      { page: remittancePage, limit: 20 },
-      { skip: tab !== "remittances" }
-    );
+  const {
+    data: remittanceResponse,
+    isLoading: remittanceLoading,
+    isError: remittanceError,
+    refetch: refetchRemittances,
+  } = useGetPendingRemittancesQuery(
+    { page: remittancePage, limit: 20 },
+    { skip: tab !== "remittances" }
+  );
 
   const [confirmRemittance, { isLoading: confirming }] =
     useConfirmCashRemittanceMutation();
@@ -67,10 +120,17 @@ export default function AgentSettlement() {
   const [syncAgentWallets, { isLoading: syncingWallets }] =
     useSyncAgentWalletsMutation();
 
-  const isActing = confirming || rejecting || recordingCash || recordingPayout || syncingWallets;
+  const isActing =
+    confirming || rejecting || recordingCash || recordingPayout || syncingWallets;
 
-  const cashDueAgents = cashDueResponse?.data?.agents || [];
-  const remittances = remittanceResponse?.data?.remittances || [];
+  const cashDueAgents = useMemo(
+    () => cashDueResponse?.data?.agents || [],
+    [cashDueResponse?.data?.agents]
+  );
+  const remittances = useMemo(
+    () => remittanceResponse?.data?.remittances || [],
+    [remittanceResponse?.data?.remittances]
+  );
   const remittancePagination = remittanceResponse?.data?.pagination || {};
 
   const summary = useMemo(() => {
@@ -86,25 +146,33 @@ export default function AgentSettlement() {
       (sum, row) => sum + Number(row.platformOwesAgent || 0),
       0
     );
-    return { totalCashDue, totalPending, totalPayable };
+    const symbols = new Set(cashDueAgents.map((agent) => resolveCurrencySymbol(agent.currency ?? agent)));
+    return {
+      totalCashDue,
+      totalPending,
+      totalPayable,
+      currencySymbol: symbols.size === 1 ? [...symbols][0] : "",
+    };
   }, [cashDueAgents]);
 
   const cashDueTableData = useMemo(
     () =>
       cashDueAgents.map((agent, index) => ({
         id: agent.agentUserId,
+        rowKey: `cash-${agent.agentUserId ?? "unknown"}-${index}`,
         sl: index + 1,
         name: agent.agentName || "-",
         email: agent.agentEmail || "-",
         shopAddress: agent.shopAddress || "-",
+        currency: agent.currency,
         cashDue: Number(agent.cashDueToPlatform || 0),
-        cashDueLabel: formatGbp(agent.cashDueToPlatform),
+        cashDueLabel: formatAgentMoney(agent.cashDueToPlatform, agent),
         pendingRemittance: Number(agent.pendingCashRemittance || 0),
-        pendingLabel: formatGbp(agent.pendingCashRemittance),
+        pendingLabel: formatAgentMoney(agent.pendingCashRemittance, agent),
         platformOwes: Number(agent.platformOwesAgent || 0),
-        platformOwesLabel: formatGbp(agent.platformOwesAgent),
-        totalCashCollected: formatGbp(agent.totalCashCollected),
-        totalCashRemitted: formatGbp(agent.totalCashRemitted),
+        platformOwesLabel: formatAgentMoney(agent.platformOwesAgent, agent),
+        totalCashCollected: formatAgentMoney(agent.totalCashCollected, agent),
+        totalCashRemitted: formatAgentMoney(agent.totalCashRemitted, agent),
       })),
     [cashDueAgents]
   );
@@ -113,18 +181,28 @@ export default function AgentSettlement() {
     () =>
       remittances.map((row, index) => ({
         id: row.id,
+        rowKey: `remittance-${row.id ?? "unknown"}-${index}`,
         sl: (remittancePage - 1) * 20 + index + 1,
         agentUserId: row.agentUserId,
         name: row.agentName || "-",
         email: row.agentEmail || "-",
+        currency: row.currency,
         amount: Number(row.amount || 0),
-        amountLabel: formatGbp(row.amount),
+        amountLabel: formatAgentMoney(row.amount, row),
         description: row.description || "-",
-        submittedAt: row.createdAt
-          ? dayjs(row.createdAt).format("DD MMM YYYY, HH:mm")
-          : "-",
+        submittedAt: formatDate(row.createdAt, DATE_TIME_FORMAT),
       })),
     [remittances, remittancePage]
+  );
+
+  const visibleCashDue = useMemo(
+    () => cashDueTableData.filter((row) => matchesSearch(row, searchTerm)),
+    [cashDueTableData, searchTerm]
+  );
+
+  const visibleRemittances = useMemo(
+    () => remittanceTableData.filter((row) => matchesSearch(row, searchTerm)),
+    [remittanceTableData, searchTerm]
   );
 
   const openActionModal = useCallback((type, row) => {
@@ -141,6 +219,7 @@ export default function AgentSettlement() {
       agentId: row.id || row.agentUserId,
       agentName: row.name,
       remittanceId: row.id,
+      currency: row.currency,
       maxAmount,
       amount: maxAmount > 0 ? String(maxAmount.toFixed(2)) : "",
       note: "",
@@ -155,7 +234,10 @@ export default function AgentSettlement() {
     if (actingRef.current || isActing) return;
 
     const parsedAmount = parseFloat(actionModal.amount);
-    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+    if (
+      (actionModal.type === "cash-settlement" || actionModal.type === "payout") &&
+      (!Number.isFinite(parsedAmount) || parsedAmount <= 0)
+    ) {
       showError("Enter a valid amount");
       return;
     }
@@ -238,46 +320,47 @@ export default function AgentSettlement() {
 
   const cashDueColumns = useMemo(
     () => [
-      { field: "sl", headerName: "SL", width: 60 },
-      { field: "name", headerName: "Agent", flex: 1, minWidth: 140 },
-      { field: "email", headerName: "Email", flex: 1, minWidth: 180 },
-      { field: "shopAddress", headerName: "Shop", flex: 1.2, minWidth: 160 },
-      { field: "cashDueLabel", headerName: "Cash Due", width: 120 },
-      { field: "pendingLabel", headerName: "Pending", width: 110 },
-      { field: "platformOwesLabel", headerName: "Payable", width: 110 },
-      { field: "totalCashCollected", headerName: "Collected", width: 110 },
-      { field: "totalCashRemitted", headerName: "Remitted", width: 110 },
       {
-        field: "actions",
-        headerName: "Actions",
-        width: 240,
-        renderCell: (row) => (
-          <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
-            <Button
-              size="small"
-              variant="contained"
-              disabled={row.cashDue <= 0 || isActing}
-              onClick={(e) => {
-                e.stopPropagation();
-                openActionModal("cash-settlement", row);
-              }}
-              sx={{ textTransform: "none", minWidth: 88 }}
-            >
-              Record Cash
+        key: "name",
+        header: "Agent",
+        render: (row) => (
+          <DirectoryIdentity name={row.name} meta={row.shopAddress} />
+        ),
+      },
+      {
+        key: "cashDueLabel",
+        header: "Cash due",
+        render: (row) => <DirectoryMoney>{row.cashDueLabel}</DirectoryMoney>,
+      },
+      {
+        key: "platformOwesLabel",
+        header: "Payable",
+        render: (row) => <DirectoryMoney>{row.platformOwesLabel}</DirectoryMoney>,
+      },
+      {
+        key: "actions",
+        header: "Actions",
+        render: (row) => (
+          <DirectoryActions>
+            <Button size="sm" variant="secondary" onClick={() => setViewRow({ kind: "cash", ...row })}>
+              View
             </Button>
             <Button
-              size="small"
-              variant="outlined"
+              size="sm"
+              disabled={row.cashDue <= 0 || isActing}
+              onClick={() => openActionModal("cash-settlement", row)}
+            >
+              Record
+            </Button>
+            <Button
+              size="sm"
+              variant="secondary"
               disabled={row.platformOwes <= 0 || isActing}
-              onClick={(e) => {
-                e.stopPropagation();
-                openActionModal("payout", row);
-              }}
-              sx={{ textTransform: "none", minWidth: 72 }}
+              onClick={() => openActionModal("payout", row)}
             >
               Payout
             </Button>
-          </Box>
+          </DirectoryActions>
         ),
       },
     ],
@@ -286,45 +369,42 @@ export default function AgentSettlement() {
 
   const remittanceColumns = useMemo(
     () => [
-      { field: "sl", headerName: "SL", width: 60 },
-      { field: "name", headerName: "Agent", flex: 1, minWidth: 140 },
-      { field: "email", headerName: "Email", flex: 1, minWidth: 180 },
-      { field: "amountLabel", headerName: "Amount", width: 110 },
-      { field: "description", headerName: "Note", flex: 1.2, minWidth: 180 },
-      { field: "submittedAt", headerName: "Submitted", width: 160 },
       {
-        field: "actions",
-        headerName: "Actions",
-        width: 200,
-        renderCell: (row) => (
-          <Box sx={{ display: "flex", gap: 1 }}>
+        key: "name",
+        header: "Agent",
+        render: (row) => (
+          <DirectoryIdentity name={row.name} meta={row.submittedAt} />
+        ),
+      },
+      {
+        key: "amountLabel",
+        header: "Amount",
+        render: (row) => <DirectoryMoney>{row.amountLabel}</DirectoryMoney>,
+      },
+      {
+        key: "actions",
+        header: "Actions",
+        render: (row) => (
+          <DirectoryActions>
+            <Button size="sm" variant="secondary" onClick={() => setViewRow({ kind: "remit", ...row })}>
+              View
+            </Button>
             <Button
-              size="small"
-              variant="contained"
-              color="success"
+              size="sm"
               disabled={isActing}
-              onClick={(e) => {
-                e.stopPropagation();
-                openActionModal("confirm-remittance", row);
-              }}
-              sx={{ textTransform: "none", minWidth: 72 }}
+              onClick={() => openActionModal("confirm-remittance", row)}
             >
               Confirm
             </Button>
             <Button
-              size="small"
-              variant="outlined"
-              color="error"
+              size="sm"
+              variant="danger"
               disabled={isActing}
-              onClick={(e) => {
-                e.stopPropagation();
-                openActionModal("reject-remittance", row);
-              }}
-              sx={{ textTransform: "none", minWidth: 64 }}
+              onClick={() => openActionModal("reject-remittance", row)}
             >
               Reject
             </Button>
-          </Box>
+          </DirectoryActions>
         ),
       },
     ],
@@ -349,185 +429,246 @@ export default function AgentSettlement() {
   const showAmountField =
     actionModal.type === "cash-settlement" || actionModal.type === "payout";
 
-  if (
-    (tab === "cash-due" && cashDueLoading) ||
-    (tab === "remittances" && remittanceLoading)
-  ) {
-    return <Delay />;
-  }
+  const remittanceTotalPages = Math.max(
+    1,
+    Math.ceil((remittancePagination.total || 0) / 20)
+  );
+
+  const tabError = tab === "cash-due" ? cashDueError : remittanceError;
+  const tabLoading = tab === "cash-due" ? cashDueLoading : remittanceLoading;
 
   return (
-    <>
-      <Grid container spacing={2} sx={{ mb: 3 }}>
-        <Grid item xs={12} sm={4}>
-          <Card variant="outlined">
-            <CardContent>
-              <Typography variant="body2" color="text.secondary">
-                Total Cash Due
-              </Typography>
-              <Typography variant="h5" fontWeight={600}>
-                {formatGbp(summary.totalCashDue)}
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} sm={4}>
-          <Card variant="outlined">
-            <CardContent>
-              <Typography variant="body2" color="text.secondary">
-                Pending Remittances
-              </Typography>
-              <Typography variant="h5" fontWeight={600}>
-                {formatGbp(summary.totalPending)}
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} sm={4}>
-          <Card variant="outlined">
-            <CardContent>
-              <Typography variant="body2" color="text.secondary">
-                Platform Owes Agents
-              </Typography>
-              <Typography variant="h5" fontWeight={600}>
-                {formatGbp(summary.totalPayable)}
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
+    <div>
+      <DirectoryMetrics
+        items={[
+          {
+            label: "Total cash due",
+            value: formatMoney(summary.totalCashDue, summary.currencySymbol),
+            tone: "warning",
+          },
+          {
+            label: "Pending remittances",
+            value: formatMoney(summary.totalPending, summary.currencySymbol),
+            tone: "navy",
+          },
+          {
+            label: "Platform owes agents",
+            value: formatMoney(summary.totalPayable, summary.currencySymbol),
+            tone: "success",
+          },
+        ]}
+      />
 
-      <Box sx={{ mb: 2, display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 2 }}>
-        <Tabs
-          value={tab}
-          onChange={(_, value) => setTab(value)}
-          sx={{ borderBottom: 1, borderColor: "divider", flex: 1, minWidth: 240 }}
-        >
-          <Tab
-            label="Agent settlements"
-            value="cash-due"
-            sx={{ textTransform: "none" }}
-          />
-          <Tab
-            label={`Pending Remittances${remittancePagination.total ? ` (${remittancePagination.total})` : ""}`}
-            value="remittances"
-            sx={{ textTransform: "none" }}
-          />
-        </Tabs>
+      <div style={{ ...TAB_ROW, justifyContent: "space-between" }}>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <Button
+            size="sm"
+            variant={tab === "cash-due" ? "primary" : "secondary"}
+            onClick={() => {
+              setTab("cash-due");
+              setSearchTerm("");
+            }}
+          >
+            Agent settlements
+          </Button>
+          <Button
+            size="sm"
+            variant={tab === "remittances" ? "primary" : "secondary"}
+            onClick={() => {
+              setTab("remittances");
+              setSearchTerm("");
+            }}
+          >
+            Pending remittances
+            {remittancePagination.total
+              ? ` (${remittancePagination.total})`
+              : ""}
+          </Button>
+        </div>
         {tab === "cash-due" ? (
           <Button
-            variant="outlined"
-            size="small"
+            variant="secondary"
+            size="sm"
             disabled={syncingWallets}
             onClick={handleSyncWallets}
           >
             {syncingWallets ? "Syncing…" : "Sync from paid bookings"}
           </Button>
         ) : null}
-      </Box>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          {tab === "cash-due"
-            ? "Cash bookings show under Cash Due after agent records payment at delivery. Card bookings show under Payable (platform owes agent). If empty, run Sync from paid bookings once."
-            : "Agent-submitted cash remittances awaiting your confirmation."}
-      </Typography>
+      </div>
 
-      {tab === "cash-due" ? (
-        <DataTable
-          data={cashDueTableData}
-          columns={cashDueColumns}
-          searchable
-          searchPlaceholder="Search agents..."
-          showDateRange={false}
-          showDownload={false}
-        />
+      <p className="jd-lead" style={{ margin: "0 0 16px" }}>
+        {tab === "cash-due"
+          ? "Cash bookings show under Cash Due after agent records payment at delivery. Card bookings show under Payable (platform owes agent). If empty, run Sync from paid bookings once."
+          : "Agent-submitted cash remittances awaiting your confirmation."}
+      </p>
+
+      {tabError ? (
+        <div style={{ textAlign: "center", padding: 28 }}>
+          <p className="jd-lead" style={{ margin: "0 0 12px" }}>
+            {tab === "cash-due"
+              ? "Could not load agent settlements."
+              : "Could not load pending remittances."}
+          </p>
+          <Button
+            variant="secondary"
+            onClick={() =>
+              tab === "cash-due" ? refetchCashDue() : refetchRemittances()
+            }
+          >
+            Retry
+          </Button>
+        </div>
+      ) : tabLoading ? (
+        <Delay />
+      ) : tab === "cash-due" ? (
+        <DirectoryTableWrap
+          toolbar={
+            <DirectoryToolbar>
+              <DirectorySearch
+                id="cash-due-search"
+                value={searchTerm}
+                onChange={setSearchTerm}
+                placeholder="Search agents…"
+              />
+            </DirectoryToolbar>
+          }
+        >
+          <Table
+            columns={cashDueColumns}
+            rows={visibleCashDue}
+            rowKey={(row) => row.rowKey}
+            empty="No agents with cash due"
+          />
+        </DirectoryTableWrap>
       ) : (
-        <DataTable
-          data={remittanceTableData}
-          columns={remittanceColumns}
-          searchable
-          searchPlaceholder="Search remittances..."
-          showDateRange={false}
-          showDownload={false}
-          serverSidePagination
-          totalRows={remittancePagination.total || 0}
-          currentPage={remittancePage}
-          pageSize={20}
-          onPageChange={setRemittancePage}
-        />
+        <>
+          <DirectoryTableWrap
+            toolbar={
+              <DirectoryToolbar>
+                <DirectorySearch
+                  id="remittance-search"
+                  value={searchTerm}
+                  onChange={setSearchTerm}
+                  placeholder="Search remittances…"
+                />
+              </DirectoryToolbar>
+            }
+            footer={
+              <div style={PAGE_ROW}>
+                <p className="jd-lead" style={{ margin: 0 }}>
+                  Page {remittancePage} of {remittanceTotalPages} (
+                  {remittancePagination.total || 0} total)
+                </p>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={remittancePage <= 1}
+                  onClick={() => setRemittancePage((p) => Math.max(1, p - 1))}
+                >
+                  Previous
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={remittancePage >= remittanceTotalPages}
+                  onClick={() => setRemittancePage((p) => p + 1)}
+                >
+                  Next
+                </Button>
+              </div>
+            }
+          >
+            <Table
+              columns={remittanceColumns}
+              rows={visibleRemittances}
+              rowKey={(row) => row.rowKey}
+              empty="No pending remittances"
+            />
+          </DirectoryTableWrap>
+        </>
       )}
 
-      <ModalComponent
+      <Modal
         open={actionModal.open}
-        onClose={closeActionModal}
         title={modalTitle}
-        width={480}
+        description={`Agent: ${actionModal.agentName}${
+          actionModal.maxAmount > 0 && showAmountField
+            ? ` — max ${formatAgentMoney(actionModal.maxAmount, actionModal)}`
+            : ""
+        }`}
+        onClose={closeActionModal}
+        onPrimary={handleSubmitAction}
+        primaryLabel={
+          isActing
+            ? "Saving…"
+            : actionModal.type === "confirm-remittance"
+              ? "Confirm"
+              : actionModal.type === "reject-remittance"
+                ? "Reject"
+                : "Save"
+        }
+        secondaryLabel="Cancel"
+        danger={actionModal.type === "reject-remittance"}
       >
-        <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-          <Typography variant="body2" color="text.secondary">
-            Agent: <strong>{actionModal.agentName}</strong>
-            {actionModal.maxAmount > 0 && showAmountField && (
-              <>
-                {" "}
-                — max {formatGbp(actionModal.maxAmount)}
-              </>
-            )}
-          </Typography>
-
-          {showAmountField && (
-            <InputFieldBordered
-              title="Amount"
-              type="number"
-              value={actionModal.amount}
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          {showAmountField ? (
+            <Field label="Amount" htmlFor="settlement-amount">
+              <Input
+                id="settlement-amount"
+                type="number"
+                min={0}
+                step="0.01"
+                value={actionModal.amount}
+                onChange={(e) =>
+                  setActionModal((prev) => ({ ...prev, amount: e.target.value }))
+                }
+              />
+            </Field>
+          ) : null}
+          <Field label="Note (optional)" htmlFor="settlement-note">
+            <Textarea
+              id="settlement-note"
+              rows={3}
+              value={actionModal.note}
               onChange={(e) =>
-                setActionModal((prev) => ({ ...prev, amount: e.target.value }))
+                setActionModal((prev) => ({ ...prev, note: e.target.value }))
               }
-              min={0}
-              step="0.01"
+              placeholder={
+                actionModal.type === "reject-remittance"
+                  ? "Reason for rejection"
+                  : "Optional note"
+              }
             />
-          )}
+          </Field>
+        </div>
+      </Modal>
 
-          <TextField
-            label="Note (optional)"
-            value={actionModal.note}
-            onChange={(e) =>
-              setActionModal((prev) => ({ ...prev, note: e.target.value }))
-            }
-            multiline
-            minRows={3}
-            fullWidth
-            placeholder={
-              actionModal.type === "reject-remittance"
-                ? "Reason for rejection"
-                : "Optional note"
-            }
-          />
-
-          <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 1.5 }}>
-            <Button
-              variant="outlined"
-              onClick={closeActionModal}
-              sx={{ textTransform: "none" }}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="contained"
-              color={
-                actionModal.type === "reject-remittance" ? "error" : "primary"
-              }
-              disabled={isActing}
-              onClick={handleSubmitAction}
-              sx={{ textTransform: "none" }}
-            >
-              {actionModal.type === "confirm-remittance"
-                ? "Confirm"
-                : actionModal.type === "reject-remittance"
-                  ? "Reject"
-                  : "Save"}
-            </Button>
-          </Box>
-        </Box>
-      </ModalComponent>
-    </>
+      <DirectoryViewModal
+        open={Boolean(viewRow)}
+        title={viewRow?.name || "Settlement"}
+        onClose={() => setViewRow(null)}
+        fields={
+          viewRow?.kind === "remit"
+            ? [
+                { label: "Agent", value: viewRow?.name },
+                { label: "Email", value: viewRow?.email },
+                { label: "Amount", value: viewRow?.amountLabel },
+                { label: "Note", value: viewRow?.description },
+                { label: "Submitted", value: viewRow?.submittedAt },
+              ]
+            : [
+                { label: "Agent", value: viewRow?.name },
+                { label: "Email", value: viewRow?.email },
+                { label: "Shop", value: viewRow?.shopAddress },
+                { label: "Cash due", value: viewRow?.cashDueLabel },
+                { label: "Pending remittance", value: viewRow?.pendingLabel },
+                { label: "Payable", value: viewRow?.platformOwesLabel },
+                { label: "Collected", value: viewRow?.totalCashCollected },
+                { label: "Remitted", value: viewRow?.totalCashRemitted },
+              ]
+        }
+      />
+    </div>
   );
 }

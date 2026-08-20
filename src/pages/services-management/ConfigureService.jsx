@@ -1,30 +1,34 @@
 import { useState, useEffect } from "react";
-import ConfigureServiceOptions from "./ConfigureServiceOptions";
-import SelectField from "../../components/ui/SelectField";
-import { Box, Typography } from "@mui/material";
+import { Field, Select } from "../../design-system";
 import { useSelector } from "react-redux";
-import ConfigureModal from "./configure-modal/ConfigureModal";
 import { useGetAllServicesQuery } from "../../store/services/api";
+import ConfigureServiceOptions from "./ConfigureServiceOptions";
+import ConfigureModal from "./configure-modal/ConfigureModal";
+import { EmptyHint, QueryState } from "./QueryState";
+import { DirectoryFormCard, DirectoryStack } from "../directory-table/directoryTable";
 
 export default function ConfigureService({ triggerConfigure }) {
   const servicesFromStore = useSelector((state) => state.apiData.services);
-  const { data: servicesResponse, isLoading: isServicesLoading } =
-    useGetAllServicesQuery();
+  const {
+    data: servicesResponse,
+    isLoading: isServicesLoading,
+    isError: isServicesError,
+    error: servicesQueryError,
+    refetch: refetchServices,
+  } = useGetAllServicesQuery();
   const services = servicesResponse?.data?.services || servicesFromStore || [];
 
-  const SERVICE_OPTIONS = services?.map((service) => ({
+  const serviceOptions = (services || []).map((service) => ({
     label: service.name,
     value: service.id,
   }));
 
   const [modalOpen, setModalOpen] = useState(false);
-
   const [selectedService, setSelectedService] = useState({
     label: "",
     value: "",
   });
 
-  // Handle external trigger to open modal
   useEffect(() => {
     if (triggerConfigure && triggerConfigure > 0 && !modalOpen) {
       setModalOpen(true);
@@ -32,42 +36,51 @@ export default function ConfigureService({ triggerConfigure }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [triggerConfigure]);
 
-  const handleServiceChange = (event) => {
-    const selected = SERVICE_OPTIONS.find(
-      (opt) => opt.value === event.target.value
+  const handleServiceChange = (value) => {
+    const selected = serviceOptions.find(
+      (opt) => String(opt.value) === String(value)
     );
-
-    if (selected) {
-      setSelectedService(selected);
-    }
+    if (selected) setSelectedService(selected);
   };
 
-  return (
-    <Box
-      className="flex flex-1 flex-col gap-6 rounded-3xl !p-6"
-      bgcolor={"grey.60"}
-      border="1px solid #D0D5DD"
-    >
-      <Box className="flex gap-2 items-center">
-        <Typography variant="body2" fontFamily={"SF Pro"} color="grey.40">
-          Configure Service
-        </Typography>
-      </Box>
-
-      <SelectField
-        title=""
-        value={selectedService.value}
-        onChange={handleServiceChange}
-        options={SERVICE_OPTIONS}
-        placeholder={isServicesLoading ? "Loading services..." : "Select service"}
-        fullWidth
-        bgcolor={"white"}
-        disabled={isServicesLoading || !SERVICE_OPTIONS?.length}
+  if (isServicesLoading || isServicesError) {
+    return (
+      <QueryState
+        loading={isServicesLoading}
+        error={servicesQueryError || isServicesError}
+        onRetry={refetchServices}
+        errorLabel="Could not load services. Please try again."
       />
+    );
+  }
+
+  return (
+    <DirectoryStack>
+      <DirectoryFormCard
+        title="Configure Service"
+        hint="Select a service to link item categories and preference types."
+      >
+        <Field label="Configure Service">
+          <Select
+            value={selectedService.value}
+            onChange={handleServiceChange}
+            options={serviceOptions}
+            placeholder={isServicesLoading ? "Loading services…" : "Select service"}
+            disabled={isServicesLoading || !serviceOptions.length}
+          />
+        </Field>
+
+        {!serviceOptions.length ? (
+          <EmptyHint>
+            No services available. Add a service before configuring categories and
+            preferences.
+          </EmptyHint>
+        ) : null}
+      </DirectoryFormCard>
 
       <ConfigureServiceOptions serviceId={selectedService.value} />
 
       <ConfigureModal open={modalOpen} onClose={() => setModalOpen(false)} />
-    </Box>
+    </DirectoryStack>
   );
 }

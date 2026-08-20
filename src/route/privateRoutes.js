@@ -14,12 +14,11 @@ import {
   DeleteAccountReasons,
   ReviewReasonCodes,
   ShopReviewsInbox,
-  ShopRatingsReport,
   CustomerDetails,
-  ShopDetails,
   DriverManagement,
   DriverDetails,
   ZoneManagement,
+  ZoneDetails,
   EmployeeManagement,
   EmployeeDetails,
   EditEmployee,
@@ -54,6 +53,7 @@ import {
   FcmDebugPage,
   SendNotificationsPage,
   AdminNotificationSettingsPage,
+  PrivacyPolicy,
 } from "../routes/AsyncComponent";
 
 export const privateRoutes = [
@@ -113,11 +113,16 @@ export const privateRoutes = [
     element: NotifyLogsPage,
     resourceKey: "notify_call_logs_page",
   },
-  {
-    path: "/fcm-debug",
-    element: FcmDebugPage,
-    resourceKey: "fcm_push_debug_page",
-  },
+  // Hidden ops route — not in the default sidebar. DEV-only so production builds omit it.
+  ...(import.meta.env.DEV
+    ? [
+        {
+          path: "/fcm-debug",
+          element: FcmDebugPage,
+          resourceKey: "fcm_push_debug_page",
+        },
+      ]
+    : []),
   {
     path: "/send-notifications",
     element: SendNotificationsPage,
@@ -144,11 +149,6 @@ export const privateRoutes = [
     resourceKey: "shop_reviews_page",
   },
   {
-    path: "/shop-ratings-report",
-    element: ShopRatingsReport,
-    resourceKey: "shop_ratings_report_page",
-  },
-  {
     path: "/customer-management/details/:id",
     element: CustomerDetails,
     resourceKey: "customer_details_Page",
@@ -172,6 +172,11 @@ export const privateRoutes = [
     path: "/zone-management",
     element: ZoneManagement,
     resourceKey: "zone_management_Page",
+  },
+  {
+    path: "/zone-management/details/:id",
+    element: ZoneDetails,
+    resourceKey: "zone_details_Page",
   },
   {
     path: "/employee-management",
@@ -318,6 +323,18 @@ export const privateRoutes = [
     element: BannersPage,
     resourceKey: "promotion_banners_page",
   },
+  {
+    path: "/privacy-policy",
+    element: PrivacyPolicy,
+    resourceKey: "privacy_policy_page",
+  },
+];
+
+/** Parent nav paths and retired aliases that must resolve to a live screen. */
+export const privateRedirects = [
+  { path: "/orders", to: "/orders/action-required" },
+  { path: "/promotion", to: "/promotion/promo-codes" },
+  { path: "/shop-ratings-report", to: "/reports/shop-ratings" },
 ];
 
 export const publicRoutes = [

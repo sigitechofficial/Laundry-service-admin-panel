@@ -1,21 +1,78 @@
 import { useState } from "react";
-import {
-  Box,
-  Typography,
-  Card,
-  CardMedia,
-  CardContent,
-  CardActions,
-  Button,
-} from "@mui/material";
-import { TbFileDescription, TbPencil, TbTrash, TbPlus } from "../../shared/icons/index";
-import ButtonBlue from "../../components/ui/ButtonBlue";
+import { TbPencil, TbTrash, TbPlus } from "../../shared/icons/index";
+import { Button, Modal, PageHeader, Table } from "../../design-system";
 import AddBlogModal from "./AddBlogModal";
-import ModalComponent from "../../components/shared/Modal";
 import { useGetAllBlogsQuery, useDeleteBlogMutation, useCreateBlogMutation, useUpdateBlogMutation } from "../../store/services/api";
-import { Delay } from "../../components/shared/Loaders";
+import {
+  DirectoryActions,
+  DirectoryError,
+  DirectoryIdentity,
+  DirectoryTableWrap,
+  PageLoading,
+} from "../directory-table/directoryTable";
 import useToaster from "../../components/ui/Toaster";
-import { BASE_URL } from "../../utilities/URL";
+import { validateImageFile } from "../../utilities/imageUploadPolicy";
+import { getApiErrorMessage } from "../../store/services/apiErrors";
+import { joinMediaUrl } from "../../utilities/formatters";
+
+function extractBlogs(payload) {
+  if (Array.isArray(payload?.message)) return payload.message;
+  if (Array.isArray(payload?.data?.blogs)) return payload.data.blogs;
+  if (Array.isArray(payload?.blogs)) return payload.blogs;
+  if (Array.isArray(payload?.data)) return payload.data;
+  if (Array.isArray(payload)) return payload;
+  return [];
+}
+
+function mediaUrl(path) {
+  return joinMediaUrl(path);
+}
+
+function BlogCover({ src, alt }) {
+  const [failed, setFailed] = useState(!src);
+  if (!src || failed) {
+    return (
+      <div
+        style={{
+          width: 48,
+          height: 48,
+          borderRadius: 10,
+          display: "grid",
+          placeItems: "center",
+          background: "#f4f5f8",
+          color: "#8a94a2",
+          fontSize: 11,
+          flexShrink: 0,
+        }}
+      >
+        —
+      </div>
+    );
+  }
+  return (
+    <img
+      src={src}
+      alt={alt}
+      onError={() => setFailed(true)}
+      style={{
+        width: 48,
+        height: 48,
+        borderRadius: 10,
+        objectFit: "cover",
+        flexShrink: 0,
+        display: "block",
+      }}
+    />
+  );
+}
+
+function previewText(html) {
+  if (!html) return "";
+  return String(html)
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
 
 export default function Blogs() {
   const [addModalOpen, setAddModalOpen] = useState(false);
@@ -23,19 +80,11 @@ export default function Blogs() {
   const [blogToDelete, setBlogToDelete] = useState(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const { success, error: showError } = useToaster();
-  const { data, isLoading, refetch } = useGetAllBlogsQuery();
+  const { data, isLoading, isError, refetch } = useGetAllBlogsQuery();
   const [deleteBlog, { isLoading: isDeleting }] = useDeleteBlogMutation();
   const [createBlog, { isLoading: isCreating }] = useCreateBlogMutation();
   const [updateBlog, { isLoading: isUpdating }] = useUpdateBlogMutation();
-  const blogs = Array.isArray(data?.message)
-    ? data.message
-    : Array.isArray(data?.data?.blogs)
-      ? data.data.blogs
-      : Array.isArray(data?.blogs)
-        ? data.blogs
-        : Array.isArray(data?.data)
-          ? data.data
-          : [];
+  const blogs = extractBlogs(data);
 
   const handleEdit = (blog) => {
     setBlogToEdit(blog);
@@ -48,7 +97,7 @@ export default function Blogs() {
   };
 
   const handleConfirmDelete = async () => {
-    if (!blogToDelete) return;
+    if (!blogToDelete || isDeleting) return;
     try {
       await deleteBlog(blogToDelete.id).unwrap();
       success("Blog deleted successfully!");
@@ -56,7 +105,7 @@ export default function Blogs() {
       setBlogToDelete(null);
       refetch();
     } catch (err) {
-      showError(err?.data?.message || "Failed to delete blog. Please try again.");
+      showError(getApiErrorMessage(err, "Failed to delete blog. Please try again."));
       setDeleteConfirmOpen(false);
       setBlogToDelete(null);
     }
@@ -72,195 +121,130 @@ export default function Blogs() {
     setAddModalOpen(true);
   };
 
-  const handleSave = async (data, blogId) => {
-    if (!blogId && !(data.image instanceof File)) {
+  const handleSave = async (form, blogId) => {
+    if (form.image instanceof File) {
+      const imageCheck = validateImageFile(form.image);
+      if (!imageCheck.ok) {
+        showError(imageCheck.message);
+        throw new Error(imageCheck.message);
+      }
+    } else if (!blogId) {
       showError("Please select an image for the blog");
       throw new Error("Image required");
     }
     const formData = new FormData();
-    formData.append("title", data.title);
-    formData.append("description", data.description);
+    formData.append("title", form.title);
+    formData.append("description", form.description);
     formData.append("status", "true");
-    if (data.image instanceof File) {
-      formData.append("image", data.image);
+    if (form.image instanceof File) {
+      formData.append("image", form.image);
     }
-    if (blogId) {
-      await updateBlog({ blogId, body: formData }).unwrap();
-      success("Blog updated successfully!");
-    } else {
-      await createBlog(formData).unwrap();
-      success("Blog added successfully!");
+    try {
+      if (blogId) {
+        await updateBlog({ blogId, body: formData }).unwrap();
+        success("Blog updated successfully!");
+      } else {
+        await createBlog(formData).unwrap();
+        success("Blog added successfully!");
+      }
+      refetch();
+    } catch (err) {
+      showError(getApiErrorMessage(err, "Failed to save blog. Please try again."));
+      throw err;
     }
-    refetch();
   };
 
-  const getImageUrl = (img) => {
-    if (!img) return "";
-    if (typeof img === "string" && (img.startsWith("http") || img.startsWith("data:"))) {
-      return img;
-    }
-    return `${BASE_URL}${img}`;
-  };
-
-  if (isLoading) return <Delay />;
+  if (isLoading) return <PageLoading label="Loading blogs…" />;
 
   return (
-    <div className="!space-y-11">
-          <Box className="flex items-center justify-between gap-x-5 flex-wrap">
-            <Box className="flex items-center gap-x-5">
-              <Typography color="blue.50">
-                <TbFileDescription size="24px" color="blue.50" />
-              </Typography>
-              <Typography variant="h4" fontFamily={"Switzer"} color="grey.20">
-                Blogs
-              </Typography>
-            </Box>
-            <ButtonBlue
-              size="medium"
-              startIcon={<TbPlus size={20} />}
-              onClick={handleAdd}
-            >
-              Add
-            </ButtonBlue>
-          </Box>
+    <div>
+      <PageHeader
+        title="Blogs"
+        description="Articles shown to customers on the website and app."
+        actions={
+          <Button onClick={handleAdd}>
+            <TbPlus size={18} />
+            Add
+          </Button>
+        }
+      />
 
-          <Box
-            sx={{
-              display: "grid",
-              gridTemplateColumns: {
-                xs: "1fr",
-                sm: "repeat(2, 1fr)",
-                md: "repeat(3, 1fr)",
+      {isError ? (
+        <DirectoryError onRetry={() => refetch()}>
+          Could not load blogs. Check your connection and try again.
+        </DirectoryError>
+      ) : (
+        <DirectoryTableWrap>
+          <Table
+            columns={[
+              {
+                key: "title",
+                header: "Article",
+                render: (blog) => (
+                  <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
+                    <BlogCover src={mediaUrl(blog.image)} alt={blog.title} />
+                    <DirectoryIdentity
+                      name={blog.title}
+                      meta={previewText(blog.description) || "No preview"}
+                      id={blog.id}
+                    />
+                  </div>
+                ),
               },
-              gap: 3,
-              width: "100%",
-            }}
-          >
-            {blogs.length === 0 ? (
-              <Typography color="grey.70" sx={{ py: 4, gridColumn: "1 / -1", textAlign: "center" }}>
-                No blogs yet. Click Add to create your first blog.
-              </Typography>
-            ) : (
-            blogs.map((blog) => (
-              <Card
-                key={blog.id}
-                sx={{
-                  display: "flex",
-                  flexDirection: "column",
-                  height: "100%",
-                  boxShadow: "0px 1px 3px rgba(0,0,0,0.08)",
-                  borderRadius: "12px",
-                  overflow: "hidden",
-                  minWidth: 0,
-                }}
-              >
-                <CardMedia
-                  component="img"
-                  image={getImageUrl(blog.image)}
-                  alt={blog.title}
-                  sx={{
-                    height: 200,
-                    minHeight: 200,
-                    width: "100%",
-                    objectFit: "cover",
-                    flexShrink: 0,
-                  }}
-                />
-                <CardContent sx={{ flexGrow: 1, py: 2 }}>
-                  <Typography
-                    variant="h6"
-                    fontFamily="Switzer"
-                    fontWeight={600}
-                    color="black.50"
-                    sx={{ mb: 1, lineHeight: 1.3 }}
-                  >
-                    {blog.title}
-                  </Typography>
-                  <Typography
-                    variant="body2"
-                    color="grey.70"
-                    sx={{
-                      lineHeight: 1.5,
-                      display: "-webkit-box",
-                      WebkitLineClamp: 2,
-                      WebkitBoxOrient: "vertical",
-                      overflow: "hidden",
-                    }}
-                  >
-                    {blog.description}
-                  </Typography>
-                </CardContent>
-                <CardActions sx={{ px: 2, pb: 2, pt: 0, gap: 1 }}>
-                  <ButtonBlue
-                    size="small"
-                    startIcon={<TbPencil size={18} />}
-                    onClick={() => handleEdit(blog)}
-                  >
-                    Edit
-                  </ButtonBlue>
-                  <Button
-                    size="small"
-                    variant="outlined"
-                    color="error"
-                    startIcon={<TbTrash size={18} />}
-                    onClick={() => handleDelete(blog)}
-                    sx={{
-                      textTransform: "none",
-                      borderColor: "#F53939",
-                      color: "#F53939",
-                      "&:hover": {
-                        borderColor: "#d32f2f",
-                        backgroundColor: "rgba(245, 57, 57, 0.04)",
-                      },
-                    }}
-                  >
-                    Delete
-                  </Button>
-                </CardActions>
-              </Card>
-            ))
-            )}
-          </Box>
-
-          <AddBlogModal
-            open={addModalOpen}
-            onClose={() => {
-              setAddModalOpen(false);
-              setBlogToEdit(null);
-            }}
-            onSave={handleSave}
-            isLoading={isCreating || isUpdating}
-            blogToEdit={blogToEdit}
+              {
+                key: "actions",
+                header: "Actions",
+                render: (blog) => (
+                  <DirectoryActions>
+                    <Button size="sm" variant="secondary" onClick={() => handleEdit(blog)}>
+                      <TbPencil size={16} />
+                      Edit
+                    </Button>
+                    <Button size="sm" variant="danger" onClick={() => handleDelete(blog)}>
+                      <TbTrash size={16} />
+                      Delete
+                    </Button>
+                  </DirectoryActions>
+                ),
+              },
+            ]}
+            rows={blogs}
+            rowKey={(blog) => blog.id}
+            empty="No blogs yet. Click Add to create your first blog."
           />
+        </DirectoryTableWrap>
+      )}
 
-          <ModalComponent
-            open={deleteConfirmOpen}
-            title="Delete Blog"
-            onClose={handleCancelDelete}
-            primaryAction={{
-              label: "Delete",
-              onClick: handleConfirmDelete,
-              isLoading: isDeleting,
-            }}
-            secondaryAction={{
-              label: "Cancel",
-              onClick: handleCancelDelete,
-            }}
-          >
-            <Box>
-              <Typography variant="body1" sx={{ color: "grey.80", fontFamily: "Switzer" }}>
-                Are you sure you want to delete this blog?
-              </Typography>
-              {blogToDelete && (
-                <Typography variant="body2" sx={{ color: "grey.70", mt: 1, fontStyle: "italic" }}>
-                  &quot;{blogToDelete.title}&quot;
-                </Typography>
-              )}
-              <Typography variant="body2" sx={{ color: "error.main", mt: 2, fontFamily: "Switzer" }}>
-                This action cannot be undone.
-              </Typography>
-            </Box>
-          </ModalComponent>
-        </div>
+      <AddBlogModal
+        open={addModalOpen}
+        onClose={() => {
+          setAddModalOpen(false);
+          setBlogToEdit(null);
+        }}
+        onSave={handleSave}
+        isLoading={isCreating || isUpdating}
+        blogToEdit={blogToEdit}
+      />
+
+      <Modal
+        open={deleteConfirmOpen}
+        title="Delete Blog"
+        description="Are you sure you want to delete this blog?"
+        onClose={handleCancelDelete}
+        onPrimary={handleConfirmDelete}
+        primaryLabel={isDeleting ? "Deleting…" : "Delete"}
+        secondaryLabel="Cancel"
+        danger
+      >
+        {blogToDelete ? (
+          <p style={{ margin: 0, color: "var(--muted)", fontStyle: "italic" }}>
+            &quot;{blogToDelete.title}&quot;
+          </p>
+        ) : null}
+        <p style={{ margin: "12px 0 0", color: "var(--danger)", fontSize: "var(--text-sm)" }}>
+          This action cannot be undone.
+        </p>
+      </Modal>
+    </div>
   );
 }

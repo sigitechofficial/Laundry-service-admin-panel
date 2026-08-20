@@ -1,38 +1,20 @@
 import { useState, useEffect, useMemo, useCallback, useRef, Fragment } from "react";
-import {
-  Box,
-  Typography,
-  IconButton,
-  Menu,
-  MenuItem,
-  Paper,
-  Table,
-  TableHead,
-  TableBody,
-  TableRow,
-  TableCell,
-} from "@mui/material";
 import { useNavigate } from "react-router-dom";
 import {
   useGetAllServicesQuery,
   useGetServiceWitPreferencesQuery,
   useGetAllAddOnServicesQuery,
+  useGetCategoriesQuery,
+  useGetSubCategoriesQuery,
+  useGetPreferencesQuery,
   useAddServiceMutation,
   useEditServiceMutation,
   useUpdateServicesSortOrderMutation,
   useUpdateCategoriesSortOrderMutation,
   useUpdateSubCategoriesSortOrderMutation,
 } from "../../store/services/api";
-import {
-  TbDotsVertical,
-  TbPencil,
-  IoEye,
-  PiHeadsetBold,
-  TbChevronRight,
-  TbChevronDown,
-} from "../../shared/icons/index";
+import { IoEye, TbPencil, TbChevronRight, TbChevronDown } from "../../shared/icons/index";
 import { TbGripVertical } from "react-icons/tb";
-import Search from "../../components/ui/Search";
 import {
   MdLocalLaundryService,
   MdDryCleaning,
@@ -40,22 +22,37 @@ import {
 } from "react-icons/md";
 import { TbIroning, TbTools, TbWash } from "react-icons/tb";
 import { HiOutlineSparkles } from "react-icons/hi";
-import ModalComponent from "../../components/shared/Modal";
-import InputFieldModal from "../../components/ui/InputFieldModal";
-import TextareaField from "../../components/ui/TextArea";
-import ImageUpload from "../../components/ui/ImageUpload";
+import {
+  Button,
+  Field,
+  Input,
+  Textarea,
+  Modal,
+} from "../../design-system";
 import useToaster from "../../components/ui/Toaster";
-import { BASE_URL } from "../../utilities/URL";
-import { Delay, MiniLoader } from "../../components/shared/Loaders";
+import { formatMoney, joinMediaUrl } from "../../utilities/formatters";
+import {
+  IMAGE_UPLOAD_ACCEPT,
+  acceptImageFile,
+} from "../../utilities/imageUploadPolicy";
+import { getApiErrorMessage } from "../../store/services/apiErrors";
 import CategoryAddOnsModal from "./CategoryAddOnsModal";
+import { EmptyHint, QueryState } from "./QueryState";
+import {
+  DirectoryDotPill,
+  DirectoryMetrics,
+  DirectoryPanel,
+  DirectoryTableWrap,
+} from "../directory-table/directoryTable";
+import CatalogChrome from "./catalogChrome";
+import CategoryModal from "./categories-modal/CategoryModal";
+import ConfigureModal from "./configure-modal/ConfigureModal";
 import {
   buildSubCategoriesByServiceId,
   getAddOnsForCategoryRow,
   normalizeAddOnServicesList,
 } from "./serviceAddOnsUtils";
-import FiltersButton from "../../components/ui/FiltersButton";
 
-// Service name patterns → icons (matches Figma laundry design intent)
 const SERVICE_ICONS = [
   { pattern: /wash\s*&\s*fold|wash and fold|fold/i, icon: MdLocalLaundryService },
   { pattern: /wash\s*&\s*iron|wash and iron|ironing/i, icon: TbIroning },
@@ -75,31 +72,6 @@ function getServiceIcon(name) {
   return match?.icon || MdLocalLaundryService;
 }
 
-const MAIN_TABLE_HEAD_SX = {
-  fontWeight: 600,
-  fontSize: 14,
-  fontFamily: "Inter, sans-serif",
-  color: "#101828",
-  bgcolor: "#FAFAFA",
-  borderBottom: "1px solid #E5E7EB",
-  py: 1.5,
-  px: 2,
-  whiteSpace: "nowrap",
-  lineHeight: 1.4,
-};
-
-const NESTED_TABLE_HEAD_SX = {
-  fontWeight: 600,
-  fontSize: 13,
-  fontFamily: "Inter, sans-serif",
-  color: "#64748B",
-  bgcolor: "#F1F5F9",
-  borderBottom: "1px solid #E2E8F0",
-  py: 1,
-  px: 1.5,
-  whiteSpace: "nowrap",
-};
-
 function reorderById(list, draggedId, targetId) {
   const ids = list.map((item) => String(item.id));
   const fromIdx = ids.indexOf(String(draggedId));
@@ -109,6 +81,70 @@ function reorderById(list, draggedId, targetId) {
   const [moved] = next.splice(fromIdx, 1);
   next.splice(toIdx, 0, moved);
   return next;
+}
+
+function ImageField({ label, value, onChange }) {
+  const { error: toastError } = useToaster();
+  const fileInputRef = useRef(null);
+  const src =
+    !value ? "" : typeof value === "string" ? value : URL.createObjectURL(value);
+
+  return (
+    <Field label={label} hint="JPEG, PNG, GIF, or WebP. Max 5MB.">
+      <button
+        type="button"
+        onClick={() => fileInputRef.current?.click()}
+        style={{
+          width: "100%",
+          cursor: "pointer",
+          borderRadius: "var(--r-md)",
+          background: "var(--canvas)",
+          border: "1px dashed var(--line-2)",
+          padding: 16,
+          textAlign: "center",
+          color: "var(--muted)",
+          font: "inherit",
+        }}
+      >
+        {src ? (
+          <img
+            src={src}
+            alt="Service preview"
+            style={{
+              maxHeight: 150,
+              maxWidth: "100%",
+              borderRadius: "var(--r-sm)",
+              objectFit: "cover",
+              display: "block",
+              margin: "0 auto",
+            }}
+          />
+        ) : (
+          "Upload image"
+        )}
+      </button>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept={IMAGE_UPLOAD_ACCEPT}
+        hidden
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          e.target.value = "";
+          if (!file) return;
+          const accepted = acceptImageFile(file, toastError);
+          if (accepted) onChange(accepted);
+        }}
+      />
+      {value ? (
+        <div style={{ marginTop: 8, textAlign: "center" }}>
+          <Button variant="ghost" size="sm" onClick={() => onChange(null)}>
+            Remove
+          </Button>
+        </div>
+      ) : null}
+    </Field>
+  );
 }
 
 function ServiceCategoriesExpandableTable({
@@ -121,6 +157,7 @@ function ServiceCategoriesExpandableTable({
   onReorderSubCategories,
   reorderDisabled = false,
 }) {
+  const { error: toastReorderError } = useToaster();
   const [expanded, setExpanded] = useState({});
   const [categoryOrder, setCategoryOrder] = useState(null);
   const [subOrderByCategory, setSubOrderByCategory] = useState({});
@@ -190,8 +227,9 @@ function ServiceCategoriesExpandableTable({
     setCategoryOrder(next);
     try {
       await onReorderCategories?.(next);
-    } catch {
+    } catch (err) {
       setCategoryOrder(null);
+      toastReorderError(getApiErrorMessage(err, "Could not save category order."));
     }
   };
 
@@ -216,92 +254,44 @@ function ServiceCategoriesExpandableTable({
     setSubOrderByCategory((prev) => ({ ...prev, [categoryId]: next }));
     try {
       await onReorderSubCategories?.(categoryId, next);
-    } catch {
+    } catch (err) {
       setSubOrderByCategory((prev) => {
         const copy = { ...prev };
         delete copy[categoryId];
         return copy;
       });
+      toastReorderError(getApiErrorMessage(err, "Could not save sub-category order."));
     }
   };
 
   if (!filteredRows.length) {
     return (
-      <Paper
-        sx={{
-          borderRadius: 2,
-          border: "1px solid #E5E7EB",
-          p: 4,
-          textAlign: "center",
-        }}
-      >
-        <Typography variant="body2" color="text.secondary">
-          No categories found for this service.
-        </Typography>
-      </Paper>
+      <DirectoryTableWrap>
+        <EmptyHint>No categories found for this service.</EmptyHint>
+      </DirectoryTableWrap>
     );
   }
 
   return (
-    <Paper
-      sx={{
-        width: "100%",
-        borderRadius: 2,
-        border: "1px solid #E5E7EB",
-        overflow: "hidden",
-        boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
-      }}
-    >
-      <Typography
-        variant="caption"
-        sx={{ display: "block", px: 2, pt: 1.5, color: "#64748B", fontFamily: "Inter, sans-serif" }}
-      >
+    <DirectoryTableWrap>
+      <p style={{ margin: 0, padding: "12px 16px 0", color: "#5c6673", fontSize: 13 }}>
         Drag the grip handle to reorder categories and sub-categories.
-      </Typography>
-      <Box sx={{ maxHeight: 520, overflow: "auto" }}>
-        <Table
-          stickyHeader
-          sx={{
-            width: "100%",
-            minWidth: 940,
-            tableLayout: "fixed",
-          }}
-        >
-          <colgroup>
-            <col style={{ width: 44 }} />
-            <col style={{ width: 48 }} />
-            <col style={{ width: 56 }} />
-            <col style={{ width: "18%" }} />
-            <col style={{ width: "12%" }} />
-            <col />
-            <col style={{ width: 148 }} />
-            <col style={{ width: 120 }} />
-          </colgroup>
-          <TableHead>
-            <TableRow>
-              <TableCell sx={{ ...MAIN_TABLE_HEAD_SX, width: 44, px: 1 }} />
-              <TableCell sx={{ ...MAIN_TABLE_HEAD_SX, width: 48, px: 1 }} />
-              <TableCell sx={{ ...MAIN_TABLE_HEAD_SX, width: 56 }} align="center">
-                SL
-              </TableCell>
-              <TableCell sx={MAIN_TABLE_HEAD_SX} align="left">
-                Category
-              </TableCell>
-              <TableCell sx={MAIN_TABLE_HEAD_SX} align="left">
-                Service
-              </TableCell>
-              <TableCell sx={MAIN_TABLE_HEAD_SX} align="left">
-                Description
-              </TableCell>
-              <TableCell sx={{ ...MAIN_TABLE_HEAD_SX, width: 148 }} align="right">
-                Sub-categories
-              </TableCell>
-              <TableCell sx={{ ...MAIN_TABLE_HEAD_SX, width: 120 }} align="center">
-                Add-ons
-              </TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
+      </p>
+      <div style={{ maxHeight: 520, overflow: "auto" }}>
+        <table className="jd-tbl" style={{ minWidth: 940 }}>
+          <thead>
+            <tr>
+              <th style={{ width: 44 }} />
+              <th style={{ width: 48 }} />
+              <th>SL</th>
+              <th>Category</th>
+              <th>Service</th>
+              <th>Description</th>
+              <th>Sub-categories</th>
+              <th>Add-ons</th>
+            </tr>
+          </thead>
+          <tbody>
             {filteredRows.map((row, idx) => {
               const isOpen = Boolean(expanded[row.id]);
               const subItems = getSubItems(row);
@@ -312,15 +302,12 @@ function ServiceCategoriesExpandableTable({
               ).length;
               const rowBg =
                 dragOverCategoryId === row.id
-                  ? "rgba(21, 112, 239, 0.08)"
-                  : idx % 2 === 0
-                    ? "#fff"
-                    : "#FAFAFA";
+                  ? "var(--accent-tint)"
+                  : undefined;
 
               return (
                 <Fragment key={row.id}>
-                  <TableRow
-                    hover
+                  <tr
                     onDragOver={(e) => {
                       if (reorderDisabled) return;
                       e.preventDefault();
@@ -329,268 +316,158 @@ function ServiceCategoriesExpandableTable({
                     onDragLeave={() => setDragOverCategoryId(null)}
                     onDrop={(e) => handleCategoryDrop(e, row.id)}
                     onClick={() => toggleRow(row.id)}
-                    sx={{
-                      cursor: "pointer",
-                      bgcolor: rowBg,
-                      "&:hover": { bgcolor: "#F0F4FF" },
-                    }}
+                    style={{ cursor: "pointer", background: rowBg }}
                   >
-                    <TableCell
-                      sx={{ py: 1.5, borderBottom: "1px solid #E5E7EB", px: 0.5 }}
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <Box
+                    <td onClick={(e) => e.stopPropagation()}>
+                      <span
                         draggable={!reorderDisabled && !searchTerm?.trim()}
                         onDragStart={(e) => {
                           e.stopPropagation();
                           e.dataTransfer.setData("text/category", String(row.id));
                           e.dataTransfer.effectAllowed = "move";
                         }}
-                        sx={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
+                        style={{
+                          display: "inline-flex",
+                          color: "var(--faint)",
                           cursor: reorderDisabled ? "not-allowed" : "grab",
-                          color: "#94A3B8",
-                          "&:active": { cursor: "grabbing" },
                         }}
                         aria-label="Drag to reorder category"
                       >
                         <TbGripVertical size={18} />
-                      </Box>
-                    </TableCell>
-                    <TableCell sx={{ py: 1.5, borderBottom: "1px solid #E5E7EB" }}>
-                      <IconButton
-                        size="small"
+                      </span>
+                    </td>
+                    <td>
+                      <Button
+                        size="sm"
+                        variant="ghost"
                         onClick={(e) => {
                           e.stopPropagation();
                           toggleRow(row.id);
                         }}
-                        sx={{ color: "#64748B" }}
                         aria-label={isOpen ? "Collapse" : "Expand"}
                       >
                         {isOpen ? <TbChevronDown size={18} /> : <TbChevronRight size={18} />}
-                      </IconButton>
-                    </TableCell>
-                    <TableCell
-                      align="center"
-                      sx={{
-                        py: 1.5,
-                        fontFamily: "Inter, sans-serif",
-                        fontSize: 14,
-                        borderBottom: "1px solid #E5E7EB",
-                      }}
-                    >
-                      {idx + 1}
-                    </TableCell>
-                    <TableCell
-                      sx={{
-                        py: 1.5,
-                        fontWeight: 600,
-                        fontFamily: "Inter, sans-serif",
-                        fontSize: 14,
-                        color: "#101828",
-                        borderBottom: "1px solid #E5E7EB",
-                      }}
-                    >
-                      {row.category}
-                    </TableCell>
-                    <TableCell
-                      sx={{
-                        py: 1.5,
-                        fontFamily: "Inter, sans-serif",
-                        fontSize: 14,
-                        borderBottom: "1px solid #E5E7EB",
-                      }}
-                    >
-                      {row.serviceName}
-                    </TableCell>
-                    <TableCell
-                      sx={{
-                        py: 1.5,
-                        fontFamily: "Inter, sans-serif",
-                        fontSize: 14,
-                        color: "#64748B",
-                        borderBottom: "1px solid #E5E7EB",
-                        whiteSpace: "normal",
-                        maxWidth: 320,
-                      }}
-                    >
+                      </Button>
+                    </td>
+                    <td>{idx + 1}</td>
+                    <td style={{ fontWeight: 600 }}>{row.category}</td>
+                    <td>{row.serviceName}</td>
+                    <td style={{ color: "var(--muted)", maxWidth: 320 }}>
                       {row.description}
-                    </TableCell>
-                    <TableCell
-                      align="right"
-                      sx={{
-                        py: 1.5,
-                        fontFamily: "Inter, sans-serif",
-                        fontSize: 14,
-                        color: "#64748B",
-                        borderBottom: "1px solid #E5E7EB",
-                      }}
-                    >
-                      {subItems.length}
-                    </TableCell>
-                    <TableCell
-                      align="center"
-                      sx={{
-                        py: 1.5,
-                        borderBottom: "1px solid #E5E7EB",
-                      }}
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <FiltersButton
-                        text={
-                          addOnCount > 0 ? `View (${addOnCount})` : "View"
-                        }
-                        variant="blue"
+                    </td>
+                    <td>{subItems.length}</td>
+                    <td onClick={(e) => e.stopPropagation()}>
+                      <Button
+                        size="sm"
+                        variant="secondary"
                         onClick={() =>
                           onViewAddOns?.({
                             categoryName: row.category,
                             subCategories: subItems,
                           })
                         }
-                        boxShadow="none"
-                        border="none"
-                      />
-                    </TableCell>
-                  </TableRow>
-
-                  {isOpen && (
-                    <TableRow>
-                      <TableCell
-                        colSpan={8}
-                        sx={{
-                          p: 0,
-                          borderBottom: "1px solid #E5E7EB",
-                          bgcolor: "#F8FAFC",
-                        }}
                       >
-                        <Box sx={{ px: 2, py: 1.5, pl: 7 }}>
-                          {subItems.length === 0 ? (
-                            <Typography variant="body2" sx={{ color: "#94A3B8", fontSize: 13, py: 1 }}>
-                              No sub-categories configured.
-                            </Typography>
-                          ) : (
-                            <Table
-                              size="small"
-                              sx={{
-                                border: "1px solid #E2E8F0",
-                                borderRadius: 1,
-                                overflow: "hidden",
-                                bgcolor: "#fff",
-                                "& .MuiTableCell-root": {
-                                  fontFamily: "Inter, sans-serif",
-                                  fontSize: 13,
-                                  py: 1,
-                                  px: 1.5,
-                                  borderBottom: "1px solid #E2E8F0",
-                                },
-                                "& .MuiTableRow-root:last-child .MuiTableCell-root": {
-                                  borderBottom: "none",
-                                },
-                              }}
-                            >
-                              <TableHead>
-                                <TableRow>
-                                  <TableCell sx={{ ...NESTED_TABLE_HEAD_SX, width: 40 }} />
-                                  <TableCell sx={NESTED_TABLE_HEAD_SX}>Sub-category</TableCell>
-                                  <TableCell sx={NESTED_TABLE_HEAD_SX} align="right">
-                                    Price
-                                  </TableCell>
-                                  <TableCell sx={NESTED_TABLE_HEAD_SX} width={100}>
-                                    Status
-                                  </TableCell>
-                                  <TableCell sx={NESTED_TABLE_HEAD_SX}>Description</TableCell>
-                                </TableRow>
-                              </TableHead>
-                              <TableBody>
-                                {subItems.map((sub, subIdx) => {
-                                  const subKey = `${row.categoryId}-${sub.id}`;
-                                  return (
-                                    <TableRow
-                                      key={sub.id ?? `${sub.name}-${subIdx}`}
-                                      onDragOver={(e) => {
-                                        if (reorderDisabled) return;
-                                        e.preventDefault();
-                                        e.stopPropagation();
-                                        setDragOverSubKey(subKey);
-                                      }}
-                                      onDragLeave={() => setDragOverSubKey(null)}
-                                      onDrop={(e) =>
-                                        handleSubDrop(e, row.categoryId, sub.id)
-                                      }
-                                      sx={{
-                                        bgcolor:
-                                          dragOverSubKey === subKey
-                                            ? "rgba(21, 112, 239, 0.08)"
-                                            : "inherit",
-                                      }}
-                                    >
-                                      <TableCell sx={{ width: 40, px: 0.5 }}>
-                                        <Box
-                                          draggable={!reorderDisabled}
-                                          onDragStart={(e) => {
-                                            e.stopPropagation();
-                                            e.dataTransfer.setData(
-                                              "text/subcategory",
-                                              String(sub.id)
-                                            );
-                                            e.dataTransfer.setData(
-                                              "text/subcategory-category",
-                                              String(row.categoryId)
-                                            );
-                                            e.dataTransfer.effectAllowed = "move";
-                                          }}
-                                          sx={{
-                                            display: "flex",
-                                            color: "#94A3B8",
-                                            cursor: reorderDisabled
-                                              ? "not-allowed"
-                                              : "grab",
-                                          }}
-                                          aria-label="Drag to reorder sub-category"
-                                        >
-                                          <TbGripVertical size={16} />
-                                        </Box>
-                                      </TableCell>
-                                      <TableCell sx={{ color: "#101828", fontWeight: 500 }}>
-                                        {sub.name ?? "—"}
-                                      </TableCell>
-                                      <TableCell align="right" sx={{ fontWeight: 600, color: "#000099" }}>
-                                        £{Number(sub.price ?? 0).toFixed(2)}
-                                      </TableCell>
-                                      <TableCell>
-                                        <Typography
-                                          component="span"
-                                          sx={{
-                                            fontSize: 12,
-                                            fontWeight: 600,
-                                            color: sub.status ? "#059669" : "#94A3B8",
-                                          }}
-                                        >
-                                          {sub.status ? "Active" : "Inactive"}
-                                        </Typography>
-                                      </TableCell>
-                                      <TableCell sx={{ color: "#64748B", whiteSpace: "normal" }}>
-                                        {sub.description ?? "—"}
-                                      </TableCell>
-                                    </TableRow>
-                                  );
-                                })}
-                              </TableBody>
-                            </Table>
-                          )}
-                        </Box>
-                      </TableCell>
-                    </TableRow>
-                  )}
+                        {addOnCount > 0 ? `View (${addOnCount})` : "View"}
+                      </Button>
+                    </td>
+                  </tr>
+
+                  {isOpen ? (
+                    <tr>
+                      <td colSpan={8} style={{ background: "var(--canvas)", padding: 16 }}>
+                        {subItems.length === 0 ? (
+                          <p style={{ color: "var(--faint)", margin: 0, fontSize: 13 }}>
+                            No sub-categories configured.
+                          </p>
+                        ) : (
+                          <table className="jd-tbl">
+                            <thead>
+                              <tr>
+                                <th style={{ width: 40 }} />
+                                <th>Sub-category</th>
+                                <th>Price</th>
+                                <th>Status</th>
+                                <th>Description</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {subItems.map((sub, subIdx) => {
+                                const subKey = `${row.categoryId}-${sub.id}`;
+                                return (
+                                  <tr
+                                    key={sub.id ?? `${sub.name}-${subIdx}`}
+                                    onDragOver={(e) => {
+                                      if (reorderDisabled) return;
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      setDragOverSubKey(subKey);
+                                    }}
+                                    onDragLeave={() => setDragOverSubKey(null)}
+                                    onDrop={(e) =>
+                                      handleSubDrop(e, row.categoryId, sub.id)
+                                    }
+                                    style={{
+                                      background:
+                                        dragOverSubKey === subKey
+                                          ? "var(--accent-tint)"
+                                          : undefined,
+                                    }}
+                                  >
+                                    <td>
+                                      <span
+                                        draggable={!reorderDisabled}
+                                        onDragStart={(e) => {
+                                          e.stopPropagation();
+                                          e.dataTransfer.setData(
+                                            "text/subcategory",
+                                            String(sub.id)
+                                          );
+                                          e.dataTransfer.setData(
+                                            "text/subcategory-category",
+                                            String(row.categoryId)
+                                          );
+                                          e.dataTransfer.effectAllowed = "move";
+                                        }}
+                                        style={{
+                                          display: "inline-flex",
+                                          color: "var(--faint)",
+                                          cursor: reorderDisabled
+                                            ? "not-allowed"
+                                            : "grab",
+                                        }}
+                                        aria-label="Drag to reorder sub-category"
+                                      >
+                                        <TbGripVertical size={16} />
+                                      </span>
+                                    </td>
+                                    <td style={{ fontWeight: 500 }}>
+                                      {sub.name ?? "—"}
+                                    </td>
+                                    <td>{formatMoney(sub.price, "£")}</td>
+                                    <td>
+                                      <DirectoryDotPill tone={sub.status ? "success" : "neutral"}>
+                                        {sub.status ? "Active" : "Inactive"}
+                                      </DirectoryDotPill>
+                                    </td>
+                                    <td style={{ color: "var(--muted)" }}>
+                                      {sub.description ?? "—"}
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        )}
+                      </td>
+                    </tr>
+                  ) : null}
                 </Fragment>
               );
             })}
-          </TableBody>
-        </Table>
-      </Box>
-    </Paper>
+          </tbody>
+        </table>
+      </div>
+    </DirectoryTableWrap>
   );
 }
 
@@ -598,7 +475,6 @@ export default function ServiceDashboard() {
   const navigate = useNavigate();
   const [selectedServiceId, setSelectedServiceId] = useState(null);
   const [globalSearch, setGlobalSearch] = useState("");
-  const [anchorEl, setAnchorEl] = useState(null);
   const [menuServiceId, setMenuServiceId] = useState(null);
   const [serviceModal, setServiceModal] = useState({
     open: false,
@@ -608,18 +484,36 @@ export default function ServiceDashboard() {
     description: "",
     image: "",
   });
+  const [categoryModalOpen, setCategoryModalOpen] = useState(false);
+  const [configureOpen, setConfigureOpen] = useState(false);
 
   const { success, error } = useToaster();
-  const { data: servicesData, isLoading: isLoadingServices, refetch: refetchServices } =
-    useGetAllServicesQuery();
-  const services = servicesData?.data?.services ?? [];
+  const {
+    data: servicesData,
+    isLoading: isLoadingServices,
+    isError: isServicesError,
+    error: servicesQueryError,
+    refetch: refetchServices,
+  } = useGetAllServicesQuery();
+  const services = useMemo(
+    () => servicesData?.data?.services ?? [],
+    [servicesData?.data?.services]
+  );
 
-  const { data: serviceConfigData, isLoading: isLoadingConfig } =
-    useGetServiceWitPreferencesQuery(selectedServiceId, {
-      skip: !selectedServiceId,
-    });
+  const {
+    data: serviceConfigData,
+    isLoading: isLoadingConfig,
+    isError: isConfigError,
+    error: configQueryError,
+    refetch: refetchConfig,
+  } = useGetServiceWitPreferencesQuery(selectedServiceId, {
+    skip: !selectedServiceId,
+  });
 
   const { data: addOnsResponse } = useGetAllAddOnServicesQuery();
+  const { data: categoriesResponse } = useGetCategoriesQuery();
+  const { data: subCategoriesResponse } = useGetSubCategoriesQuery();
+  const { data: preferencesResponse } = useGetPreferencesQuery();
   const addOnsList = useMemo(
     () => normalizeAddOnServicesList(addOnsResponse),
     [addOnsResponse]
@@ -672,13 +566,38 @@ export default function ServiceDashboard() {
           ...prev,
           name: s.name || "",
           description: s.description || "",
-          image: s.image ? BASE_URL + s.image : "",
+          image: joinMediaUrl(s.image),
         }));
       }
     }
   }, [serviceModal.type, serviceModal.id, orderedServices]);
 
+  useEffect(() => {
+    if (!menuServiceId) return;
+    const close = () => setMenuServiceId(null);
+    window.addEventListener("mousedown", close);
+    return () => window.removeEventListener("mousedown", close);
+  }, [menuServiceId]);
+
   const selectedService = orderedServices?.find((s) => s.id === selectedServiceId);
+
+  const allCategories = Array.isArray(categoriesResponse?.data)
+    ? categoriesResponse.data
+    : [];
+  const allSubCategories = useMemo(
+    () =>
+      Array.isArray(subCategoriesResponse?.data)
+        ? subCategoriesResponse.data
+        : [],
+    [subCategoriesResponse?.data]
+  );
+  const subCategoryById = useMemo(() => {
+    const map = new Map();
+    allSubCategories.forEach((item) => {
+      if (item?.id != null) map.set(String(item.id), item);
+    });
+    return map;
+  }, [allSubCategories]);
 
   const rawTableRows = useMemo(() => {
     if (!serviceConfigData?.data?.serviceCategoriesData || !selectedService)
@@ -686,7 +605,16 @@ export default function ServiceDashboard() {
     const rows = [];
     let sl = 1;
     serviceConfigData.data.serviceCategoriesData.forEach((serviceCat) => {
-      const subCategories = serviceCat?.category?.subCategories ?? [];
+      const subCategories = (serviceCat?.category?.subCategories ?? []).map(
+        (sub) => {
+          const full = subCategoryById.get(String(sub?.id));
+          return {
+            ...sub,
+            addOnCategories:
+              full?.addOnCategories ?? sub?.addOnCategories ?? [],
+          };
+        }
+      );
       const categoryDescription = serviceCat?.category?.description ?? "";
       const categoryId =
         serviceCat?.category?.id ?? serviceCat?.categoryId ?? null;
@@ -701,7 +629,34 @@ export default function ServiceDashboard() {
       });
     });
     return rows;
-  }, [serviceConfigData, selectedService]);
+  }, [serviceConfigData, selectedService, subCategoryById]);
+
+  const linkedAddOnCount = useMemo(() => {
+    if (!rawTableRows?.length) return 0;
+    const ids = new Set();
+    rawTableRows.forEach((row) => {
+      getAddOnsForCategoryRow(
+        row,
+        addOnsList,
+        subCategoriesByServiceId
+      ).forEach((addon) => ids.add(addon.id));
+    });
+    return ids.size;
+  }, [rawTableRows, addOnsList, subCategoriesByServiceId]);
+
+  const subCategoryCount = useMemo(
+    () =>
+      rawTableRows.reduce(
+        (count, row) => count + (row.subCategories?.length || 0),
+        0
+      ),
+    [rawTableRows]
+  );
+
+  const allPreferences = Array.isArray(preferencesResponse?.data)
+    ? preferencesResponse.data
+    : [];
+  const linkedPreferences = serviceConfigData?.data?.preferencesData || [];
 
   const handleReorderCategories = useCallback(
     async (orderedRows) => {
@@ -770,9 +725,9 @@ export default function ServiceDashboard() {
           setServiceDragOrder(null);
           error(res?.message || "Could not save service order.");
         }
-      } catch {
+      } catch (err) {
         setServiceDragOrder(null);
-        error("Could not save service order.");
+        error(getApiErrorMessage(err, "Could not save service order."));
       }
     },
     [
@@ -785,22 +740,11 @@ export default function ServiceDashboard() {
     ]
   );
 
-  const handleMenuOpen = (e, serviceId) => {
-    e.stopPropagation();
-    setAnchorEl(e.currentTarget);
-    setMenuServiceId(serviceId);
-  };
-
-  const handleMenuClose = () => {
-    setAnchorEl(null);
-    setMenuServiceId(null);
-  };
-
   const handleView = () => {
     if (menuServiceId) {
       navigate("/services-management/configure-services");
     }
-    handleMenuClose();
+    setMenuServiceId(null);
   };
 
   const handleEditFromMenu = () => {
@@ -812,34 +756,10 @@ export default function ServiceDashboard() {
         id: s.id,
         name: s.name || "",
         description: s.description || "",
-        image: s.image ? BASE_URL + s.image : "",
+        image: joinMediaUrl(s.image),
       });
     }
-    handleMenuClose();
-  };
-
-  const openAddModal = () => {
-    setServiceModal({
-      open: true,
-      type: "add",
-      id: "",
-      name: "",
-      description: "",
-      image: "",
-    });
-  };
-
-  const openEditModal = (service) => {
-    if (service) {
-      setServiceModal({
-        open: true,
-        type: "update",
-        id: service.id,
-        name: service.name || "",
-        description: service.description || "",
-        image: service.image ? BASE_URL + service.image : "",
-      });
-    }
+    setMenuServiceId(null);
   };
 
   const closeServiceModal = () => {
@@ -872,8 +792,8 @@ export default function ServiceDashboard() {
       } else {
         error(res?.message || "Something went wrong");
       }
-    } catch {
-      error("Something went wrong");
+    } catch (err) {
+      error(getApiErrorMessage(err, "Something went wrong"));
     }
   };
 
@@ -898,190 +818,349 @@ export default function ServiceDashboard() {
       } else {
         error(res?.message || "Something went wrong");
       }
-    } catch {
-      error("Failed to update service");
+    } catch (err) {
+      error(getApiErrorMessage(err, "Failed to update service"));
     }
   };
 
-  if (isLoadingServices) return <Delay />;
+  const saving = addServiceLoading || editServiceLoading;
+
+  const openAddService = () =>
+    setServiceModal({
+      open: true,
+      type: "add",
+      id: "",
+      name: "",
+      description: "",
+      image: "",
+    });
+
+  if (isLoadingServices || isServicesError) {
+    return (
+      <CatalogChrome
+        section="overview"
+        title="Service catalog"
+        description="Services → categories → items, with add-ons and preferences in context"
+      >
+        <QueryState
+          loading={isLoadingServices}
+          error={servicesQueryError || isServicesError}
+          onRetry={refetchServices}
+          errorLabel="Could not load services. Please try again."
+        />
+      </CatalogChrome>
+    );
+  }
 
   return (
-    <div className="w-full !space-y-6">
-      {/* Header: Title, Search, Filters, Buttons - matching other tabs */}
-      <Box className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 flex-wrap">
-        <Box className="flex items-center gap-x-5">
-          <Typography color="blue.50">
-            <PiHeadsetBold size="24px" color="blue.50" />
-          </Typography>
-          <Typography variant="h4" fontFamily={"Switzer"} color="grey.20">
-            Services Management
-          </Typography>
-        </Box>
+    <CatalogChrome
+      section="overview"
+      title="Service catalog"
+      description="One workspace for the customer catalog. Select a service to see its categories, items, add-ons, and preferences."
+      breadcrumb={[
+        "Catalog",
+        selectedService?.name || "Select a service",
+        selectedService
+          ? `${rawTableRows.length} ${rawTableRows.length === 1 ? "category" : "categories"} · ${subCategoryCount} ${subCategoryCount === 1 ? "item" : "items"}`
+          : null,
+      ].filter(Boolean)}
+      actions={
+        <>
+          <div style={{ minWidth: 220 }}>
+            <Field htmlFor="service-dash-search">
+              <Input
+                id="service-dash-search"
+                placeholder="Search categories or items"
+                value={globalSearch}
+                onChange={(e) => setGlobalSearch(e.target.value)}
+              />
+            </Field>
+          </div>
+          <Button variant="secondary" onClick={() => setConfigureOpen(true)}>
+            Configure
+          </Button>
+          <Button onClick={openAddService}>Add Service</Button>
+        </>
+      }
+    >
+      <DirectoryMetrics
+        items={[
+          { label: "Services", value: orderedServices?.length ?? 0, tone: "brand" },
+          { label: "Categories", value: allCategories.length, tone: "navy" },
+          { label: "Items", value: allSubCategories.length, tone: "success" },
+          { label: "Add-ons", value: addOnsList.length, tone: "warning" },
+          { label: "Preferences", value: allPreferences.length, tone: "neutral" },
+          { label: "On this service", value: rawTableRows.length, tone: "brand" },
+        ]}
+      />
 
-        <Box className="flex items-center gap-x-5 flex-wrap">
-          <Box sx={{ width: 320 }}>
-            <Search
-              placeholder="Q Search"
-              value={globalSearch}
-              onChange={(e) => setGlobalSearch(e.target.value)}
-            />
-          </Box>
-        </Box>
-      </Box>
-
-      {/* Service chips — drag grip to reorder */}
-      <Typography
-        variant="caption"
-        sx={{ color: "#64748B", fontFamily: "Inter, sans-serif", display: "block", mb: -0.5 }}
-      >
-        Drag the grip on a service chip to change tab order.
-      </Typography>
-      <Box
-        sx={{
+      <div
+        style={{
           display: "flex",
-          gap: 2,
-          overflowX: "auto",
-          pb: 1,
-          "&::-webkit-scrollbar": { height: 6 },
-          "&::-webkit-scrollbar-thumb": { bgcolor: "#ccc", borderRadius: 3 },
+          flexWrap: "wrap",
+          gap: 16,
+          alignItems: "start",
         }}
       >
-        {orderedServices?.map((service) => {
-          const IconComponent = getServiceIcon(service.name);
-          const isActive = selectedServiceId === service.id;
+        <DirectoryPanel style={{ flex: "0 1 280px", minWidth: 240 }}>
+          <div style={{ padding: "16px", borderBottom: "1px solid #e6e9f0" }}>
+            <div style={{ fontWeight: 700, color: "#0e131c" }}>Services</div>
+            <p style={{ margin: "4px 0 0", fontSize: 13, color: "#5c6673" }}>
+              Drag the grip to set customer tab order.
+            </p>
+          </div>
+          <div style={{ padding: 8 }}>
+            {!orderedServices?.length ? (
+              <EmptyHint>No services yet. Use Add Service to create the first catalog item.</EmptyHint>
+            ) : null}
+            {orderedServices?.map((service) => {
+              const IconComponent = getServiceIcon(service.name);
+              const isActive = selectedServiceId === service.id;
+              const isOver = dragOverServiceId === service.id;
+              const serviceCatCount = allCategories.filter(
+                (cat) =>
+                  String(cat.serviceId ?? cat.service?.id) === String(service.id)
+              ).length;
 
-          return (
-            <Paper
-              key={service.id}
-              elevation={0}
-              onClick={() => setSelectedServiceId(service.id)}
-              onDragOver={(e) => {
-                if (serviceReorderLoading) return;
-                e.preventDefault();
-                setDragOverServiceId(service.id);
-              }}
-              onDragLeave={() => setDragOverServiceId(null)}
-              onDrop={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                handleServiceChipDrop(service.id);
-              }}
-              sx={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 1.5,
-                px: 2.5,
-                py: 1.5,
-                width: "fit-content",
-                flexShrink: 0,
-                cursor: "pointer",
-                bgcolor:
-                  dragOverServiceId === service.id
-                    ? "rgba(21, 112, 239, 0.12)"
-                    : isActive
-                      ? "#000099"
-                      : "white",
-                color: isActive ? "white" : "grey.800",
-                border: "1px solid",
-                borderColor:
-                  dragOverServiceId === service.id
-                    ? "#1570EF"
-                    : isActive
-                      ? "#000099"
-                      : "#E5E7EB",
-                borderRadius: 2,
-                boxShadow: "0px 1px 2px rgba(16, 24, 40, 0.08)",
-                transition: "all 0.2s",
-                "&:hover": {
-                  borderColor: "#000099",
-                  bgcolor: isActive ? "#000099" : "#F9FAFB",
-                },
+              return (
+                <div
+                  key={service.id}
+                  role="button"
+                  tabIndex={0}
+                  aria-pressed={isActive}
+                  aria-label={`Select ${service.name}`}
+                  onClick={() => setSelectedServiceId(service.id)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      setSelectedServiceId(service.id);
+                    }
+                  }}
+                  onDragOver={(e) => {
+                    if (serviceReorderLoading) return;
+                    e.preventDefault();
+                    setDragOverServiceId(service.id);
+                  }}
+                  onDragLeave={() => setDragOverServiceId(null)}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleServiceChipDrop(service.id);
+                  }}
+                  style={{
+                    position: "relative",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    padding: "10px 12px",
+                    marginBottom: 4,
+                    cursor: "pointer",
+                    background: isOver
+                      ? "var(--accent-tint)"
+                      : isActive
+                        ? "var(--accent)"
+                        : "transparent",
+                    color: isActive ? "var(--on-accent)" : "var(--ink)",
+                    borderRadius: "var(--r-md)",
+                    border: isOver ? "1px dashed var(--brand-500)" : "1px solid transparent",
+                  }}
+                >
+                  <span
+                    draggable={!serviceReorderLoading}
+                    onDragStart={(e) => {
+                      e.stopPropagation();
+                      draggingServiceIdRef.current = service.id;
+                      e.dataTransfer.setData("text/plain", String(service.id));
+                      e.dataTransfer.effectAllowed = "move";
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                    style={{
+                      display: "flex",
+                      color: isActive ? "rgba(255,255,255,0.85)" : "var(--faint)",
+                      cursor: serviceReorderLoading ? "not-allowed" : "grab",
+                    }}
+                    aria-label="Drag to reorder service"
+                  >
+                    <TbGripVertical size={18} />
+                  </span>
+                  <IconComponent size={18} color={isActive ? "#fff" : "var(--success-700)"} />
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {service.name}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: 11,
+                        color: isActive ? "rgba(255,255,255,0.8)" : "var(--muted)",
+                      }}
+                    >
+                      {serviceCatCount} {serviceCatCount === 1 ? "category" : "categories"}
+                    </div>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant={isActive ? "secondary" : "ghost"}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setMenuServiceId((prev) =>
+                        prev === service.id ? null : service.id
+                      );
+                    }}
+                  >
+                    ⋯
+                  </Button>
+                  {menuServiceId === service.id ? (
+                    <div
+                      role="menu"
+                      onMouseDown={(e) => e.stopPropagation()}
+                      style={{
+                        position: "absolute",
+                        right: 8,
+                        top: "100%",
+                        zIndex: 20,
+                        minWidth: 140,
+                        padding: 6,
+                        background: "var(--surface)",
+                        border: "1px solid var(--line)",
+                        borderRadius: "var(--r-md)",
+                        boxShadow: "var(--e-3)",
+                      }}
+                    >
+                      <Button variant="ghost" size="sm" onClick={handleView}>
+                        <IoEye size={16} />
+                        Configure
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={handleEditFromMenu}>
+                        <TbPencil size={16} />
+                        Edit
+                      </Button>
+                    </div>
+                  ) : null}
+                </div>
+              );
+            })}
+          </div>
+        </DirectoryPanel>
+
+        <div style={{ flex: "1 1 480px", minWidth: 0 }}>
+          {selectedService ? (
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                gap: 12,
+                alignItems: "flex-start",
+                marginBottom: 12,
+                flexWrap: "wrap",
               }}
             >
-              <Box
-                draggable={!serviceReorderLoading}
-                onDragStart={(e) => {
-                  e.stopPropagation();
-                  draggingServiceIdRef.current = service.id;
-                  e.dataTransfer.setData("text/plain", String(service.id));
-                  e.dataTransfer.effectAllowed = "move";
-                }}
-                onClick={(e) => e.stopPropagation()}
-                sx={{
-                  display: "flex",
-                  color: isActive ? "rgba(255,255,255,0.85)" : "#94A3B8",
-                  cursor: serviceReorderLoading ? "not-allowed" : "grab",
-                  "&:active": { cursor: "grabbing" },
-                }}
-                aria-label="Drag to reorder service"
-              >
-                <TbGripVertical size={18} />
-              </Box>
-              <IconComponent size={24} color={isActive ? "#fff" : "#10B981"} />
-              <Typography
-                variant="body1"
-                fontWeight={600}
-                sx={{
-                  whiteSpace: "nowrap",
-                  overflow: "visible",
-                  textOverflow: "clip",
-                }}
-              >
-                {service.name}
-              </Typography>
-              <IconButton
-                size="small"
-                onClick={(e) => handleMenuOpen(e, service.id)}
-                sx={{ color: isActive ? "white" : "grey.600" }}
-              >
-                <TbDotsVertical size={18} />
-              </IconButton>
-            </Paper>
-          );
-        })}
-      </Box>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 18, color: "var(--ink)" }}>
+                  {selectedService.name}
+                </div>
+                <p style={{ margin: "4px 0 0", color: "var(--muted)", fontSize: 13 }}>
+                  {rawTableRows.length}{" "}
+                  {rawTableRows.length === 1 ? "category" : "categories"} ·{" "}
+                  {subCategoryCount} {subCategoryCount === 1 ? "item" : "items"} ·{" "}
+                  {linkedAddOnCount} {linkedAddOnCount === 1 ? "add-on" : "add-ons"} ·{" "}
+                  {linkedPreferences.length}{" "}
+                  {linkedPreferences.length === 1 ? "preference" : "preferences"}
+                </p>
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => setCategoryModalOpen(true)}
+                >
+                  Add Category
+                </Button>
+                <Button size="sm" onClick={() => setConfigureOpen(true)}>
+                  Link prefs &amp; categories
+                </Button>
+              </div>
+            </div>
+          ) : null}
 
-      <Menu
-        anchorEl={anchorEl}
-        open={!!anchorEl}
-        onClose={handleMenuClose}
-        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
-        transformOrigin={{ vertical: "top", horizontal: "right" }}
-      >
-        <MenuItem onClick={handleView}>
-          <IoEye size={18} style={{ marginRight: 8 }} />
-          View
-        </MenuItem>
-        <MenuItem onClick={handleEditFromMenu}>
-          <TbPencil size={18} style={{ marginRight: 8 }} />
-          Edit
-        </MenuItem>
-        <MenuItem onClick={handleMenuClose} sx={{ color: "error.main" }}>
-          Delete
-        </MenuItem>
-      </Menu>
+          {linkedPreferences.length ? (
+            <div
+              style={{
+                display: "flex",
+                flexWrap: "wrap",
+                gap: 8,
+                marginBottom: 12,
+                padding: 12,
+                background: "var(--canvas)",
+                border: "1px solid var(--line)",
+                borderRadius: "var(--r-lg)",
+              }}
+            >
+              <span
+                style={{
+                  fontSize: 11,
+                  fontWeight: 700,
+                  letterSpacing: "0.05em",
+                  textTransform: "uppercase",
+                  color: "var(--muted)",
+                  alignSelf: "center",
+                }}
+              >
+                Preferences
+              </span>
+              {linkedPreferences.map((pref) => (
+                <DirectoryDotPill key={pref?.id ?? pref?.preferenceTypeId} tone="info">
+                  {pref?.name || pref?.preferenceType?.name || "Preference"}
+                </DirectoryDotPill>
+              ))}
+            </div>
+          ) : selectedService ? (
+            <p style={{ margin: "0 0 12px", color: "var(--muted)", fontSize: 13 }}>
+              No preferences linked. Use Configure to attach preference types to this service.
+            </p>
+          ) : null}
 
-      {/* Expandable categories table */}
-      <Box sx={{ mt: 2 }}>
-        {isLoadingConfig && selectedServiceId ? (
-          <MiniLoader />
-        ) : (
-          <ServiceCategoriesExpandableTable
-            rows={rawTableRows}
-            searchTerm={globalSearch}
-            addOnsList={addOnsList}
-            subCategoriesByServiceId={subCategoriesByServiceId}
-            onViewAddOns={({ categoryName, subCategories }) =>
-              setAddOnsModal({ open: true, categoryName, subCategories })
-            }
-            onReorderCategories={handleReorderCategories}
-            onReorderSubCategories={handleReorderSubCategories}
-            reorderDisabled={
-              categoryReorderLoading || subReorderLoading || Boolean(globalSearch?.trim())
-            }
-          />
-        )}
-      </Box>
+          {isLoadingConfig || isConfigError ? (
+            <QueryState
+              loading={isLoadingConfig}
+              error={configQueryError || isConfigError}
+              onRetry={refetchConfig}
+              errorLabel="Could not load categories for this service."
+            />
+          ) : (
+            <ServiceCategoriesExpandableTable
+              rows={rawTableRows}
+              searchTerm={globalSearch}
+              addOnsList={addOnsList}
+              subCategoriesByServiceId={subCategoriesByServiceId}
+              onViewAddOns={({ categoryName, subCategories }) =>
+                setAddOnsModal({ open: true, categoryName, subCategories })
+              }
+              onReorderCategories={handleReorderCategories}
+              onReorderSubCategories={handleReorderSubCategories}
+              reorderDisabled={
+                categoryReorderLoading || subReorderLoading || Boolean(globalSearch?.trim())
+              }
+            />
+          )}
+        </div>
+      </div>
+
+      <CategoryModal
+        open={categoryModalOpen}
+        onClose={() => setCategoryModalOpen(false)}
+        type=""
+        categoryData={
+          selectedServiceId
+            ? { serviceId: selectedServiceId, service: selectedService }
+            : {}
+        }
+      />
+
+      <ConfigureModal
+        open={configureOpen}
+        onClose={() => setConfigureOpen(false)}
+        selectedServiceId={selectedServiceId}
+      />
 
       <CategoryAddOnsModal
         open={addOnsModal.open}
@@ -1094,43 +1173,53 @@ export default function ServiceDashboard() {
         subCategoriesByServiceId={subCategoriesByServiceId}
       />
 
-      <ModalComponent
+      <Modal
         open={serviceModal.open}
-        title={serviceModal.type === "update" ? "Update Service" : "ADD SERVICE"}
+        title={serviceModal.type === "update" ? "Update Service" : "Add Service"}
         onClose={closeServiceModal}
-        secondaryAction={{ label: "Cancel", onClick: closeServiceModal }}
-        primaryAction={{
-          label:
-            serviceModal.type === "update" ? "Update Service" : "Add Service",
-          onClick:
-            serviceModal.type === "update" ? handleEditService : handleAddService,
-          isLoading: addServiceLoading || editServiceLoading,
+        secondaryLabel="Cancel"
+        primaryLabel={
+          saving
+            ? serviceModal.type === "update"
+              ? "Updating…"
+              : "Adding…"
+            : serviceModal.type === "update"
+              ? "Update Service"
+              : "Add Service"
+        }
+        onPrimary={() => {
+          if (saving) return;
+          if (serviceModal.type === "update") handleEditService();
+          else handleAddService();
         }}
       >
-        <Box className="flex flex-col gap-5">
-          <ImageUpload
-            title="Service Image"
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <ImageField
+            label="Service Image"
             value={serviceModal.image}
             onChange={(value) =>
               setServiceModal((prev) => ({ ...prev, image: value }))
             }
           />
-          <InputFieldModal
-            title="Service (Service name)"
-            label="Service Name"
-            placeholder="Service name"
-            name="name"
-            value={serviceModal.name}
-            onChange={handleServiceFormChange}
-          />
-          <TextareaField
-            title="Description"
-            name="description"
-            value={serviceModal.description}
-            onChange={handleServiceFormChange}
-          />
-        </Box>
-      </ModalComponent>
-    </div>
+          <Field label="Service Name" htmlFor="dash-service-name">
+            <Input
+              id="dash-service-name"
+              name="name"
+              placeholder="Service name"
+              value={serviceModal.name}
+              onChange={handleServiceFormChange}
+            />
+          </Field>
+          <Field label="Description" htmlFor="dash-service-description">
+            <Textarea
+              id="dash-service-description"
+              name="description"
+              value={serviceModal.description}
+              onChange={handleServiceFormChange}
+            />
+          </Field>
+        </div>
+      </Modal>
+    </CatalogChrome>
   );
 }

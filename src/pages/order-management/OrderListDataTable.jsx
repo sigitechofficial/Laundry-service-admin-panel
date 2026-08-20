@@ -1,7 +1,24 @@
 import { useMemo } from "react";
-import DataTable from "../../components/ui/DataTable";
-import OrderZoneFilter from "./OrderZoneFilter";
-import OrderFiltersPopover from "./OrderFiltersPopover";
+import OrderListFilters from "./OrderListFilters";
+import ListPagination from "./ListPagination";
+import { OrderTablePanel } from "./OrderWorkspace";
+import styles from "./orderList.module.css";
+import { downloadOrderListCsv } from "./orderListUtils";
+
+function toKitColumns(columns = []) {
+  return columns.map((c) => ({
+    key: c.key || c.field,
+    header: c.header || c.headerName,
+    align: c.align,
+    render: c.render || c.renderCell,
+  }));
+}
+
+function cellAlign(align) {
+  if (align === "center") return "text-center";
+  if (align === "right") return "text-right";
+  return "text-left";
+}
 
 export default function OrderListDataTable({
   data,
@@ -18,17 +35,29 @@ export default function OrderListDataTable({
   dateRange,
   onDateRangeChange,
   orderStatuses,
-  showStatusFilter = false,
+  showStatusFilter = true,
   onClearFilters,
   hasActiveFilters,
-  stickyLeftFields,
-  stickyRightFields,
-  height = 600,
   searchInput,
   onSearchInputChange,
   isTableLoading = false,
+  searchPlaceholder = "Search by order ID, shop or service…",
+  onDownload,
+  emptyText,
+  lead,
+  tableLayout = "default",
+  showSort = true,
+  showDownload = true,
+  sortBy,
+  onSortByChange,
+  sortDir,
+  onSortDirChange,
+  sortOptions,
+  defaultSortBy,
 }) {
   const emptyMessage = useMemo(() => {
+    if (isTableLoading && !data?.length) return "Loading orders…";
+    if (emptyText) return emptyText;
     if (zoneId != null && String(zoneId).trim() !== "") {
       return "No orders found for this zone";
     }
@@ -36,41 +65,109 @@ export default function OrderListDataTable({
       return "No orders match these filters";
     }
     return "No orders found";
-  }, [zoneId, hasActiveFilters]);
+  }, [zoneId, hasActiveFilters, isTableLoading, data?.length, emptyText]);
+
+  const kitColumns = useMemo(() => toKitColumns(columns), [columns]);
+
+  const handleDownload = () => {
+    if (onDownload) {
+      onDownload();
+      return;
+    }
+    downloadOrderListCsv(data || [], "orders_export.csv");
+  };
 
   return (
-    <DataTable
-      data={data}
-      columns={columns}
-      searchPlaceholder="Search orders (ID, customer, email, phone)…"
-      height={height}
-      stickyLeftFields={stickyLeftFields}
-      stickyRightFields={stickyRightFields}
-      serverSidePagination
-      totalRows={totalRows}
-      currentPage={page}
-      pageSize={pageSize}
-      onPageChange={onPageChange}
-      onPageSizeChange={onPageSizeChange}
-      dateRangeValue={dateRange}
-      onDateRangeChange={onDateRangeChange}
-      searchValue={searchInput}
-      onSearchChange={onSearchInputChange}
-      isLoading={isTableLoading}
-      emptyMessage={emptyMessage}
-      filtersSlot={
-        <OrderFiltersPopover
+    <div className="w-full min-w-0">
+      <OrderTablePanel>
+        {lead ? <div className={styles.lead}>{lead}</div> : null}
+        <OrderListFilters
+          searchInput={searchInput}
+          onSearchInputChange={onSearchInputChange}
+          searchPlaceholder={searchPlaceholder}
+          zoneId={zoneId}
+          onZoneIdChange={onZoneIdChange}
           statusId={statusId}
-          onStatusChange={onStatusIdChange}
+          onStatusIdChange={onStatusIdChange}
           orderStatuses={orderStatuses}
           showStatusFilter={showStatusFilter}
+          dateRange={dateRange}
+          onDateRangeChange={onDateRangeChange}
           onClearFilters={onClearFilters}
           hasActiveFilters={hasActiveFilters}
+          onDownload={showDownload ? handleDownload : undefined}
+          showSort={showSort}
+          sortBy={sortBy}
+          onSortByChange={onSortByChange}
+          sortDir={sortDir}
+          onSortDirChange={onSortDirChange}
+          sortOptions={sortOptions}
+          defaultSortBy={defaultSortBy}
+          extra={
+            isTableLoading && data?.length ? (
+              <span className="text-xs font-medium text-[#5c6673]">Refreshing…</span>
+            ) : null
+          }
         />
-      }
-      toolbarExtra={
-        <OrderZoneFilter value={zoneId} onChange={onZoneIdChange} />
-      }
-    />
+        <div className={styles.scroll}>
+          <table
+            className={`${styles.table} ${
+              tableLayout === "fluid"
+                ? styles.tableFluid
+                : tableLayout === "grow"
+                  ? styles.tableGrow
+                  : tableLayout === "default"
+                    ? styles.tableLayout
+                    : ""
+            }`}
+          >
+            <thead>
+              <tr>
+                {kitColumns.map((c) => (
+                  <th
+                    key={c.key}
+                    scope="col"
+                    className={cellAlign(c.align)}
+                  >
+                    {c.header}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {!data?.length ? (
+                <tr>
+                  <td colSpan={kitColumns.length} className={styles.empty}>
+                    {emptyMessage}
+                  </td>
+                </tr>
+              ) : (
+                data.map((row, i) => (
+                  <tr key={row.id ?? i}>
+                    {kitColumns.map((c) => (
+                      <td
+                        key={c.key}
+                        className={cellAlign(c.align)}
+                      >
+                        {c.render ? c.render(row) : row[c.key]}
+                      </td>
+                    ))}
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+        <div className={styles.footer}>
+          <ListPagination
+            page={page}
+            pageSize={pageSize}
+            totalRows={totalRows}
+            onPageChange={onPageChange}
+            onPageSizeChange={onPageSizeChange}
+          />
+        </div>
+      </OrderTablePanel>
+    </div>
   );
 }

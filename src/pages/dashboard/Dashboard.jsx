@@ -1,34 +1,33 @@
 import { useMemo, useState, useRef, useEffect } from "react";
-import { Box, Typography, Chip } from "@mui/material";
 import { useNavigate } from "react-router-dom";
 import DashboardFilter from "./DashboardFilter";
-import HomeCards from "../../components/ui/HomeCards";
+import { DashboardCard } from "./DashboardStatCards";
+import FigureShimmer from "./FigureShimmer";
 import {
   IconMessenger,
   FaUsers,
   BsHandbagFill,
   AiFillFileText,
 } from "../../shared/icons/index";
-import HomeMiniCards from "../../components/ui/HomeMiniCards";
-import FigureShimmer from "../../components/ui/FigureShimmer";
 import OrderManagementChart from "./OrderManagementChart";
-import AreaChart from "../../components/ui/AreaChart";
+import AreaChart from "./AreaChart";
 import {
   SalesMetricCard,
   SalesRankCard,
-  SalesIcons,
   SalesBoard,
 } from "./DashboardInsightCards";
+import { SalesIcons } from "./salesIcons";
+import { DashboardQueryState } from "./DashboardQueryState";
 import { useDashboardDataQuery } from "../../store/services/api";
 import { getUserProfile } from "../../utilities/authStorage";
+import { formatDate, formatMoney, resolveCurrencySymbol } from "../../utilities/formatters";
 
-function formatMoney(n) {
-  const v = Number(n);
-  if (!Number.isFinite(v)) return "£0.00";
-  return `£${v.toLocaleString(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`;
+function money(amount, source) {
+  return formatMoney(
+    amount,
+    resolveCurrencySymbol(source),
+    source?.currency ?? source?.currencyCode ?? source?.currency_code ?? source?.feeCurrency
+  );
 }
 
 function formatPct(n) {
@@ -50,7 +49,65 @@ const DEFAULT_FILTERS = {
   cityId: "",
   countryId: "",
   period: "all",
+  startDate: "",
+  endDate: "",
 };
+
+const ATTENTION_TILES = [
+  {
+    key: "ar",
+    label: "Action required",
+    field: "actionRequiredCount",
+    path: "/orders/action-required",
+    tone: "danger",
+  },
+  {
+    key: "assign",
+    label: "Unassigned shop",
+    field: "needsAssignmentCount",
+    path: "/orders/pending-orders",
+    tone: "warning",
+  },
+  {
+    key: "pay",
+    label: "Payment holds",
+    field: "paymentFailureCount",
+    path: "/orders/payment-failures",
+    tone: "danger",
+  },
+  {
+    key: "hold",
+    label: "On hold",
+    field: "onHoldCount",
+    path: "/orders/on-hold-orders",
+    tone: "violet",
+  },
+];
+
+const TILE_TONE = {
+  danger:
+    "before:bg-[var(--danger)] [--abg:var(--danger-bg)] [--a:var(--danger)]",
+  warning:
+    "before:bg-[var(--warning)] [--abg:var(--warning-bg)] [--a:var(--warning)]",
+  violet: "before:bg-[#5f47c4] [--abg:#efeafe] [--a:#5f47c4]",
+  info: "before:bg-[var(--info)] [--abg:var(--info-bg)] [--a:var(--info)]",
+};
+
+function ChartPanel({ title, subtitle, children }) {
+  return (
+    <section className="relative overflow-hidden rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-5 py-5 shadow-[0_1px_2px_rgba(16,21,31,0.04)] before:absolute before:inset-y-0 before:left-0 before:w-[3px] before:bg-[var(--accent)] before:content-['']">
+      <h2 className="m-0 text-[15px] font-bold tracking-[-0.2px] text-[var(--ink)]">
+        {title}
+      </h2>
+      {subtitle ? (
+        <p className="mb-4 mt-1 text-[13px] text-[var(--muted)]">{subtitle}</p>
+      ) : (
+        <div className="mb-4" />
+      )}
+      {children}
+    </section>
+  );
+}
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -61,12 +118,22 @@ export default function Dashboard() {
     if (filters.zoneId) q.zoneId = filters.zoneId;
     if (filters.cityId) q.cityId = filters.cityId;
     if (filters.countryId) q.countryId = filters.countryId;
+    if (filters.period === "custom" && filters.startDate && filters.endDate) {
+      q.startDate = filters.startDate;
+      q.endDate = filters.endDate;
+    }
     return q;
   }, [filters]);
 
-  const { data: dashRes, isLoading, isFetching } = useDashboardDataQuery(queryArgs);
+  const {
+    data: dashRes,
+    isLoading,
+    isFetching,
+    isError,
+    error,
+    refetch,
+  } = useDashboardDataQuery(queryArgs);
 
-  // Keep last payload for layout continuity; figures shimmer while fetching
   const lastDataRef = useRef(null);
   useEffect(() => {
     if (dashRes?.data) lastDataRef.current = dashRes.data;
@@ -74,25 +141,15 @@ export default function Dashboard() {
 
   const dashboardData = dashRes?.data ?? lastDataRef.current;
   const insights = dashboardData?.insights || {};
-  // Shimmer figures whenever a request is in flight (incl. first load)
   const figuresLoading = isFetching || (isLoading && !dashboardData);
+  const showFatal = isError && !dashboardData;
 
   const revenueSeries = useMemo(() => {
     const rows = Array.isArray(dashboardData?.dailyRevenue)
       ? dashboardData.dailyRevenue
       : [];
     return {
-      labels: rows.map((r) => {
-        if (!r?.date) return "—";
-        try {
-          return new Date(r.date).toLocaleDateString(undefined, {
-            month: "short",
-            day: "numeric",
-          });
-        } catch {
-          return String(r.date);
-        }
-      }),
+      labels: rows.map((r) => formatDate(r?.date, "DD MMM")),
       values: rows.map((r) => Number(r.adminRevenue ?? r.grossRevenue ?? 0) || 0),
     };
   }, [dashboardData?.dailyRevenue]);
@@ -106,228 +163,204 @@ export default function Dashboard() {
   const attention = dashboardData?.attention || {};
   const emptyGeo = Boolean(dashboardData?.filtersApplied?.emptyGeo) && !figuresLoading;
 
-  const attentionChips = [
-    {
-      key: "ar",
-      label: `Action required · ${attention.actionRequiredCount ?? 0}`,
-      color: "error",
-      path: "/orders/action-required",
-      show: true,
-    },
-    {
-      key: "pay",
-      label: `Payment holds · ${attention.paymentFailureCount ?? 0}`,
-      color: "error",
-      path: "/orders/payment-failures",
-      show: true,
-    },
-    {
-      key: "hold",
-      label: `On hold · ${attention.onHoldCount ?? 0}`,
-      color: "warning",
-      path: "/orders/on-hold-orders",
-      show: true,
-    },
-    {
-      key: "new",
-      label: `New orders · ${attention.newOrdersCount ?? 0}`,
-      color: "info",
-      path: "/orders/pending-orders",
-      show: true,
-    },
-    {
-      key: "assign",
-      label: `Unassigned shop · ${attention.needsAssignmentCount ?? 0}`,
-      color: "warning",
-      path: "/orders/pending-orders",
-      show: Number(attention.needsAssignmentCount) > 0,
-    },
-  ].filter((c) => c.show);
-
   const mtd = insights.mtdAdmin || {};
   const lastMonth = insights.lastMonthAdmin || {};
-  const mtdShops = insights.mtdShops || {};
+  const currencySource = dashboardData;
+  const completedCount =
+    dashboardData?.completedOrdersCount ?? dashboardData?.orderCounts?.completed ?? 0;
 
   return (
-    <Box className="w-full relative before:absolute before:bg-textureGradient before:w-full before:h-52 before:bg-contain !pb-20">
-      <div className="!px-8 2xl:!px-[60px] !pt-[22px] relative z-10">
-        <Box className="flex items-center justify-between flex-wrap gap-4">
-          <div>
-            <h4 className="font-Inter font-semibold text-[32px] text-white">
-              Welcome, {welcomeName()}
-            </h4>
-            <Typography variant="subtitle2" color="white" fontFamily="Inter">
-              Monitor operations health and jump into what needs attention
-            </Typography>
-          </div>
-          <div>
-            <DashboardFilter value={filters} onChange={setFilters} />
-          </div>
-        </Box>
+    <div className="font-[Inter,system-ui,sans-serif] tracking-[-0.006em]">
+      <header className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="min-w-0">
+          <h1 className="m-0 text-[22px] font-bold tracking-[-0.4px] text-[var(--ink)]">
+            Operations
+          </h1>
+          <p className="mt-1 mb-0 text-[13.5px] text-[var(--muted)]">
+            Welcome, {welcomeName()}. Monitor revenue, assignment, and work that
+            needs attention.
+          </p>
+        </div>
+        <div className="lg:ml-auto">
+          <DashboardFilter value={filters} onChange={setFilters} />
+        </div>
+      </header>
 
-        <Box className="!space-y-7">
-          {emptyGeo ? (
-            <Box
-              className="!mt-6 rounded-lg px-4 py-3"
-              sx={{ bgcolor: "#FEF3C7", border: "1px solid #FCD34D" }}
-            >
-              <Typography fontFamily="Inter" fontWeight={600} color="#92400E">
-                No zones match this country/city. Clear the geo filters or pick United
-                Kingdom.
-              </Typography>
-            </Box>
-          ) : null}
+      {emptyGeo ? (
+        <div
+          role="status"
+          className="mb-5 rounded-[10px] border border-[var(--warning-50)] bg-[var(--warning-bg)] px-4 py-3 text-sm font-semibold text-[var(--warning-700)]"
+        >
+          No zones match this country/city. Clear the geo filters or pick United
+          Kingdom.
+        </div>
+      ) : null}
 
-          <Box className="flex flex-wrap gap-2 !mt-6">
-            {attentionChips.map((chip) => (
-              <Chip
-                key={chip.key}
-                label={
-                  figuresLoading ? (
-                    <Box sx={{ display: "inline-flex", alignItems: "center", gap: 1 }}>
-                      <span>{chip.label.split("·")[0]}·</span>
-                      <FigureShimmer width={28} height={12} radius={4} />
-                    </Box>
+      {showFatal ? (
+        <DashboardQueryState error={error} onRetry={() => refetch()} />
+      ) : (
+        <div className="flex flex-col gap-5">
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+            {ATTENTION_TILES.map((tile) => {
+              const count = attention[tile.field] ?? 0;
+              return (
+                <button
+                  key={tile.key}
+                  type="button"
+                  onClick={() => navigate(tile.path)}
+                  className={[
+                    "relative overflow-hidden rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-4 py-3.5 text-left shadow-[0_1px_2px_rgba(16,21,31,0.04)] transition-[box-shadow,transform] duration-150",
+                    "before:absolute before:inset-y-0 before:left-0 before:w-[3px] before:content-['']",
+                    "hover:-translate-y-px hover:shadow-[0_10px_26px_-16px_rgba(16,21,31,0.35)]",
+                    TILE_TONE[tile.tone],
+                  ].join(" ")}
+                >
+                  <p className="m-0 text-[11px] font-bold uppercase tracking-[0.06em] text-[var(--muted)]">
+                    {tile.label}
+                  </p>
+                  {figuresLoading ? (
+                    <FigureShimmer width={36} height={26} radius={6} className="mt-1.5" />
                   ) : (
-                    chip.label
-                  )
-                }
-                onClick={() => navigate(chip.path)}
-                sx={{
-                  fontWeight: 700,
-                  fontSize: 13,
-                  cursor: "pointer",
-                  bgcolor: "#FFFFFF",
-                  color:
-                    chip.color === "error"
-                      ? "#B91C1C"
-                      : chip.color === "warning"
-                        ? "#B45309"
-                        : chip.color === "info"
-                          ? "#1D4ED8"
-                          : "#0F172A",
-                  border: "1px solid",
-                  borderColor:
-                    chip.color === "error"
-                      ? "#FECACA"
-                      : chip.color === "warning"
-                        ? "#FDE68A"
-                        : chip.color === "info"
-                          ? "#BFDBFE"
-                          : "#E2E8F0",
-                  "&:hover": { bgcolor: "#F8FAFC" },
-                }}
-              />
-            ))}
-          </Box>
+                    <p className="mt-1.5 mb-0 text-[22px] font-bold leading-none tracking-[-0.6px] text-[var(--ink)] [font-variant-numeric:tabular-nums]">
+                      {count}
+                    </p>
+                  )}
+                </button>
+              );
+            })}
+          </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-x-5 gap-y-8 !mt-4">
-            <HomeCards
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            <DashboardCard
               title="Platform revenue"
               description="Admin commission for selected filters"
-              total={formatMoney(dashboardData?.adminRevenue)}
+              hint={
+                dashboardData?.grossRevenue != null
+                  ? `Gross ${money(dashboardData.grossRevenue, currencySource)}`
+                  : "Admin commission for selected filters"
+              }
+              total={money(dashboardData?.adminRevenue, currencySource)}
               Icon={AiFillFileText}
-              iconBg="bg-white"
+              tone="accent"
               loading={figuresLoading}
               onClick={() => navigate("/orders/all-orders")}
-              style={{ cursor: "pointer" }}
             />
-            <HomeCards
+            <DashboardCard
               title="Total orders"
               description="Bookings in selected period / zone"
+              hint={`${completedCount} completed`}
               total={dashboardData?.totalBookings ?? 0}
               Icon={IconMessenger}
-              iconBg="bg-white"
+              tone="blue"
               loading={figuresLoading}
               onClick={() => navigate("/orders/all-orders")}
-              style={{ cursor: "pointer" }}
             />
-            <HomeCards
+            <DashboardCard
               title="Active customers"
               description="Platform-wide active customers"
+              hint="Platform-wide active"
               total={dashboardData?.totalCustomers ?? 0}
               Icon={FaUsers}
-              iconBg="bg-white"
+              tone="green"
               loading={figuresLoading}
             />
-            <HomeCards
+            <DashboardCard
               title="Shop assignment rate"
               description="Orders with a laundry shop assigned"
+              hint={
+                attention.needsAssignmentCount != null
+                  ? `${attention.needsAssignmentCount} unassigned`
+                  : "Orders with a shop assigned"
+              }
               total={formatPct(dashboardData?.agentAcceptanceRate)}
               Icon={BsHandbagFill}
-              iconBg="bg-white"
+              tone="violet"
               loading={figuresLoading}
             />
-            <HomeMiniCards
+            <DashboardCard
               title="Avg. completion"
+              description="Average hours from created to completed"
+              hint={`${completedCount} completed orders`}
               total={`${dashboardData?.averageOrderCompletionTimeHours ?? 0} hrs`}
+              tone="amber"
               loading={figuresLoading}
             />
-            <HomeMiniCards
+            <DashboardCard
               title="Completed orders"
-              total={
-                dashboardData?.completedOrdersCount ??
-                dashboardData?.orderCounts?.completed ??
-                0
+              description="Completed bookings in selected filters"
+              hint={
+                dashboardData?.thisMonthOrders != null
+                  ? `${dashboardData.thisMonthOrders} this month`
+                  : "Completed in selected period"
               }
+              total={completedCount}
+              tone="green"
               loading={figuresLoading}
               onClick={() => navigate("/orders/complete-orders")}
-              style={{ cursor: "pointer" }}
             />
-            <HomeMiniCards
-              title="This month · shops"
-              total={formatMoney(
-                mtdShops.shopRevenue ?? dashboardData?.thisMonthShopRevenue
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <ChartPanel
+              title="Orders pipeline"
+              subtitle="Open and completed bookings in the selected period"
+            >
+              {figuresLoading ? (
+                <div className="flex justify-center py-10">
+                  <FigureShimmer width={220} height={220} radius={110} />
+                </div>
+              ) : (
+                <OrderManagementChart
+                  pending={pipeline.pending}
+                  inProgress={pipeline.inProgress}
+                  outForDelivery={pipeline.outForDelivery}
+                  completed={pipeline.completed}
+                />
               )}
-              loading={figuresLoading}
-            />
-            <HomeMiniCards
-              title="This month · admin"
-              total={formatMoney(
-                mtd.adminRevenue ?? dashboardData?.thisMonthAdminRevenue
+            </ChartPanel>
+            <ChartPanel
+              title="Admin revenue by collection day"
+              subtitle="Commission on collected orders"
+            >
+              {figuresLoading ? (
+                <FigureShimmer width="100%" height={220} radius={12} />
+              ) : revenueSeries.labels.length ? (
+                <AreaChart
+                  labels={revenueSeries.labels}
+                  values={revenueSeries.values}
+                />
+              ) : (
+                <p className="m-0 py-16 text-center text-[13.5px] text-[var(--muted)]">
+                  No collected revenue in this period.
+                </p>
               )}
-              loading={figuresLoading}
-            />
+            </ChartPanel>
           </div>
 
           <SalesBoard>
-            <Box
-              sx={{
-                display: "grid",
-                gridTemplateColumns: { xs: "1fr", lg: "1fr 1fr" },
-                gap: 2,
-              }}
-            >
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <SalesMetricCard
-                title="Month-to-Date Sales"
+                title="Month-to-date sales"
                 icon={SalesIcons.chart}
                 total={mtd.adminRevenue ?? dashboardData?.thisMonthAdminRevenue}
-                totalLabel="Admin Revenue"
+                totalLabel="Admin revenue"
                 orders={mtd.ordersCompleted ?? dashboardData?.thisMonthOrders ?? 0}
                 avgOrderValue={
                   mtd.avgOrderValue ?? dashboardData?.thisMonthAvgOrderValue ?? 0
                 }
                 showTrend
                 trendPct={mtd.vsLastMonthMtdPct}
+                currencySource={mtd.currencySymbol ? mtd : currencySource}
                 loading={figuresLoading}
                 onView={() => navigate("/reports/daily-earning")}
               />
-              <SalesRankCard
-                title="MTD Sales by Shop"
-                icon={SalesIcons.person}
-                rows={insights.topShopsMtd || []}
-                nameKey="shopName"
-                amountKey="shopRevenue"
-                loading={figuresLoading}
-                onView={() => navigate("/reports/top-performing-shops")}
-              />
               <SalesMetricCard
-                title="Last Month Sales"
+                title="Last month sales"
                 icon={SalesIcons.calendar}
                 total={
                   lastMonth.adminRevenue ?? dashboardData?.lastMonthAdminRevenue
                 }
-                totalLabel="Admin Revenue"
+                totalLabel="Admin revenue"
                 orders={
                   lastMonth.ordersCompleted ?? dashboardData?.lastMonthOrders ?? 0
                 }
@@ -337,128 +370,84 @@ export default function Dashboard() {
                   0
                 }
                 statusLabel="Completed"
+                currencySource={
+                  lastMonth.currencySymbol ? lastMonth : currencySource
+                }
                 loading={figuresLoading}
                 onView={() => navigate("/reports/daily-earning")}
               />
               <SalesRankCard
-                title="Last Month Sales by Shop"
-                icon={SalesIcons.people}
-                rows={insights.topShopsLastMonth || []}
-                nameKey="shopName"
-                amountKey="shopRevenue"
-                loading={figuresLoading}
-                onView={() => navigate("/reports/top-performing-shops")}
-              />
-            </Box>
-
-            <Box
-              sx={{
-                display: "grid",
-                gridTemplateColumns: { xs: "1fr", lg: "1fr 1fr" },
-                gap: 2,
-                mt: 2,
-              }}
-            >
-              <SalesRankCard
-                title="MTD Sales by Shop"
+                title="MTD sales by shop"
                 icon={SalesIcons.store}
                 rows={insights.topShopsMtd || []}
                 nameKey="shopName"
                 amountKey="shopRevenue"
                 metaKey="ordersCompleted"
                 metaPrefix="Orders:"
-                footerLabel="View All"
+                footerLabel="View all"
                 loading={figuresLoading}
+                currencySource={currencySource}
                 onView={() => navigate("/reports/top-performing-shops")}
               />
               <SalesRankCard
-                title="YTD Sales by Shop"
+                title="Last month sales by shop"
+                icon={SalesIcons.people}
+                rows={insights.topShopsLastMonth || []}
+                nameKey="shopName"
+                amountKey="shopRevenue"
+                metaKey="ordersCompleted"
+                metaPrefix="Orders:"
+                loading={figuresLoading}
+                currencySource={currencySource}
+                onView={() => navigate("/reports/top-performing-shops")}
+              />
+              <SalesRankCard
+                title="YTD sales by shop"
                 icon={SalesIcons.chart}
-                subtitle="Year to Date"
+                subtitle="Year to date"
                 rows={insights.topShopsYtd || []}
                 nameKey="shopName"
                 amountKey="shopRevenue"
                 metaKey="ordersCompleted"
                 metaPrefix="Orders:"
-                footerLabel="View All"
+                footerLabel="View all"
                 loading={figuresLoading}
+                currencySource={currencySource}
                 onView={() => navigate("/reports/top-performing-shops")}
                 onSubtitleClick={() => navigate("/reports/top-performing-shops")}
               />
               <SalesRankCard
-                title="MTD Sales by Service"
+                title="MTD sales by service"
                 icon={SalesIcons.chart}
                 rows={insights.topServicesMtd || []}
                 nameKey="name"
                 amountKey="revenue"
                 metaKey="qty"
                 metaPrefix="Qty:"
-                footerLabel="View All"
+                footerLabel="View all"
                 loading={figuresLoading}
+                currencySource={currencySource}
                 onView={() => navigate("/reports/top-services")}
               />
               <SalesRankCard
-                title="YTD Sales by Service"
+                title="YTD sales by service"
                 icon={SalesIcons.chart}
-                subtitle="Year to Date"
+                subtitle="Year to date"
                 rows={insights.topServicesYtd || []}
                 nameKey="name"
                 amountKey="revenue"
                 metaKey="qty"
                 metaPrefix="Qty:"
-                footerLabel="View All"
+                footerLabel="View all"
                 loading={figuresLoading}
+                currencySource={currencySource}
                 onView={() => navigate("/reports/top-services")}
                 onSubtitleClick={() => navigate("/reports/top-services")}
               />
-            </Box>
+            </div>
           </SalesBoard>
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
-            <div className="!space-y-5">
-              <h4 className="font-Inter font-bold text-2xl text-center !pt-5 !pb-6">
-                Orders pipeline
-              </h4>
-              {figuresLoading ? (
-                <Box sx={{ display: "flex", justifyContent: "center", py: 8 }}>
-                  <FigureShimmer width={220} height={220} radius={110} />
-                </Box>
-              ) : (
-                <OrderManagementChart
-                  pending={pipeline.pending}
-                  inProgress={pipeline.inProgress}
-                  outForDelivery={pipeline.outForDelivery}
-                  completed={pipeline.completed}
-                />
-              )}
-            </div>
-            <div className="!space-y-5">
-              <h4 className="font-Inter font-bold text-2xl text-center !pt-5 !pb-6">
-                Admin revenue by collection day
-              </h4>
-              {figuresLoading ? (
-                <Box sx={{ px: 2, py: 4, display: "flex", flexDirection: "column", gap: 2 }}>
-                  <FigureShimmer width="100%" height={220} radius={12} />
-                </Box>
-              ) : revenueSeries.labels.length ? (
-                <AreaChart
-                  labels={revenueSeries.labels}
-                  values={revenueSeries.values}
-                />
-              ) : (
-                <Typography
-                  align="center"
-                  color="text.secondary"
-                  fontFamily="Inter"
-                  className="!py-16"
-                >
-                  No collected revenue in this period.
-                </Typography>
-              )}
-            </div>
-          </div>
-        </Box>
-      </div>
-    </Box>
+        </div>
+      )}
+    </div>
   );
 }

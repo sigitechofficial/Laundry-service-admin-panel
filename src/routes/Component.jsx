@@ -1,22 +1,30 @@
-import { Box } from "@mui/material";
-import { Route, Routes } from "react-router-dom";
-import { Delay } from "../components/shared/Loaders";
+import { lazy, Suspense } from "react";
+import { Navigate, Route, Routes } from "react-router-dom";
+import { Delay, DelayFull } from "../components/shared/Loaders";
 import PrivateRoutes from "./PrivateRoutes";
 import AuthRoutes from "./AuthRoutes";
+
+const DsPlayground = lazy(() =>
+  import("../design-system/playground/DsPlayground")
+);
 
 export default function Component() {
   let showLoader = false;
   return showLoader ? (
-    <Box className="flex items-center justify-center !w-screen !h-screen">
-      <Delay />
-    </Box>
+    <DelayFull />
   ) : (
     <Routes>
+      <Route path="/login" element={<Navigate to="/auth/login" replace />} />
       <Route path="auth/*" element={<AuthRoutes />} />
+      <Route
+        path="ds/*"
+        element={
+          <Suspense fallback={<Delay />}>
+            <DsPlayground />
+          </Suspense>
+        }
+      />
       <Route path="/*" element={<PrivateRoutes />} />
-      {/* <Route path="profile-edit" element={<Profile />} /> */}
-      {/* <Route path="error" element={<ErrorPage />} /> */}
-      {/* <Route path="*" element={<NotFound />} /> */}
     </Routes>
   );
 }

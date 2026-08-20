@@ -1,0 +1,651 @@
+/* Primitives — only match under .jd-ds so MUI / old Tailwind never pick these up. */
+
+.jd-ds .jd-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: var(--ctrl-h);
+  padding: 0 16px;
+  border-radius: var(--r-md);
+  font-size: 14.5px;
+  font-weight: 600;
+  border: 1px solid transparent;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--dur) var(--ease), box-shadow var(--dur) var(--ease),
+    border-color var(--dur);
+}
+
+.jd-ds .jd-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.jd-ds .jd-btn--primary {
+  background: var(--accent);
+  color: var(--on-accent);
+  box-shadow: 0 8px 18px -10px rgba(44, 59, 160, 0.8);
+}
+
+.jd-ds .jd-btn--primary:hover:not(:disabled) {
+  background: var(--accent-ink);
+}
+
+.jd-ds .jd-btn--secondary {
+  background: var(--surface);
+  color: var(--ink-2);
+  border-color: var(--line-2);
+}
+
+.jd-ds .jd-btn--secondary:hover:not(:disabled) {
+  background: var(--canvas);
+}
+
+.jd-ds .jd-btn--ghost {
+  background: transparent;
+  color: var(--ink-2);
+}
+
+.jd-ds .jd-btn--ghost:hover:not(:disabled) {
+  background: var(--canvas);
+}
+
+.jd-ds .jd-btn--danger {
+  background: var(--danger);
+  color: #fff;
+}
+
+.jd-ds .jd-btn--danger:hover:not(:disabled) {
+  background: var(--danger-700);
+}
+
+.jd-ds .jd-btn--sm {
+  height: var(--ctrl-h-sm);
+  padding: 0 12px;
+  font-size: 12.5px;
+  border-radius: var(--r-sm);
+}
+
+.jd-ds .jd-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.jd-ds .jd-field__label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.jd-ds .jd-field__hint {
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.jd-ds .jd-field__err {
+  font-size: 14px;
+  color: var(--danger);
+  font-weight: 500;
+}
+
+.jd-ds .jd-input {
+  width: 100%;
+  height: var(--ctrl-h);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-md);
+  padding: 0 12px;
+  font-size: 15px;
+  color: var(--ink);
+  background: var(--surface);
+  transition: border-color var(--dur), box-shadow var(--dur);
+}
+
+.jd-ds .jd-input::placeholder {
+  color: var(--faint);
+}
+
+.jd-ds .jd-input:focus {
+  outline: none;
+  border-color: var(--brand-500);
+  box-shadow: 0 0 0 3px var(--accent-tint);
+}
+
+.jd-ds .jd-input:disabled {
+  background: var(--canvas);
+  color: var(--faint);
+}
+
+.jd-ds .jd-input.is-error {
+  border-color: var(--danger);
+}
+
+.jd-ds .jd-input.is-error:focus {
+  box-shadow: 0 0 0 3px var(--danger-bg);
+}
+
+.jd-ds textarea.jd-input {
+  height: auto;
+  min-height: 88px;
+  padding: 10px 12px;
+  resize: vertical;
+}
+
+.jd-ds .jd-sel {
+  position: relative;
+  display: block;
+  width: 100%;
+}
+
+.jd-ds .jd-sel__trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  cursor: pointer;
+  text-align: left;
+  padding-right: 12px;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+/* Native <button> chrome (Windows / Firefox) draws a smaller inner box when focused. */
+.jd-ds .jd-sel__trigger::-moz-focus-inner {
+  border: 0;
+  padding: 0;
+}
+
+.jd-ds .jd-sel__trigger:focus,
+.jd-ds .jd-sel__trigger:focus-visible {
+  outline: none;
+}
+
+.jd-ds .jd-sel__val {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.jd-ds .jd-sel__chev {
+  width: 16px;
+  height: 16px;
+  color: var(--muted);
+  flex: 0 0 auto;
+}
+
+.jd-ds .jd-sel.is-open .jd-sel__trigger {
+  border-color: var(--brand-500);
+  box-shadow: 0 0 0 3px var(--accent-tint);
+}
+
+.jd-ds-sel-pop {
+  position: fixed;
+  z-index: 220;
+  min-width: 200px;
+  max-height: min(320px, 70vh);
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  box-shadow: var(--e-4);
+  padding: 6px;
+}
+
+.jd-ds-sel-pop .jd-sel__opt {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  background: none;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 13.5px;
+  color: var(--ink-2);
+  text-align: left;
+  cursor: pointer;
+  user-select: none;
+}
+
+.jd-ds-sel-pop .jd-sel__opt:hover,
+.jd-ds-sel-pop .jd-sel__opt.is-active {
+  background: var(--canvas);
+}
+
+.jd-ds-sel-pop .jd-sel__opt.is-on {
+  background: var(--accent-tint);
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+
+.jd-ds-sel-pop .jd-sel__opt.is-on.is-active {
+  box-shadow: inset 0 0 0 1px var(--brand-300);
+}
+
+.jd-ds-sel-pop .jd-sel__ck {
+  margin-left: auto;
+  width: 15px;
+  height: 15px;
+  color: var(--accent);
+}
+
+.jd-ds .jd-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: var(--r-full);
+  white-space: nowrap;
+}
+
+.jd-ds .jd-badge--neutral {
+  background: var(--n-100);
+  color: var(--n-600);
+}
+
+.jd-ds .jd-badge--brand {
+  background: var(--accent-tint);
+  color: var(--accent-ink);
+}
+
+.jd-ds .jd-badge--success {
+  background: var(--success-bg);
+  color: var(--success-700);
+}
+
+.jd-ds .jd-badge--warning {
+  background: var(--warning-bg);
+  color: var(--warning-700);
+}
+
+.jd-ds .jd-badge--danger {
+  background: var(--danger-bg);
+  color: var(--danger-700);
+}
+
+.jd-ds .jd-h1 {
+  margin: 0;
+  font-size: var(--text-h1);
+  font-weight: 700;
+  letter-spacing: -0.8px;
+}
+
+.jd-ds .jd-lead {
+  margin: 6px 0 0;
+  font-size: var(--text-sm);
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.jd-ds .jd-stat {
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-xl);
+  background: var(--surface);
+  box-shadow: var(--e-1);
+}
+
+.jd-ds .jd-stat__label {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.jd-ds .jd-stat__value {
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -1px;
+  margin-top: 8px;
+  font-variant-numeric: tabular-nums;
+}
+
+.jd-ds .jd-tbl__empty {
+  color: var(--muted);
+  padding: 28px;
+  text-align: center;
+}
+
+/*
+ * Modal overlay is portaled to document.body.
+ * DsScope puts .jd-ds on the SAME node as .jd-modal-scrim, so a descendant
+ * selector (.jd-ds .jd-modal-scrim) never matches. Style the portal root
+ * itself — tokens still apply because the root is .jd-ds.
+ */
+.jd-ds.jd-modal-scrim {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  margin: 0;
+  background: var(--scrim);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: var(--z-modal);
+  isolation: isolate;
+  overflow: auto;
+  opacity: 0;
+  transition: opacity 180ms var(--ease);
+}
+
+.jd-ds.jd-modal-scrim.is-open {
+  opacity: 1;
+}
+
+.jd-ds .jd-modal {
+  position: relative;
+  background: var(--surface);
+  border-radius: var(--r-2xl);
+  box-shadow: var(--e-4);
+  width: min(460px, 100%);
+  max-height: min(92vh, calc(100vh - 40px));
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity 180ms var(--ease), transform 180ms var(--ease);
+}
+
+.jd-ds .jd-modal:focus {
+  outline: none;
+}
+
+.jd-ds.jd-modal-scrim.is-open .jd-modal {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.jd-ds .jd-modal--sm {
+  width: min(420px, 100%);
+}
+
+.jd-ds .jd-modal--md {
+  width: min(560px, 100%);
+}
+
+.jd-ds .jd-modal--lg {
+  width: min(760px, 100%);
+}
+
+.jd-ds .jd-modal--xl {
+  width: min(960px, 100%);
+}
+
+/* Zone / address maps inside the progress-bar modal — reserve height so
+   flex + overflow on .jd-modal__b cannot collapse the tiles. */
+.jd-ds .jd-modal-map {
+  position: relative;
+  flex: 0 0 auto;
+  width: 100%;
+  min-height: 400px;
+  height: 400px;
+  overflow: hidden;
+  border-radius: var(--r-lg, 12px);
+  background: var(--n-100, #f4f4f5);
+}
+
+.jd-ds .jd-modal__h {
+  padding: 22px 22px 16px;
+  flex: 0 0 auto;
+}
+
+.jd-ds .jd-modal__h h3 {
+  margin: 0 0 3px;
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.jd-ds .jd-modal__h p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14.5px;
+}
+
+.jd-ds .jd-modal__progress {
+  flex: 0 0 auto;
+  height: 3px;
+  width: 100%;
+  background: var(--accent-tint);
+}
+
+.jd-ds .jd-modal__progress-fill {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: var(--accent);
+}
+
+.jd-ds .jd-catalog-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  scrollbar-width: thin;
+  scrollbar-color: var(--n-300) transparent;
+}
+
+.jd-ds .jd-catalog-scroll::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.jd-ds .jd-catalog-scroll::-webkit-scrollbar-thumb {
+  background: var(--n-300);
+  border-radius: 99px;
+}
+
+.jd-ds .jd-modal__b {
+  display: flex;
+  flex-direction: column;
+  padding: 16px 22px;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.jd-ds .jd-modal__b::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+.jd-ds .jd-modal__b *,
+.jd-ds .jd-modal__b .jd-catalog-scroll {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.jd-ds .jd-modal__b *::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+.jd-ds .jd-modal__f {
+  padding: 18px 22px 22px;
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  flex: 0 0 auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .jd-ds.jd-modal-scrim,
+  .jd-ds .jd-modal {
+    transition: opacity 80ms linear;
+    transform: none;
+  }
+}
+
+/* Opt-in frozen leading columns. Default Table has no stickyLeft. */
+.jd-ds .jd-tbl-wrap--sticky-1,
+.jd-ds .jd-tbl-wrap--sticky-2 {
+  overflow-x: auto;
+}
+
+.jd-ds .jd-tbl-wrap--sticky-1 .jd-tbl th:first-child,
+.jd-ds .jd-tbl-wrap--sticky-1 .jd-tbl td:first-child,
+.jd-ds .jd-tbl-wrap--sticky-2 .jd-tbl th:first-child,
+.jd-ds .jd-tbl-wrap--sticky-2 .jd-tbl td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: var(--surface);
+}
+
+.jd-ds .jd-tbl-wrap--sticky-2 .jd-tbl th:nth-child(2),
+.jd-ds .jd-tbl-wrap--sticky-2 .jd-tbl td:nth-child(2) {
+  position: sticky;
+  left: var(--jd-sticky-col1, 168px);
+  z-index: 2;
+  background: var(--surface);
+}
+
+.jd-ds .jd-tbl-wrap--sticky-1 .jd-tbl th:first-child,
+.jd-ds .jd-tbl-wrap--sticky-2 .jd-tbl th:first-child,
+.jd-ds .jd-tbl-wrap--sticky-2 .jd-tbl th:nth-child(2) {
+  z-index: 4;
+  background: var(--canvas);
+}
+
+.jd-ds .jd-tbl-wrap--sticky-1 .jd-tbl th:first-child,
+.jd-ds .jd-tbl-wrap--sticky-1 .jd-tbl td:first-child,
+.jd-ds .jd-tbl-wrap--sticky-2 .jd-tbl th:nth-child(2),
+.jd-ds .jd-tbl-wrap--sticky-2 .jd-tbl td:nth-child(2) {
+  box-shadow: 8px 0 10px -8px rgba(15, 23, 42, 0.22);
+}
+
+.jd-ds .jd-tbl-wrap--sticky-right .jd-tbl th:last-child,
+.jd-ds .jd-tbl-wrap--sticky-right .jd-tbl td:last-child {
+  position: sticky;
+  right: 0;
+  z-index: 3;
+  background: var(--surface);
+  box-shadow: -8px 0 10px -8px rgba(15, 23, 42, 0.18);
+}
+
+.jd-ds .jd-tbl-wrap--sticky-right .jd-tbl th:last-child {
+  z-index: 4;
+  background: var(--canvas);
+}
+
+.jd-ds .jd-tbl-wrap--embedded {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.jd-ds .jd-tbl-wrap--embedded .jd-tbl {
+  min-width: 1120px;
+}
+
+.jd-ds .jd-tbl-wrap--embedded .jd-tbl tbody tr:hover td {
+  background: #fafbff;
+}
+
+.jd-ds .jd-tbl-wrap--embedded .jd-tbl td {
+  padding-top: 14px;
+  padding-bottom: 14px;
+  font-size: 13.5px;
+}
+
+.jd-ds.jd-error {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 24px;
+  background: var(--canvas);
+}
+
+.jd-ds.jd-error--compact {
+  min-height: 0;
+  padding: 0;
+  background: transparent;
+}
+
+.jd-ds .jd-error__panel {
+  width: min(480px, 100%);
+  padding: 32px 28px;
+  text-align: center;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-xl);
+  box-shadow: var(--e-1);
+}
+
+.jd-ds .jd-error__icon {
+  width: 48px;
+  height: 48px;
+  margin: 0 auto 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--r-full);
+  background: var(--danger-bg);
+  color: var(--danger-700);
+}
+
+.jd-ds .jd-error__title {
+  margin: 0 0 8px;
+  font-size: var(--text-h3);
+  font-weight: 700;
+  color: var(--ink);
+  letter-spacing: -0.3px;
+}
+
+.jd-ds .jd-error__desc {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.jd-ds .jd-error__detail {
+  margin: 16px 0 0;
+  padding: 10px 12px;
+  text-align: left;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--danger-700);
+  background: var(--danger-bg);
+  border-radius: var(--r-sm);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.jd-ds .jd-error__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+  margin-top: 22px;
+}
+
+.jd-ds.jd-offline-banner {
+  position: sticky;
+  top: 0;
+  z-index: 4000;
+  width: 100%;
+  padding: 8px 16px;
+  text-align: center;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  background: var(--warning-bg);
+  color: var(--warning-700);
+  border-bottom: 1px solid #f0d9a0;
+}

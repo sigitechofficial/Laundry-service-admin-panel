@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { Box, Typography, Checkbox, Divider, Alert, Button } from "@mui/material";
 import { useForm, Controller } from "react-hook-form";
-import ModalComponent from "../../../components/shared/Modal";
-import SelectField from "../../../components/ui/SelectField";
-import useToaster from "../../../components/ui/Toaster";
 import { useSelector } from "react-redux";
+import { Badge, Button, Field, Select, Modal } from "../../../design-system";
+import useToaster from "../../../components/ui/Toaster";
+import { getApiErrorMessage } from "../../../store/services/apiErrors";
 import {
   useAddServiceWithPreferencesMutation,
   useAddServiceWithCategoriesMutation,
@@ -15,7 +14,6 @@ import {
   useGetPreferencesQuery,
   useGetAllServicesQuery,
 } from "../../../store/services/api";
-import ButtonBlue from "../../../components/ui/ButtonBlue";
 
 export default function ConfigureModal({ open, onClose, selectedServiceId }) {
   const { success, error } = useToaster();
@@ -27,7 +25,7 @@ export default function ConfigureModal({ open, onClose, selectedServiceId }) {
   });
   const services = servicesResponse?.data?.services || servicesFromRedux || [];
 
-  const { data: preferencesResponse, isLoading: isLoadingPreferences } = useGetPreferencesQuery(undefined, {
+  const { data: preferencesResponse } = useGetPreferencesQuery(undefined, {
     skip: !open,
   });
 
@@ -42,11 +40,8 @@ export default function ConfigureModal({ open, onClose, selectedServiceId }) {
   const [unAssignServiceFromPreferences, { isLoading: unassignLoading }] =
     useUnAssignServiceFromPreferencesMutation();
 
-  // Track originally linked items to detect changes
   const [originalLinkedCategories, setOriginalLinkedCategories] = useState([]);
   const [originalLinkedPreferences, setOriginalLinkedPreferences] = useState([]);
-
-  // Step state: 1 for categories, 2 for preferences
   const [currentStep, setCurrentStep] = useState(1);
 
   const {
@@ -74,12 +69,14 @@ export default function ConfigureModal({ open, onClose, selectedServiceId }) {
     return Number.isNaN(numericId) ? undefined : numericId;
   }, [watchedServiceId]);
 
-  const { data: categoriesResponse, isLoading: isLoadingCategories } =
-    useGetCategoriesQuery(serviceIdNum, {
-      skip: !open || !serviceIdNum,
-    });
+  const { data: categoriesResponse } = useGetCategoriesQuery(serviceIdNum, {
+    skip: !open || !serviceIdNum,
+  });
 
-  const allCategories = categoriesResponse?.data || categoriesFromRedux || [];
+  const allCategories = useMemo(
+    () => categoriesResponse?.data || categoriesFromRedux || [],
+    [categoriesFromRedux, categoriesResponse?.data]
+  );
 
   const { data: existingServiceData } = useGetServiceWitPreferencesQuery(
     serviceIdNum,
@@ -118,7 +115,7 @@ export default function ConfigureModal({ open, onClose, selectedServiceId }) {
     });
     setOriginalLinkedCategories([]);
     setOriginalLinkedPreferences([]);
-    setCurrentStep(1); // Reset to step 1
+    setCurrentStep(1);
     onClose();
   };
 
@@ -153,19 +150,16 @@ export default function ConfigureModal({ open, onClose, selectedServiceId }) {
         (id) => !originalLinkedCategories.includes(id)
       );
 
-      // Check if there are any changes
       const hasChanges =
         currentCategories.length !== originalLinkedCategories.length ||
-        currentCategories.some(id => !originalLinkedCategories.includes(id)) ||
-        originalLinkedCategories.some(id => !currentCategories.includes(id));
+        currentCategories.some((id) => !originalLinkedCategories.includes(id)) ||
+        originalLinkedCategories.some((id) => !currentCategories.includes(id));
 
-      // If moving to next step, always save (even if no changes) or at least validate
       if (!moveToNextStep && !hasChanges) {
         success("No changes to save");
         return;
       }
 
-      // Unassign removed categories first
       if (removedCategoryIds.length > 0) {
         await unAssignServiceFromCategories({
           serviceId: serviceIdNum,
@@ -173,7 +167,6 @@ export default function ConfigureModal({ open, onClose, selectedServiceId }) {
         }).unwrap();
       }
 
-      // Assign only newly added categories
       if (addedCategoryIds.length > 0) {
         const apiBody = {
           serviceId: serviceIdNum,
@@ -182,14 +175,12 @@ export default function ConfigureModal({ open, onClose, selectedServiceId }) {
 
         const res = await addServiceWithCategories(apiBody).unwrap();
 
-        if (res?.status === "1") {
-        } else {
+        if (res?.status !== "1") {
           error(res?.message);
           return;
         }
       }
 
-      // Update original linked categories after successful delta sync
       setOriginalLinkedCategories([...currentCategories]);
       if (moveToNextStep) {
         success("Categories saved! Now configure preferences.");
@@ -198,7 +189,7 @@ export default function ConfigureModal({ open, onClose, selectedServiceId }) {
         success("Categories updated successfully!");
       }
     } catch (err) {
-      error(err?.data?.message || err?.message || "Failed to update categories");
+      error(getApiErrorMessage(err, "Failed to update categories"));
     }
   };
 
@@ -211,19 +202,16 @@ export default function ConfigureModal({ open, onClose, selectedServiceId }) {
     try {
       const currentPreferences = watchedPreferences || [];
 
-      // Check if there are any changes
       const hasChanges =
         currentPreferences.length !== originalLinkedPreferences.length ||
-        currentPreferences.some(id => !originalLinkedPreferences.includes(id)) ||
-        originalLinkedPreferences.some(id => !currentPreferences.includes(id));
+        currentPreferences.some((id) => !originalLinkedPreferences.includes(id)) ||
+        originalLinkedPreferences.some((id) => !currentPreferences.includes(id));
 
       if (!hasChanges) {
         success("No changes to save");
         return;
       }
 
-      // If preferences were removed or changed, unassign all first, then reassign current selection
-      // This ensures clean state
       const hasRemovedPreferences = originalLinkedPreferences.some(
         (id) => !currentPreferences.includes(id)
       );
@@ -232,12 +220,15 @@ export default function ConfigureModal({ open, onClose, selectedServiceId }) {
         try {
           await unAssignServiceFromPreferences(serviceIdNum).unwrap();
         } catch (unassignErr) {
-          console.error("Error unassigning preferences:", unassignErr);
-          // Continue with adding preferences even if unassign fails
+          error(
+            getApiErrorMessage(
+              unassignErr,
+              "Failed to clear existing preferences. Retry save if the list looks wrong."
+            )
+          );
         }
       }
 
-      // Add current preferences if any
       if (currentPreferences.length > 0) {
         const apiBody = {
           serviceId: serviceIdNum,
@@ -258,7 +249,7 @@ export default function ConfigureModal({ open, onClose, selectedServiceId }) {
         handleClose();
       }
     } catch (err) {
-      error(err?.data?.message || err?.message || "Failed to update preferences");
+      error(getApiErrorMessage(err, "Failed to update preferences"));
     }
   };
 
@@ -277,9 +268,7 @@ export default function ConfigureModal({ open, onClose, selectedServiceId }) {
       ];
 
       const linkedPreferenceIds =
-        preferencesData?.map(
-          (pref) => pref?.preferenceTypeId ?? pref?.id
-        ) || [];
+        preferencesData?.map((pref) => pref?.preferenceTypeId ?? pref?.id) || [];
 
       setOriginalLinkedCategories(linkedCategoryIds);
       setOriginalLinkedPreferences(linkedPreferenceIds);
@@ -291,413 +280,261 @@ export default function ConfigureModal({ open, onClose, selectedServiceId }) {
     }
   }, [serviceIdNum, existingServiceData, allCategories, setValue]);
 
+  const stepBusy =
+    currentStep === 1
+      ? categoriesLoading || categoriesUnassignLoading
+      : configServiceLoading || unassignLoading;
+
+  const handlePrimary = () => {
+    if (stepBusy) return;
+    if (currentStep === 1) {
+      handleCategoriesSubmit(true);
+      return;
+    }
+    handlePreferencesSubmit();
+  };
+
   return (
-    <ModalComponent
+    <Modal
       open={open}
       title={`Configure Service - Step ${currentStep} of 2`}
       onClose={handleClose}
+      secondaryLabel="Cancel"
+      primaryLabel={
+        stepBusy
+          ? "Saving…"
+          : currentStep === 1
+            ? "Next"
+            : "Save Preferences"
+      }
+      onPrimary={handlePrimary}
     >
-      <Box className="flex flex-col gap-5">
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 16,
+          maxHeight: "60vh",
+          overflowY: "auto",
+        }}
+      >
         <Controller
           name="serviceId"
           control={control}
           rules={{ required: "Please select a service" }}
           render={({ field: { onChange, value } }) => (
-            <Box>
-              <SelectField
-                title="Select Service*"
+            <Field label="Select Service*" error={errors.serviceId?.message}>
+              <Select
                 value={value}
-                onChange={(e) => {
-                  const next = e.target.value;
-                  onChange(next === "" ? "" : Number(next));
-                }}
+                onChange={(next) => onChange(next === "" ? "" : Number(next))}
                 options={SERVICE_OPTIONS}
                 placeholder="Choose a service to configure"
-                fullWidth
-                bgcolor="grey.60"
+                error={!!errors.serviceId}
               />
-              {errors.serviceId && (
-                <Typography
-                  variant="caption"
-                  sx={{ color: "error.main", mt: 1, display: "block" }}
-                >
-                  {errors.serviceId.message}
-                </Typography>
-              )}
-            </Box>
+            </Field>
           )}
         />
 
-        {selectedService && (
-          <Alert severity="info" sx={{ borderRadius: "8px" }}>
-            <Typography variant="body2" sx={{ fontWeight: 600 }}>
-              Configuring: {selectedService.name}
-            </Typography>
-            <Typography variant="caption" color="text.secondary">
-              {selectedService.description}
-            </Typography>
-          </Alert>
-        )}
+        {selectedService ? (
+          <div
+            style={{
+              padding: 12,
+              background: "var(--accent-tint)",
+              border: "1px solid var(--line)",
+              borderRadius: "var(--r-md)",
+            }}
+          >
+            <div style={{ fontWeight: 600 }}>Configuring: {selectedService.name}</div>
+            {selectedService.description ? (
+              <div style={{ fontSize: 13, color: "var(--muted)", marginTop: 4 }}>
+                {selectedService.description}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
 
-        {/* Step 1: Categories */}
-        {currentStep === 1 && (
-          <Box>
-            <Typography
-              variant="subtitle1"
-              sx={{
-                fontWeight: 600,
-                fontSize: "16px",
-                color: "#101828",
-                fontFamily: "Inter, sans-serif",
-                mb: 2,
-              }}
-            >
+        {currentStep === 1 ? (
+          <div>
+            <div style={{ fontWeight: 600, marginBottom: 8 }}>
               Item Categories{" "}
               {categoriesForSelectedService?.length > 0
                 ? `(${categoriesForSelectedService.length} for this service)`
                 : "(No categories for this service)"}
-            </Typography>
-            <Typography
-              variant="body2"
-              sx={{
-                color: "#667085",
-                mb: 2,
-                fontSize: "14px",
-              }}
-            >
+            </div>
+            <p style={{ margin: "0 0 12px", color: "var(--muted)", fontSize: 14 }}>
               Categories linked to this service. Add new categories from the
               Categories page and select this service when creating them.
-            </Typography>
+            </p>
             {categoriesForSelectedService?.length > 0 ? (
-              <Box
-                sx={{
-                  maxHeight: "200px",
+              <div
+                style={{
+                  maxHeight: 200,
                   overflowY: "auto",
-                  border: "1px solid #E4E7EC",
-                  borderRadius: "8px",
+                  border: "1px solid var(--line)",
+                  borderRadius: "var(--r-md)",
                 }}
               >
                 {categoriesForSelectedService.map((category) => {
-                  const isLinked =
-                    watchedCategories?.includes(category.id) || false;
+                  const isLinked = watchedCategories?.includes(category.id) || false;
                   return (
-                    <Box
+                    <label
                       key={category.id}
-                      sx={{
+                      style={{
                         display: "flex",
                         alignItems: "center",
-                        gap: "12px",
-                        py: "8px",
-                        px: "4px",
-                        borderRadius: "4px",
-                        "&:hover": {
-                          bgcolor: "#F3F4F6",
-                        },
-                        // Highlight linked categories
-                        bgcolor: isLinked ? "#EFF6FF" : "transparent",
-                        border: isLinked
-                          ? "1px solid #BFDBFE"
-                          : "1px solid transparent",
+                        gap: 12,
+                        padding: "8px 12px",
+                        background: isLinked ? "var(--accent-tint)" : "transparent",
+                        borderBottom: "1px solid var(--line)",
                       }}
                     >
                       <Controller
                         name="selectedCategories"
                         control={control}
                         render={() => (
-                          <Checkbox
+                          <input
+                            type="checkbox"
                             checked={isLinked}
                             onChange={() => handleCategoryToggle(category.id)}
-                            size="medium"
-                            sx={{
-                              color: "#D1D5DB",
-                              "&.Mui-checked": { color: "blue.100" },
-                            }}
                           />
                         )}
                       />
-                      <Box className="flex-1">
-                        <Typography
-                          variant="body2"
-                          sx={{
-                            fontSize: "14px",
-                            color: isLinked ? "#1E40AF" : "#374151",
-                            fontFamily: "Inter, sans-serif",
-                            fontWeight: isLinked ? 600 : 500,
-                          }}
-                        >
-                          {category.name}
-                          {isLinked && (
-                            <Typography
-                              component="span"
-                              sx={{
-                                ml: 1,
-                                color: "#10B981",
-                                fontSize: "12px",
-                                fontWeight: 600,
-                              }}
-                            >
-                              (Linked)
-                            </Typography>
-                          )}
-                        </Typography>
-                        {category.description && (
-                          <Typography
-                            variant="caption"
-                            sx={{
-                              color: isLinked ? "#60A5FA" : "#9CA3AF",
-                              fontSize: "12px",
+                      <span>
+                        {category.name}
+                        {isLinked ? (
+                          <Badge tone="success" style={{ marginLeft: 8 }}>
+                            Linked
+                          </Badge>
+                        ) : null}
+                        {category.description ? (
+                          <span
+                            style={{
                               display: "block",
+                              fontSize: 12,
+                              color: "var(--muted)",
                             }}
                           >
                             {category.description}
-                          </Typography>
-                        )}
-                      </Box>
-                    </Box>
+                          </span>
+                        ) : null}
+                      </span>
+                    </label>
                   );
                 })}
-              </Box>
+              </div>
             ) : (
-              <Box
-                sx={{
-                  border: "1px solid #E4E7EC",
-                  borderRadius: "8px",
-                  p: 3,
-                  textAlign: "center",
-                  bgcolor: "#F9FAFB",
-                }}
-              >
-                <Typography variant="body2" sx={{ color: "#667085" }}>
-                  No categories for this service. Add a category and assign it
-                  to this service from the Categories page.
-                </Typography>
-              </Box>
+              <p style={{ color: "var(--muted)", margin: 0 }}>
+                No categories for this service. Add a category and assign it
+                to this service from the Categories page.
+              </p>
             )}
-
-            <Box className="flex justify-end gap-3 !mt-4">
-              <ButtonBlue
-                size="medium"
-                text="Next →"
-                onClick={() => handleCategoriesSubmit(true)}
-                disabled={
-                  categoriesLoading ||
-                  categoriesUnassignLoading ||
-                  !serviceIdNum
-                }
-              />
-            </Box>
-          </Box>
-        )}
-
-        {/* Step 2: Preferences */}
-        {currentStep === 2 && (
-          <Box>
-            <Typography
-              variant="subtitle1"
-              sx={{
-                fontWeight: 600,
-                fontSize: "16px",
-                color: "#101828",
-                fontFamily: "Inter, sans-serif",
-                mb: 2,
-              }}
-            >
-              Available Preferences {preferences?.length > 0 ? `(${preferences.length} total)` : "(No preferences available)"}
-            </Typography>
-            <Typography
-              variant="body2"
-              sx={{
-                color: "#667085",
-                mb: 2,
-                fontSize: "14px",
-              }}
-            >
+          </div>
+        ) : (
+          <div>
+            <div style={{ fontWeight: 600, marginBottom: 8 }}>
+              Available Preferences{" "}
+              {preferences?.length > 0
+                ? `(${preferences.length} total)`
+                : "(No preferences available)"}
+            </div>
+            <p style={{ margin: "0 0 12px", color: "var(--muted)", fontSize: 14 }}>
               Choose preferences that customers can select for this service.
               Already linked preferences are checked by default.
-            </Typography>
+            </p>
             {preferences?.length > 0 ? (
-              <Box
-                sx={{
-                  maxHeight: "250px",
+              <div
+                style={{
+                  maxHeight: 250,
                   overflowY: "auto",
-                  border: "1px solid #E4E7EC",
-                  borderRadius: "8px",
+                  border: "1px solid var(--line)",
+                  borderRadius: "var(--r-md)",
                 }}
               >
                 {preferences.map((preference) => {
                   const isLinked =
                     watchedPreferences?.includes(preference?.id) || false;
                   return (
-                    <Box
+                    <label
                       key={preference.id}
-                      sx={{
+                      style={{
                         display: "flex",
                         alignItems: "center",
-                        gap: "12px",
-                        py: "8px",
-                        px: "4px",
-                        borderRadius: "4px",
-                        "&:hover": {
-                          bgcolor: "#F3F4F6",
-                        },
-                        // Highlight linked preferences
-                        bgcolor: isLinked ? "#EFF6FF" : "transparent",
-                        border: isLinked
-                          ? "1px solid #BFDBFE"
-                          : "1px solid transparent",
+                        gap: 12,
+                        padding: "8px 12px",
+                        background: isLinked ? "var(--accent-tint)" : "transparent",
+                        borderBottom: "1px solid var(--line)",
                       }}
                     >
                       <Controller
                         name="selectedPreferences"
                         control={control}
                         render={() => (
-                          <Checkbox
+                          <input
+                            type="checkbox"
                             checked={isLinked}
                             onChange={() => handlePreferenceToggle(preference.id)}
-                            size="medium"
-                            sx={{
-                              color: "#D1D5DB",
-                              "&.Mui-checked": { color: "blue.100" },
-                            }}
                           />
                         )}
                       />
-                      <Box className="flex-1">
-                        <Typography
-                          variant="body2"
-                          sx={{
-                            fontSize: "14px",
-                            color: isLinked ? "#1E40AF" : "#374151",
-                            fontFamily: "Inter, sans-serif",
-                            fontWeight: isLinked ? 600 : 500,
-                          }}
-                        >
-                          {preference.name}
-                          {isLinked && (
-                            <Typography
-                              component="span"
-                              sx={{
-                                ml: 1,
-                                color: "#10B981",
-                                fontSize: "12px",
-                                fontWeight: 600,
-                              }}
-                            >
-                              (Linked)
-                            </Typography>
-                          )}
-                        </Typography>
-                        {preference.preferenceValues?.length > 0 && (
-                          <Typography
-                            variant="caption"
-                            sx={{
-                              color: isLinked ? "#60A5FA" : "#9CA3AF",
-                              fontSize: "12px",
+                      <span>
+                        {preference.name}
+                        {isLinked ? (
+                          <Badge tone="success" style={{ marginLeft: 8 }}>
+                            Linked
+                          </Badge>
+                        ) : null}
+                        {preference.preferenceValues?.length > 0 ? (
+                          <span
+                            style={{
                               display: "block",
+                              fontSize: 12,
+                              color: "var(--muted)",
                             }}
                           >
                             Options:{" "}
                             {preference.preferenceValues
                               .map((val) => val.value)
                               .join(", ")}
-                          </Typography>
-                        )}
-                      </Box>
-                    </Box>
+                          </span>
+                        ) : null}
+                      </span>
+                    </label>
                   );
                 })}
-              </Box>
+              </div>
             ) : (
-              <Box
-                sx={{
-                  border: "1px solid #E4E7EC",
-                  borderRadius: "8px",
-                  p: 3,
-                  textAlign: "center",
-                  bgcolor: "#F9FAFB",
-                }}
-              >
-                <Typography variant="body2" sx={{ color: "#667085" }}>
-                  No preferences available. Please add preferences first.
-                </Typography>
-              </Box>
+              <p style={{ color: "var(--muted)", margin: 0 }}>
+                No preferences available. Please add preferences first.
+              </p>
             )}
-          </Box>
+          </div>
         )}
 
-        {/* Selection Summary - Show relevant info based on current step */}
-        {currentStep === 1 && watchedCategories?.length > 0 && (
-          <Box
-            sx={{
-              bgcolor: "#EFF6FF",
-              border: "1px solid #BFDBFE",
-              borderRadius: "8px",
-              p: 2,
-            }}
-          >
-            <Typography variant="subtitle2" sx={{ color: "#1E40AF", mb: 1 }}>
-              Step 1 Summary
-            </Typography>
-            <Typography variant="caption" sx={{ color: "#1E40AF" }}>
-              Categories: {watchedCategories.length} selected
-            </Typography>
-          </Box>
-        )}
+        {currentStep === 1 && watchedCategories?.length > 0 ? (
+          <div style={{ color: "var(--accent-ink)", fontSize: 13 }}>
+            Step 1 Summary — Categories: {watchedCategories.length} selected
+          </div>
+        ) : null}
 
-        {currentStep === 2 && watchedPreferences?.length > 0 && (
-          <Box
-            sx={{
-              bgcolor: "#EFF6FF",
-              border: "1px solid #BFDBFE",
-              borderRadius: "8px",
-              p: 2,
-            }}
-          >
-            <Typography variant="subtitle2" sx={{ color: "#1E40AF", mb: 1 }}>
-              Step 2 Summary
-            </Typography>
-            <Typography variant="caption" sx={{ color: "#1E40AF", display: "block" }}>
-              Categories: {watchedCategories?.length || 0} selected
-            </Typography>
-            <Typography
-              variant="caption"
-              sx={{ color: "#1E40AF", display: "block" }}
-            >
-              Preferences: {watchedPreferences.length} selected
-            </Typography>
-          </Box>
-        )}
+        {currentStep === 2 && watchedPreferences?.length > 0 ? (
+          <div style={{ color: "var(--accent-ink)", fontSize: 13 }}>
+            Step 2 Summary — Categories: {watchedCategories?.length || 0} selected,
+            Preferences: {watchedPreferences.length} selected
+          </div>
+        ) : null}
 
-        {currentStep === 2 && (
-          <Box className="flex justify-end gap-3 !mt-4">
+        {currentStep === 2 ? (
+          <div>
             <Button
-              variant="outlined"
-              size="medium"
+              variant="secondary"
               onClick={() => setCurrentStep(1)}
               disabled={configServiceLoading || unassignLoading}
-              sx={{
-                textTransform: "none",
-                px: 3,
-                py: 1,
-                borderColor: "#D0D5DD",
-                color: "#374151",
-                "&:hover": {
-                  borderColor: "#98A2B3",
-                  bgcolor: "#F9FAFB",
-                },
-              }}
             >
               ← Back
             </Button>
-            <ButtonBlue
-              size="medium"
-              text="Save Preferences"
-              onClick={handlePreferencesSubmit}
-              disabled={configServiceLoading || unassignLoading}
-            />
-          </Box>
-        )}
-      </Box>
-    </ModalComponent>
+          </div>
+        ) : null}
+      </div>
+    </Modal>
   );
 }

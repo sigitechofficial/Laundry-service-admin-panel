@@ -20,7 +20,8 @@ export function useOrderListPageData(
   queryResult,
   { pickRows, totalCountField, listArrayField, isSearchPending = false }
 ) {
-  const { data, currentData, isLoading, isFetching, refetch } = queryResult;
+  const { data, currentData, isLoading, isFetching, refetch, isError } =
+    queryResult;
 
   const responseBody = useMemo(
     () => resolveOrderListResponse({ data, currentData, isFetching }),
@@ -60,6 +61,7 @@ export function useOrderListPageData(
     isTableLoading,
     isLoading,
     refetch,
+    isError: Boolean(isError),
     isStaleListCache,
     embeddedCounts,
   };

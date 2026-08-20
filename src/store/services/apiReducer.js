@@ -10,33 +10,6 @@ const apiDataSlice = createSlice({
     setServices: (state, action) => {
       state.services = action.payload;
     },
-    setAddOnServices: (state, action) => {
-      state.addOnServices = action.payload;
-    },
-    setPreferences: (state, action) => {
-      state.preferences = action.payload;
-    },
-    setCategories: (state, action) => {
-      state.categories = action.payload;
-    },
-    setSubCategories: (state, action) => {
-      state.subCategories = action.payload;
-    },
-    clearServices: (state) => {
-      state.services = [];
-    },
-    clearAddOnServices: (state) => {
-      state.addOnServices = [];
-    },
-    clearPreferences: (state) => {
-      state.preferences = [];
-    },
-    clearCategories: (state) => {
-      state.categories = [];
-    },
-    clearSubCategories: (state) => {
-      state.subCategories = [];
-    },
   },
 
   extraReducers: (builder) => {
@@ -539,17 +512,6 @@ const apiDataSlice = createSlice({
   },
 });
 
-export const {
-  setServices,
-  setAddOnServices,
-  setPreferences,
-  setCategories,
-  setSubCategories,
-  clearServices,
-  clearAddOnServices,
-  clearPreferences,
-  clearCategories,
-  clearSubCategories,
-} = apiDataSlice.actions;
+export const { setServices } = apiDataSlice.actions;
 
 export default apiDataSlice.reducer;

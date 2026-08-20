@@ -25,12 +25,7 @@ export default function PrivateLayout() {
         },
       });
 
-      const result = await ensureAdminFcmRegistered();
-      if (!cancelled && result?.ok) {
-        console.log("[FCM] admin token registered", result.tokenPreview);
-      } else if (!cancelled && result?.reason && result.reason !== "NOT_LOGGED_IN") {
-        console.warn("[FCM] admin token not registered:", result);
-      }
+      if (!cancelled) await ensureAdminFcmRegistered();
     })();
 
     return () => {

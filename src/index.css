@@ -1,9 +1,13 @@
 @import "tailwindcss";
 
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
+/* Must live in @layer base. An unlayered * { padding: 0 } beats Tailwind
+   utilities and flushes cards, toolbars, and table cells to their edges. */
+@layer base {
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
 }
 
 .scrollbar-hide::-webkit-scrollbar {
@@ -139,7 +143,6 @@ input[type="search"]::-moz-search-clear {
   /* ──────────────── Fonts ──────────────── */
 
   --font-Inter: "Inter", "sans-serif";
-  --font-InterTight: "Inter Tight", "Inter", sans-serif;
   --font-SF: "SF Pro", sans-serif;
   --font-Switzer: "Switzer", sans-serif;
 

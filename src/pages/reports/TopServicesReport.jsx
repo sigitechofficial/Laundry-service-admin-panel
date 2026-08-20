@@ -1,82 +1,128 @@
-import { useMemo, useState } from "react";
-import DataTable from "../../components/ui/DataTable";
+import { useMemo } from "react";
+import { Table } from "../../design-system";
+import {
+  DirectoryIdentity,
+  DirectoryMetric,
+  DirectoryMetrics,
+  DirectoryMoney,
+  DirectoryTableWrap,
+} from "../directory-table/directoryTable";
 import { useReportsTopServicesQuery } from "../../store/services/api";
-import { Delay } from "../../components/shared/Loaders";
-import { buildReportParams } from "./reportQueryUtils";
+import ReportToolbar, { ReportPagination } from "./ReportToolbar";
+import { useReportFilters } from "./reportQueryUtils";
+import { downloadReportCsv, ReportInfo, reportMoney, reportShare, ReportQueryState, unwrapReport } from "./reportUi.js";
 
 export default function TopServicesReport() {
-  const [period, setPeriod] = useState("all");
-  const [search, setSearch] = useState("");
-  const [dateRange, setDateRange] = useState(null);
-  const [page, setPage] = useState(1);
-  const [limit, setLimit] = useState(20);
+  const f = useReportFilters();
+  const { data, isLoading, isError, error, refetch } = useReportsTopServicesQuery(f.params);
+  const { rows, total, summary, currency } = unwrapReport(data);
 
-  const queryState = {
-    period,
-    search,
-    page,
-    limit,
-    startDate: dateRange?.startDate,
-    endDate: dateRange?.endDate,
-  };
-  const params = buildReportParams(queryState);
-  const { data, isLoading } = useReportsTopServicesQuery(params);
+  const orderBase = useMemo(() => {
+    const fromSummary = Number(summary.orders);
+    if (Number.isFinite(fromSummary) && fromSummary > 0) return fromSummary;
+    if (total > 0 && total > rows.length) return 0;
+    return rows.reduce((sum, row) => sum + Number(row.numberOfOrders || 0), 0);
+  }, [rows, summary.orders, total]);
 
   const reportData = useMemo(
     () =>
-      (data?.data?.data || []).map((row, idx) => ({
+      rows.map((row, idx) => ({
+        ...row,
         id: `${row.sl || idx + 1}-${idx}`,
         sl: row.sl ?? idx + 1,
         rank: row.rank ?? "—",
         service: row.service ?? "—",
         noOfOrders: row.numberOfOrders ?? 0,
         totalRevenue: row.totalRevenue ?? "0.00",
+        orderShare: reportShare(row.numberOfOrders, orderBase),
       })),
-    [data]
+    [orderBase, rows]
   );
 
-  const totalRows = Number(data?.data?.total || reportData.length || 0);
-
   const columns = [
-    { field: "sl", headerName: "SL", flex: 0.15, minWidth: 80 },
-    { field: "rank", headerName: "Rank", flex: 0.12, minWidth: 100 },
-    { field: "service", headerName: "Service", flex: 0.22, minWidth: 150 },
-    { field: "noOfOrders", headerName: "No. of Orders", flex: 0.2, minWidth: 130 },
-    { field: "totalRevenue", headerName: "Total Revenue", flex: 0.2, minWidth: 140 },
+    { key: "rank", header: "Rank", render: (row) => <DirectoryMetric value={row.rank} /> },
+    {
+      key: "service",
+      header: "Service",
+      render: (row) => <DirectoryIdentity name={row.service} />,
+    },
+    {
+      key: "noOfOrders",
+      header: "Orders",
+      render: (row) => <DirectoryMetric value={row.noOfOrders} />,
+    },
+    {
+      key: "orderShare",
+      header: "Share",
+      render: (row) => <DirectoryMetric value={row.orderShare} />,
+    },
+    {
+      key: "totalRevenue",
+      header: "Revenue",
+      render: (row) => <DirectoryMoney>{reportMoney(row.totalRevenue, currency)}</DirectoryMoney>,
+    },
   ];
 
-  if (isLoading) return <Delay />;
-
   return (
-    <div className="!space-y-6">
-      <div className="w-full overflow-auto">
-        <DataTable
-          data={reportData}
-          columns={columns}
-          searchPlaceholder="Search by service, rank..."
-          searchValue={search}
-          onSearchChange={(value) => {
-            setSearch(value);
-            setPage(1);
-          }}
-          dateRangeValue={dateRange}
-          onDateRangeChange={(next) => {
-            setDateRange(next);
-            setPeriod(next?.type || "all");
-            setPage(1);
-          }}
-          serverSidePagination
-          totalRows={totalRows}
-          currentPage={page}
-          pageSize={limit}
-          onPageChange={setPage}
-          onPageSizeChange={(nextLimit) => {
-            setLimit(nextLimit);
-            setPage(1);
-          }}
-          height={500}
+    <ReportQueryState isLoading={isLoading} isError={isError} error={error} onRetry={refetch}>
+      <div>
+        <ReportInfo>
+          Services ranked by completed-order volume in the selected period. Service IDs are not
+          returned, so rows stay on this report.
+        </ReportInfo>
+        <DirectoryMetrics
+          items={[
+            { label: "Services", value: summary.services ?? total, tone: "brand" },
+            { label: "Orders", value: summary.orders ?? 0, tone: "navy" },
+            { label: "Revenue", value: reportMoney(summary.revenue, currency), tone: "success" },
+          ]}
         />
+        <DirectoryTableWrap
+          toolbar={
+            <ReportToolbar
+              search={f.search}
+              onSearch={f.setSearch}
+              searchPlaceholder="Search by service…"
+              period={f.period}
+              onPeriodChange={f.setPeriod}
+              startDate={f.startDate}
+              endDate={f.endDate}
+              onStartDateChange={f.setStartDate}
+              onEndDateChange={f.setEndDate}
+              zoneId={f.zoneId}
+              onZoneIdChange={f.setZoneId}
+              shopId={f.shopId}
+              onShopIdChange={f.setShopId}
+              onClear={f.clearFilters}
+              onExport={() =>
+                downloadReportCsv(
+                  "top-services.csv",
+                  [
+                    { key: "rank", header: "Rank" },
+                    { key: "service", header: "Service" },
+                    { key: "noOfOrders", header: "Orders" },
+                    { key: "orderShare", header: "Share" },
+                    { key: "totalRevenue", header: "Revenue" },
+                  ],
+                  reportData
+                )
+              }
+              exportDisabled={!reportData.length}
+            />
+          }
+          footer={
+            <ReportPagination
+              page={f.page}
+              pageSize={f.limit}
+              totalRows={total}
+              onPageChange={f.setPage}
+              onPageSizeChange={f.setLimit}
+            />
+          }
+        >
+          <Table columns={columns} rows={reportData} rowKey={(row) => row.id} empty="No services in this period" />
+        </DirectoryTableWrap>
       </div>
-    </div>
+    </ReportQueryState>
   );
 }

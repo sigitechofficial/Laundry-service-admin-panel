@@ -1,19 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
+import { Badge, Button, PageHeader } from "../../design-system";
 import {
-  Alert,
-  Box,
-  Button,
-  Card,
-  CardContent,
-  Chip,
-  CircularProgress,
-  Divider,
-  FormControlLabel,
-  Stack,
-  Switch,
-  Typography,
-} from "@mui/material";
-import { MdNotificationsNone } from "../../shared/icons/index";
+  DirectoryError,
+  DirectoryFormCard,
+  PageLoading,
+} from "../directory-table/directoryTable";
 import useToaster from "../../components/ui/Toaster";
 import {
   useGetAdminNotificationPreferencesQuery,
@@ -34,6 +25,87 @@ const CATEGORY_LABELS = {
 
 const CATEGORY_ORDER = ["pickup", "delivery", "payment", "orders", "operations"];
 
+function Notice({ tone = "info", children }) {
+  const tones = {
+    info: { background: "var(--info-bg)", color: "var(--info)" },
+    warning: { background: "var(--warning-bg)", color: "var(--warning-700)" },
+    danger: { background: "var(--danger-bg)", color: "var(--danger-700)" },
+    success: { background: "var(--success-bg)", color: "var(--success-700)" },
+  };
+  return (
+    <div
+      style={{
+        ...tones[tone],
+        padding: "12px 14px",
+        borderRadius: "var(--r-md)",
+        fontSize: 14.5,
+        lineHeight: 1.5,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+function Toggle({ checked, onChange, label }) {
+  return (
+    <label
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 8,
+        cursor: "pointer",
+        userSelect: "none",
+        margin: 0,
+        position: "relative",
+      }}
+    >
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={onChange}
+        style={{
+          position: "absolute",
+          width: 1,
+          height: 1,
+          padding: 0,
+          margin: -1,
+          overflow: "hidden",
+          clip: "rect(0, 0, 0, 0)",
+          border: 0,
+        }}
+      />
+      <span
+        aria-hidden
+        style={{
+          width: 40,
+          height: 22,
+          borderRadius: 999,
+          background: checked ? "var(--accent)" : "var(--n-300)",
+          position: "relative",
+          flexShrink: 0,
+          transition: "background var(--dur) var(--ease)",
+        }}
+      >
+        <span
+          style={{
+            position: "absolute",
+            top: 2,
+            left: checked ? 20 : 2,
+            width: 18,
+            height: 18,
+            borderRadius: "50%",
+            background: "#fff",
+            transition: "left var(--dur) var(--ease)",
+            boxShadow: "var(--e-1)",
+          }}
+        />
+      </span>
+      {label}
+    </label>
+  );
+}
+
 export default function AdminNotificationSettingsPage() {
   const { success, error: showError } = useToaster();
   const { data, isLoading, isError, refetch } = useGetAdminNotificationPreferencesQuery();
@@ -41,7 +113,7 @@ export default function AdminNotificationSettingsPage() {
   const [demoAlert, { isLoading: demoing }] = useDemoAdminNotificationAlertMutation();
   const [registerFcm, { isLoading: registeringFcm }] = useRegisterAdminFcmTokenMutation();
 
-  const serverAlerts = data?.data?.alerts || [];
+  const serverAlerts = useMemo(() => data?.data?.alerts || [], [data?.data?.alerts]);
   const [localPrefs, setLocalPrefs] = useState({});
   const [dirty, setDirty] = useState(false);
   const [forceDemo, setForceDemo] = useState(false);
@@ -161,201 +233,153 @@ export default function AdminNotificationSettingsPage() {
   };
 
   if (isLoading) {
-    return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight={320}>
-        <CircularProgress />
-      </Box>
-    );
+    return <PageLoading label="Loading preferences…" />;
   }
 
   if (isError) {
     return (
-      <Alert severity="error" sx={{ m: 2 }}>
+      <DirectoryError>
         Could not load notification preferences. Please refresh and try again.
-      </Alert>
+      </DirectoryError>
     );
   }
 
   return (
-    <Box sx={{ p: { xs: 2, md: 3 }, maxWidth: 960 }}>
-      <Stack direction="row" spacing={1.5} alignItems="center" mb={1}>
-        <MdNotificationsNone size={28} />
-        <Typography variant="h5" fontWeight={600}>
-          Admin Alert Notifications
-        </Typography>
-      </Stack>
-      <Typography variant="body2" color="text.secondary" mb={2}>
-        Choose which operational alerts you receive as push notifications. Use Demo to
-        verify each flag is working on this browser.
-      </Typography>
+    <div style={{ display: "grid", gap: 16, maxWidth: 960 }}>
+      <PageHeader
+        title="Admin Alert Notifications"
+        description="Choose which operational alerts you receive as push notifications. Use Demo to verify each flag is working on this browser."
+      />
 
-      <Alert severity="info" sx={{ mb: 2 }}>
+      <Notice>
         High-priority alerts are On by default. Before demoing: allow browser notifications,
         stay logged in, then click Demo. Titles start with [DEMO] so you can tell them apart.
-      </Alert>
+      </Notice>
 
-      <Alert severity="warning" sx={{ mb: 2 }}>
-        Your last demo failed because the server had placeholder token{" "}
-        <code>no-fcm-token</code> (login without real FCM). Click{" "}
-        <strong>Refresh FCM token</strong> below first, then Demo again.
-      </Alert>
+      {(fcmStatus === "missing" || fcmStatus === "error") && (
+        <Notice tone="warning">
+          This browser does not have a valid FCM token yet. Allow notifications, then click{" "}
+          <strong>Refresh FCM token</strong> before running a demo.
+        </Notice>
+      )}
 
-      <Card variant="outlined" sx={{ mb: 3 }}>
-        <CardContent>
-          <Typography variant="subtitle1" fontWeight={600} gutterBottom>
-            Demo run
-          </Typography>
-          <Typography variant="body2" color="text.secondary" mb={1.5}>
-            Sends a sample push only to you (does not create real orders).
-          </Typography>
-          <Stack
-            direction={{ xs: "column", sm: "row" }}
-            spacing={1.5}
-            alignItems={{ xs: "stretch", sm: "center" }}
-            flexWrap="wrap"
-            mb={1.5}
+      <DirectoryFormCard
+        title="Demo run"
+        hint="Sends a sample push only to you (does not create real orders)."
+      >
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 12,
+            alignItems: "center",
+            marginBottom: 14,
+          }}
+        >
+          <Button
+            variant="secondary"
+            disabled={registeringFcm}
+            onClick={handleRefreshFcm}
           >
-            <Button
-              variant="contained"
-              color="secondary"
-              disabled={registeringFcm}
-              onClick={handleRefreshFcm}
-            >
-              {registeringFcm ? "Registering…" : "Refresh FCM token"}
-            </Button>
-            {fcmStatus === "ok" && (
-              <Chip label="FCM ready" color="success" size="small" />
-            )}
-            {fcmStatus === "missing" && (
-              <Chip label="FCM missing" color="error" size="small" />
-            )}
-          </Stack>
-          <Stack
-            direction={{ xs: "column", sm: "row" }}
-            spacing={1.5}
-            alignItems={{ xs: "stretch", sm: "center" }}
-            flexWrap="wrap"
+            {registeringFcm ? "Registering…" : "Refresh FCM token"}
+          </Button>
+          {fcmStatus === "ok" && <Badge tone="success">FCM ready</Badge>}
+          {fcmStatus === "missing" && <Badge tone="danger">FCM missing</Badge>}
+        </div>
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 12,
+            alignItems: "center",
+          }}
+        >
+          <Toggle
+            checked={forceDemo}
+            onChange={(e) => setForceDemo(e.target.checked)}
+            label="Force demo (even if toggle is Off)"
+          />
+          <Button
+            variant="secondary"
+            disabled={demoing || dirty || enabledTypes.length === 0}
+            onClick={() => runDemo({ alertTypes: enabledTypes })}
           >
-            <FormControlLabel
-              control={
-                <Switch
-                  checked={forceDemo}
-                  onChange={(e) => setForceDemo(e.target.checked)}
-                  color="warning"
-                />
-              }
-              label="Force demo (even if toggle is Off)"
-            />
-            <Button
-              variant="outlined"
-              disabled={demoing || dirty || enabledTypes.length === 0}
-              onClick={() => runDemo({ alertTypes: enabledTypes })}
-            >
-              {demoingType === "all" ? "Sending…" : `Demo all enabled (${enabledTypes.length})`}
-            </Button>
-            <Button
-              variant="outlined"
-              color="warning"
-              disabled={demoing || dirty}
-              onClick={() => runDemo({})}
-            >
-              Demo every flag
-            </Button>
-          </Stack>
-          {dirty && (
-            <Typography variant="caption" color="warning.main" display="block" mt={1}>
-              Save preferences before running demos.
-            </Typography>
-          )}
-          {lastDemo && (
-            <Alert
-              severity={lastDemo.successCount > 0 ? "success" : "warning"}
-              sx={{ mt: 2 }}
-            >
+            {demoingType === "all" ? "Sending…" : `Demo all enabled (${enabledTypes.length})`}
+          </Button>
+          <Button
+            variant="ghost"
+            disabled={demoing || dirty}
+            onClick={() => runDemo({})}
+          >
+            Demo every flag
+          </Button>
+        </div>
+        {dirty && (
+          <p className="jd-field__hint" style={{ margin: "10px 0 0", color: "var(--warning-700)" }}>
+            Save preferences before running demos.
+          </p>
+        )}
+        {lastDemo && (
+          <div style={{ marginTop: 14 }}>
+            <Notice tone={lastDemo.successCount > 0 ? "success" : "warning"}>
               Last demo: {lastDemo.successCount} sent · {lastDemo.skippedCount} skipped ·{" "}
               {lastDemo.failedCount} failed
-            </Alert>
-          )}
-        </CardContent>
-      </Card>
+            </Notice>
+          </div>
+        )}
+      </DirectoryFormCard>
 
       {grouped.map(({ key, label, items }) => (
-        <Card key={key} variant="outlined" sx={{ mb: 2 }}>
-          <CardContent>
-            <Typography variant="subtitle1" fontWeight={600} gutterBottom>
-              {label}
-            </Typography>
-            <Divider sx={{ mb: 1.5 }} />
-            <Stack spacing={1}>
-              {items.map((item) => (
-                <Box
-                  key={item.alertType}
-                  sx={{
-                    display: "flex",
-                    alignItems: "flex-start",
-                    justifyContent: "space-between",
-                    gap: 2,
-                    py: 0.5,
-                    flexWrap: "wrap",
-                  }}
-                >
-                  <Box flex={1} minWidth={200}>
-                    <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
-                      <Typography variant="body1" fontWeight={500}>
-                        {item.label}
-                      </Typography>
-                      {item.priority === "high" && (
-                        <Chip
-                          label="High priority"
-                          size="small"
-                          color="warning"
-                          variant="outlined"
-                        />
-                      )}
-                    </Stack>
-                    <Typography variant="body2" color="text.secondary" mt={0.25}>
-                      {item.description}
-                    </Typography>
-                  </Box>
-                  <Stack direction="row" spacing={1} alignItems="center" flexShrink={0}>
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      disabled={demoing || dirty}
-                      onClick={() => runDemo({ alertType: item.alertType })}
-                    >
-                      {demoingType === item.alertType ? "…" : "Demo"}
-                    </Button>
-                    <FormControlLabel
-                      control={
-                        <Switch
-                          checked={Boolean(localPrefs[item.alertType])}
-                          onChange={() => handleToggle(item.alertType)}
-                          color="primary"
-                        />
-                      }
-                      label={localPrefs[item.alertType] ? "On" : "Off"}
-                      labelPlacement="start"
-                      sx={{ m: 0 }}
-                    />
-                  </Stack>
-                </Box>
-              ))}
-            </Stack>
-          </CardContent>
-        </Card>
+        <DirectoryFormCard key={key} title={label}>
+          <div style={{ display: "grid", gap: 12 }}>
+            {items.map((item) => (
+              <div
+                key={item.alertType}
+                style={{
+                  display: "flex",
+                  alignItems: "flex-start",
+                  justifyContent: "space-between",
+                  gap: 16,
+                  flexWrap: "wrap",
+                }}
+              >
+                <div style={{ flex: 1, minWidth: 200 }}>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+                    <strong style={{ fontWeight: 600 }}>{item.label}</strong>
+                    {item.priority === "high" && (
+                      <Badge tone="warning">High priority</Badge>
+                    )}
+                  </div>
+                  <p className="jd-field__hint" style={{ margin: "4px 0 0" }}>
+                    {item.description}
+                  </p>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    disabled={demoing || dirty}
+                    onClick={() => runDemo({ alertType: item.alertType })}
+                  >
+                    {demoingType === item.alertType ? "…" : "Demo"}
+                  </Button>
+                  <Toggle
+                    checked={Boolean(localPrefs[item.alertType])}
+                    onChange={() => handleToggle(item.alertType)}
+                    label={localPrefs[item.alertType] ? "On" : "Off"}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        </DirectoryFormCard>
       ))}
 
-      <Stack direction="row" spacing={2} justifyContent="flex-end">
-        <Button
-          variant="contained"
-          disabled={!dirty || saving}
-          onClick={handleSave}
-          startIcon={saving ? <CircularProgress size={18} color="inherit" /> : null}
-        >
+      <div style={{ display: "flex", justifyContent: "flex-end" }}>
+        <Button disabled={!dirty || saving} onClick={handleSave}>
           {saving ? "Saving…" : "Save preferences"}
         </Button>
-      </Stack>
-    </Box>
+      </div>
+    </div>
   );
 }

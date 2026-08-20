@@ -1,28 +1,29 @@
 import { useState, useRef, useEffect } from "react";
-import {
-  Box,
-  Typography,
-  IconButton,
-  Popover,
-  TextField,
-  Button,
-  CircularProgress,
-} from "@mui/material";
 import { useForm, Controller } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
-import ModalComponent from "../../components/shared/Modal";
-import InputFieldModal from "../../components/ui/InputFieldModal";
-import RichTextEditor from "../../components/ui/RichTextEditor";
-import ImageUpload from "../../components/ui/ImageUpload";
+import { Button, Field, Input, Textarea, Modal } from "../../design-system";
+import BlogRichTextEditor from "./BlogRichTextEditor";
 import { TbSparkles } from "../../shared/icons/index";
 import { generateWithGemini } from "../../utilities/geminiApi";
-import { BASE_URL } from "../../utilities/URL";
+import { joinMediaUrl } from "../../utilities/formatters";
+import useToaster from "../../components/ui/Toaster";
+import {
+  IMAGE_UPLOAD_ACCEPT,
+  IMAGE_UPLOAD_MESSAGES,
+  acceptImageFile,
+  validateImageFile,
+} from "../../utilities/imageUploadPolicy";
+import { getApiErrorMessage } from "../../store/services/apiErrors";
 
 function getImageDisplayUrl(img) {
-  if (!img) return null;
-  if (typeof img === "string" && (img.startsWith("http") || img.startsWith("data:"))) return img;
-  return `${BASE_URL}${img}`;
+  return joinMediaUrl(img) || null;
+}
+
+function imagePreviewSrc(value) {
+  if (!value) return "";
+  if (typeof value === "string") return value;
+  return URL.createObjectURL(value);
 }
 
 const getBlogSchema = (isEdit) =>
@@ -36,11 +37,24 @@ const getBlogSchema = (isEdit) =>
       .required("Description is required")
       .min(10, "Description must be at least 10 characters"),
     image: isEdit
-      ? yup.mixed().nullable()
+      ? yup
+        .mixed()
+        .nullable()
+        .test("imagePolicy", IMAGE_UPLOAD_MESSAGES.size, function (value) {
+          if (value == null || value === "" || typeof value === "string") return true;
+          const result = validateImageFile(value, { allowExistingUrl: true });
+          if (result.ok) return true;
+          return this.createError({ message: result.message });
+        })
       : yup
         .mixed()
         .required("Image is required")
-        .test("isFile", "Please select an image file", (value) => value instanceof File),
+        .test("isFile", "Please select an image file", (value) => value instanceof File)
+        .test("imagePolicy", IMAGE_UPLOAD_MESSAGES.size, function (value) {
+          const result = validateImageFile(value);
+          if (result.ok) return true;
+          return this.createError({ message: result.message });
+        }),
   });
 
 const defaultValues = {
@@ -51,7 +65,8 @@ const defaultValues = {
 
 export default function AddBlogModal({ open, onClose, onSave, isLoading = false, blogToEdit = null }) {
   const isEdit = !!blogToEdit;
-  const aiButtonRef = useRef(null);
+  const { error: toastError } = useToaster();
+  const fileInputRef = useRef(null);
   const [assistantOpen, setAssistantOpen] = useState(false);
   const [assistantPrompt, setAssistantPrompt] = useState("");
   const [generating, setGenerating] = useState(false);
@@ -90,11 +105,6 @@ export default function AddBlogModal({ open, onClose, onSave, isLoading = false,
   };
 
   const handleGenerateDescription = async () => {
-    const apiKey = import.meta.env.LAUNDRY_GEMINI_API_KEY;
-    if (!apiKey) {
-      setAssistantError("Add LAUNDRY_GEMINI_API_KEY to .env or .env.local");
-      return;
-    }
     const prompt = assistantPrompt.trim();
     if (!prompt) {
       setAssistantError("Enter a topic, heading, or instruction (e.g. “Write a blog on laundry tips”).");
@@ -106,12 +116,17 @@ export default function AddBlogModal({ open, onClose, onSave, isLoading = false,
       const systemHint =
         "You are a helpful assistant for a laundry/dry cleaning business. Generate a blog post or description based on the user's request. Follow their instructions exactly, including any requested word count or length (e.g. if they ask for 500 words, write approximately 500 words). Output only the blog content, no title or extra text.";
       const fullPrompt = `${systemHint}\n\nUser request: ${prompt}`;
-      const text = await generateWithGemini(fullPrompt, apiKey);
+      const text = await generateWithGemini(fullPrompt);
       setValue("description", text);
       setAssistantOpen(false);
       setAssistantPrompt("");
     } catch (err) {
-      setAssistantError(err?.message || "Failed to generate. Check your API key and try again.");
+      setAssistantError(
+        getApiErrorMessage(
+          err,
+          "Failed to generate. Ask an admin to set GEMINI_API_KEY on the API host."
+        )
+      );
     } finally {
       setGenerating(false);
     }
@@ -134,42 +149,41 @@ export default function AddBlogModal({ open, onClose, onSave, isLoading = false,
   };
 
   return (
-    <ModalComponent
+    <Modal
       open={open}
       onClose={handleClose}
       title={isEdit ? "Edit Blog" : "Add Blog"}
-      secondaryAction={{
-        label: "Cancel",
-        onClick: handleClose,
+      size="lg"
+      onPrimary={() => {
+        if (isLoading) return;
+        handleSubmit(onSubmit)();
       }}
-      primaryAction={{
-        label: isEdit ? "Update" : "Add",
-        onClick: handleSubmit(onSubmit),
-        isLoading: isLoading,
-      }}
+      primaryLabel={isLoading ? (isEdit ? "Updating…" : "Adding…") : isEdit ? "Update" : "Add"}
+      secondaryLabel="Cancel"
     >
-      <Box className="flex flex-col gap-5">
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 16,
+          maxHeight: "60vh",
+          overflowY: "auto",
+        }}
+      >
         <Controller
           name="title"
           control={control}
           render={({ field: { onChange, value } }) => (
-            <Box>
-              <InputFieldModal
-                title="Title"
-                placeholder="Enter blog title"
+            <Field label="Title" htmlFor="blog-title" error={errors.title?.message}>
+              <Input
+                id="blog-title"
                 name="title"
+                placeholder="Enter blog title"
                 value={value}
                 onChange={(e) => onChange(e.target.value)}
+                error={!!errors.title}
               />
-              {errors.title && (
-                <Typography
-                  variant="caption"
-                  sx={{ color: "error.main", mt: 1, display: "block" }}
-                >
-                  {errors.title.message}
-                </Typography>
-              )}
-            </Box>
+            </Field>
           )}
         />
 
@@ -177,105 +191,69 @@ export default function AddBlogModal({ open, onClose, onSave, isLoading = false,
           name="description"
           control={control}
           render={({ field: { onChange, value } }) => (
-            <Box>
-              <Box sx={{ position: "relative", width: "100%" }}>
-                <RichTextEditor
-                  title="Description"
+            <Field label="Description" error={errors.description?.message}>
+              <div style={{ position: "relative", width: "100%" }}>
+                <BlogRichTextEditor
                   placeholder="Enter blog description"
                   value={value || ""}
                   onChange={(html) => onChange(html)}
                   minHeight={140}
                   emitAsEvent={false}
                 />
-                <IconButton
-                  ref={aiButtonRef}
+                <Button
+                  variant="ghost"
+                  size="sm"
                   onClick={() => setAssistantOpen(true)}
-                  size="small"
-                  sx={{
-                    position: "absolute",
-                    bottom: 8,
-                    right: 8,
-                    bgcolor: "grey.200",
-                    color: "grey.700",
-                    "&:hover": { bgcolor: "grey.300" },
-                  }}
                   title="Generate description with AI"
+                  style={{ position: "absolute", bottom: 8, right: 8 }}
                 >
-                  <TbSparkles size={20} />
-                </IconButton>
-              </Box>
-              {errors.description && (
-                <Typography
-                  variant="caption"
-                  sx={{ color: "error.main", mt: 1, display: "block" }}
-                >
-                  {errors.description.message}
-                </Typography>
-              )}
+                  <TbSparkles size={18} />
+                </Button>
+              </div>
 
-              <Popover
-                open={assistantOpen}
-                anchorEl={aiButtonRef.current}
-                onClose={() => !generating && setAssistantOpen(false)}
-                anchorOrigin={{ vertical: "top", horizontal: "right" }}
-                transformOrigin={{ vertical: "bottom", horizontal: "right" }}
-                slotProps={{
-                  paper: {
-                    sx: {
-                      p: 2,
-                      width: 320,
-                      borderRadius: 2,
-                      boxShadow: 3,
-                    },
-                  },
-                }}
-              >
-                <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 1 }}>
-                  AI assistant
-                </Typography>
-                <Typography variant="caption" color="text.secondary" sx={{ mb: 1.5, display: "block" }}>
-                  e.g. &quot;Write a blog on laundry tips&quot; or paste a heading
-                </Typography>
-                <TextField
-                  placeholder="Topic, heading, or instruction..."
-                  value={assistantPrompt}
-                  onChange={(e) => setAssistantPrompt(e.target.value)}
-                  multiline
-                  minRows={2}
-                  fullWidth
-                  size="small"
-                  disabled={generating}
-                  sx={{
-                    mb: 1.5,
-                    "& .MuiOutlinedInput-root": {
-                      borderRadius: 1,
-                      bgcolor: "grey.50",
-                      fontSize: "14px",
-                    },
+              {assistantOpen ? (
+                <div
+                  style={{
+                    marginTop: 8,
+                    padding: 16,
+                    background: "var(--surface)",
+                    border: "1px solid var(--line)",
+                    borderRadius: "var(--r-lg)",
+                    boxShadow: "var(--e-3)",
                   }}
-                />
-                {assistantError && (
-                  <Typography variant="caption" color="error" sx={{ mb: 1, display: "block" }}>
-                    {assistantError}
-                  </Typography>
-                )}
-                <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 1 }}>
-                  <Button size="small" onClick={() => setAssistantOpen(false)} disabled={generating}>
-                    Cancel
-                  </Button>
-                  <Button
-                    size="small"
-                    variant="contained"
-                    onClick={handleGenerateDescription}
-                    disabled={generating}
-                    startIcon={generating ? <CircularProgress size={16} color="inherit" /> : <TbSparkles size={16} />}
-                    sx={{ bgcolor: "#000099", "&:hover": { bgcolor: "#000077" } }}
-                  >
-                    {generating ? "Generating…" : "Generate"}
-                  </Button>
-                </Box>
-              </Popover>
-            </Box>
+                >
+                  <div style={{ fontWeight: 600, marginBottom: 4, color: "var(--ink)" }}>
+                    AI assistant
+                  </div>
+                  <p style={{ margin: "0 0 12px", fontSize: "var(--text-xs)", color: "var(--muted)" }}>
+                    e.g. &quot;Write a blog on laundry tips&quot; or paste a heading
+                  </p>
+                  <Field error={assistantError}>
+                    <Textarea
+                      placeholder="Topic, heading, or instruction..."
+                      value={assistantPrompt}
+                      onChange={(e) => setAssistantPrompt(e.target.value)}
+                      rows={2}
+                      disabled={generating}
+                    />
+                  </Field>
+                  <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 12 }}>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => setAssistantOpen(false)}
+                      disabled={generating}
+                    >
+                      Cancel
+                    </Button>
+                    <Button size="sm" onClick={handleGenerateDescription} disabled={generating}>
+                      <TbSparkles size={16} />
+                      {generating ? "Generating…" : "Generate"}
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
+            </Field>
           )}
         />
 
@@ -283,25 +261,67 @@ export default function AddBlogModal({ open, onClose, onSave, isLoading = false,
           name="image"
           control={control}
           render={({ field: { onChange, value } }) => (
-            <Box>
-              <ImageUpload
-                title="Image"
-                placeholder="Upload image"
-                value={value}
-                onChange={(file) => onChange(file)}
+            <Field
+              label="Image"
+              hint="JPEG, PNG, GIF, or WebP. Max 5MB."
+              error={errors.image?.message}
+            >
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                style={{
+                  width: "100%",
+                  cursor: "pointer",
+                  borderRadius: "var(--r-md)",
+                  background: "var(--canvas)",
+                  border: "1px dashed var(--line-2)",
+                  padding: 16,
+                  textAlign: "center",
+                  color: "var(--muted)",
+                  font: "inherit",
+                }}
+              >
+                {value ? (
+                  <img
+                    src={imagePreviewSrc(value)}
+                    alt="Uploaded preview"
+                    style={{
+                      maxHeight: 150,
+                      maxWidth: "100%",
+                      borderRadius: "var(--r-sm)",
+                      objectFit: "cover",
+                      display: "block",
+                      margin: "0 auto",
+                    }}
+                  />
+                ) : (
+                  "Upload image"
+                )}
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept={IMAGE_UPLOAD_ACCEPT}
+                hidden
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  e.target.value = "";
+                  if (!file) return;
+                  const accepted = acceptImageFile(file, toastError);
+                  if (accepted) onChange(accepted);
+                }}
               />
-              {errors.image && (
-                <Typography
-                  variant="caption"
-                  sx={{ color: "error.main", mt: 1, display: "block" }}
-                >
-                  {errors.image.message}
-                </Typography>
-              )}
-            </Box>
+              {value ? (
+                <div style={{ marginTop: 8, textAlign: "center" }}>
+                  <Button variant="ghost" size="sm" onClick={() => onChange(null)}>
+                    Remove
+                  </Button>
+                </div>
+              ) : null}
+            </Field>
           )}
         />
-      </Box>
-    </ModalComponent>
+      </div>
+    </Modal>
   );
 }

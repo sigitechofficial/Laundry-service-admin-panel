@@ -38,7 +38,7 @@ export const sidebarList = [
         size: "24px",
       },
       {
-        label: "All Order",
+        label: "All Orders",
         path: "/orders/all-orders",
         size: "24px",
       },
@@ -295,12 +295,6 @@ export const sidebarList = [
     size: "23px",
   },
   {
-    label: "FCM Push Debug",
-    Icon: MdNotificationsNone,
-    path: "/fcm-debug",
-    size: "23px",
-  },
-  {
     label: "Send Notifications",
     Icon: MdNotificationsNone,
     path: "/send-notifications",
@@ -380,7 +374,9 @@ export const getInitialSubmenuOpen = () => {
     const stored =
       typeof window !== "undefined" && localStorage.getItem("submenuOpen");
     if (stored) return JSON.parse(stored);
-  } catch (e) { }
+  } catch {
+    /* ignore invalid stored submenu state */
+  }
 
   const pathname =
     typeof window !== "undefined" ? window.location.pathname : "";

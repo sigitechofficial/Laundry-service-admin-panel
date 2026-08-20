@@ -1,25 +1,24 @@
-import {
-  Alert,
-  Box,
-  Button,
-  Checkbox,
-  Chip,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
-  FormControlLabel,
-  IconButton,
-  InputAdornment,
-  Stack,
-  Tab,
-  Tabs,
-  TextField,
-  Typography,
-} from "@mui/material";
 import { useMemo, useState } from "react";
-import { BsCardList, TbPencil, TbPlus, TbTrash } from "../../shared/icons/index";
+import {
+  Button,
+  Field,
+  Input,
+  Table,
+  Modal,
+} from "../../design-system";
 import useToaster from "../../components/ui/Toaster";
+import { QueryState } from "./QueryState";
+import {
+  DirectoryActions,
+  DirectoryDotPills,
+  DirectoryIdentity,
+  DirectoryMoney,
+  DirectorySearch,
+  DirectoryTableWrap,
+  DirectoryToolbar,
+} from "../directory-table/directoryTable";
+import CatalogChrome from "./catalogChrome";
+import { formatMoney } from "../../utilities/formatters";
 import {
   useCreateRepairGarmentMutation,
   useCreateRepairOptionMutation,
@@ -42,35 +41,25 @@ function unwrapList(res) {
 }
 
 function money(value) {
-  return `£${Number(value || 0).toFixed(2)}`;
+  return formatMoney(value, "£");
 }
-
-const panelSx = {
-  bgcolor: "#fff",
-  border: "1px solid #E5E7EB",
-  borderRadius: "12px",
-  overflow: "hidden",
-};
-
-const sectionHeaderSx = {
-  px: 2.5,
-  py: 2,
-  borderBottom: "1px solid #F3F4F6",
-  bgcolor: "#FAFBFC",
-};
-
-const primaryBtnSx = {
-  textTransform: "none",
-  bgcolor: "#000099",
-  "&:hover": { bgcolor: "#0000cc" },
-};
 
 export default function RepairCatalogPage() {
   const { success, error } = useToaster();
-  const { data: garmentsRes, isLoading: garmentsLoading } =
-    useGetRepairGarmentsQuery();
-  const { data: optionsRes, isLoading: optionsLoading } =
-    useGetRepairOptionsQuery();
+  const {
+    data: garmentsRes,
+    isLoading: garmentsLoading,
+    isError: garmentsError,
+    error: garmentsQueryError,
+    refetch: refetchGarments,
+  } = useGetRepairGarmentsQuery();
+  const {
+    data: optionsRes,
+    isLoading: optionsLoading,
+    isError: optionsError,
+    error: optionsQueryError,
+    refetch: refetchOptions,
+  } = useGetRepairOptionsQuery();
 
   const [createGarment, { isLoading: creatingGarment }] =
     useCreateRepairGarmentMutation();
@@ -88,6 +77,7 @@ export default function RepairCatalogPage() {
   const options = useMemo(() => unwrapList(optionsRes), [optionsRes]);
 
   const [activeTab, setActiveTab] = useState("repairs");
+  const [searchTerm, setSearchTerm] = useState("");
 
   const [optionModal, setOptionModal] = useState({
     open: false,
@@ -243,627 +233,417 @@ export default function RepairCatalogPage() {
     }
   };
 
+  const optionColumns = [
+    {
+      key: "name",
+      header: "Repair",
+      render: (row) => <DirectoryIdentity name={row.name} />,
+    },
+    {
+      key: "price",
+      header: "Price",
+      render: (row) => <DirectoryMoney>{row.price}</DirectoryMoney>,
+    },
+    {
+      key: "actions",
+      header: "Actions",
+      render: (row) => (
+        <DirectoryActions>
+          <Button size="sm" variant="secondary" onClick={() => openEditOption(row)}>
+            Edit
+          </Button>
+          <Button
+            size="sm"
+            variant="danger"
+            onClick={() =>
+              setConfirmDelete({ type: "option", id: row.id, label: row.name })
+            }
+          >
+            Delete
+          </Button>
+        </DirectoryActions>
+      ),
+    },
+  ];
+
+  const optionRows = options
+    .map((opt) => ({
+      ...opt,
+      price: money(opt.price),
+    }))
+    .filter((row) => {
+      const q = searchTerm.trim().toLowerCase();
+      if (!q) return true;
+      return String(row.name ?? "").toLowerCase().includes(q);
+    });
+
+  const garmentRows = garments.filter((row) => {
+    const q = searchTerm.trim().toLowerCase();
+    if (!q) return true;
+    const linked = (row.options || []).map((o) => o.name).join(" ");
+    return `${row.name} ${linked}`.toLowerCase().includes(q);
+  });
+
+  const garmentColumns = [
+    {
+      key: "name",
+      header: "Garment",
+      render: (row) => <DirectoryIdentity name={row.name} />,
+    },
+    {
+      key: "linked",
+      header: "Linked repairs",
+      render: (row) => {
+        const linked = row.options || [];
+        if (!linked.length) {
+          return <DirectoryDotPills items={[{ label: "No repairs linked", tone: "warning" }]} />;
+        }
+        return (
+          <DirectoryDotPills
+            items={linked.map((o) => ({
+              key: o.id,
+              label: `${o.name} · ${money(o.price)}`,
+              tone: "info",
+            }))}
+          />
+        );
+      },
+    },
+    {
+      key: "actions",
+      header: "Actions",
+      render: (row) => (
+        <DirectoryActions>
+          <Button size="sm" variant="secondary" onClick={() => openEditGarment(row)}>
+            Edit
+          </Button>
+          <Button
+            size="sm"
+            variant="danger"
+            onClick={() =>
+              setConfirmDelete({ type: "garment", id: row.id, label: row.name })
+            }
+          >
+            Delete
+          </Button>
+        </DirectoryActions>
+      ),
+    },
+  ];
+
   return (
-    <Box sx={{ pb: 4 }}>
-      <Stack
-        direction={{ xs: "column", md: "row" }}
-        spacing={2}
-        alignItems={{ md: "flex-start" }}
-        justifyContent="space-between"
-        mb={2.5}
-      >
-        <Stack direction="row" spacing={1.5} alignItems="flex-start">
-          <Typography color="blue.50" sx={{ mt: 0.5 }}>
-            <BsCardList size={26} />
-          </Typography>
-          <Box>
-            <Typography variant="h4" fontFamily="Switzer" color="grey.20">
-              Repair Catalog
-            </Typography>
-            <Typography
-              variant="body2"
-              color="grey.50"
-              sx={{ mt: 0.75, maxWidth: 580, lineHeight: 1.5 }}
-            >
-              Use <strong>Repairs</strong> to add priced work, then{" "}
-              <strong>Garments</strong> to create clothing types and link which
-              repairs customers can choose.
-            </Typography>
-          </Box>
-        </Stack>
-        <Button
-          variant="outlined"
-          onClick={onSeed}
-          disabled={seeding}
-          sx={{
-            textTransform: "none",
-            borderColor: "#000099",
-            color: "#000099",
-            minWidth: 140,
-            height: 40,
-            "&:hover": { borderColor: "#0000cc", bgcolor: "#F4F7FF" },
-          }}
-        >
+    <CatalogChrome
+      section="repairs"
+      title="Repair catalog"
+      description="Priced repair work, then garments that link which repairs customers can choose. Related to Alteration services in the main catalog."
+      breadcrumb={["Catalog", "Repairs"]}
+      actions={
+        <Button variant="secondary" onClick={onSeed} disabled={seeding}>
           {seeding ? "Loading…" : "Load defaults"}
         </Button>
-      </Stack>
+      }
+    >
 
-      <Box sx={{ mb: 2.5, borderBottom: "1px solid #E5E7EB" }}>
-        <Tabs
-          value={activeTab}
-          onChange={(_e, value) => setActiveTab(value)}
-          sx={{
-            minHeight: 44,
-            "& .MuiTab-root": {
-              textTransform: "none",
-              fontWeight: 600,
-              fontSize: 15,
-              minHeight: 44,
-              color: "#6B7280",
-            },
-            "& .Mui-selected": { color: "#000099 !important" },
-            "& .MuiTabs-indicator": { bgcolor: "#000099", height: 3 },
-          }}
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
+        <Button
+          size="sm"
+          variant={activeTab === "repairs" ? "primary" : "secondary"}
+          onClick={() => setActiveTab("repairs")}
         >
-          <Tab value="repairs" label={`Repairs (${options.length})`} />
-          <Tab value="garments" label={`Garments (${garments.length})`} />
-        </Tabs>
-      </Box>
+          Repairs ({options.length})
+        </Button>
+        <Button
+          size="sm"
+          variant={activeTab === "garments" ? "primary" : "secondary"}
+          onClick={() => setActiveTab("garments")}
+        >
+          Garments ({garments.length})
+        </Button>
+      </div>
 
       {activeTab === "repairs" ? (
-        <Box sx={panelSx}>
-          <Box sx={sectionHeaderSx}>
-            <Stack
-              direction="row"
-              alignItems="center"
-              justifyContent="space-between"
-              spacing={2}
+        <div>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              gap: 16,
+              marginBottom: 12,
+            }}
+          >
+            <div>
+              <strong>Repairs</strong>
+              <p style={{ margin: "4px 0 0", color: "var(--muted)", fontSize: 13 }}>
+                Priced repair options customers can select
+              </p>
+            </div>
+            <Button size="sm" onClick={openAddOption}>
+              Add repair
+            </Button>
+          </div>
+          {optionsLoading || optionsError ? (
+            <QueryState
+              loading={optionsLoading}
+              error={optionsQueryError || optionsError}
+              onRetry={refetchOptions}
+              errorLabel="Could not load repair options. Please try again."
+            />
+          ) : (
+            <DirectoryTableWrap
+              toolbar={
+                <DirectoryToolbar>
+                  <DirectorySearch
+                    id="repair-option-search"
+                    value={searchTerm}
+                    onChange={setSearchTerm}
+                    placeholder="Search repairs…"
+                  />
+                </DirectoryToolbar>
+              }
             >
-              <Box>
-                <Typography sx={{ fontWeight: 700, color: "#111827", fontSize: 16 }}>
-                  Repairs
-                </Typography>
-                <Typography sx={{ fontSize: 12.5, color: "#6B7280", mt: 0.25 }}>
-                  Priced repair options customers can select
-                </Typography>
-              </Box>
-              <Button
-                size="small"
-                variant="contained"
-                startIcon={<TbPlus size={16} />}
-                onClick={openAddOption}
-                sx={primaryBtnSx}
-              >
-                Add repair
-              </Button>
-            </Stack>
-          </Box>
-
-          <Box>
-            {optionsLoading ? (
-              <Typography sx={{ p: 3, fontSize: 13, color: "#6B7280" }}>
-                Loading…
-              </Typography>
-            ) : options.length === 0 ? (
-              <Box sx={{ p: 5, textAlign: "center" }}>
-                <Typography
-                  sx={{ fontSize: 15, fontWeight: 600, color: "#374151", mb: 0.75 }}
-                >
-                  Add your first repair
-                </Typography>
-                <Typography sx={{ fontSize: 13, color: "#6B7280", mb: 2.5 }}>
-                  Example: “Hemming” at £8.00. Then switch to Garments to link them.
-                </Typography>
-                <Stack direction="row" spacing={1} justifyContent="center">
-                  <Button
-                    variant="contained"
-                    startIcon={<TbPlus size={16} />}
-                    onClick={openAddOption}
-                    sx={primaryBtnSx}
-                  >
-                    Add repair
-                  </Button>
-                  <Button
-                    variant="outlined"
-                    onClick={onSeed}
-                    disabled={seeding}
-                    sx={{
-                      textTransform: "none",
-                      borderColor: "#000099",
-                      color: "#000099",
-                    }}
-                  >
-                    Load defaults
-                  </Button>
-                </Stack>
-              </Box>
-            ) : (
-              options.map((opt) => (
-                <Box
-                  key={opt.id}
-                  sx={{
-                    px: 2.5,
-                    py: 1.75,
-                    borderBottom: "1px solid #F3F4F6",
-                    "&:hover": { bgcolor: "#FAFBFC" },
-                  }}
-                >
-                  <Stack
-                    direction="row"
-                    alignItems="center"
-                    justifyContent="space-between"
-                    spacing={2}
-                  >
-                    <Box sx={{ minWidth: 0 }}>
-                      <Typography
-                        sx={{ fontSize: 14, fontWeight: 600, color: "#111827" }}
-                      >
-                        {opt.name}
-                      </Typography>
-                      <Typography sx={{ fontSize: 13, color: "#6B7280", mt: 0.25 }}>
-                        {money(opt.price)}
-                      </Typography>
-                    </Box>
-                    <Stack direction="row" spacing={0.5}>
-                      <IconButton
-                        size="small"
-                        aria-label="Edit repair"
-                        onClick={() => openEditOption(opt)}
-                        sx={{ color: "#000099" }}
-                      >
-                        <TbPencil size={18} />
-                      </IconButton>
-                      <IconButton
-                        size="small"
-                        aria-label="Delete repair"
-                        onClick={() =>
-                          setConfirmDelete({
-                            type: "option",
-                            id: opt.id,
-                            label: opt.name,
-                          })
-                        }
-                        sx={{ color: "#DC2626" }}
-                      >
-                        <TbTrash size={18} />
-                      </IconButton>
-                    </Stack>
-                  </Stack>
-                </Box>
-              ))
-            )}
-          </Box>
-
+              <Table
+                columns={optionColumns}
+                rows={optionRows}
+                rowKey={(row) => row.id}
+                empty="Add your first repair — example: Hemming at £8.00. Then switch to Garments to link them."
+              />
+            </DirectoryTableWrap>
+          )}
           {options.length > 0 ? (
-            <Box
-              sx={{
-                px: 2.5,
-                py: 1.75,
-                bgcolor: "#F8FAFF",
-                borderTop: "1px solid #E5E7EB",
-              }}
-            >
-              <Typography sx={{ fontSize: 13, color: "#475569" }}>
-                Next: open the <strong>Garments</strong> tab to create clothing
-                types and link these repairs.
-              </Typography>
-              <Button
-                size="small"
-                onClick={() => setActiveTab("garments")}
-                sx={{ textTransform: "none", mt: 0.5, color: "#000099", px: 0 }}
-              >
+            <div style={{ marginTop: 12 }}>
+              <Button variant="ghost" size="sm" onClick={() => setActiveTab("garments")}>
                 Go to Garments →
               </Button>
-            </Box>
+            </div>
           ) : null}
-        </Box>
+        </div>
       ) : (
-        <Box sx={panelSx}>
-          <Box sx={sectionHeaderSx}>
-            <Stack
-              direction="row"
-              alignItems="center"
-              justifyContent="space-between"
-              spacing={2}
+        <div>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              gap: 16,
+              marginBottom: 12,
+            }}
+          >
+            <div>
+              <strong>Garments</strong>
+              <p style={{ margin: "4px 0 0", color: "var(--muted)", fontSize: 13 }}>
+                Clothing types · edit to link repairs
+              </p>
+            </div>
+            <Button size="sm" onClick={openAddGarment} disabled={!options.length}>
+              Add garment
+            </Button>
+          </div>
+          {!options.length ? (
+            <div style={{ padding: 32, textAlign: "center" }}>
+              <p style={{ margin: "0 0 12px", color: "var(--muted)" }}>
+                Garments need repair options to link. Add at least one repair first.
+              </p>
+              <Button onClick={() => setActiveTab("repairs")}>Go to Repairs</Button>
+            </div>
+          ) : garmentsLoading || garmentsError ? (
+            <QueryState
+              loading={garmentsLoading}
+              error={garmentsQueryError || garmentsError}
+              onRetry={refetchGarments}
+              errorLabel="Could not load garments. Please try again."
+            />
+          ) : (
+            <DirectoryTableWrap
+              toolbar={
+                <DirectoryToolbar>
+                  <DirectorySearch
+                    id="repair-garment-search"
+                    value={searchTerm}
+                    onChange={setSearchTerm}
+                    placeholder="Search garments…"
+                  />
+                </DirectoryToolbar>
+              }
             >
-              <Box>
-                <Typography sx={{ fontWeight: 700, color: "#111827", fontSize: 16 }}>
-                  Garments
-                </Typography>
-                <Typography sx={{ fontSize: 12.5, color: "#6B7280", mt: 0.25 }}>
-                  Clothing types · edit to link repairs
-                </Typography>
-              </Box>
-              <Button
-                size="small"
-                variant="contained"
-                startIcon={<TbPlus size={16} />}
-                onClick={openAddGarment}
-                disabled={!options.length}
-                sx={primaryBtnSx}
-              >
-                Add garment
-              </Button>
-            </Stack>
-          </Box>
-
-          <Box>
-            {!options.length ? (
-              <Box sx={{ p: 5, textAlign: "center" }}>
-                <Typography
-                  sx={{ fontSize: 15, fontWeight: 600, color: "#374151", mb: 0.75 }}
-                >
-                  Add repairs first
-                </Typography>
-                <Typography sx={{ fontSize: 13, color: "#6B7280", mb: 2 }}>
-                  Garments need repair options to link. Go to the Repairs tab and
-                  add at least one.
-                </Typography>
-                <Button
-                  variant="contained"
-                  onClick={() => setActiveTab("repairs")}
-                  sx={primaryBtnSx}
-                >
-                  Go to Repairs
-                </Button>
-              </Box>
-            ) : garmentsLoading ? (
-              <Typography sx={{ p: 3, fontSize: 13, color: "#6B7280" }}>
-                Loading…
-              </Typography>
-            ) : garments.length === 0 ? (
-              <Box sx={{ p: 5, textAlign: "center" }}>
-                <Typography
-                  sx={{ fontSize: 15, fontWeight: 600, color: "#374151", mb: 0.75 }}
-                >
-                  Add a garment and link repairs
-                </Typography>
-                <Typography sx={{ fontSize: 13, color: "#6B7280", mb: 2.5 }}>
-                  Example: “Shirt” → tick Hemming, Button resew, Seam repair.
-                </Typography>
-                <Button
-                  variant="contained"
-                  startIcon={<TbPlus size={16} />}
-                  onClick={openAddGarment}
-                  sx={primaryBtnSx}
-                >
-                  Add garment
-                </Button>
-              </Box>
-            ) : (
-              garments.map((g) => {
-                const linked = g.options || [];
-                const preview = linked.slice(0, 4);
-                const extra = Math.max(0, linked.length - preview.length);
-                return (
-                  <Box
-                    key={g.id}
-                    sx={{
-                      px: 2.5,
-                      py: 2,
-                      borderBottom: "1px solid #F3F4F6",
-                      "&:hover": { bgcolor: "#FAFBFC" },
-                    }}
-                  >
-                    <Stack
-                      direction="row"
-                      alignItems="flex-start"
-                      justifyContent="space-between"
-                      spacing={1.5}
-                    >
-                      <Box sx={{ minWidth: 0, flex: 1 }}>
-                        <Stack
-                          direction="row"
-                          alignItems="center"
-                          spacing={1}
-                          mb={0.75}
-                        >
-                          <Typography
-                            sx={{ fontSize: 14, fontWeight: 700, color: "#111827" }}
-                          >
-                            {g.name}
-                          </Typography>
-                          <Chip
-                            size="small"
-                            label={`${linked.length} linked`}
-                            sx={{
-                              height: 22,
-                              fontSize: 11,
-                              bgcolor: linked.length ? "#EEF2FF" : "#FEF3C7",
-                              color: linked.length ? "#000099" : "#B45309",
-                            }}
-                          />
-                        </Stack>
-                        {linked.length === 0 ? (
-                          <Typography sx={{ fontSize: 12.5, color: "#B45309" }}>
-                            No repairs linked — open Edit and tick options
-                          </Typography>
-                        ) : (
-                          <Stack
-                            direction="row"
-                            flexWrap="wrap"
-                            useFlexGap
-                            spacing={0.75}
-                          >
-                            {preview.map((o) => (
-                              <Chip
-                                key={o.id}
-                                size="small"
-                                label={`${o.name} · ${money(o.price)}`}
-                                variant="outlined"
-                                sx={{
-                                  height: 24,
-                                  fontSize: 11,
-                                  borderColor: "#E5E7EB",
-                                  color: "#374151",
-                                }}
-                              />
-                            ))}
-                            {extra > 0 ? (
-                              <Chip
-                                size="small"
-                                label={`+${extra} more`}
-                                sx={{
-                                  height: 24,
-                                  fontSize: 11,
-                                  bgcolor: "#F3F4F6",
-                                  color: "#6B7280",
-                                }}
-                              />
-                            ) : null}
-                          </Stack>
-                        )}
-                      </Box>
-                      <Stack direction="row" spacing={0.25}>
-                        <IconButton
-                          size="small"
-                          aria-label="Edit garment"
-                          onClick={() => openEditGarment(g)}
-                          sx={{ color: "#000099" }}
-                        >
-                          <TbPencil size={18} />
-                        </IconButton>
-                        <IconButton
-                          size="small"
-                          aria-label="Delete garment"
-                          onClick={() =>
-                            setConfirmDelete({
-                              type: "garment",
-                              id: g.id,
-                              label: g.name,
-                            })
-                          }
-                          sx={{ color: "#DC2626" }}
-                        >
-                          <TbTrash size={18} />
-                        </IconButton>
-                      </Stack>
-                    </Stack>
-                  </Box>
-                );
-              })
-            )}
-          </Box>
-        </Box>
+              <Table
+                columns={garmentColumns}
+                rows={garmentRows}
+                rowKey={(row) => row.id}
+                empty="Add a garment and link repairs — example: Shirt → Hemming, Button resew."
+              />
+            </DirectoryTableWrap>
+          )}
+        </div>
       )}
 
-      <Dialog
+      <Modal
         open={optionModal.open}
+        title={isEditingOption ? "Edit repair" : "Add repair"}
+        description="A priced service customers can choose (e.g. Hemming, Zip repair)."
         onClose={closeOptionModal}
-        maxWidth="sm"
-        fullWidth
+        secondaryLabel="Cancel"
+        primaryLabel={
+          savingOption
+            ? "Saving…"
+            : isEditingOption
+              ? "Save changes"
+              : "Add repair"
+        }
+        onPrimary={() => {
+          if (savingOption) return;
+          saveOption();
+        }}
       >
-        <DialogTitle sx={{ fontWeight: 700, pb: 1 }}>
-          {isEditingOption ? "Edit repair" : "Add repair"}
-        </DialogTitle>
-        <DialogContent>
-          <Typography sx={{ fontSize: 13, color: "#64748B", mb: 2 }}>
-            A priced service customers can choose (e.g. Hemming, Zip repair).
-          </Typography>
-          <Stack spacing={2} sx={{ pt: 0.5 }}>
-            <TextField
-              label="Repair name"
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <Field label="Repair name" htmlFor="repair-name">
+            <Input
+              id="repair-name"
               placeholder="e.g. Hemming"
-              fullWidth
-              autoFocus
               value={optionModal.name}
               onChange={(e) =>
                 setOptionModal((p) => ({ ...p, name: e.target.value }))
               }
             />
-            <TextField
-              label="Price"
+          </Field>
+          <Field label="Price (£)" htmlFor="repair-price">
+            <Input
+              id="repair-price"
               placeholder="0.00"
-              fullWidth
               value={optionModal.price}
               onChange={(e) =>
                 setOptionModal((p) => ({ ...p, price: e.target.value }))
               }
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">£</InputAdornment>
-                ),
-              }}
             />
-          </Stack>
-        </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={closeOptionModal} sx={{ textTransform: "none" }}>
-            Cancel
-          </Button>
-          <Button
-            variant="contained"
-            disabled={savingOption}
-            onClick={saveOption}
-            sx={primaryBtnSx}
-          >
-            {isEditingOption ? "Save changes" : "Add repair"}
-          </Button>
-        </DialogActions>
-      </Dialog>
+          </Field>
+        </div>
+      </Modal>
 
-      <Dialog
+      <Modal
         open={garmentModal.open}
-        onClose={closeGarmentModal}
-        maxWidth="sm"
-        fullWidth
-      >
-        <DialogTitle sx={{ fontWeight: 700, pb: 1 }}>
-          {isEditingGarment
+        title={
+          isEditingGarment
             ? "Edit garment & linked repairs"
-            : "Add garment & link repairs"}
-        </DialogTitle>
-        <DialogContent>
-          <Alert severity="info" sx={{ mb: 2, fontSize: 13 }}>
-            Name the garment, then tick every repair customers should see for it.
-          </Alert>
-          <TextField
-            label="Garment name"
-            placeholder="e.g. Shirt"
-            fullWidth
-            autoFocus
-            value={garmentModal.name}
-            onChange={(e) =>
-              setGarmentModal((p) => ({ ...p, name: e.target.value }))
-            }
-            sx={{ mb: 2.5 }}
-          />
+            : "Add garment & link repairs"
+        }
+        description="Name the garment, then tick every repair customers should see for it."
+        onClose={closeGarmentModal}
+        secondaryLabel="Cancel"
+        primaryLabel={
+          savingGarment
+            ? "Saving…"
+            : isEditingGarment
+              ? "Save changes"
+              : "Add garment"
+        }
+        onPrimary={() => {
+          if (savingGarment) return;
+          saveGarment();
+        }}
+      >
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <Field label="Garment name" htmlFor="garment-name">
+            <Input
+              id="garment-name"
+              placeholder="e.g. Shirt"
+              value={garmentModal.name}
+              onChange={(e) =>
+                setGarmentModal((p) => ({ ...p, name: e.target.value }))
+              }
+            />
+          </Field>
 
-          <Stack
-            direction="row"
-            alignItems="center"
-            justifyContent="space-between"
-            mb={1}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 8,
+            }}
           >
-            <Typography sx={{ fontSize: 13, fontWeight: 700, color: "#111827" }}>
+            <strong style={{ fontSize: 13 }}>
               Link repairs ({garmentModal.repairOptionIds.length}/{options.length})
-            </Typography>
-            <Stack direction="row" spacing={0.5}>
+            </strong>
+            <div style={{ display: "flex", gap: 8 }}>
               <Button
-                size="small"
+                size="sm"
+                variant="ghost"
                 onClick={() =>
                   setGarmentModal((p) => ({
                     ...p,
                     repairOptionIds: options.map((o) => o.id),
                   }))
                 }
-                sx={{ textTransform: "none", fontSize: 12 }}
               >
                 Select all
               </Button>
               <Button
-                size="small"
+                size="sm"
+                variant="ghost"
                 onClick={() =>
                   setGarmentModal((p) => ({ ...p, repairOptionIds: [] }))
                 }
-                sx={{ textTransform: "none", fontSize: 12 }}
               >
                 Clear
               </Button>
-            </Stack>
-          </Stack>
+            </div>
+          </div>
 
           {options.length === 0 ? (
-            <Typography sx={{ fontSize: 13, color: "#6B7280" }}>
+            <p style={{ color: "var(--muted)", margin: 0 }}>
               No repair options available. Close this and add repairs first.
-            </Typography>
+            </p>
           ) : (
-            <Box
-              sx={{
+            <div
+              style={{
                 display: "grid",
-                gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" },
-                gap: 0.5,
+                gridTemplateColumns: "1fr 1fr",
+                gap: 8,
                 maxHeight: 280,
                 overflowY: "auto",
-                p: 1.5,
-                bgcolor: "#F9FAFB",
-                borderRadius: "8px",
-                border: "1px solid #E5E7EB",
+                padding: 12,
+                background: "var(--canvas)",
+                borderRadius: "var(--r-md)",
+                border: "1px solid var(--line)",
               }}
             >
-              {options.map((opt) => {
-                const checked = garmentModal.repairOptionIds.includes(opt.id);
-                return (
-                  <FormControlLabel
-                    key={opt.id}
-                    control={
-                      <Checkbox
-                        size="small"
-                        checked={checked}
-                        onChange={() => toggleGarmentOption(opt.id)}
-                        sx={{
-                          color: "#9CA3AF",
-                          "&.Mui-checked": { color: "#000099" },
-                        }}
-                      />
-                    }
-                    label={
-                      <Typography sx={{ fontSize: 13, color: "#111827" }}>
-                        {opt.name}{" "}
-                        <Box
-                          component="span"
-                          sx={{ color: "#6B7280", fontSize: 12 }}
-                        >
-                          · {money(opt.price)}
-                        </Box>
-                      </Typography>
-                    }
-                    sx={{ m: 0 }}
+              {options.map((opt) => (
+                <label
+                  key={opt.id}
+                  style={{ display: "inline-flex", alignItems: "center", gap: 8 }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={garmentModal.repairOptionIds.includes(opt.id)}
+                    onChange={() => toggleGarmentOption(opt.id)}
                   />
-                );
-              })}
-            </Box>
+                  <span>
+                    {opt.name}{" "}
+                    <span style={{ color: "var(--muted)", fontSize: 12 }}>
+                      · {money(opt.price)}
+                    </span>
+                  </span>
+                </label>
+              ))}
+            </div>
           )}
-        </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={closeGarmentModal} sx={{ textTransform: "none" }}>
-            Cancel
-          </Button>
-          <Button
-            variant="contained"
-            disabled={savingGarment}
-            onClick={saveGarment}
-            sx={primaryBtnSx}
-          >
-            {isEditingGarment ? "Save changes" : "Add garment"}
-          </Button>
-        </DialogActions>
-      </Dialog>
+        </div>
+      </Modal>
 
-      <Dialog
+      <Modal
         open={Boolean(confirmDelete)}
+        title={`Delete ${confirmDelete?.type === "option" ? "repair" : "garment"}?`}
+        description={`“${confirmDelete?.label}” will be removed from the catalog${
+          confirmDelete?.type === "option"
+            ? " and unlinked from any garments."
+            : "."
+        }`}
         onClose={() => setConfirmDelete(null)}
-        maxWidth="xs"
-        fullWidth
-      >
-        <DialogTitle sx={{ fontWeight: 700 }}>
-          Delete {confirmDelete?.type === "option" ? "repair" : "garment"}?
-        </DialogTitle>
-        <DialogContent>
-          <Typography sx={{ fontSize: 14, color: "#475569" }}>
-            “{confirmDelete?.label}” will be removed from the catalog
-            {confirmDelete?.type === "option"
-              ? " and unlinked from any garments."
-              : "."}
-          </Typography>
-        </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button
-            onClick={() => setConfirmDelete(null)}
-            sx={{ textTransform: "none" }}
-          >
-            Cancel
-          </Button>
-          <Button
-            variant="contained"
-            color="error"
-            onClick={runDelete}
-            sx={{ textTransform: "none" }}
-          >
-            Delete
-          </Button>
-        </DialogActions>
-      </Dialog>
-    </Box>
+        onPrimary={runDelete}
+        primaryLabel="Delete"
+        secondaryLabel="Cancel"
+        danger
+      />
+    </CatalogChrome>
   );
 }

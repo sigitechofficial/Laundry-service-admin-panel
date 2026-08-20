@@ -1,63 +1,51 @@
-const ENV_MODEL = import.meta.env.LAUNDRY_GEMINI_MODEL || null;
-let cachedModelName = ENV_MODEL;
+import {
+  fetchWithTimeout,
+  getHttpResponseErrorMessage,
+} from "../store/services/fetchWithTimeout";
+import { BASE_URL } from "./URL";
+import { LS_ACCESS_TOKEN } from "./authStorage";
 
-async function getModelForGenerateContent(apiKey) {
-  if (cachedModelName) return cachedModelName;
-  const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`
-  );
-  if (!res.ok) {
-    let err = {};
-    try {
-      err = await res.json();
-    } catch (_e) {
-      // ignore JSON parse error
-    }
-    throw new Error(err?.error?.message || "Failed to list models");
-  }
-  const data = await res.json();
-  const models = data?.models || [];
-  const supportsGenerate = (m) => {
-    const methods = m.supportedGenerationMethods || m.supported_actions || [];
-    return methods.some(
-      (s) => s && s.toLowerCase().replace(/_/g, "") === "generatecontent"
-    );
-  };
-  const supported = models.find(supportsGenerate);
-  if (!supported?.name) {
-    throw new Error(
-      "No model with generateContent found. Check your API key at https://aistudio.google.com/apikey"
-    );
-  }
-  cachedModelName = supported.name.replace(/^models\//, "");
-  return cachedModelName;
+/**
+ * Blog assistant goes through POST /admin/gemini/generate.
+ * The Gemini key (GEMINI_API_KEY / LAUNDRY_GEMINI_API_KEY) must live on the
+ * API host. Do not put it in Vite env — those values are bundled into the SPA
+ * and show up in the browser (query strings and Network tab).
+ */
+
+function apiRoot() {
+  return String(BASE_URL || "").replace(/\/$/, "");
 }
 
-export async function generateWithGemini(prompt, apiKey) {
-  const model = await getModelForGenerateContent(apiKey);
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: {
-        maxOutputTokens: 2048,
-        temperature: 0.7,
-      },
-    }),
-  });
-  if (!res.ok) {
-    let err = {};
-    try {
-      err = await res.json();
-    } catch (_e) {
-      // ignore JSON parse error
-    }
-    throw new Error(err?.error?.message || res.statusText || "API request failed");
+export async function generateWithGemini(prompt) {
+  const headers = {
+    "Content-Type": "application/json",
+    "ngrok-skip-browser-warning": "true",
+  };
+  if (typeof localStorage !== "undefined") {
+    const accessToken = localStorage.getItem(LS_ACCESS_TOKEN);
+    if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
   }
-  const data = await res.json();
-  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+
+  const res = await fetchWithTimeout(`${apiRoot()}/admin/gemini/generate`, {
+    method: "POST",
+    headers,
+    credentials: "include",
+    body: JSON.stringify({ prompt }),
+  });
+
+  const payload = await res.json().catch(() => ({}));
+
+  if (!res.ok || payload?.status === "0") {
+    throw new Error(
+      getHttpResponseErrorMessage(
+        res,
+        payload,
+        payload?.message || "AI generation failed"
+      )
+    );
+  }
+
+  const text = payload?.data?.text;
   if (!text) throw new Error("No text in response");
-  return text.trim();
+  return String(text).trim();
 }

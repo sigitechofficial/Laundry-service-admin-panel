@@ -1,299 +1,128 @@
-import { useState } from "react";
-import { Box, IconButton, Typography } from "@mui/material";
-import {
-  BsCardList,
-  TbFileDownload,
-  TbEye,
-  TbEdit,
-  TbTrash,
-  MdOutlineLocationOn,
-  MdOutlinePhone,
-  MdMailOutline,
-} from "../../../shared/icons/index";
-import Search from "../../../components/ui/Search";
-import FiltersButton from "../../../components/ui/FiltersButton";
-import DateRangeSelector from "../../../components/ui/DateRangeSelector";
-import DataTable from "../../../components/ui/DataTable";
-import StatusPill from "../../../components/ui/StatusPill";
-import ChangeStatus from "../../../components/ui/Switch";
-import ActionButtons from "../../../components/ui/ActionButtons";
-import { useNavigate, useParams } from "react-router-dom";
-import { useGetCustomerByIdQuery } from "../../../store/services/api";
+import { useMemo } from "react";
+import { useParams } from "react-router-dom";
+import { Badge, PageHeader, Table } from "../../../design-system";
+import { panel } from "../../miscKitConstants";
+import { useGetZoneByIdQuery } from "../../../store/services/api";
 import { Delay } from "../../../components/shared/Loaders";
-import dayjs from "dayjs";
-import { dateTimeFormat } from "../../../shared/constants";
+import { unwrapZoneFromApiResponse } from "../../../utilities/zonesList";
+import { formatMoney, resolveCurrencySymbol } from "../../../utilities/formatters";
+import {
+  DirectoryIdentity,
+  DirectoryMetrics,
+  DirectoryMoney,
+  DirectoryStatusPill,
+  DirectoryTableWrap,
+} from "../../directory-table/directoryTable";
+
+function formatPostcodes(raw) {
+  if (!raw) return [];
+  if (Array.isArray(raw)) {
+    return raw
+      .map((item) => (typeof item === "string" ? item : item?.postcode || item?.code || ""))
+      .filter(Boolean);
+  }
+  if (typeof raw === "string") {
+    try {
+      const parsed = JSON.parse(raw);
+      return formatPostcodes(parsed);
+    } catch {
+      return raw.split(/[\n,;]+/).map((s) => s.trim()).filter(Boolean);
+    }
+  }
+  return [];
+}
 
 export default function ZoneDetails() {
-  const navigate = useNavigate();
   const { id } = useParams();
-  const [dateRange, setDateRange] = useState(null);
-  const [searchTerm, setSearchTerm] = useState("");
+  const { data, isLoading, isError } = useGetZoneByIdQuery(id, { skip: !id });
+  const zone = useMemo(() => unwrapZoneFromApiResponse(data), [data]);
+  const postcodes = useMemo(() => formatPostcodes(zone?.postcodes), [zone]);
 
-  const { data, isLoading } = useGetCustomerByIdQuery(id, { skip: !id });
+  const moneySymbol = resolveCurrencySymbol(zone);
+  const currency =
+    zone?.currencyUnitZ?.name ||
+    zone?.currency ||
+    zone?.zoneCurrency ||
+    moneySymbol ||
+    "—";
+  const commission =
+    zone?.agentCommissionPercent ??
+    (zone?.zoneAdminComission != null ? 100 - zone.zoneAdminComission : "—");
 
-  // Sample customer data
-  const customersData = data?.data?.bookingDetails?.map((booking, index) => {
-    return {
-      id: booking?.id,
-      sl: index + 1,
-      orderId: booking?.id,
-      orderDateTime: dayjs(booking?.createdAt).format(dateTimeFormat),
-      serviceType: booking?.serviceType,
-      totalItems: booking?.totalItems,
-      pickupDateTime: dayjs(booking?.collectionDate).format(dateTimeFormat),
-      deliveryDateTime: dayjs(booking?.deliveryDate).format(dateTimeFormat),
-      OnHold: booking?.OnHoldConfirmations?.length,
-      pickupDriver: `
-        ${booking?.driver?.firstName || ""} ${booking?.driver?.lastName || ""}`,
-      deliveryDriver: `${booking?.driver?.firstName || ""} ${
-        booking?.driver?.lastName || ""
-      }`,
-      shopName: booking?.laundryShop?.id,
-      cost: booking?.orderAmount,
-      status: booking?.bookingStatus?.title,
-    };
-  });
-
-  // Column configuration for customer table
-  const customerColumns = [
+  const columns = [
     {
-      field: "sl",
-      headerName: "SL",
-      flex: 0.15,
-      minWidth: 100,
+      key: "field",
+      header: "Field",
+      render: (row) => <DirectoryIdentity name={row.field} />,
     },
     {
-      field: "orderId",
-      headerName: "Order Id",
-      flex: 0.12,
-      minWidth: 100,
-    },
-    {
-      field: "orderDateTime",
-      headerName: "Order date & time",
-      flex: 0.18,
-      minWidth: 150,
-    },
-    {
-      field: "serviceType",
-      headerName: "Service type",
-      flex: 0.18,
-      minWidth: 150,
-    },
-    {
-      field: "totalItems",
-      headerName: "Total items",
-      flex: 0.15,
-      minWidth: 150,
-    },
-    {
-      field: "pickupDateTime",
-      headerName: "Pickup date/time",
-      flex: 0.1,
-      minWidth: 130,
-      type: "number",
-    },
-    {
-      field: "deliveryDateTime",
-      headerName: "Delivery Date/Time",
-      flex: 0.12,
-      minWidth: 170,
-    },
-    {
-      field: "OnHold ",
-      headerName: "On-hold ",
-      flex: 0.12,
-      minWidth: 120,
-    },
-    {
-      field: "pickupDriver ",
-      headerName: "Pickup Driver ",
-      flex: 0.12,
-      minWidth: 120,
-    },
-    {
-      field: "deliveryDriver",
-      headerName: "Delivery driver",
-      flex: 0.12,
-      minWidth: 120,
-    },
-    {
-      field: "shopName",
-      headerName: "Shop Name",
-      flex: 0.12,
-      minWidth: 120,
-    },
-    {
-      field: "cost",
-      headerName: "Total cost",
-      flex: 0.12,
-      minWidth: 120,
-    },
-    {
-      field: "status",
-      headerName: "Status",
-      flex: 0.08,
-      minWidth: 100,
-    },
-    {
-      field: "changeStatus",
-      headerName: "Change Status",
-      flex: 0.1,
-      minWidth: 130,
-      type: "switch",
-      renderCell: (params) => (
-        <ChangeStatus
-          width={"45px"}
-          checked={params.value}
-          // onChange={(e) => setChecked(e.target.checked)}
-        />
-      ),
-    },
-    {
-      field: "actions",
-      headerName: "Actions",
-      flex: 0.15,
-      minWidth: 200,
-      sortable: false,
-      renderCell: () => (
-        <ActionButtons
-          onView={() => alert("View clicked")}
-          onEdit={() => alert("Edit clicked")}
-          onDelete={() => alert("Delete clicked")}
-        />
-      ),
+      key: "value",
+      header: "Value",
+      render: (row) => row.value,
     },
   ];
 
-  const handleDateChange = (selectedRange) => {
-    console.log("Selected Date Range:", selectedRange);
-    setDateRange(selectedRange);
+  const rows = zone
+    ? [
+        { field: "Zone ID", value: zone.id ?? id },
+        { field: "Name", value: zone.name || "—" },
+        { field: "City ID", value: zone.cityId ?? "—" },
+        { field: "Currency", value: currency },
+        {
+          field: "Service fee",
+          value: <DirectoryMoney>{formatMoney(zone.serviceCharge, moneySymbol)}</DirectoryMoney>,
+        },
+        {
+          field: "Minimum amount",
+          value: <DirectoryMoney>{formatMoney(zone.zoneMinimumAmount, moneySymbol)}</DirectoryMoney>,
+        },
+        { field: "Agent commission %", value: commission },
+        { field: "Payment method", value: zone.paymentMethod || zone.paymentMehtod || "—" },
+        {
+          field: "Status",
+          value: <DirectoryStatusPill active={Boolean(zone.status)} />,
+        },
+      ]
+    : [];
 
-    // You can use the date range for filtering customers
-    if (selectedRange) {
-      console.log(
-        "Start Date:",
-        selectedRange.startDate.format(dateTimeFormat)
-      );
-      console.log("End Date:", selectedRange.endDate.format(dateTimeFormat));
-      console.log("Label:", selectedRange.label);
-      console.log("Type:", selectedRange.type);
-    }
-  };
-
-  const handleSearchChange = (searchTerm) => {
-    setSearchTerm(searchTerm);
-    console.log("Search term:", searchTerm);
-    // Implement search logic here - filter the customersData
-  };
-
-  const handleFilter = () => {
-    console.log("Filter button clicked");
-    // Open filter modal or apply filters
-  };
-
-  const handleDownload = (data) => {
-    console.log("Download customers data:", data);
-    // Implement download functionality (CSV, Excel, etc.)
-  };
-
-  const handleRowAction = (actionType, rowData) => {
-    console.log("🚀 ~ handleRowAction ~ rowData:", rowData);
-    switch (actionType) {
-      case "view":
-        // Navigate to customer details page or open modal
-        navigate(`/customer-management/${rowData.id}`);
-        break;
-      case "edit":
-        // Navigate to edit customer page or open edit modal
-        console.log("Editing customer:", rowData.name);
-        break;
-      case "delete":
-        // Show confirmation dialog and delete customer
-        console.log("Deleting customer:", rowData.name);
-        break;
-      case "toggle-status":
-        // Toggle customer status
-        console.log("Toggling status for customer:", rowData.name);
-        break;
-      default:
-        break;
-    }
-  };
   if (isLoading) return <Delay />;
+  if (isError || !zone) {
+    return <p style={{ color: "var(--danger)", margin: 0 }}>Could not load zone details.</p>;
+  }
 
   return (
-    <div className="!space-y-11">
-            <Box className="flex items-center gap-x-5 justify-between">
-              <Box className="flex items-center gap-x-5">
-                <Typography color="blue.50">
-                  <BsCardList size="24px" color="blue.50" />
-                </Typography>
+    <div style={{ display: "grid", gap: 20 }}>
+      <PageHeader
+        title={zone.name || `Zone #${id}`}
+        description={`Zone #${zone.id ?? id}`}
+      />
 
-                <Typography variant="h4" fontFamily={"Switzer"} color="grey.20">
-                  Customer Management
-                </Typography>
-              </Box>
+      <DirectoryMetrics
+        items={[
+          { label: "Service fee", value: formatMoney(zone.serviceCharge, moneySymbol), tone: "brand" },
+          { label: "Minimum", value: formatMoney(zone.zoneMinimumAmount, moneySymbol), tone: "navy" },
+          { label: "Shops", value: zone.shopCount ?? zone.shops ?? "—", tone: "success" },
+          {
+            label: "Status",
+            value: zone.status ? "Active" : "Inactive",
+            tone: zone.status ? "success" : "neutral",
+          },
+        ]}
+      />
 
-              <Box className="flex items-center gap-x-5">
-                <Search
-                  placeholder="Search"
-                  onChange={handleSearchChange}
-                  value={searchTerm}
-                />
+      <DirectoryTableWrap>
+        <Table columns={columns} rows={rows} rowKey={(row) => row.field} empty="No zone fields." />
+      </DirectoryTableWrap>
 
-                <FiltersButton text="Filters" />
-              </Box>
-            </Box>
-
-            <div className="flex w-full rounded-xl bg-white !p-4">
-              <div className="w-[720px] bg-grey50 rounded-[20px] !p-7 flex justify-between font-Inter">
-                <div className="!space-y-2">
-                  <p className="text-grey20 font-medium text-2xl">
-                    ID #{data?.data?.userDetails?.userId}
-                  </p>
-                  <p className="font-medium text-2xl !pt-4 capitalize">
-                    {`${data?.data?.userDetails?.user?.firstName} ${data?.data?.userDetails?.user?.lastName}`}
-                  </p>
-                  <p className="font-medium text-base text-grey20 flex items-center gap-2">
-                    <MdMailOutline size={"22px"} />
-                    {data?.data?.userDetails?.user?.email}
-                  </p>
-                  <p className="font-medium text-base text-grey20 flex items-center gap-2">
-                    <MdOutlinePhone size={"22px"} />
-                    {data?.data?.userDetails?.user?.phoneNum}
-                  </p>
-                  <p className="font-medium text-base text-grey20 flex items-center gap-2">
-                    <MdOutlineLocationOn size={"24px"} />
-                    {data?.data?.userDetails.streetAddress +
-                      " " +
-                      data?.data?.userDetails?.province}
-                  </p>
-                </div>
-
-                <div className="size-20 rounded-2xl">
-                  <img
-                    className="w-full h-full object-center"
-                    src="/images/admin.png"
-                    alt="customer image"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="w-full overflow-auto">
-              <DataTable
-                data={customersData}
-                columns={customerColumns}
-                searchPlaceholder="Search by order ID, product name..."
-                onSearch={handleSearchChange}
-                onFilter={handleFilter}
-                onDateRangeChange={handleDateChange}
-                onDownload={handleDownload}
-                onRowAction={handleRowAction}
-                height={600}
-              />
-            </div>
-          </div>
+      <section style={panel}>
+        <h3 style={{ margin: "0 0 12px" }}>Postcodes</h3>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+          {postcodes.map((code) => (
+            <Badge key={code}>{code}</Badge>
+          ))}
+          {!postcodes.length ? <p className="jd-field__hint" style={{ margin: 0 }}>No postcodes on this zone.</p> : null}
+        </div>
+      </section>
+    </div>
   );
 }

@@ -1,5 +1,5 @@
 import React, { Suspense } from "react";
-import { privateRoutes } from "../route/privateRoutes";
+import { privateRedirects, privateRoutes } from "../route/privateRoutes";
 import { Route, Routes, Navigate } from "react-router-dom";
 import { DelayFull } from "../components/shared/Loaders";
 import { AuthCheck } from "../hooks/useAuth";
@@ -14,6 +14,7 @@ import {
   PendingAgentsPage,
   AgentSettlementPage,
   ReportsLayout,
+  NotFound,
 } from "./AsyncComponent";
 
 export default function PrivateRoutes() {
@@ -26,6 +27,9 @@ export default function PrivateRoutes() {
               {privateRoutes.map(({ path, element: Component }) => (
                 <Route key={path} path={path} element={<Component />} />
               ))}
+              {privateRedirects.map(({ path, to }) => (
+                <Route key={path} path={path} element={<Navigate to={to} replace />} />
+              ))}
               <Route path="/shop-management" element={<ShopManagementLayout />}>
                 <Route index element={<Navigate to="dashboard" replace />} />
                 <Route path="dashboard" element={<ShopDashboardPage />} />
@@ -37,6 +41,7 @@ export default function PrivateRoutes() {
                 <Route path="details/:id" element={<ShopDetails />} />
               </Route>
               <Route path="/reports/*" element={<ReportsLayout />} />
+              <Route path="*" element={<NotFound />} />
             </Route>
           </Routes>
         </Suspense>

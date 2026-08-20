@@ -24,7 +24,10 @@ ChartJS.register(
 );
 
 export default function AreaChart({ labels = [], values = [] }) {
-  const safeLabels = labels.length ? labels : ["No data"];
+  const safeLabels = useMemo(
+    () => (labels.length ? labels : ["No data"]),
+    [labels]
+  );
   const safeValues = useMemo(
     () =>
       labels.length

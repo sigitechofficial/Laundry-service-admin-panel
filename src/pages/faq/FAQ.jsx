@@ -1,43 +1,38 @@
 import { useState } from "react";
-import {
-  Box,
-  Typography,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
-  IconButton,
-} from "@mui/material";
-import { TbHelp, TbPlus, TbPencil, TbTrash, TbChevronDown } from "../../shared/icons/index";
-import ButtonBlue from "../../components/ui/ButtonBlue";
+import { TbPlus, TbPencil, TbTrash } from "../../shared/icons/index";
+import { Button, Modal, PageHeader, Table } from "../../design-system";
 import AddFAQModal from "./AddFAQModal";
-import ModalComponent from "../../components/shared/Modal";
 import { useGetAllFAQsQuery, useCreateFAQMutation, useUpdateFAQMutation, useDeleteFAQMutation } from "../../store/services/api";
-import { Delay } from "../../components/shared/Loaders";
+import {
+  DirectoryActions,
+  DirectoryError,
+  DirectoryIdentity,
+  DirectoryTableWrap,
+  PageLoading,
+} from "../directory-table/directoryTable";
 import useToaster from "../../components/ui/Toaster";
 
+function extractFaqs(payload) {
+  if (Array.isArray(payload?.message)) return payload.message;
+  if (Array.isArray(payload?.data?.faqs)) return payload.data.faqs;
+  if (Array.isArray(payload?.faqs)) return payload.faqs;
+  if (Array.isArray(payload?.data)) return payload.data;
+  if (Array.isArray(payload)) return payload;
+  return [];
+}
+
 export default function FAQ() {
-  const [expanded, setExpanded] = useState(null);
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [faqToEdit, setFaqToEdit] = useState(null);
   const [faqToDelete, setFaqToDelete] = useState(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const { success, error: showError } = useToaster();
-  const { data, isLoading, refetch } = useGetAllFAQsQuery();
+  const { data, isLoading, isError, refetch } = useGetAllFAQsQuery();
   const [createFAQ, { isLoading: isCreating }] = useCreateFAQMutation();
   const [updateFAQ, { isLoading: isUpdating }] = useUpdateFAQMutation();
   const [deleteFAQ, { isLoading: isDeleting }] = useDeleteFAQMutation();
 
-  const faqs = Array.isArray(data?.message)
-    ? data.message
-    : Array.isArray(data?.data?.faqs)
-      ? data.data.faqs
-      : Array.isArray(data?.faqs)
-        ? data.faqs
-        : [];
-
-  const handleChange = (panel) => (event, isExpanded) => {
-    setExpanded(isExpanded ? panel : null);
-  };
+  const faqs = extractFaqs(data);
 
   const handleEdit = (faq) => {
     setFaqToEdit(faq);
@@ -50,7 +45,7 @@ export default function FAQ() {
   };
 
   const handleConfirmDelete = async () => {
-    if (!faqToDelete) return;
+    if (!faqToDelete || isDeleting) return;
     try {
       await deleteFAQ(faqToDelete.id).unwrap();
       success("FAQ deleted successfully!");
@@ -74,167 +69,116 @@ export default function FAQ() {
     setAddModalOpen(true);
   };
 
-  const handleSave = async (data, faqId) => {
+  const handleSave = async (form, faqId) => {
     const body = {
-      question: data.question,
-      answer: data.answer,
-      icon: data.icon ? `${data.icon}-icon.png` : "help-icon.png",
+      question: form.question,
+      answer: form.answer,
+      icon: form.icon ? `${form.icon}-icon.png` : "help-icon.png",
       status: true,
     };
-    if (faqId) {
-      await updateFAQ({ faqId, body }).unwrap();
-      success("FAQ updated successfully!");
-    } else {
-      await createFAQ(body).unwrap();
-      success("FAQ added successfully!");
+    try {
+      if (faqId) {
+        await updateFAQ({ faqId, body }).unwrap();
+        success("FAQ updated successfully!");
+      } else {
+        await createFAQ(body).unwrap();
+        success("FAQ added successfully!");
+      }
+      refetch();
+    } catch (err) {
+      showError(err?.data?.message || err?.error || "Failed to save FAQ. Please try again.");
+      throw err;
     }
-    refetch();
   };
 
-  if (isLoading) return <Delay />;
+  if (isLoading) return <PageLoading label="Loading FAQs…" />;
 
   return (
-    <div className="!space-y-11">
-          <Box className="flex items-center justify-between gap-x-5 flex-wrap">
-            <Box className="flex items-center gap-x-5">
-              <Typography color="blue.50">
-                <TbHelp size="24px" color="blue.50" />
-              </Typography>
-              <Typography variant="h4" fontFamily={"Switzer"} color="grey.20">
-                FAQ
-              </Typography>
-            </Box>
-            <ButtonBlue
-              size="medium"
-              startIcon={<TbPlus size={20} />}
-              onClick={handleAdd}
-            >
-              Add
-            </ButtonBlue>
-          </Box>
+    <div>
+      <PageHeader
+        title="FAQ"
+        description="Questions and answers shown in the customer app."
+        actions={
+          <Button onClick={handleAdd}>
+            <TbPlus size={18} />
+            Add
+          </Button>
+        }
+      />
 
-          <Box sx={{ width: "100%" }}>
-            {faqs.length === 0 ? (
-              <Typography color="grey.70" sx={{ py: 4, textAlign: "center" }}>
-                No FAQs yet. Click Add to create your first FAQ.
-              </Typography>
-            ) : (
-            faqs.map((faq) => (
-              <Accordion
-                key={faq.id}
-                expanded={expanded === faq.id}
-                onChange={handleChange(faq.id)}
-                sx={{
-                  boxShadow: "0px 1px 3px rgba(0,0,0,0.08)",
-                  borderRadius: "12px !important",
-                  mb: 2,
-                  "&:before": { display: "none" },
-                  "&.Mui-expanded": { margin: 0, marginBottom: 2 },
-                }}
-              >
-                <AccordionSummary
-                  expandIcon={<TbChevronDown size={24} />}
-                  sx={{
-                    minHeight: 56,
-                    "& .MuiAccordionSummary-content": {
-                      my: 2,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      width: "100%",
-                      pr: 1,
-                    },
-                  }}
-                >
-                  <Typography
-                    fontFamily="Switzer"
-                    fontWeight={600}
-                    color="black.50"
-                    sx={{ flex: 1, pr: 1 }}
-                  >
-                    {faq.question}
-                  </Typography>
-                  <Box
-                    sx={{ display: "flex", alignItems: "center", gap: 0.25 }}
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <IconButton
-                      size="small"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleEdit(faq);
-                      }}
-                      sx={{ p: 0.5 }}
-                      aria-label="Edit"
-                    >
-                      <TbPencil size={18} />
-                    </IconButton>
-                    <IconButton
-                      size="small"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDelete(faq);
-                      }}
-                      sx={{ p: 0.5, color: "#F53939", "&:hover": { color: "#d32f2f", bgcolor: "rgba(245, 57, 57, 0.08)" } }}
-                      aria-label="Delete"
-                    >
-                      <TbTrash size={18} />
-                    </IconButton>
-                  </Box>
-                </AccordionSummary>
-                <AccordionDetails sx={{ pt: 0, pb: 2 }}>
-                  <Typography
-                    variant="body2"
-                    color="grey.70"
-                    sx={{ lineHeight: 1.6 }}
-                  >
-                    {faq.answer}
-                  </Typography>
-                </AccordionDetails>
-              </Accordion>
-            ))
-            )}
-          </Box>
-
-          <AddFAQModal
-            open={addModalOpen}
-            onClose={() => {
-              setAddModalOpen(false);
-              setFaqToEdit(null);
-            }}
-            onSave={handleSave}
-            isLoading={isCreating || isUpdating}
-            faqToEdit={faqToEdit}
+      {isError ? (
+        <DirectoryError onRetry={() => refetch()}>
+          Could not load FAQs. Check your connection and try again.
+        </DirectoryError>
+      ) : (
+        <DirectoryTableWrap>
+          <Table
+            columns={[
+              {
+                key: "question",
+                header: "Question",
+                render: (faq) => (
+                  <DirectoryIdentity
+                    name={faq.question}
+                    meta={faq.answer}
+                    id={faq.id}
+                  />
+                ),
+              },
+              {
+                key: "actions",
+                header: "Actions",
+                render: (faq) => (
+                  <DirectoryActions>
+                    <Button variant="secondary" size="sm" onClick={() => handleEdit(faq)}>
+                      <TbPencil size={16} />
+                      Edit
+                    </Button>
+                    <Button variant="danger" size="sm" onClick={() => handleDelete(faq)}>
+                      <TbTrash size={16} />
+                      Delete
+                    </Button>
+                  </DirectoryActions>
+                ),
+              },
+            ]}
+            rows={faqs}
+            rowKey={(faq) => faq.id}
+            empty="No FAQs yet. Click Add to create your first FAQ."
           />
+        </DirectoryTableWrap>
+      )}
 
-          <ModalComponent
-            open={deleteConfirmOpen}
-            title="Delete FAQ"
-            onClose={handleCancelDelete}
-            primaryAction={{
-              label: "Delete",
-              onClick: handleConfirmDelete,
-              isLoading: isDeleting,
-            }}
-            secondaryAction={{
-              label: "Cancel",
-              onClick: handleCancelDelete,
-            }}
-          >
-            <Box>
-              <Typography variant="body1" sx={{ color: "grey.80", fontFamily: "Switzer" }}>
-                Are you sure you want to delete this FAQ?
-              </Typography>
-              {faqToDelete && (
-                <Typography variant="body2" sx={{ color: "grey.70", mt: 1, fontStyle: "italic" }}>
-                  "{faqToDelete.question}"
-                </Typography>
-              )}
-              <Typography variant="body2" sx={{ color: "error.main", mt: 2, fontFamily: "Switzer" }}>
-                This action cannot be undone.
-              </Typography>
-            </Box>
-          </ModalComponent>
-        </div>
+      <AddFAQModal
+        open={addModalOpen}
+        onClose={() => {
+          setAddModalOpen(false);
+          setFaqToEdit(null);
+        }}
+        onSave={handleSave}
+        isLoading={isCreating || isUpdating}
+        faqToEdit={faqToEdit}
+      />
+
+      <Modal
+        open={deleteConfirmOpen}
+        title="Delete FAQ"
+        description="Are you sure you want to delete this FAQ?"
+        onClose={handleCancelDelete}
+        onPrimary={handleConfirmDelete}
+        primaryLabel={isDeleting ? "Deleting…" : "Delete"}
+        secondaryLabel="Cancel"
+        danger
+      >
+        {faqToDelete ? (
+          <p style={{ margin: 0, color: "var(--muted)", fontStyle: "italic" }}>
+            &quot;{faqToDelete.question}&quot;
+          </p>
+        ) : null}
+        <p style={{ margin: "12px 0 0", color: "var(--danger)", fontSize: "var(--text-sm)" }}>
+          This action cannot be undone.
+        </p>
+      </Modal>
+    </div>
   );
 }

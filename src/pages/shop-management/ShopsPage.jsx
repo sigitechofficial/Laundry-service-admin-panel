@@ -1,24 +1,19 @@
-import { Box, Typography } from "@mui/material";
-import { BsCardList } from "../../shared/icons/index";
+import { useNavigate } from "react-router-dom";
+import { Button, PageHeader } from "../../design-system";
 import Shops from "./Shops";
 
 export default function ShopsPage() {
+  const navigate = useNavigate();
   return (
-    <div className="!space-y-11">
-      <Box className="flex items-center gap-x-5 justify-between">
-        <Box className="flex items-center gap-x-5">
-          <Typography color="blue.50">
-            <BsCardList size="24px" color="blue.50" />
-          </Typography>
-          <Typography variant="h4" fontFamily={"Switzer"} color="grey.20">
-            Shops
-          </Typography>
-        </Box>
-      </Box>
-      <Box>
-        <Shops />
-      </Box>
+    <div>
+      <PageHeader
+        title="All shops"
+        description="Find a shop by name or zone, read trading health, then open the record."
+        actions={
+          <Button onClick={() => navigate("/shop-management/add-shop")}>Add shop</Button>
+        }
+      />
+      <Shops />
     </div>
   );
 }
-

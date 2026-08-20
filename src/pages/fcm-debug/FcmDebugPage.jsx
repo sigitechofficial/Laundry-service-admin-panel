@@ -1,20 +1,42 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import {
-  Box,
+  Badge,
   Button,
-  Stack,
-  TextField,
-  Typography,
-  Chip,
-  Alert,
-} from "@mui/material";
-import { MdNotificationsNone } from "../../shared/icons/index";
+  Field,
+  Input,
+  PageHeader,
+  Textarea,
+} from "../../design-system";
 import useToaster from "../../components/ui/Toaster";
 import { BASE_URL } from "../../utilities/URL";
 import { LS_ACCESS_TOKEN } from "../../utilities/authStorage";
+import { fetchWithTimeout } from "../../store/services/fetchWithTimeout";
+import { getApiErrorMessage } from "../../store/services/apiErrors";
+import { DirectoryFormCard, DirectoryStack } from "../directory-table/directoryTable";
 
-const DEFAULT_TOKEN =
-  "cVQDqeIUTAGCQBlAhm4gJs:APA91bE4A_8-XjyM2U3xDCC_mvmo88bSIo1bLGGcYNc6ymTpPnIPyg5mjMPKLhi0S6vs3ewlZFfjBQp9jrg5E-C5iBlvz1S9Gx7U2jOecRkML_j0uDSSlV0";
+const DEFAULT_TOKEN = "";
+
+function Notice({ tone = "info", children }) {
+  const tones = {
+    info: { background: "var(--info-bg)", color: "var(--info)" },
+    warning: { background: "var(--warning-bg)", color: "var(--warning-700)" },
+    danger: { background: "var(--danger-bg)", color: "var(--danger-700)" },
+    success: { background: "var(--success-bg)", color: "var(--success-700)" },
+  };
+  return (
+    <div
+      style={{
+        ...tones[tone],
+        padding: "12px 14px",
+        borderRadius: "var(--r-md)",
+        fontSize: 14.5,
+        lineHeight: 1.5,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
 
 function apiRoot() {
   return String(BASE_URL || "").replace(/\/$/, "");
@@ -36,6 +58,13 @@ function formatLogBlock(entry) {
     lines.push(`CLIENT_ERROR: ${entry.error}`, "");
   }
   return lines.join("\n");
+}
+
+function chipTone(color) {
+  if (color === "success") return "success";
+  if (color === "error") return "danger";
+  if (color === "warning") return "warning";
+  return "neutral";
 }
 
 export default function FcmDebugPage() {
@@ -75,7 +104,7 @@ export default function FcmDebugPage() {
       const started = new Date().toISOString();
       setBusy(true);
       try {
-        const res = await fetch(url, {
+        const res = await fetchWithTimeout(url, {
           ...options,
           headers: { ...headers, ...(options.headers || {}) },
           credentials: "include",
@@ -133,7 +162,7 @@ export default function FcmDebugPage() {
           body: null,
           error: err?.message || String(err),
         });
-        showError(err?.message || "Network error calling debug API");
+        showError(getApiErrorMessage(err, "Network error calling debug API"));
         return null;
       } finally {
         setBusy(false);
@@ -210,154 +239,137 @@ export default function FcmDebugPage() {
   }, [lastSummary]);
 
   return (
-    <div className="!space-y-8">
-      <Box className="flex items-center gap-x-5 justify-between flex-wrap gap-y-3">
-        <Box className="flex items-center gap-x-5">
-          <Typography color="blue.50">
-            <MdNotificationsNone size="24px" color="blue.50" />
-          </Typography>
-          <Typography variant="h4" fontFamily="Switzer" color="grey.20">
-            FCM Push Debug
-          </Typography>
-        </Box>
-        <Typography variant="body2" color="text.secondary">
-          API: {apiRoot()}
-        </Typography>
-      </Box>
+    <div style={{ display: "grid", gap: 20 }}>
+      <PageHeader
+        title="FCM Push Debug"
+        description={`API: ${apiRoot()}`}
+      />
 
-      <Alert severity="info">
+      <Notice>
         Use <strong>Check Firebase Status</strong> first, then{" "}
         <strong>Send Test Notification</strong>. Copy the log panel below and
         share it to debug delivery failures (invalid firebase.json, bad token,
         project mismatch, etc.).
-      </Alert>
+      </Notice>
 
-      <Box
-        sx={{
-          p: 3,
-          border: "1px solid",
-          borderColor: "divider",
-          borderRadius: 2,
-          bgcolor: "background.paper",
-        }}
-      >
-        <Stack spacing={2.5}>
-          <TextField
-            label="FCM device token"
+      <DirectoryFormCard title="Send a test push" hint="Check Firebase status first, then send to a device token or user.">
+      <DirectoryStack>
+        <Field
+          label="FCM device token"
+          hint="Android / iOS FCM registration token from the app"
+        >
+          <Textarea
             value={token}
             onChange={(e) => setToken(e.target.value)}
-            fullWidth
-            multiline
-            minRows={2}
-            helperText="Android / iOS FCM registration token from the app"
+            rows={3}
           />
-          <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
-            <TextField
-              label="User ID (optional)"
+        </Field>
+
+        <div
+          style={{
+            display: "grid",
+            gap: 16,
+            gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+          }}
+        >
+          <Field label="User ID (optional)" hint="Also loads tokens saved for this user in DB">
+            <Input
               value={userId}
               onChange={(e) => setUserId(e.target.value)}
-              fullWidth
-              helperText="Also loads tokens saved for this user in DB"
             />
-            <TextField
-              label="Debug secret (optional)"
+          </Field>
+          <Field
+            label="Debug secret (optional)"
+            hint="Only if server has FCM_DEBUG_SECRET set"
+          >
+            <Input
               value={debugSecret}
               onChange={(e) => setDebugSecret(e.target.value)}
-              fullWidth
-              helperText="Only if server has FCM_DEBUG_SECRET set"
             />
-          </Stack>
-          <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
-            <TextField
-              label="Title"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              fullWidth
-            />
-            <TextField
-              label="Body"
-              value={body}
-              onChange={(e) => setBody(e.target.value)}
-              fullWidth
-            />
-          </Stack>
+          </Field>
+        </div>
 
-          <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5}>
-            <Button
-              variant="outlined"
-              disabled={busy}
-              onClick={onCheckStatus}
-            >
-              Check Firebase Status
-            </Button>
-            <Button
-              variant="contained"
-              disabled={busy}
-              onClick={onSend}
-            >
-              Send Test Notification
-            </Button>
-            <Button variant="text" disabled={!logs || busy} onClick={onCopyLogs}>
-              Copy all logs
-            </Button>
-            <Button
-              variant="text"
-              color="inherit"
-              disabled={!logs || busy}
-              onClick={() => {
-                setLogs("");
-                setLastSummary(null);
-              }}
-            >
-              Clear logs
-            </Button>
-          </Stack>
+        <div
+          style={{
+            display: "grid",
+            gap: 16,
+            gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+          }}
+        >
+          <Field label="Title">
+            <Input value={title} onChange={(e) => setTitle(e.target.value)} />
+          </Field>
+          <Field label="Body">
+            <Input value={body} onChange={(e) => setBody(e.target.value)} />
+          </Field>
+        </div>
 
-          {summaryChips && (
-            <Stack direction="row" flexWrap="wrap" gap={1}>
-              {summaryChips.map((c) => (
-                <Chip key={c.label} size="small" label={c.label} color={c.color} />
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+          <Button variant="secondary" disabled={busy} onClick={onCheckStatus}>
+            Check Firebase Status
+          </Button>
+          <Button disabled={busy} onClick={onSend}>
+            Send Test Notification
+          </Button>
+          <Button variant="ghost" disabled={!logs || busy} onClick={onCopyLogs}>
+            Copy all logs
+          </Button>
+          <Button
+            variant="ghost"
+            disabled={!logs || busy}
+            onClick={() => {
+              setLogs("");
+              setLastSummary(null);
+            }}
+          >
+            Clear logs
+          </Button>
+        </div>
+
+        {summaryChips && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            {summaryChips.map((chip) => (
+              <Badge key={chip.label} tone={chipTone(chip.color)}>
+                {chip.label}
+              </Badge>
+            ))}
+          </div>
+        )}
+
+        {lastSummary?.parseError && (
+          <Notice tone="danger">
+            firebase.json parse error: {lastSummary.parseError}
+          </Notice>
+        )}
+        {Array.isArray(lastSummary?.results) && lastSummary.results.length > 0 && (
+          <Notice tone={lastSummary.sent ? "success" : "warning"}>
+            <div style={{ display: "grid", gap: 4 }}>
+              {lastSummary.results.map((result, i) => (
+                <div key={i}>
+                  {result.success
+                    ? `✓ ${result.tokenPreview} → ${result.messageId}`
+                    : `✗ ${result.tokenPreview} → ${result.code}: ${result.message}`}
+                </div>
               ))}
-            </Stack>
-          )}
+            </div>
+          </Notice>
+        )}
+      </DirectoryStack>
+      </DirectoryFormCard>
 
-          {lastSummary?.parseError && (
-            <Alert severity="error">
-              firebase.json parse error: {lastSummary.parseError}
-            </Alert>
-          )}
-          {Array.isArray(lastSummary?.results) && lastSummary.results.length > 0 && (
-            <Alert severity={lastSummary.sent ? "success" : "warning"}>
-              {lastSummary.results.map((r, i) => (
-                <Typography key={i} variant="body2" component="div">
-                  {r.success
-                    ? `✓ ${r.tokenPreview} → ${r.messageId}`
-                    : `✗ ${r.tokenPreview} → ${r.code}: ${r.message}`}
-                </Typography>
-              ))}
-            </Alert>
-          )}
-        </Stack>
-      </Box>
-
-      <Box>
-        <Typography variant="subtitle1" fontWeight={600} mb={1}>
-          Debug logs (copy &amp; paste to share)
-        </Typography>
-        <Box
-          component="pre"
-          sx={{
-            m: 0,
-            p: 2,
+      <DirectoryFormCard title="Debug logs" hint="Copy and paste this panel to share delivery failures.">
+        <pre
+          style={{
+            margin: 0,
+            padding: 16,
             minHeight: 280,
             maxHeight: 480,
             overflow: "auto",
-            borderRadius: 2,
-            bgcolor: "#0f172a",
-            color: "#e2e8f0",
+            borderRadius: "var(--r-xl)",
+            background: "var(--n-900)",
+            color: "var(--n-100)",
             fontSize: 12,
-            fontFamily:
-              'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+            fontFamily: "var(--font-mono)",
             whiteSpace: "pre-wrap",
             wordBreak: "break-word",
           }}
@@ -365,8 +377,8 @@ export default function FcmDebugPage() {
           {logs ||
             "No requests yet. Click Check Firebase Status or Send Test Notification."}
           <div ref={logEndRef} />
-        </Box>
-      </Box>
+        </pre>
+      </DirectoryFormCard>
     </div>
   );
 }

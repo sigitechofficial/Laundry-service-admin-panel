@@ -1,19 +1,7 @@
-import React, { useEffect } from "react";
-import {
-  Box,
-  Typography,
-  FormControl,
-  Select,
-  MenuItem,
-  Checkbox,
-  ListItemText,
-  Chip,
-} from "@mui/material";
+import { useEffect } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
-import ModalComponent from "../../../components/shared/Modal";
-import InputFieldModal from "../../../components/ui/InputFieldModal";
-import RichTextEditor from "../../../components/ui/RichTextEditor";
+import { Badge, Field, Input, Textarea, Modal } from "../../../design-system";
 import useToaster from "../../../components/ui/Toaster";
 import {
   useAddSubCategoryMutation,
@@ -69,9 +57,6 @@ export default function SubCategoryModal({
       : [];
   })();
 
-  const addOnCategoryLabel = (id) =>
-    addOnCategoryOptions.find((o) => o.value === String(id))?.label || id;
-
   const {
     control,
     handleSubmit,
@@ -85,6 +70,7 @@ export default function SubCategoryModal({
   });
 
   const isUpdate = open && type === "update";
+  const saving = isAddSubCategoryLoading || isEditSubCategoryLoading;
 
   const onSubmit = async (data) => {
     try {
@@ -111,7 +97,6 @@ export default function SubCategoryModal({
     }
   };
 
-  
   const UpdateSubCategory = async (data) => {
     try {
       const cleanDescription = normalizeEditorContent(data.description);
@@ -126,9 +111,9 @@ export default function SubCategoryModal({
 
       const res = await editSubCategory({
         subCatId: categoryData?.subCatId || categoryData?.id,
-        body: apiData
+        body: apiData,
       }).unwrap();
-      
+
       if (res?.status === "1") {
         success("Sub-category updated successfully!");
         handleClose();
@@ -150,7 +135,10 @@ export default function SubCategoryModal({
       const subCategoryName = isUpdate ? categoryData?.name : "";
       setValue("subCategory", subCategoryName || "");
 
-      setValue("description", isUpdate ? categoryData?.description || "" : "");
+      setValue(
+        "description",
+        isUpdate ? normalizeEditorContent(categoryData?.description || "") : ""
+      );
       setValue("price", categoryData?.price || "");
       setValue(
         "unitCount",
@@ -175,35 +163,41 @@ export default function SubCategoryModal({
   };
 
   return (
-    <ModalComponent
+    <Modal
       open={open}
       title={type === "update" ? "Update Sub Category" : "Add Sub Category"}
       onClose={handleClose}
-      secondaryAction={{
-        label: "Cancel",
-        onClick: handleClose,
-      }}
-      primaryAction={{
-        label: type === "update" ? "Update" : "Add Sub Category",
-        onClick: handleSubmit(isUpdate ? UpdateSubCategory : onSubmit),
-        isLoading: isAddSubCategoryLoading || isEditSubCategoryLoading,
+      secondaryLabel="Cancel"
+      primaryLabel={
+        saving ? "Saving…" : type === "update" ? "Update" : "Add Sub Category"
+      }
+      onPrimary={() => {
+        if (saving) return;
+        handleSubmit(isUpdate ? UpdateSubCategory : onSubmit)();
       }}
     >
-      <Box className="flex flex-col gap-5">
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 16,
+          maxHeight: "60vh",
+          overflowY: "auto",
+        }}
+      >
         <Controller
           name="category"
           control={control}
           render={({ field: { value } }) => (
-            <Box>
-              <InputFieldModal
-                title="Category"
-                label="Category Name"
-                placeholder="Category"
+            <Field label="Category" htmlFor="parent-category">
+              <Input
+                id="parent-category"
                 name="category"
+                placeholder="Category"
                 value={value}
-                disabled={true}
+                disabled
               />
-            </Box>
+            </Field>
           )}
         />
 
@@ -211,123 +205,93 @@ export default function SubCategoryModal({
           name="subCategory"
           control={control}
           render={({ field: { onChange, value } }) => (
-            <Box>
-              <InputFieldModal
-                title="Sub Category"
+            <Field
+              label="Sub Category"
+              htmlFor="sub-category-name"
+              error={errors.subCategory?.message}
+            >
+              <Input
+                id="sub-category-name"
                 name="subCategory"
                 placeholder="Sub category name"
                 value={value}
                 onChange={(e) => onChange(e.target.value)}
+                error={!!errors.subCategory}
               />
-              {errors.subCategory && (
-                <Typography
-                  variant="caption"
-                  sx={{ color: "error.main", mt: 1, display: "block" }}
-                >
-                  {errors.subCategory.message}
-                </Typography>
-              )}
-            </Box>
+            </Field>
           )}
         />
 
         <Controller
           name="addOnCategoryIds"
           control={control}
-          render={({ field: { onChange, value } }) => (
-            <Box>
-              <Typography
-                variant="body2"
-                sx={{ color: "#374151", mb: "8px" }}
-              >
-                Add-on / Repair Categories
-              </Typography>
-              <FormControl fullWidth size="small">
-                <Select
-                  multiple
-                  displayEmpty
-                  value={Array.isArray(value) ? value : []}
-                  onChange={(e) =>
-                    onChange(
-                      typeof e.target.value === "string"
-                        ? e.target.value.split(",")
-                        : e.target.value
-                    )
-                  }
-                  renderValue={(selected) => {
-                    if (!selected || selected.length === 0) {
+          render={({ field: { onChange, value } }) => {
+            const selected = Array.isArray(value) ? value : [];
+            return (
+              <Field label="Add-on / Repair Categories">
+                {addOnCategoryOptions.length === 0 ? (
+                  <p style={{ color: "var(--muted)", margin: 0 }}>
+                    No add-on categories available
+                  </p>
+                ) : (
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 8,
+                      maxHeight: 200,
+                      overflowY: "auto",
+                      padding: 12,
+                      background: "var(--canvas)",
+                      border: "1px solid var(--line)",
+                      borderRadius: "var(--r-md)",
+                    }}
+                  >
+                    {addOnCategoryOptions.map((opt) => {
+                      const checked = selected.includes(opt.value);
                       return (
-                        <Typography sx={{ color: "#9CA3AF" }}>
-                          No add-on categories
-                        </Typography>
-                      );
-                    }
-                    return (
-                      <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
-                        {selected.map((id) => (
-                          <Chip
-                            key={id}
-                            label={addOnCategoryLabel(id)}
-                            size="small"
+                        <label
+                          key={opt.value}
+                          style={{ display: "inline-flex", alignItems: "center", gap: 8 }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => {
+                              onChange(
+                                checked
+                                  ? selected.filter((id) => id !== opt.value)
+                                  : [...selected, opt.value]
+                              );
+                            }}
                           />
-                        ))}
-                      </Box>
-                    );
-                  }}
-                  MenuProps={{ PaperProps: { sx: { maxHeight: 320 } } }}
-                  sx={{
-                    bgcolor: "#F4F7FF",
-                    borderRadius: "8px",
-                    fontFamily: "Switzer",
-                    "& fieldset": { border: "none" },
-                    "& .MuiSelect-select": { minHeight: "36px", py: "8px" },
-                  }}
-                >
-                  {addOnCategoryOptions.length === 0 ? (
-                    <MenuItem disabled value="">
-                      No categories available
-                    </MenuItem>
-                  ) : (
-                    addOnCategoryOptions.map((opt) => (
-                      <MenuItem key={opt.value} value={opt.value}>
-                        <Checkbox
-                          checked={
-                            Array.isArray(value) &&
-                            value.indexOf(opt.value) > -1
-                          }
-                        />
-                        <ListItemText primary={opt.label} />
-                      </MenuItem>
-                    ))
-                  )}
-                </Select>
-              </FormControl>
-            </Box>
-          )}
+                          <span>{opt.label}</span>
+                          {checked ? <Badge tone="brand">Linked</Badge> : null}
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
+              </Field>
+            );
+          }}
         />
 
         <Controller
           name="price"
           control={control}
           render={({ field: { onChange, value } }) => (
-            <Box>
-              <InputFieldModal
-                title="Price"
+            <Field label="Price" htmlFor="sub-price" error={errors.price?.message}>
+              <Input
+                id="sub-price"
                 type="number"
                 name="price"
                 placeholder="Enter price"
                 value={value}
                 onChange={(e) => onChange(e.target.value)}
+                error={!!errors.price}
               />
-              {errors.price && (
-                <Typography
-                  variant="caption"
-                  sx={{ color: "error.main", mt: 1, display: "block" }}
-                >
-                  {errors.price.message}
-                </Typography>
-              )}
-            </Box>
+            </Field>
           )}
         />
 
@@ -335,24 +299,21 @@ export default function SubCategoryModal({
           name="unitCount"
           control={control}
           render={({ field: { onChange, value } }) => (
-            <Box>
-              <InputFieldModal
-                title="Unit count"
+            <Field
+              label="Unit count"
+              htmlFor="unit-count"
+              error={errors.unitCount?.message}
+            >
+              <Input
+                id="unit-count"
                 type="number"
                 name="unitCount"
                 placeholder="e.g. items per unit"
                 value={value}
                 onChange={(e) => onChange(e.target.value)}
+                error={!!errors.unitCount}
               />
-              {errors.unitCount && (
-                <Typography
-                  variant="caption"
-                  sx={{ color: "error.main", mt: 1, display: "block" }}
-                >
-                  {errors.unitCount.message}
-                </Typography>
-              )}
-            </Box>
+            </Field>
           )}
         />
 
@@ -360,25 +321,17 @@ export default function SubCategoryModal({
           name="description"
           control={control}
           render={({ field: { onChange, value } }) => (
-            <Box>
-              <RichTextEditor
-                title="Description"
+            <Field label="Description" error={errors.description?.message}>
+              <Textarea
                 value={value}
                 onChange={(e) => onChange(e.target.value)}
                 placeholder="Enter description"
+                rows={5}
               />
-              {errors.description && (
-                <Typography
-                  variant="caption"
-                  sx={{ color: "error.main", mt: 1, display: "block" }}
-                >
-                  {errors.description.message}
-                </Typography>
-              )}
-            </Box>
+            </Field>
           )}
         />
-      </Box>
-    </ModalComponent>
+      </div>
+    </Modal>
   );
 }

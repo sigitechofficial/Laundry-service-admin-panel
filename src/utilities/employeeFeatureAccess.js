@@ -4,7 +4,7 @@ import { getEmployeePermissions } from "./authStorage";
 /**
  * Sidebar parent whose path best matches pathname (longest prefix wins).
  */
-export function findSidebarParentForPathname(pathname) {
+function findSidebarParentForPathname(pathname) {
   let best = null;
   let bestLen = -1;
   for (const item of sidebarList) {
@@ -24,7 +24,7 @@ export function findSidebarParentForPathname(pathname) {
 /**
  * Build feature.key -> featureId from zone-admin permissions payload.
  */
-export function buildFeatureKeyToIdMap(permissions) {
+function buildFeatureKeyToIdMap(permissions) {
   const map = new Map();
   const list = Array.isArray(permissions) ? permissions : [];
   for (const p of list) {

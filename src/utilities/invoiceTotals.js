@@ -1,5 +1,5 @@
 /** Sum line totals from mapped invoice/order item rows. */
-export function sumServicesAndAddOnsFromItems(items = []) {
+function sumServicesAndAddOnsFromItems(items = []) {
   const servicesOnly = items.reduce(
     (sum, item) => sum + (Number(item.qty) || 0) * (Number(item.rate) || 0),
     0

@@ -1,7 +1,7 @@
-import { useState, useEffect } from "react";
-import { Box, Typography, Tabs, Tab } from "@mui/material";
+import { useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { BsCardList } from "../../shared/icons/index";
+import { PageHeader } from "../../design-system";
+import { ReportTabs } from "./ReportToolbar";
 import TopServicesReport from "./TopServicesReport";
 import HourlyReport from "./HourlyReport";
 import OnHoldReport from "./OnHoldReport";
@@ -9,79 +9,67 @@ import ServiceDemandReport from "./ServiceDemandReport";
 import TopPerformingShopsReport from "./TopPerformingShopsReport";
 import DailyEarningReport from "./DailyEarningReport";
 import ShopRatingsReport from "../shop-ratings-report/ShopRatingsReport";
+import PaymentsReport from "./PaymentsReport";
+import CancellationsReport from "./CancellationsReport";
+import CustomersReport from "./CustomersReport";
+import DriversReport from "./DriversReport";
+import OverdueReport from "./OverdueReport";
 
 const REPORT_TABS = [
-  { label: "Top Services Report", path: "/reports/top-services" },
-  { label: "Hourly Report", path: "/reports/hourly" },
-  { label: "On hold Report", path: "/reports/on-hold" },
-  { label: "Service Demand Report", path: "/reports/service-demand" },
-  { label: "Top Performing Shops", path: "/reports/top-performing-shops" },
-  { label: "Daily Earning Report", path: "/reports/daily-earning" },
-  { label: "Shop Ratings & Insights", path: "/reports/shop-ratings" },
+  { label: "Daily Earnings", path: "/reports/daily-earning" },
+  { label: "Top Services", path: "/reports/top-services" },
+  { label: "Service Demand", path: "/reports/service-demand" },
+  { label: "Top Shops", path: "/reports/top-performing-shops" },
+  { label: "Payments", path: "/reports/payments" },
+  { label: "Cancellations", path: "/reports/cancellations" },
+  { label: "Customers", path: "/reports/customers" },
+  { label: "Drivers", path: "/reports/drivers" },
+  { label: "Hourly", path: "/reports/hourly" },
+  { label: "On hold", path: "/reports/on-hold" },
+  { label: "Overdue", path: "/reports/overdue" },
+  { label: "Shop Ratings", path: "/reports/shop-ratings" },
 ];
 
-const REPORT_PANELS = [
-  TopServicesReport,
-  HourlyReport,
-  OnHoldReport,
-  ServiceDemandReport,
-  TopPerformingShopsReport,
-  DailyEarningReport,
-  ShopRatingsReport,
-];
+const REPORT_PANELS = {
+  "/reports/daily-earning": DailyEarningReport,
+  "/reports/top-services": TopServicesReport,
+  "/reports/service-demand": ServiceDemandReport,
+  "/reports/top-performing-shops": TopPerformingShopsReport,
+  "/reports/payments": PaymentsReport,
+  "/reports/cancellations": CancellationsReport,
+  "/reports/customers": CustomersReport,
+  "/reports/drivers": DriversReport,
+  "/reports/hourly": HourlyReport,
+  "/reports/on-hold": OnHoldReport,
+  "/reports/overdue": OverdueReport,
+  "/reports/shop-ratings": ShopRatingsReport,
+};
 
 export default function ReportsLayout() {
   const navigate = useNavigate();
   const location = useLocation();
-  const [activeTab, setActiveTab] = useState(0);
+  const path = location.pathname.replace(/\/$/, "");
 
   useEffect(() => {
-    const path = location.pathname.replace(/\/$/, "");
     if (path === "/reports") {
       navigate(REPORT_TABS[0].path, { replace: true });
-      return;
     }
-    const index = REPORT_TABS.findIndex((t) => location.pathname === t.path);
-    if (index >= 0) setActiveTab(index);
-  }, [location.pathname, navigate]);
+  }, [path, navigate]);
 
-  const handleTabChange = (_e, newValue) => {
-    setActiveTab(newValue);
-    navigate(REPORT_TABS[newValue].path, { replace: true });
-  };
-
-  const ActivePanel = REPORT_PANELS[activeTab];
+  const ActivePanel = REPORT_PANELS[path] || null;
 
   return (
-    <div className="!space-y-11">
-      <Box className="flex items-center gap-x-5 justify-between">
-        <Box className="flex items-center gap-x-5">
-          <Typography color="blue.50">
-            <BsCardList size="24px" color="blue.50" />
-          </Typography>
-          <Typography variant="h4" fontFamily={"Switzer"} color="grey.20">
-            Reports
-          </Typography>
-        </Box>
-      </Box>
-
-      <Tabs
-        value={activeTab}
-        onChange={handleTabChange}
-        variant="scrollable"
-        scrollButtons="auto"
-        sx={{
-          borderBottom: 1,
-          borderColor: "divider",
-          "& .MuiTab-root": { fontFamily: "Switzer", textTransform: "none" },
-        }}
-      >
-        {REPORT_TABS.map((tab, index) => (
-          <Tab key={tab.path} label={tab.label} id={`report-tab-${index}`} />
-        ))}
-      </Tabs>
-
-      <Box>{ActivePanel ? <ActivePanel /> : null}</Box>
+    <div>
+      <PageHeader
+        title="Reports"
+        description="Live operational and earnings reports. Each report states what it measures and which filters actually apply."
+      />
+      <ReportTabs
+        tabs={REPORT_TABS}
+        value={path}
+        onChange={(tab) => navigate(tab.path, { replace: true })}
+      />
+      {ActivePanel ? <ActivePanel /> : null}
     </div>
   );
 }

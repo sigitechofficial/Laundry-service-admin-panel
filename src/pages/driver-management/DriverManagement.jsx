@@ -1,368 +1,331 @@
-import React, { useState } from "react";
-import { Box, Typography } from "@mui/material";
-import { BsCardList, TbFileDownload, TbPlus } from "../../shared/icons/index";
-import Search from "../../components/ui/Search";
-import FiltersButton from "../../components/ui/FiltersButton";
-import DateRangeSelector from "../../components/ui/DateRangeSelector";
-import DataTable from "../../components/ui/DataTable";
-import StatusPill from "../../components/ui/StatusPill";
-import ChangeStatus from "../../components/ui/Switch";
-import ActionButtons from "../../components/ui/ActionButtons";
+import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { Button, Modal, PageHeader, Table } from "../../design-system";
+import { formatDate, formatMoney, resolveCurrencySymbol } from "../../utilities/formatters";
+import {
+  DirectoryActions,
+  DirectoryClearButton,
+  DirectoryDateInput,
+  DirectoryIdentity,
+  DirectoryMetric,
+  DirectoryMetrics,
+  DirectoryMoney,
+  DirectorySearch,
+  DirectoryStatusPill,
+  DirectoryTableWrap,
+  DirectoryToolbar,
+  DirectoryToolbarEnd,
+  DirectoryViewModal,
+} from "../directory-table/directoryTable";
+import { joinMeta } from "../directory-table/directoryTableUtils";
 import NewDriverModal from "./NewDriverModal";
 import EditDriverModal from "./EditDriverModal";
-import DeleteDriverModal from "./DeleteDriverModal";
-import { useNavigate } from "react-router-dom";
 import {
-  useGetAllCustomersCountQuery,
-  useGetAllCustomersQuery,
   useGetAllDriverMiniDetailsQuery,
+  useDeleteDriverMutation,
 } from "../../store/services/api";
-import { useSelector } from "react-redux";
 import { Delay } from "../../components/shared/Loaders";
-import { dateTimeFormat } from "../../shared/constants";
+import useToaster from "../../components/ui/Toaster";
+
+function matchesSearch(row, term) {
+  if (!term) return true;
+  const q = term.toLowerCase();
+  return Object.entries(row).some(([key, value]) => {
+    if (key === "actions") return false;
+    return String(value ?? "").toLowerCase().includes(q);
+  });
+}
+
+function matchesDateRange(row, dateRange) {
+  if (!dateRange.startDate && !dateRange.endDate) return true;
+  if (!row.createdAt) return false;
+
+  const createdAt = new Date(row.createdAt);
+  if (Number.isNaN(createdAt.getTime())) return false;
+
+  const start = dateRange.startDate
+    ? new Date(`${dateRange.startDate}T00:00:00`)
+    : null;
+  const end = dateRange.endDate
+    ? new Date(`${dateRange.endDate}T23:59:59.999`)
+    : null;
+
+  return (!start || createdAt >= start) && (!end || createdAt <= end);
+}
 
 export default function DriverManagement() {
   const navigate = useNavigate();
-  const [dateRange, setDateRange] = useState(null);
+  const { success, error: showError } = useToaster();
+  const [dateRange, setDateRange] = useState({ startDate: "", endDate: "" });
   const [searchTerm, setSearchTerm] = useState("");
   const [isNewDriverModalOpen, setIsNewDriverModalOpen] = useState(false);
   const [isEditDriverModalOpen, setIsEditDriverModalOpen] = useState(false);
   const [selectedDriver, setSelectedDriver] = useState(null);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [driverToDelete, setDriverToDelete] = useState(null);
+  const [viewRow, setViewRow] = useState(null);
 
-  // Debug: Log selectedDriver when it changes
-  React.useEffect(() => {
-    console.log("=== selectedDriver state changed ===");
-    console.log("selectedDriver:", selectedDriver);
-    if (selectedDriver) {
-      console.log("selectedDriver.firstName:", selectedDriver.firstName);
-      console.log("selectedDriver.lastName:", selectedDriver.lastName);
-      console.log("selectedDriver.email:", selectedDriver.email);
-    }
-  }, [selectedDriver]);
-
-  // Fetch drivers data from the new API
   const { data: driversResponse, isLoading, refetch: refetchDrivers } = useGetAllDriverMiniDetailsQuery();
-  const { data, refetch: refetchCount } = useGetAllCustomersCountQuery();
+  const [deleteDriver, { isLoading: isDeleting }] = useDeleteDriverMutation();
 
-  // Extract drivers from API response
-  const drivers = driversResponse?.data || [];
+  const drivers = useMemo(() => driversResponse?.data || [], [driversResponse?.data]);
 
-  // Debug: Log API response to see available fields
-  React.useEffect(() => {
-    if (driversResponse?.data && driversResponse.data.length > 0) {
-      console.log("Sample driver from API:", driversResponse.data[0]);
-    }
-  }, [driversResponse]);
+  const sortedDrivers = useMemo(
+    () =>
+      [...drivers].sort((a, b) => {
+        const dateA = new Date(a.createdAt || 0);
+        const dateB = new Date(b.createdAt || 0);
+        return dateB - dateA;
+      }),
+    [drivers]
+  );
 
-  // Sort drivers by createdAt in descending order (newest first)
-  const sortedDrivers = [...drivers].sort((a, b) => {
-    const dateA = new Date(a.createdAt || 0);
-    const dateB = new Date(b.createdAt || 0);
-    return dateB - dateA; // Descending order (newest first)
-  });
+  const driversData = useMemo(
+    () =>
+      sortedDrivers.map((driver, index) => ({
+        id: driver.id,
+        sl: index + 1,
+        driverId: driver.id,
+        name: `${driver.firstName || ""} ${driver.lastName || ""}`.trim(),
+        email: driver.email || "",
+        phone: driver.phoneNum || driver.phone || "",
+        role: driver.role?.name || "",
+        totalOrders: driver.totalOrders || 0,
+        completedOrders: driver.completedOrders || 0,
+        pendingOrders: driver.pendingOrders || 0,
+        driverEarnings: driver.driverEarnings || 0,
+        currencySymbol: resolveCurrencySymbol(driver),
+        createdAt: driver.createdAt,
+        status: driver.status,
+        changeStatus: driver.status,
+        firstName: driver.firstName || "",
+        lastName: driver.lastName || "",
+        classifiedAsId: driver.classifiedAsId || null,
+        phoneNum: driver.phoneNum || driver.phone || "",
+        countryCode: driver.countryCode || "",
+        laundaryShopId: driver.laundaryShopId || driver.classifiedAsId || null,
+      })),
+    [sortedDrivers]
+  );
 
-  // Map driver data to table format
-  const driversData = sortedDrivers?.map((driver, index) => {
+  const visibleRows = useMemo(
+    () =>
+      driversData.filter(
+        (row) => matchesSearch(row, searchTerm) && matchesDateRange(row, dateRange)
+      ),
+    [dateRange, driversData, searchTerm]
+  );
+
+  const driverStats = useMemo(() => {
+    const list = Array.isArray(drivers) ? drivers : [];
     return {
-      id: driver.id,
-      sl: index + 1,
-      driverId: driver.id,
-      name: `${driver.firstName || ""} ${driver.lastName || ""}`.trim(),
-      email: driver.email || "",
-      phone: driver.phoneNum || driver.phone || "", // Try both phoneNum and phone
-      role: driver.role?.name || "",
-      totalOrders: driver.totalOrders || 0,
-      completedOrders: driver.completedOrders || 0,
-      pendingOrders: driver.pendingOrders || 0,
-      driverEarnings: driver.driverEarnings || 0,
-      createdAt: driver.createdAt,
-      status: driver.status,
-      changeStatus: driver.status,
-      // Keep original driver data for edit modal - include all available fields from API
-      firstName: driver.firstName || "",
-      lastName: driver.lastName || "",
-      classifiedAsId: driver.classifiedAsId || null,
-      phoneNum: driver.phoneNum || driver.phone || "",
-      countryCode: driver.countryCode || "",
-      laundaryShopId: driver.laundaryShopId || driver.classifiedAsId || null,
+      total: list.length,
+      shopAgent: list.filter((d) => d.laundaryShopId || d.classifiedAsId).length,
+      freelance: list.filter((d) => !d.laundaryShopId && !d.classifiedAsId).length,
+      blocked: list.filter((d) => !d.status).length,
     };
-  });
+  }, [drivers]);
 
-  // Column configuration for driver table
-  const driverColumns = [
+  const handleDateChange = (part, value) => {
+    setDateRange((prev) => ({ ...prev, [part]: value }));
+  };
+
+  const handleSearchChange = (value) => {
+    setSearchTerm(value);
+  };
+
+  const closeDeleteModal = () => {
+    setIsDeleteModalOpen(false);
+    setDriverToDelete(null);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!driverToDelete?.id || isDeleting) return;
+    try {
+      const res = await deleteDriver(driverToDelete.id).unwrap();
+      if (res?.status === "1") {
+        success(res?.message || "Driver deleted successfully!");
+        closeDeleteModal();
+        refetchDrivers();
+      } else {
+        showError(res?.message || "Failed to delete driver");
+      }
+    } catch (err) {
+      const errorMessage =
+        err?.data?.message ||
+        err?.data?.error ||
+        err?.message ||
+        "Failed to delete driver";
+      showError(errorMessage);
+    }
+  };
+
+  const columns = [
     {
-      field: "sl",
-      headerName: "SL",
-      flex: 0.1,
-      minWidth: 80,
-    },
-    {
-      field: "driverId",
-      headerName: "Driver ID",
-      flex: 0.12,
-      minWidth: 100,
-    },
-    {
-      field: "name",
-      headerName: "Name",
-      flex: 0.15,
-      minWidth: 150,
-    },
-    {
-      field: "email",
-      headerName: "Email",
-      flex: 0.18,
-      minWidth: 180,
-    },
-    {
-      field: "role",
-      headerName: "Role",
-      flex: 0.12,
-      minWidth: 150,
-    },
-    {
-      field: "totalOrders",
-      headerName: "Total Orders",
-      flex: 0.1,
-      minWidth: 120,
-      type: "number",
-    },
-    {
-      field: "completedOrders",
-      headerName: "Completed",
-      flex: 0.1,
-      minWidth: 100,
-      type: "number",
-    },
-    {
-      field: "pendingOrders",
-      headerName: "Pending",
-      flex: 0.1,
-      minWidth: 100,
-      type: "number",
-    },
-    {
-      field: "driverEarnings",
-      headerName: "Earnings",
-      flex: 0.12,
-      minWidth: 120,
-      type: "number",
-    },
-    {
-      field: "status",
-      headerName: "Status",
-      flex: 0.08,
-      minWidth: 100,
-      type: "chip",
-      renderCell: (params) => (
-        <StatusPill status={params.value ? "active" : "block"} />
-      ),
-    },
-    {
-      field: "changeStatus",
-      headerName: "Change Status",
-      flex: 0.1,
-      minWidth: 130,
-      type: "switch",
-      renderCell: (row) => (
-        <ChangeStatus
-          width={"45px"}
-          checked={row.changeStatus}
-        // onChange={(e) => setChecked(e.target.checked)}
+      key: "name",
+      header: "Driver",
+      render: (row) => (
+        <DirectoryIdentity
+          name={row.name}
+          meta={joinMeta(row.email, row.role)}
+          id={row.driverId}
         />
       ),
     },
     {
-      field: "actions",
-      headerName: "Actions",
-      flex: 0.15,
-      minWidth: 200,
-      sortable: false,
-      renderCell: (row) => (
-        <ActionButtons
-          onView={() =>
-            navigate(`/driver-management/details/${row?.id}`)
-          }
-          onEdit={() => {
-            console.log("=== Edit button clicked ===");
-            console.log("row:", JSON.stringify(row, null, 2));
-            console.log("row.firstName:", row.firstName);
-            console.log("row.lastName:", row.lastName);
-            console.log("row.email:", row.email);
-            console.log("row.classifiedAsId:", row.classifiedAsId);
-            setSelectedDriver(row);
-            setIsEditDriverModalOpen(true);
-          }}
-          onDelete={() => {
-            setDriverToDelete(row);
-            setIsDeleteModalOpen(true);
-          }}
+      key: "status",
+      header: "Status",
+      render: (row) => <DirectoryStatusPill active={row.status} />,
+    },
+    {
+      key: "totalOrders",
+      header: "Orders",
+      render: (row) => (
+        <DirectoryMetric
+          value={row.totalOrders}
+          hint={row.pendingOrders > 0 ? `${row.pendingOrders} pending` : `${row.completedOrders} completed`}
         />
+      ),
+    },
+    {
+      key: "driverEarnings",
+      header: "Earnings",
+      render: (row) => (
+        <DirectoryMoney>{formatMoney(row.driverEarnings, row.currencySymbol)}</DirectoryMoney>
+      ),
+    },
+    {
+      key: "actions",
+      header: "Actions",
+      render: (row) => (
+        <DirectoryActions>
+          <Button size="sm" variant="secondary" onClick={() => setViewRow(row)}>
+            View
+          </Button>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => {
+              setSelectedDriver(row);
+              setIsEditDriverModalOpen(true);
+            }}
+          >
+            Edit
+          </Button>
+          <Button
+            size="sm"
+            variant="danger"
+            onClick={() => {
+              setDriverToDelete(row);
+              setIsDeleteModalOpen(true);
+            }}
+          >
+            Delete
+          </Button>
+        </DirectoryActions>
       ),
     },
   ];
 
-  const handleDateChange = (selectedRange) => {
-    console.log("Selected Date Range:", selectedRange);
-    setDateRange(selectedRange);
-
-    // You can use the date range for filtering customers
-    if (selectedRange) {
-      console.log(
-        "Start Date:",
-        selectedRange.startDate.format(dateTimeFormat)
-      );
-      console.log("End Date:", selectedRange.endDate.format(dateTimeFormat));
-      console.log("Label:", selectedRange.label);
-      console.log("Type:", selectedRange.type);
-    }
-  };
-
-  const handleSearchChange = (searchTerm) => {
-    setSearchTerm(searchTerm);
-    console.log("Search term:", searchTerm);
-    // Implement search logic here - filter the customersData
-  };
-
-  const handleFilter = () => {
-    console.log("Filter button clicked");
-    // Open filter modal or apply filters
-  };
-
-  const handleDownload = (data) => {
-    console.log("Download customers data:", data);
-    // Implement download functionality (CSV, Excel, etc.)
-  };
-
-  const handleRowAction = (actionType, rowData) => {
-    console.log("🚀 ~ handleRowAction ~ rowData:", rowData);
-    switch (actionType) {
-      case "view":
-        navigate(`customer-management/details/${rowData.id}`);
-        break;
-      case "edit":
-        // Navigate to edit customer page or open edit modal
-        console.log("Editing customer:", rowData.name);
-        break;
-      case "delete":
-        // Show confirmation dialog and delete customer
-        console.log("Deleting customer:", rowData.name);
-        break;
-      case "toggle-status":
-        // Toggle customer status
-        console.log("Toggling status for customer:", rowData.name);
-        break;
-      default:
-        break;
-    }
-  };
   if (isLoading) return <Delay />;
 
+  const driverName = driverToDelete
+    ? `${driverToDelete.firstName || ""} ${driverToDelete.lastName || ""}`.trim() || driverToDelete.name
+    : "this driver";
+
   return (
-    <>
-    <div className="!space-y-11">
-              <Box className="flex items-center gap-x-5 justify-between">
-                <Box className="flex items-center gap-x-5">
-                  <Typography color="blue.50">
-                    <BsCardList size="24px" color="blue.50" />
-                  </Typography>
+    <div>
+      <PageHeader
+        title="Driver Management"
+        description="View, add, and manage drivers"
+        actions={
+          <Button onClick={() => setIsNewDriverModalOpen(true)}>
+            New Driver
+          </Button>
+        }
+      />
 
-                  <Typography variant="h4" fontFamily={"Switzer"} color="grey.20">
-                    Driver Management
-                  </Typography>
-                </Box>
+      <DirectoryMetrics
+        items={[
+          { label: "Total drivers", value: driverStats.total, tone: "brand" },
+          { label: "Shop agent drivers", value: driverStats.shopAgent, tone: "navy" },
+          { label: "Freelance drivers", value: driverStats.freelance, tone: "success" },
+          { label: "Block drivers", value: driverStats.blocked, tone: "danger" },
+        ]}
+      />
 
-                <Box className="flex items-center gap-x-5">
-                  <Search
-                    placeholder="Search driver"
-                    onChange={handleSearchChange}
-                    value={searchTerm}
-                  />
-                  <FiltersButton
-                    text="Download"
-                    Icon={
-                      <Typography color="grey.400">
-                        <TbFileDownload size="24px" />
-                      </Typography>
-                    }
-                  />
-                  <DateRangeSelector
-                    value={dateRange}
-                    onChange={handleDateChange}
-                    placeholder="Select Date Range"
-                    className="w-fit"
-                  />
-                  <FiltersButton text="Zone" />
-                  <FiltersButton
-                    text="New Driver"
-                    onClick={() => setIsNewDriverModalOpen(true)}
-                    Icon={<TbPlus size="20px" />}
-                    variant="blue"
-                  />
-                </Box>
-              </Box>
-
-              <div className="grid grid-cols-4 gap-7 font-Inter">
-                <div className="rounded-lg !px-3.5 !py-5 bg-purple50">
-                  <h6 className="font-Inter font-semibold text-lg uppercase">
-                    Total drivers
-                  </h6>
-                  <p className="font-Inter font-medium text-[22px] !pt-10">
-                    {data?.data?.TotalCustomer}
-                  </p>
-                </div>
-
-                <div className="rounded-lg !px-3.5 !py-5 bg-red50">
-                  <h6 className="font-Inter font-semibold text-lg uppercase">
-                    Shop agent drivers
-                  </h6>
-                  <p className="font-Inter font-medium text-[22px] !pt-10">
-                    {data?.data?.NewCustomers}
-                  </p>
-                </div>
-
-                <div className="rounded-lg !px-3.5 !py-5 bg-green50">
-                  <h6 className="font-Inter font-semibold text-lg uppercase">
-                    freelance drivers
-                  </h6>
-                  <p className="font-Inter font-medium text-[22px] !pt-10">
-                    {data?.data?.RepeatedCustomers}
-                  </p>
-                </div>
-
-                <div className="rounded-lg !px-3.5 !py-5 bg-green200">
-                  <h6 className="font-Inter font-semibold text-lg uppercase">
-                    Block drivers
-                  </h6>
-                  <p className="font-Inter font-medium text-[22px] !pt-10">
-                    {data?.data?.topPerformingCustomers || 0}
-                  </p>
-                </div>
-              </div>
-
-              <div className="w-full overflow-auto">
-                <DataTable
-                  data={driversData || []}
-                  columns={driverColumns}
-                  searchPlaceholder="Search by driver ID, name, email..."
-                  onSearch={handleSearchChange}
-                  onFilter={handleFilter}
-                  onDateRangeChange={handleDateChange}
-                  onDownload={handleDownload}
-                  onRowAction={handleRowAction}
-                  height={600}
+      <DirectoryTableWrap
+        toolbar={
+          <DirectoryToolbar>
+            <DirectorySearch
+              id="driver-search"
+              value={searchTerm}
+              onChange={handleSearchChange}
+              placeholder="Search by driver ID, name, email…"
+            />
+            <DirectoryDateInput
+              id="driver-start-date"
+              value={dateRange.startDate}
+              onChange={(value) => handleDateChange("startDate", value)}
+              aria-label="Start date"
+              title="Start date"
+            />
+            <DirectoryDateInput
+              id="driver-end-date"
+              value={dateRange.endDate}
+              onChange={(value) => handleDateChange("endDate", value)}
+              aria-label="End date"
+              title="End date"
+            />
+            {searchTerm || dateRange.startDate || dateRange.endDate ? (
+              <DirectoryToolbarEnd>
+                <DirectoryClearButton
+                  onClick={() => {
+                    handleSearchChange("");
+                    setDateRange({ startDate: "", endDate: "" });
+                  }}
                 />
-              </div>
-            </div>
+              </DirectoryToolbarEnd>
+            ) : null}
+          </DirectoryToolbar>
+        }
+      >
+        <Table
+          columns={columns}
+          rows={visibleRows}
+          rowKey={(row) => row.id}
+          empty="No drivers found"
+        />
+      </DirectoryTableWrap>
+
+      <DirectoryViewModal
+        open={Boolean(viewRow)}
+        title={viewRow?.name || "Driver"}
+        onClose={() => setViewRow(null)}
+        primaryLabel="Open details"
+        onPrimary={() => {
+          if (!viewRow?.id) return;
+          navigate(`/driver-management/details/${viewRow.id}`);
+        }}
+        fields={[
+          { label: "Driver ID", value: viewRow?.driverId },
+          { label: "Email", value: viewRow?.email },
+          { label: "Phone", value: viewRow?.phone },
+          { label: "Role", value: viewRow?.role },
+          { label: "Total orders", value: viewRow?.totalOrders },
+          { label: "Completed", value: viewRow?.completedOrders },
+          { label: "Pending", value: viewRow?.pendingOrders },
+          { label: "Earnings", value: formatMoney(viewRow?.driverEarnings, viewRow?.currencySymbol) },
+          { label: "Status", value: viewRow?.status ? "Active" : "Inactive" },
+          { label: "Created", value: formatDate(viewRow?.createdAt) },
+        ]}
+      />
+
       <NewDriverModal
         open={isNewDriverModalOpen}
         onClose={() => setIsNewDriverModalOpen(false)}
         onDriverAdded={() => {
-          // Refetch drivers and count after adding a driver
           refetchDrivers();
-          refetchCount();
         }}
       />
       <EditDriverModal
@@ -373,26 +336,19 @@ export default function DriverManagement() {
         }}
         driverData={selectedDriver}
         onDriverUpdated={() => {
-          // Refetch drivers and count after updating a driver
           refetchDrivers();
-          refetchCount();
         }}
       />
-      <DeleteDriverModal
+      <Modal
         open={isDeleteModalOpen}
-        driverData={driverToDelete}
-        onClose={() => {
-          setIsDeleteModalOpen(false);
-          setDriverToDelete(null);
-        }}
-        onDriverDeleted={() => {
-          // Refetch drivers and count after deleting a driver
-          refetchDrivers();
-          refetchCount();
-          setIsDeleteModalOpen(false);
-          setDriverToDelete(null);
-        }}
+        title="Delete Driver"
+        description={`This will permanently remove ${driverName} and all saved details. This action can't be undone.`}
+        onClose={closeDeleteModal}
+        onPrimary={handleConfirmDelete}
+        primaryLabel={isDeleting ? "Deleting…" : "Delete"}
+        secondaryLabel="Cancel"
+        danger
       />
-    </>
+    </div>
   );
 }

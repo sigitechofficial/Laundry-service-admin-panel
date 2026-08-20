@@ -1,51 +1,35 @@
-import { Box, Typography } from "@mui/material";
-import { PiHeadsetBold } from "../../shared/icons/index";
 import { useState } from "react";
+import { Button } from "../../design-system";
 import AddOnServicesCard from "./AddOnServicesCard";
 import AddOnCategoriesModal from "./AddOnCategoriesModal";
+import CatalogChrome from "./catalogChrome";
 
 export default function AddOnServicesPage() {
   const [triggerAdd, setTriggerAdd] = useState(0);
   const [categoriesOpen, setCategoriesOpen] = useState(false);
 
-  const handleAddClick = () => {
-    setTriggerAdd((prev) => prev + 1);
-  };
-
   return (
-    <div className="space-y-11!">
-      <Box className="flex items-center gap-x-5 justify-between">
-        <Box className="flex items-center gap-x-5">
-          <Typography color="blue.50">
-            <PiHeadsetBold size="24px" color="blue.50" />
-          </Typography>
-          <Typography variant="h4" fontFamily={"Switzer"} color="grey.20">
-            Add-on Services
-          </Typography>
-        </Box>
-        <Box className="flex items-center gap-x-3">
-          <button
-            onClick={() => setCategoriesOpen(true)}
-            className="border border-blue100 text-blue100 hover:bg-blue-50 px-6 py-2.5 rounded-lg font-medium text-sm transition-all duration-200 flex items-center justify-center min-w-[160px] h-[40px]"
-          >
+    <CatalogChrome
+      section="addons"
+      title="Add-ons"
+      description="Optional extras grouped by add-on category. Link a category to an item from Categories so customers see the same extras."
+      breadcrumb={["Catalog", "Add-ons"]}
+      actions={
+        <>
+          <Button variant="secondary" onClick={() => setCategoriesOpen(true)}>
             Manage Categories
-          </button>
-          <button
-            onClick={handleAddClick}
-            className="bg-blue100 hover:bg-blue-600 text-white px-6 py-2.5 rounded-lg font-medium text-sm transition-all duration-200 shadow-sm hover:shadow-md flex items-center justify-center min-w-[150px] h-[40px]"
-          >
+          </Button>
+          <Button onClick={() => setTriggerAdd((prev) => prev + 1)}>
             Add Add-on
-          </button>
-        </Box>
-      </Box>
-      <Box>
-        <AddOnServicesCard triggerAdd={triggerAdd} />
-      </Box>
-
+          </Button>
+        </>
+      }
+    >
+      <AddOnServicesCard triggerAdd={triggerAdd} />
       <AddOnCategoriesModal
         open={categoriesOpen}
         onClose={() => setCategoriesOpen(false)}
       />
-    </div>
+    </CatalogChrome>
   );
 }

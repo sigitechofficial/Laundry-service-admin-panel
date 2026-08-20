@@ -1,13 +1,7 @@
 import { useMemo, useState } from "react";
-import { Box, Button, Popover, Typography } from "@mui/material";
-import FiltersButton from "../../components/ui/FiltersButton";
-import SelectField from "../../components/ui/SelectField";
+import { Button, Field, Select } from "../../design-system";
 import { TbFilter } from "../../shared/icons/index";
 
-/**
- * Zone list filters (city / payment / assignment).
- * Popover (not Menu) so nested SelectField works reliably.
- */
 export default function ZoneFiltersPopover({
   city,
   onCityChange,
@@ -20,8 +14,7 @@ export default function ZoneFiltersPopover({
   onClearFilters,
   hasActiveFilters = false,
 }) {
-  const [anchorEl, setAnchorEl] = useState(null);
-  const open = Boolean(anchorEl);
+  const [open, setOpen] = useState(false);
 
   const cities = useMemo(
     () =>
@@ -50,107 +43,74 @@ export default function ZoneFiltersPopover({
     { value: "unassigned", label: "Unassigned" },
   ];
 
-  const handleClose = () => setAnchorEl(null);
-
   return (
-    <>
-      <FiltersButton
-        bgColor="grey.60"
-        border="none"
-        boxShadow="none"
-        text={hasActiveFilters ? "Filters •" : "Filters"}
-        Icon={<TbFilter size="20px" color="#9CA3AF" />}
-        onClick={(e) => setAnchorEl(e.currentTarget)}
-      />
-      <Popover
-        anchorEl={anchorEl}
-        open={open}
-        onClose={handleClose}
-        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
-        transformOrigin={{ vertical: "top", horizontal: "right" }}
-        slotProps={{
-          paper: {
-            sx: {
-              mt: 1,
-              minWidth: 280,
-              borderRadius: "8px",
-              p: 2,
-              boxShadow: "0px 4px 16px rgba(0, 0, 0, 0.1)",
-            },
-          },
-        }}
-      >
-        <Typography
-          variant="subtitle2"
-          sx={{ fontFamily: "Inter", fontWeight: 600, mb: 1.5 }}
+    <div style={{ position: "relative" }}>
+      <Button variant="secondary" onClick={() => setOpen((v) => !v)}>
+        <TbFilter size={18} />
+        {hasActiveFilters ? "Filters •" : "Filters"}
+      </Button>
+      {open ? (
+        <div
+          style={{
+            position: "absolute",
+            right: 0,
+            top: "calc(100% + 8px)",
+            zIndex: 20,
+            minWidth: 280,
+            padding: 16,
+            background: "var(--surface)",
+            border: "1px solid var(--line)",
+            borderRadius: "var(--r-md)",
+            boxShadow: "var(--e-2)",
+            display: "grid",
+            gap: 12,
+          }}
         >
-          Filter zones
-        </Typography>
-
-        <Box sx={{ mb: 2 }} onMouseDown={(e) => e.stopPropagation()}>
-          <SelectField
-            title="City"
-            value={city || ""}
-            onChange={(e) => onCityChange?.(e.target.value)}
-            options={cities}
-            placeholder="All cities"
-            bgcolor="#F9FAFB"
-            height="44px"
-            radius="8px"
-          />
-        </Box>
-
-        <Box sx={{ mb: 2 }} onMouseDown={(e) => e.stopPropagation()}>
-          <SelectField
-            title="Payment method"
-            value={paymentMethod || ""}
-            onChange={(e) => onPaymentMethodChange?.(e.target.value)}
-            options={payments}
-            placeholder="All payment methods"
-            bgcolor="#F9FAFB"
-            height="44px"
-            radius="8px"
-          />
-        </Box>
-
-        <Box sx={{ mb: 2 }} onMouseDown={(e) => e.stopPropagation()}>
-          <SelectField
-            title="Zone assign"
-            value={assignment || ""}
-            onChange={(e) => onAssignmentChange?.(e.target.value)}
-            options={assignmentOptions}
-            placeholder="All"
-            bgcolor="#F9FAFB"
-            height="44px"
-            radius="8px"
-          />
-        </Box>
-
-        <Box sx={{ display: "flex", gap: 1, justifyContent: "flex-end" }}>
-          <Button
-            size="small"
-            onClick={() => {
-              onClearFilters?.();
-              handleClose();
-            }}
-            sx={{ textTransform: "none" }}
-          >
-            Clear all
-          </Button>
-          <Button
-            size="small"
-            variant="contained"
-            onClick={handleClose}
-            sx={{
-              textTransform: "none",
-              bgcolor: "#000099",
-              "&:hover": { bgcolor: "#0000cc" },
-            }}
-          >
-            Done
-          </Button>
-        </Box>
-      </Popover>
-    </>
+          <strong>Filter zones</strong>
+          <Field label="City">
+            <Select
+              aria-label="City"
+              value={city || ""}
+              onChange={(value) => onCityChange?.(value)}
+              options={cities}
+              placeholder="All cities"
+            />
+          </Field>
+          <Field label="Payment method">
+            <Select
+              aria-label="Payment method"
+              value={paymentMethod || ""}
+              onChange={(value) => onPaymentMethodChange?.(value)}
+              options={payments}
+              placeholder="All payment methods"
+            />
+          </Field>
+          <Field label="Zone assign">
+            <Select
+              aria-label="Zone assign"
+              value={assignment || ""}
+              onChange={(value) => onAssignmentChange?.(value)}
+              options={assignmentOptions}
+              placeholder="All"
+            />
+          </Field>
+          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => {
+                onClearFilters?.();
+                setOpen(false);
+              }}
+            >
+              Clear all
+            </Button>
+            <Button size="sm" onClick={() => setOpen(false)}>
+              Done
+            </Button>
+          </div>
+        </div>
+      ) : null}
+    </div>
   );
 }

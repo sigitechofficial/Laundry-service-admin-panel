@@ -1,79 +1,28 @@
 import { useMemo, useState, useCallback } from "react";
-import {
-  Box,
-  Paper,
-  Typography,
-  Select,
-  MenuItem,
-  Switch,
-  FormControlLabel,
-} from "@mui/material";
-import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
-import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
-import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import dayjs from "dayjs";
-import InputFieldBordered from "../../components/ui/InputFieldBordered";
-import ButtonBlue from "../../components/ui/ButtonBlue";
+import {
+  Button,
+  Field,
+  Input,
+  Modal,
+  PageHeader,
+  Select,
+  Table,
+} from "../../design-system";
+import { PaginationBar, Toggle } from "../misc-kit";
+import {
+  DirectoryActions,
+  DirectoryIdentity,
+  DirectoryMetric,
+  DirectoryMetrics,
+  DirectoryStatusPill,
+  DirectoryTableWrap,
+  DirectoryViewModal,
+} from "../directory-table/directoryTable";
 import useToaster from "../../components/ui/Toaster";
-import DataTable from "../../components/ui/DataTable";
-import StatCard from "../../components/ui/StatCard";
-import ModalComponent from "../../components/shared/Modal";
 import { useAddCouponMutation, useGetAllCouponsQuery } from "../../store/services/api";
-import { BsCardList, TbCalendar, TbPlus } from "../../shared/icons/index";
-
-const SECTION_CARD_SX = {
-  borderRadius: "12px",
-  border: "1px solid #E5E7EB",
-  boxShadow: "0 1px 4px 0 rgb(0 0 0 / 0.06), 0 4px 16px -4px rgb(0 0 0 / 0.04)",
-  overflow: "hidden",
-  bgcolor: "#fff",
-};
-
-const FIELD_LABEL_SX = {
-  mb: 0.75,
-  fontSize: "11px",
-  fontWeight: 700,
-  color: "#64748B",
-  letterSpacing: "0.08em",
-  textTransform: "uppercase",
-};
-
-const SELECT_FIELD_SX = {
-  width: "100%",
-  height: "48px",
-  borderRadius: "8px",
-  border: "1px solid #E2E8F0",
-  bgcolor: "#fff",
-  fontFamily: "Switzer",
-  fontSize: "14px",
-  "& .MuiSelect-select": {
-    py: "12px",
-    px: "14px",
-    display: "flex",
-    alignItems: "center",
-  },
-  "& .MuiOutlinedInput-notchedOutline": {
-    border: "none",
-  },
-};
-
-const DATE_FIELD_SX = {
-  width: "100%",
-  "& .MuiOutlinedInput-root": {
-    height: "48px",
-    borderRadius: "8px",
-    border: "1px solid #E2E8F0",
-    fontFamily: "Switzer",
-    bgcolor: "#fff",
-    "& fieldset": {
-      border: "none",
-    },
-  },
-};
-
-const MENU_PROPS = {
-  PaperProps: { sx: { maxHeight: 280 } },
-};
+import { TbPlus } from "../../shared/icons/index";
+import { formatDate, formatMoney, resolveCurrencySymbol } from "../../utilities/formatters";
 
 const initialPromoForm = () => ({
   code: "",
@@ -85,8 +34,8 @@ const initialPromoForm = () => ({
   usageLimit: "",
   usedCount: "0",
   perUserLimit: "1",
-  startDate: null,
-  expiryDate: null,
+  startDate: "",
+  expiryDate: "",
   isActive: true,
 });
 
@@ -104,9 +53,12 @@ function parseOptionalDecimal(s) {
   return Number.isFinite(n) ? n : null;
 }
 
-function formatMoney(v) {
-  if (v == null || v === "") return "—";
-  return Number(v).toFixed(2);
+function money(amount, source) {
+  return formatMoney(
+    amount,
+    resolveCurrencySymbol(source),
+    source?.currency ?? source?.currencyCode ?? source?.currency_code
+  );
 }
 
 function rowFromPayload(body, id) {
@@ -118,16 +70,19 @@ function rowFromPayload(body, id) {
     discountType: body.discountType,
     discountValue: body.discountValue,
     discountLabel: body.discountType === "percentage" ? "Percentage" : "Flat",
-    discountDisplay: body.discountType === "percentage" ? `${body.discountValue}%` : Number(body.discountValue).toFixed(2),
-    minOrder: body.minOrderAmount != null ? formatMoney(body.minOrderAmount) : "—",
-    maxCap: body.maxDiscountCap != null ? formatMoney(body.maxDiscountCap) : "—",
+    discountDisplay:
+      body.discountType === "percentage"
+        ? `${body.discountValue}%`
+        : money(body.discountValue, body),
+    minOrder: body.minOrderAmount != null ? money(body.minOrderAmount, body) : "—",
+    maxCap: body.maxDiscountCap != null ? money(body.maxDiscountCap, body) : "—",
     usedCount: body.usedCount ?? 0,
     usageLimitLabel: usageLimit == null ? "∞" : String(usageLimit),
     perUser: String(body.perUserLimit ?? 1),
-    startDate: body.startDate || "—",
-    expiryDate: body.expiryDate || "—",
+    startDate: formatDate(body.startDate),
+    expiryDate: formatDate(body.expiryDate),
+    expiryDateRaw: body.expiryDate,
     isActive: body.isActive,
-    activeLabel: body.isActive ? "Active" : "Off",
   };
 }
 
@@ -145,101 +100,84 @@ function extractCouponsData(response) {
     root?.coupons ??
     [];
   const pagination = root?.meta?.pagination ?? payload?.meta?.pagination;
-  const total =
+  const list = Array.isArray(coupons) ? coupons : [];
+  // When `data` is a bare coupon array, `.count`/`.total` are missing (and
+  // `Number(0)` is finite), so fall back to the list length.
+  const rawTotal =
     pagination?.total ??
     payload?.total ??
     payload?.totalCount ??
-    payload?.count ??
+    (payloadList ? undefined : payload?.count) ??
     root?.total ??
-    root?.count ??
-    0;
+    (Array.isArray(root) ? undefined : root?.count);
+  const parsed = Number(rawTotal);
+  const total =
+    Number.isFinite(parsed) && !(parsed === 0 && list.length > 0)
+      ? parsed
+      : list.length;
   return {
-    coupons: Array.isArray(coupons) ? coupons : [],
-    total: Number.isFinite(Number(total))
-      ? Number(total)
-      : Array.isArray(coupons)
-        ? coupons.length
-        : 0,
+    coupons: list,
+    total,
   };
 }
 
 function CreatePromoCodeForm({ form, errors, patch, discountHint }) {
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", gap: 2.5 }}>
-      <Typography sx={{ fontSize: 12, color: "#64748B" }}>
+    <div style={{ display: "grid", gap: 20 }}>
+      <p style={{ margin: 0, color: "var(--muted)", fontSize: 13 }}>
         Required fields are marked. Optional fields can be left blank.
-      </Typography>
+      </p>
 
-      <Box>
-        <Typography sx={{ ...FIELD_LABEL_SX, mb: 1 }}>Basic</Typography>
-        <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)" }, gap: 2 }}>
-          <Box>
-            <Typography sx={FIELD_LABEL_SX}>
-              Code <Typography component="span" sx={{ color: "#DC2626" }}>*</Typography>
-            </Typography>
-            <InputFieldBordered
+      <div>
+        <h4 style={{ margin: "0 0 12px" }}>Basic</h4>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
+          <Field label="Code*" htmlFor="promo-code" error={errors.code}>
+            <Input
+              id="promo-code"
               placeholder="e.g. SUMMER20"
               value={form.code}
               onChange={(e) => patch("code", e.target.value.toUpperCase().replace(/\s/g, ""))}
               autoComplete="off"
+              error={Boolean(errors.code)}
             />
-            {errors.code && (
-              <Typography sx={{ fontSize: 12, color: "#DC2626", mt: 0.5 }}>{errors.code}</Typography>
-            )}
-          </Box>
-          <Box>
-            <Typography sx={FIELD_LABEL_SX}>
-              Description <Typography component="span" sx={{ color: "#DC2626" }}>*</Typography>
-            </Typography>
-            <InputFieldBordered
+          </Field>
+          <Field label="Description*" htmlFor="promo-desc" error={errors.description}>
+            <Input
+              id="promo-desc"
               placeholder="e.g. Get 10% off your first order"
               value={form.description}
               onChange={(e) => patch("description", e.target.value)}
               autoComplete="off"
+              error={Boolean(errors.description)}
             />
-            {errors.description && (
-              <Typography sx={{ fontSize: 12, color: "#DC2626", mt: 0.5 }}>{errors.description}</Typography>
-            )}
-          </Box>
-          <Box>
-            <Typography sx={FIELD_LABEL_SX}>Active</Typography>
-            <FormControlLabel
-              control={
-                <Switch checked={form.isActive} onChange={(e) => patch("isActive", e.target.checked)} color="primary" />
-              }
-              label={
-                <Typography sx={{ fontSize: 13, color: "#334155" }}>
-                  {form.isActive ? "Usable when within dates and limits" : "Disabled"}
-                </Typography>
-              }
+          </Field>
+          <Field label="Active">
+            <Toggle
+              checked={form.isActive}
+              onChange={(e) => patch("isActive", e.target.checked)}
+              label={form.isActive ? "Usable when within dates and limits" : "Disabled"}
             />
-          </Box>
-        </Box>
-      </Box>
+          </Field>
+        </div>
+      </div>
 
-      <Box>
-        <Typography sx={{ ...FIELD_LABEL_SX, mb: 1 }}>Discount</Typography>
-        <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)" }, gap: 2 }}>
-          <Box>
-            <Typography sx={FIELD_LABEL_SX}>
-              Discount type <Typography component="span" sx={{ color: "#DC2626" }}>*</Typography>
-            </Typography>
+      <div>
+        <h4 style={{ margin: "0 0 12px" }}>Discount</h4>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
+          <Field label="Discount type*">
             <Select
+              aria-label="Discount type"
               value={form.discountType}
-              onChange={(e) => patch("discountType", e.target.value)}
-              size="small"
-              sx={SELECT_FIELD_SX}
-              MenuProps={MENU_PROPS}
-            >
-              <MenuItem value="percentage">Percentage (% off)</MenuItem>
-              <MenuItem value="flat">Flat amount (off)</MenuItem>
-            </Select>
-          </Box>
-          <Box>
-            <Typography sx={FIELD_LABEL_SX}>
-              Discount value <Typography component="span" sx={{ color: "#DC2626" }}>*</Typography>
-            </Typography>
-            <InputFieldBordered
+              onChange={(value) => patch("discountType", value)}
+              options={[
+                { value: "percentage", label: "Percentage (% off)" },
+                { value: "flat", label: "Flat amount (off)" },
+              ]}
+            />
+          </Field>
+          <Field label="Discount value*" htmlFor="promo-value" hint={discountHint} error={errors.discountValue}>
+            <Input
+              id="promo-value"
               type="number"
               inputMode="decimal"
               placeholder={form.discountType === "percentage" ? "10" : "5.00"}
@@ -247,21 +185,18 @@ function CreatePromoCodeForm({ form, errors, patch, discountHint }) {
               onChange={(e) => patch("discountValue", e.target.value)}
               min={0}
               step="0.01"
+              error={Boolean(errors.discountValue)}
             />
-            <Typography sx={{ fontSize: 11, color: "#94A3B8", mt: 0.5 }}>{discountHint}</Typography>
-            {errors.discountValue && (
-              <Typography sx={{ fontSize: 12, color: "#DC2626", mt: 0.5 }}>{errors.discountValue}</Typography>
-            )}
-          </Box>
-        </Box>
-      </Box>
+          </Field>
+        </div>
+      </div>
 
-      <Box>
-        <Typography sx={{ ...FIELD_LABEL_SX, mb: 1 }}>Conditions</Typography>
-        <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "repeat(3, 1fr)" }, gap: 2 }}>
-          <Box>
-            <Typography sx={FIELD_LABEL_SX}>Min order amount</Typography>
-            <InputFieldBordered
+      <div>
+        <h4 style={{ margin: "0 0 12px" }}>Conditions</h4>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12 }}>
+          <Field label="Min order amount" htmlFor="promo-min" hint="Minimum cart value">
+            <Input
+              id="promo-min"
               type="number"
               inputMode="decimal"
               placeholder="No minimum"
@@ -270,11 +205,10 @@ function CreatePromoCodeForm({ form, errors, patch, discountHint }) {
               min={0}
               step="0.01"
             />
-            <Typography sx={{ fontSize: 11, color: "#94A3B8", mt: 0.5 }}>Minimum cart value</Typography>
-          </Box>
-          <Box>
-            <Typography sx={FIELD_LABEL_SX}>Max discount cap</Typography>
-            <InputFieldBordered
+          </Field>
+          <Field label="Max discount cap" htmlFor="promo-cap" hint="For % discounts">
+            <Input
+              id="promo-cap"
               type="number"
               inputMode="decimal"
               placeholder="No cap"
@@ -283,11 +217,10 @@ function CreatePromoCodeForm({ form, errors, patch, discountHint }) {
               min={0}
               step="0.01"
             />
-            <Typography sx={{ fontSize: 11, color: "#94A3B8", mt: 0.5 }}>For % discounts</Typography>
-          </Box>
-          <Box>
-            <Typography sx={FIELD_LABEL_SX}>Used count</Typography>
-            <InputFieldBordered
+          </Field>
+          <Field label="Used count" htmlFor="promo-used" hint="Current redemption count" error={errors.usedCount}>
+            <Input
+              id="promo-used"
               type="number"
               inputMode="numeric"
               placeholder="0"
@@ -295,21 +228,18 @@ function CreatePromoCodeForm({ form, errors, patch, discountHint }) {
               onChange={(e) => patch("usedCount", e.target.value)}
               min={0}
               step={1}
+              error={Boolean(errors.usedCount)}
             />
-            {errors.usedCount && (
-              <Typography sx={{ fontSize: 12, color: "#DC2626", mt: 0.5 }}>{errors.usedCount}</Typography>
-            )}
-            <Typography sx={{ fontSize: 11, color: "#94A3B8", mt: 0.5 }}>Current redemption count</Typography>
-          </Box>
-        </Box>
-      </Box>
+          </Field>
+        </div>
+      </div>
 
-      <Box>
-        <Typography sx={{ ...FIELD_LABEL_SX, mb: 1 }}>Usage limits</Typography>
-        <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)" }, gap: 2 }}>
-          <Box>
-            <Typography sx={FIELD_LABEL_SX}>Global usage limit</Typography>
-            <InputFieldBordered
+      <div>
+        <h4 style={{ margin: "0 0 12px" }}>Usage limits</h4>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
+          <Field label="Global usage limit" htmlFor="promo-usage" error={errors.usageLimit}>
+            <Input
+              id="promo-usage"
               type="number"
               inputMode="numeric"
               placeholder="Unlimited"
@@ -317,14 +247,12 @@ function CreatePromoCodeForm({ form, errors, patch, discountHint }) {
               onChange={(e) => patch("usageLimit", e.target.value)}
               min={1}
               step={1}
+              error={Boolean(errors.usageLimit)}
             />
-            {errors.usageLimit && (
-              <Typography sx={{ fontSize: 12, color: "#DC2626", mt: 0.5 }}>{errors.usageLimit}</Typography>
-            )}
-          </Box>
-          <Box>
-            <Typography sx={FIELD_LABEL_SX}>Per user limit</Typography>
-            <InputFieldBordered
+          </Field>
+          <Field label="Per user limit" htmlFor="promo-per-user" error={errors.perUserLimit}>
+            <Input
+              id="promo-per-user"
               type="number"
               inputMode="numeric"
               placeholder="1"
@@ -332,82 +260,56 @@ function CreatePromoCodeForm({ form, errors, patch, discountHint }) {
               onChange={(e) => patch("perUserLimit", e.target.value)}
               min={1}
               step={1}
+              error={Boolean(errors.perUserLimit)}
             />
-            {errors.perUserLimit && (
-              <Typography sx={{ fontSize: 12, color: "#DC2626", mt: 0.5 }}>{errors.perUserLimit}</Typography>
-            )}
-          </Box>
-        </Box>
-      </Box>
+          </Field>
+        </div>
+      </div>
 
-      <Box>
-        <Typography sx={{ ...FIELD_LABEL_SX, mb: 1 }}>Validity</Typography>
-        <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)" }, gap: 2 }}>
-          <Box>
-            <Typography sx={FIELD_LABEL_SX}>Start date</Typography>
-            <DatePicker
+      <div>
+        <h4 style={{ margin: "0 0 12px" }}>Validity</h4>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
+          <Field label="Start date" htmlFor="promo-start">
+            <Input
+              id="promo-start"
+              type="date"
               value={form.startDate}
-              onChange={(v) => patch("startDate", v)}
-              slotProps={{
-                textField: { placeholder: "Optional", sx: DATE_FIELD_SX, fullWidth: true },
-              }}
-              slots={{ openPickerIcon: () => <TbCalendar size={18} style={{ color: "#6B7280" }} /> }}
+              onChange={(e) => patch("startDate", e.target.value)}
             />
-          </Box>
-          <Box>
-            <Typography sx={FIELD_LABEL_SX}>Expiry date</Typography>
-            <DatePicker
+          </Field>
+          <Field label="Expiry date" htmlFor="promo-expiry" error={errors.expiryDate}>
+            <Input
+              id="promo-expiry"
+              type="date"
               value={form.expiryDate}
-              onChange={(v) => patch("expiryDate", v)}
-              slotProps={{
-                textField: { placeholder: "Optional", sx: DATE_FIELD_SX, fullWidth: true },
-              }}
-              slots={{ openPickerIcon: () => <TbCalendar size={18} style={{ color: "#6B7280" }} /> }}
+              onChange={(e) => patch("expiryDate", e.target.value)}
+              error={Boolean(errors.expiryDate)}
             />
-            {errors.expiryDate && (
-              <Typography sx={{ fontSize: 12, color: "#DC2626", mt: 0.5 }}>{errors.expiryDate}</Typography>
-            )}
-          </Box>
-        </Box>
-      </Box>
-    </Box>
+          </Field>
+        </div>
+      </div>
+    </div>
   );
 }
 
-const TABLE_COLUMNS = [
-  { field: "sl", headerName: "SL", minWidth: 56, flex: 0.08 },
-  { field: "code", headerName: "Code", minWidth: 120, flex: 0.12 },
-  { field: "description", headerName: "Description", minWidth: 180, flex: 0.18 },
-  { field: "discountLabel", headerName: "Type", minWidth: 100, flex: 0.1 },
-  { field: "discountDisplay", headerName: "Value", minWidth: 88, flex: 0.09 },
-  { field: "minOrder", headerName: "Min order", minWidth: 96, flex: 0.1 },
-  { field: "maxCap", headerName: "Max cap", minWidth: 88, flex: 0.09 },
-  { field: "usedCount", headerName: "Used", minWidth: 64, flex: 0.07 },
-  { field: "usageLimitLabel", headerName: "Global limit", minWidth: 88, flex: 0.09 },
-  { field: "perUser", headerName: "Per user", minWidth: 72, flex: 0.08 },
-  { field: "startDate", headerName: "Start", minWidth: 100, flex: 0.1 },
-  { field: "expiryDate", headerName: "Expiry", minWidth: 100, flex: 0.1 },
-  { field: "activeLabel", headerName: "Status", minWidth: 80, flex: 0.08 },
-];
-
 export default function PromoCodesPage() {
   const [createOpen, setCreateOpen] = useState(false);
+  const [viewRow, setViewRow] = useState(null);
   const [form, setForm] = useState(initialPromoForm);
   const [errors, setErrors] = useState({});
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
   const { success, error: toastError, info } = useToaster();
-  const { data: couponsResponse, isLoading: isCouponsLoading, refetch } = useGetAllCouponsQuery({
-    page,
-    limit,
-    isActive: true,
-  });
+  const { data: couponsResponse, isLoading: isCouponsLoading, isError, refetch } =
+    useGetAllCouponsQuery({
+      page,
+      limit,
+      isActive: true,
+    });
   const [addCoupon, { isLoading }] = useAddCouponMutation();
 
   const discountHint = useMemo(() => {
-    if (form.discountType === "percentage") {
-      return "Percentage 0–100 (e.g. 10 for 10% off).";
-    }
+    if (form.discountType === "percentage") return "Percentage 0–100 (e.g. 10 for 10% off).";
     return "Fixed amount off the order (e.g. 5.00).";
   }, [form.discountType]);
 
@@ -448,19 +350,19 @@ export default function PromoCodesPage() {
     const active = tableRows.filter((r) => r.isActive).length;
     const now = dayjs();
     const expiringSoon = tableRows.filter((r) => {
-      if (!r.expiryDate || r.expiryDate === "—") return false;
-      const exp = dayjs(r.expiryDate);
+      if (!r.expiryDateRaw || r.expiryDate === "—") return false;
+      const exp = dayjs(r.expiryDateRaw);
       if (!exp.isValid()) return false;
       const days = exp.diff(now, "day");
       return days >= 0 && days <= 7;
     }).length;
     const disabled = tableRows.filter((r) => !r.isActive).length;
     return { total, active, expiringSoon, disabled };
-  }, [tableRows]);
+  }, [tableRows, total]);
 
   const tableData = useMemo(
-    () => tableRows.map((r, i) => ({ ...r, sl: i + 1 })),
-    [tableRows]
+    () => tableRows.map((r, i) => ({ ...r, sl: (page - 1) * limit + i + 1 })),
+    [tableRows, page, limit]
   );
 
   const validate = () => {
@@ -478,26 +380,16 @@ export default function PromoCodesPage() {
     }
 
     const perUser = parseOptionalInt(form.perUserLimit);
-    if (perUser !== null && perUser < 1) {
-      next.perUserLimit = "Must be at least 1.";
-    }
+    if (perUser !== null && perUser < 1) next.perUserLimit = "Must be at least 1.";
 
     const usage = parseOptionalInt(form.usageLimit);
-    if (usage !== null && usage < 1) {
-      next.usageLimit = "Must be at least 1 or leave blank for unlimited.";
-    }
+    if (usage !== null && usage < 1) next.usageLimit = "Must be at least 1 or leave blank for unlimited.";
 
     const usedCount = parseOptionalInt(form.usedCount);
-    if (usedCount !== null && usedCount < 0) {
-      next.usedCount = "Used count cannot be negative.";
-    }
+    if (usedCount !== null && usedCount < 0) next.usedCount = "Used count cannot be negative.";
 
-    if (form.startDate && form.expiryDate) {
-      const a = dayjs(form.startDate).startOf("day");
-      const b = dayjs(form.expiryDate).startOf("day");
-      if (a.isValid() && b.isValid() && b.isBefore(a)) {
-        next.expiryDate = "Expiry must be on or after start date.";
-      }
+    if (form.startDate && form.expiryDate && dayjs(form.expiryDate).isBefore(dayjs(form.startDate), "day")) {
+      next.expiryDate = "Expiry must be on or after start date.";
     }
 
     setErrors(next);
@@ -517,17 +409,15 @@ export default function PromoCodesPage() {
       usageLimit: parseOptionalInt(form.usageLimit),
       usedCount: parseOptionalInt(form.usedCount) ?? 0,
       perUserLimit: parseOptionalInt(form.perUserLimit) ?? 1,
-      startDate: form.startDate ? dayjs(form.startDate).format("YYYY-MM-DD") : null,
-      expiryDate: form.expiryDate ? dayjs(form.expiryDate).format("YYYY-MM-DD") : null,
+      startDate: form.startDate || null,
+      expiryDate: form.expiryDate || null,
       isActive: form.isActive,
     };
   };
 
   const handleCreateSubmit = async () => {
     if (!validate()) return;
-
     const body = buildPayload();
-
     try {
       await addCoupon(body).unwrap();
       success(`Coupon "${body.code}" was created.`);
@@ -539,96 +429,136 @@ export default function PromoCodesPage() {
         err?.data?.error ||
         err?.error ||
         (typeof err?.data === "string" ? err.data : null);
-      if (msg) {
-        toastError(String(msg));
-      } else {
+      if (msg) toastError(String(msg));
+      else {
         info("Confirm admin/addCoupon with your backend if this request should succeed.");
         toastError("Could not create coupon.");
       }
     }
   };
 
+  const columns = [
+    {
+      key: "code",
+      header: "Code",
+      render: (row) => (
+        <DirectoryIdentity name={row.code} meta={row.description} />
+      ),
+    },
+    {
+      key: "isActive",
+      header: "Status",
+      render: (row) => (
+        <DirectoryStatusPill active={row.isActive} activeLabel="Active" inactiveLabel="Off" />
+      ),
+    },
+    {
+      key: "discountDisplay",
+      header: "Discount",
+      render: (row) => (
+        <DirectoryMetric value={row.discountDisplay} hint={row.discountLabel} />
+      ),
+    },
+    {
+      key: "usedCount",
+      header: "Used",
+      render: (row) => (
+        <DirectoryMetric value={row.usedCount} hint={`Limit ${row.usageLimitLabel}`} />
+      ),
+    },
+    {
+      key: "actions",
+      header: "Actions",
+      render: (row) => (
+        <DirectoryActions>
+          <Button size="sm" variant="secondary" onClick={() => setViewRow(row)}>
+            View
+          </Button>
+        </DirectoryActions>
+      ),
+    },
+  ];
+
   return (
-    <LocalizationProvider dateAdapter={AdapterDayjs}>
-      <Box sx={{ width: "100%", display: "flex", flexDirection: "column", rowGap: 2.5 }}>
-        <Box
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: 2,
-            flexWrap: "wrap",
-          }}
-        >
-          <Box className="flex items-center gap-x-5">
-            <Typography color="blue.50">
-              <BsCardList size="24px" color="blue.50" />
-            </Typography>
-            <Typography variant="h4" fontFamily={"Switzer"} color="grey.20">
-              Coupons
-            </Typography>
-          </Box>
-          <ButtonBlue size="medium" startIcon={<TbPlus size={20} />} onClick={() => setCreateOpen(true)}>
+    <div style={{ display: "grid", gap: 20 }}>
+      <PageHeader
+        title="Coupons"
+        description="Create and review promo codes used at checkout."
+        actions={
+          <Button onClick={() => setCreateOpen(true)}>
+            <TbPlus size={18} />
             Create code
-          </ButtonBlue>
-        </Box>
+          </Button>
+        }
+      />
 
-        <Box className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-7 font-Inter">
-          {[
-            { label: "Total Codes", value: String(stats.total), bgColor: "bg-purple50" },
-            { label: "Active", value: String(stats.active), bgColor: "bg-red50" },
-            { label: "Expiring Soon", value: String(stats.expiringSoon), bgColor: "bg-green50" },
-            { label: "Disabled", value: String(stats.disabled), bgColor: "bg-green200" },
-          ].map((s) => (
-            <StatCard
-              key={s.label}
-              title={s.label}
-              value={s.value}
-              bgColor={s.bgColor}
+      <DirectoryMetrics
+        items={[
+          { label: "Total codes", value: stats.total, tone: "brand" },
+          { label: "Active", value: stats.active, tone: "success" },
+          { label: "Expiring soon", value: stats.expiringSoon, tone: "warning" },
+          { label: "Disabled", value: stats.disabled, tone: "neutral" },
+        ]}
+      />
+
+      {isError ? (
+        <p style={{ color: "var(--danger)", margin: 0 }}>Could not load coupons.</p>
+      ) : (
+        <DirectoryTableWrap
+          footer={
+            <PaginationBar
+              page={page}
+              limit={limit}
+              total={total}
+              onPageChange={setPage}
+              onLimitChange={(next) => {
+                setLimit(next);
+                setPage(1);
+              }}
             />
-          ))}
-        </Box>
-
-        <DataTable
-          data={tableData}
-          columns={TABLE_COLUMNS}
-          searchPlaceholder="Search codes…"
-          showFilters={false}
-          showDateRange={false}
-          showDownload={false}
-          height={560}
-          serverSidePagination
-          totalRows={total}
-          currentPage={page}
-          pageSize={limit}
-          onPageChange={(nextPage) => setPage(nextPage)}
-          onPageSizeChange={(nextLimit) => {
-            setLimit(nextLimit);
-            setPage(1);
-          }}
-        />
-
-        <ModalComponent
-          open={createOpen}
-          onClose={closeModal}
-          title="Create coupon"
-          width={Math.min(720, typeof window !== "undefined" ? window.innerWidth - 48 : 720)}
-          maxHeight="92vh"
-          primaryAction={{
-            label: "Create coupon",
-            onClick: handleCreateSubmit,
-            disabled: isLoading || isCouponsLoading,
-            isLoading: isLoading || isCouponsLoading,
-          }}
-          secondaryAction={{
-            label: "Cancel",
-            onClick: closeModal,
-            disabled: isLoading || isCouponsLoading,
-          }}
+          }
         >
-          <CreatePromoCodeForm form={form} errors={errors} patch={patch} discountHint={discountHint} />
-        </ModalComponent>
-      </Box>
-    </LocalizationProvider>
+          <Table
+            columns={columns}
+            rows={isCouponsLoading ? [] : tableData}
+            rowKey={(row) => row.id}
+            empty={isCouponsLoading ? "Loading coupons…" : "No coupons yet."}
+          />
+        </DirectoryTableWrap>
+      )}
+
+      <DirectoryViewModal
+        open={Boolean(viewRow)}
+        title={viewRow?.code || "Coupon"}
+        onClose={() => setViewRow(null)}
+        fields={[
+          { label: "Code", value: viewRow?.code },
+          { label: "Description", value: viewRow?.description },
+          { label: "Type", value: viewRow?.discountLabel },
+          { label: "Value", value: viewRow?.discountDisplay },
+          { label: "Min order", value: viewRow?.minOrder },
+          { label: "Max cap", value: viewRow?.maxCap },
+          { label: "Used", value: viewRow?.usedCount },
+          { label: "Global limit", value: viewRow?.usageLimitLabel },
+          { label: "Per user", value: viewRow?.perUser },
+          { label: "Start", value: viewRow?.startDate },
+          { label: "Expiry", value: viewRow?.expiryDate },
+          { label: "Status", value: viewRow?.isActive ? "Active" : "Off" },
+        ]}
+      />
+
+      <Modal
+        open={createOpen}
+        onClose={closeModal}
+        title="Create coupon"
+        primaryLabel="Create coupon"
+        onPrimary={handleCreateSubmit}
+        primaryDisabled={isLoading || isCouponsLoading}
+        secondaryDisabled={isLoading || isCouponsLoading}
+        size="xl"
+      >
+        <CreatePromoCodeForm form={form} errors={errors} patch={patch} discountHint={discountHint} />
+      </Modal>
+    </div>
   );
 }

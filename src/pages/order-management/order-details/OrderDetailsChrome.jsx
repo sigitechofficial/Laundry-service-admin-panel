@@ -1,48 +1,24 @@
-import { Box, Typography } from "@mui/material";
-import {
-  OD,
-  CARD_SX,
-  SECTION_HEADER_SX,
-  sectionLabelSx,
-  activityDotColor,
-} from "./orderDetailsTheme";
+import { Button } from "../../../design-system";
+import styles from "./orderDetails.module.css";
 
 export function OdSectionTitle({ children }) {
   return (
-    <Box sx={SECTION_HEADER_SX}>
-      <Typography sx={sectionLabelSx}>{children}</Typography>
-    </Box>
+    <div className={styles.sectionHead}>
+      <p className={styles.sectionLabel}>{children}</p>
+    </div>
   );
 }
 
-export function OdCard({ children, sx }) {
-  return <Box sx={{ ...CARD_SX, ...sx }}>{children}</Box>;
+export function OdCard({ children, className = "" }) {
+  return <div className={`${styles.card} ${className}`.trim()}>{children}</div>;
 }
 
-export function OdMetaRow({ label, value, valueSx }) {
+export function OdMetaRow({ label, value }) {
   return (
-    <Box
-      sx={{
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "flex-start",
-        gap: 1.5,
-      }}
-    >
-      <Typography sx={{ ...sectionLabelSx, fontSize: 11 }}>{label}</Typography>
-      <Typography
-        sx={{
-          fontSize: 13,
-          fontWeight: 500,
-          color: OD.inkSoft,
-          textAlign: "right",
-          fontFamily: OD.font,
-          ...valueSx,
-        }}
-      >
-        {value}
-      </Typography>
-    </Box>
+    <div className={styles.metaRow}>
+      <p className={styles.metaLabel}>{label}</p>
+      <p className={styles.metaValue}>{value}</p>
+    </div>
   );
 }
 
@@ -50,87 +26,75 @@ export function OdStatCell({ label, value, warnZero = false }) {
   const n = Number(value) || 0;
   const warn = warnZero && n === 0;
   return (
-    <Box
-      sx={{
-        p: 1.1,
-        border: `1px solid ${OD.line}`,
-        borderRadius: "8px",
-        bgcolor: OD.card,
-      }}
-    >
-      <Typography sx={{ ...sectionLabelSx, fontSize: 10 }}>{label}</Typography>
-      <Typography
-        sx={{
-          mt: 0.35,
-          fontSize: 15,
-          fontWeight: 700,
-          fontFamily: OD.fontTight,
-          color: warn ? OD.red : OD.ink,
-        }}
-      >
-        {n}
-      </Typography>
-    </Box>
+    <div className={styles.statCell}>
+      <p className={styles.statLabel}>{label}</p>
+      <p className={warn ? styles.statValueWarn : styles.statValue}>{n}</p>
+    </div>
   );
 }
 
 export function OdProofMeta({ label, value, muted = false }) {
   return (
-    <Box
-      sx={{
-        display: "flex",
-        justifyContent: "space-between",
-        py: 1,
-        borderTop: `1px solid ${OD.line}`,
-      }}
-    >
-      <Typography sx={{ fontSize: 11, color: OD.inkFaint, fontFamily: OD.font }}>
-        {label}
-      </Typography>
-      <Typography
-        sx={{
-          fontSize: 11,
-          fontWeight: muted ? 400 : 600,
-          fontStyle: muted ? "italic" : "normal",
-          color: muted ? OD.inkFaint : OD.inkSoft,
-          fontFamily: OD.font,
-        }}
-      >
-        {value}
-      </Typography>
-    </Box>
+    <div className={styles.proofMeta}>
+      <p className={styles.proofMetaLabel}>{label}</p>
+      <p className={muted ? styles.proofMetaMuted : styles.proofMetaValue}>{value}</p>
+    </div>
+  );
+}
+
+export function OdEmptyInvoice({ invoiceGenerated }) {
+  return (
+    <div className={styles.emptyInvoice}>
+      <p className={styles.emptyInvoiceTitle}>
+        {!invoiceGenerated ? "Invoice not generated yet" : "No agent invoice lines"}
+      </p>
+      <p className={styles.emptyInvoiceBody}>
+        Agent invoice appears here only after the agent creates a draft or
+        finalized invoice. Customer selected services stay frozen on the left.
+      </p>
+    </div>
   );
 }
 
 export function OdTimeline({ rows }) {
   return (
-    <Box sx={{ p: 2.25, display: "flex", flexDirection: "column", gap: 1.5 }}>
-      {rows.map((activity, idx) => (
-        <Box key={`${activity.text}-${idx}`} sx={{ display: "flex", gap: 1.5, alignItems: "flex-start" }}>
-          <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", mt: "4px" }}>
-            <Box
-              sx={{
-                width: 8,
-                height: 8,
-                borderRadius: "50%",
-                bgcolor: activityDotColor(activity.tone),
-                flexShrink: 0,
-              }}
-            />
-            {idx < rows.length - 1 ? (
-              <Box sx={{ width: 1, height: 22, bgcolor: OD.line, mt: 0.75 }} />
-            ) : null}
-          </Box>
-          <Box>
-            <Typography sx={{ fontSize: 12, fontWeight: 600, color: OD.ink, fontFamily: OD.font }}>
-              {activity.text}
-            </Typography>
-            <Typography sx={{ fontSize: 10, color: OD.inkFaint, fontFamily: OD.font }}>
-              {activity.time}
-            </Typography>
-          </Box>
-        </Box>
-      ))}
-    </Box>
+    <div className={styles.timeline}>
+      {rows.map((activity, idx) => {
+        const toneClass =
+          activity.tone === "completed"
+            ? styles.dotSuccess
+            : activity.tone === "error"
+              ? styles.dotDanger
+              : activity.tone === "system"
+                ? styles.dotBrand
+                : styles.dotNeutral;
+        return (
+          <div key={`${activity.text}-${idx}`} className={styles.timelineRow}>
+            <div className={styles.timelineRail}>
+              <span className={`${styles.timelineDot} ${toneClass}`} />
+              {idx < rows.length - 1 ? <span className={styles.timelineLine} /> : null}
+            </div>
+            <div>
+              <p className={styles.timelineText}>{activity.text}</p>
+              <p className={styles.timelineTime}>{activity.time}</p>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+export function OdMoreCategories({ hidden, onExpand }) {
+  if (!hidden) return null;
+  return (
+    <Button
+      size="sm"
+      variant="secondary"
+      className={styles.moreBtn}
+      onClick={onExpand}
+    >
+      + {hidden} more categories
+    </Button>
   );
 }

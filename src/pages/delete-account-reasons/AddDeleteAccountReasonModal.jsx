@@ -1,10 +1,8 @@
 import { useEffect } from "react";
-import { Box, Typography, FormControlLabel, Checkbox } from "@mui/material";
 import { useForm, Controller } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
-import ModalComponent from "../../components/shared/Modal";
-import InputFieldModal from "../../components/ui/InputFieldModal";
+import { Modal, Field, Input } from "../../design-system";
 
 const schema = yup.object().shape({
   label: yup
@@ -65,6 +63,7 @@ export default function AddDeleteAccountReasonModal({
   };
 
   const onSubmit = async (values) => {
+    if (isLoading) return;
     try {
       await onSave(
         {
@@ -82,36 +81,28 @@ export default function AddDeleteAccountReasonModal({
   };
 
   return (
-    <ModalComponent
+    <Modal
       open={open}
       title={isEdit ? "Edit delete reason" : "Add delete reason"}
+      description="Shown to customers when they delete their account (step 1)."
       onClose={handleClose}
-      primaryAction={{
-        label: isEdit ? "Save" : "Add",
-        onClick: handleSubmit(onSubmit),
-        isLoading,
-      }}
-      secondaryAction={{
-        label: "Cancel",
-        onClick: handleClose,
-      }}
+      onPrimary={handleSubmit(onSubmit)}
+      primaryLabel={isLoading ? (isEdit ? "Saving…" : "Adding…") : isEdit ? "Save" : "Add"}
+      secondaryLabel="Cancel"
     >
-      <Box className="space-y-4">
-        <Typography variant="body2" sx={{ color: "grey.70", fontFamily: "Switzer" }}>
-          Shown to customers when they delete their account (step 1).
-        </Typography>
-
+      <div style={{ display: "grid", gap: 16 }}>
         <Controller
           name="label"
           control={control}
           render={({ field }) => (
-            <InputFieldModal
-              {...field}
-              label="Reason label"
-              placeholder="e.g. Had an issue with a shop"
-              error={!!errors.label}
-              helperText={errors.label?.message}
-            />
+            <Field label="Reason label" error={errors.label?.message} htmlFor="delete-reason-label">
+              <Input
+                id="delete-reason-label"
+                {...field}
+                placeholder="e.g. Had an issue with a shop"
+                error={!!errors.label}
+              />
+            </Field>
           )}
         />
 
@@ -119,15 +110,22 @@ export default function AddDeleteAccountReasonModal({
           name="sortOrder"
           control={control}
           render={({ field }) => (
-            <InputFieldModal
-              {...field}
-              type="number"
+            <Field
               label="Sort order"
-              placeholder="0"
-              error={!!errors.sortOrder}
-              helperText={errors.sortOrder?.message || "Lower numbers appear first"}
-              onChange={(e) => field.onChange(Number(e.target.value))}
-            />
+              hint={errors.sortOrder ? undefined : "Lower numbers appear first"}
+              error={errors.sortOrder?.message}
+              htmlFor="delete-reason-sort"
+            >
+              <Input
+                id="delete-reason-sort"
+                {...field}
+                type="number"
+                min={0}
+                placeholder="0"
+                error={!!errors.sortOrder}
+                onChange={(e) => field.onChange(Number(e.target.value))}
+              />
+            </Field>
           )}
         />
 
@@ -135,15 +133,14 @@ export default function AddDeleteAccountReasonModal({
           name="status"
           control={control}
           render={({ field }) => (
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={field.value}
-                  onChange={(e) => field.onChange(e.target.checked)}
-                />
-              }
-              label="Active (visible to customers)"
-            />
+            <label style={checkStyle}>
+              <input
+                type="checkbox"
+                checked={field.value}
+                onChange={(e) => field.onChange(e.target.checked)}
+              />
+              Active (visible to customers)
+            </label>
           )}
         />
 
@@ -151,18 +148,27 @@ export default function AddDeleteAccountReasonModal({
           name="isOther"
           control={control}
           render={({ field }) => (
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={field.value}
-                  onChange={(e) => field.onChange(e.target.checked)}
-                />
-              }
-              label={`"Other" option (shows extra text field — only one allowed)`}
-            />
+            <label style={checkStyle}>
+              <input
+                type="checkbox"
+                checked={field.value}
+                onChange={(e) => field.onChange(e.target.checked)}
+              />
+              &quot;Other&quot; option (shows extra text field — only one allowed)
+            </label>
           )}
         />
-      </Box>
-    </ModalComponent>
+      </div>
+    </Modal>
   );
 }
+
+const checkStyle = {
+  display: "flex",
+  alignItems: "flex-start",
+  gap: 8,
+  fontSize: 14,
+  color: "var(--ink-2)",
+  cursor: "pointer",
+  lineHeight: 1.4,
+};

@@ -1,17 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  Box,
-  Collapse,
-  IconButton,
-  List,
-  ListItem,
-  Typography,
-} from "@mui/material";
-import {
-  RiDeleteBin6Line,
-  TbChevronDown,
-  TbPencil,
-} from "../../shared/icons/index";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { TbChevronDown, TbPencil, RiDeleteBin6Line } from "../../shared/icons/index";
 import { TbGripVertical } from "react-icons/tb";
 import {
   useCreateAddOnServiceMutation,
@@ -20,16 +8,24 @@ import {
   useUpdateAddOnServiceMutation,
   useUpdateAddOnServicesSortOrderMutation,
   useGetAllAddOnCategoriesQuery,
+  useGetCategoriesQuery,
+  useGetSubCategoriesQuery,
   useUpdateAddOnCategoryMutation,
   useUpdateAddOnCategoriesSortOrderMutation,
   useDeleteAddOnCategoryMutation,
 } from "../../store/services/api";
-import ModalComponent from "../../components/shared/Modal";
-import InputFieldModal from "../../components/ui/InputFieldModal";
-import SelectField from "../../components/ui/SelectField";
-import { MiniLoader } from "../../components/shared/Loaders";
+import { Button, Field, Input, Select, Modal } from "../../design-system";
 import useToaster from "../../components/ui/Toaster";
-import { formatGbp } from "../../utils/formatGbp";
+import { formatMoney } from "../../utilities/formatters";
+import ConfirmDeleteModal from "./ConfirmDeleteModal";
+import { EmptyHint, QueryState } from "./QueryState";
+import {
+  DirectoryDotPills,
+  DirectoryFormCard,
+  DirectoryListRow,
+  DirectoryMetrics,
+  DirectoryMoney,
+} from "../directory-table/directoryTable";
 
 const emptyServiceForm = {
   open: false,
@@ -70,9 +66,16 @@ function sortBySortOrder(list) {
 
 export default function AddOnServicesCard({ triggerAdd }) {
   const { success, error } = useToaster();
-  const { data, isLoading, refetch } = useGetAllAddOnServicesQuery();
-  const { data: categoriesData, refetch: refetchCategories } =
-    useGetAllAddOnCategoriesQuery({ includeServices: false });
+  const { data, isLoading, isError, error: addOnsQueryError, refetch } = useGetAllAddOnServicesQuery();
+  const {
+    data: categoriesData,
+    isError: categoriesError,
+    error: categoriesQueryError,
+    refetch: refetchCategories,
+  } = useGetAllAddOnCategoriesQuery({ includeServices: false });
+  const { data: itemCategoriesResponse } = useGetCategoriesQuery();
+  const { data: itemSubCategoriesResponse } = useGetSubCategoriesQuery();
+  const [deleteTarget, setDeleteTarget] = useState(null);
 
   const [createAddOnService, { isLoading: creating }] =
     useCreateAddOnServiceMutation();
@@ -112,6 +115,47 @@ export default function AddOnServicesCard({ triggerAdd }) {
     return Array.isArray(list) ? sortBySortOrder(list) : [];
   }, [categoriesData]);
 
+  const itemCategories = useMemo(() => {
+    const list = itemCategoriesResponse?.data;
+    return Array.isArray(list) ? list : [];
+  }, [itemCategoriesResponse]);
+
+  const itemSubCategories = useMemo(() => {
+    const list = itemSubCategoriesResponse?.data;
+    return Array.isArray(list) ? list : [];
+  }, [itemSubCategoriesResponse]);
+
+  const addonLinkContext = useMemo(() => {
+    const categoryById = new Map(
+      itemCategories.map((category) => [String(category.id), category])
+    );
+    const subById = new Map(
+      itemSubCategories.map((item) => [String(item.id), item])
+    );
+    return { categoryById, subById };
+  }, [itemCategories, itemSubCategories]);
+
+  const getAddonItemLinks = useCallback(
+    (item) => {
+      const ids = Array.isArray(item?.subCategoryIds) ? item.subCategoryIds : [];
+      const services = [];
+      ids.forEach((subId) => {
+        const sub = addonLinkContext.subById.get(String(subId));
+        const category = sub
+          ? addonLinkContext.categoryById.get(String(sub.categoryId))
+          : null;
+        const serviceName =
+          category?.service?.name ||
+          (category?.serviceId != null ? `Service #${category.serviceId}` : null);
+        if (serviceName && !services.includes(serviceName)) {
+          services.push(serviceName);
+        }
+      });
+      return { itemCount: ids.length, services };
+    },
+    [addonLinkContext]
+  );
+
   useEffect(() => {
     setCategoryDragOrder(null);
   }, [categoriesData]);
@@ -121,11 +165,13 @@ export default function AddOnServicesCard({ triggerAdd }) {
   }, [data]);
 
   const categoryOptions = useMemo(
-    () => categories.map((c) => ({ value: String(c.id), label: c.name })),
+    () => [
+      { value: "", label: "No category" },
+      ...categories.map((c) => ({ value: String(c.id), label: c.name })),
+    ],
     [categories]
   );
 
-  // Build accordion groups: every category (even empty) + uncategorized bucket.
   const groups = useMemo(() => {
     const byId = new Map();
     const orderedCats = categoryDragOrder ?? categories;
@@ -161,7 +207,6 @@ export default function AddOnServicesCard({ triggerAdd }) {
     return ordered;
   }, [addOnServices, categories, categoryDragOrder, serviceOrderByCategory]);
 
-  // Header "Add Add-on" button trigger -> open blank add-on form.
   useEffect(() => {
     if (triggerAdd && triggerAdd > 0 && !serviceForm.open) {
       setServiceForm({ ...emptyServiceForm, open: true, type: "add" });
@@ -250,8 +295,7 @@ export default function AddOnServicesCard({ triggerAdd }) {
 
       const group = groups.find((g) => String(g.id) === String(categoryId));
       if (!group) return;
-      const base =
-        serviceOrderByCategory[categoryId] ?? group.items ?? [];
+      const base = serviceOrderByCategory[categoryId] ?? group.items ?? [];
       const next = reorderById(base, draggedId, targetServiceId);
       if (!next) return;
 
@@ -351,6 +395,7 @@ export default function AddOnServicesCard({ triggerAdd }) {
       const res = await deleteAddOnService(id).unwrap();
       if (res?.status === "1" || !isExplicitFailure(res)) {
         success("Add-on service deleted.");
+        setDeleteTarget(null);
         void refetch();
       } else {
         error(res?.message || "Could not delete add-on service.");
@@ -388,6 +433,7 @@ export default function AddOnServicesCard({ triggerAdd }) {
       const res = await deleteCategory(id).unwrap();
       if (!isExplicitFailure(res)) {
         success("Category deleted.");
+        setDeleteTarget(null);
         void refetchCategories();
         void refetch();
       } else {
@@ -398,14 +444,23 @@ export default function AddOnServicesCard({ triggerAdd }) {
     }
   };
 
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    if (deleteTarget.kind === "service") {
+      await handleServiceDelete(deleteTarget.id);
+      return;
+    }
+    await handleCategoryDelete(deleteTarget.id);
+  };
+
   const renderServiceRow = (item, categoryId) => {
     const dropKey = `${categoryId}:${item.id}`;
     const isOver = dragOverServiceKey === dropKey;
 
     return (
-      <Box
+      <DirectoryListRow
         key={item.id}
-        className="flex items-center justify-between py-2 px-3 mb-2!"
+        active={isOver}
         onDragOver={(e) => {
           if (reorderBusy) return;
           e.preventDefault();
@@ -417,14 +472,9 @@ export default function AddOnServicesCard({ triggerAdd }) {
           e.stopPropagation();
           void handleServiceDrop(categoryId, item.id);
         }}
-        sx={{
-          borderBottom: "1px solid #E4E7EC",
-          bgcolor: isOver ? "rgba(21, 112, 239, 0.08)" : "transparent",
-          borderRadius: isOver ? "4px" : 0,
-        }}
       >
-        <Box className="flex items-center gap-2 min-w-0">
-          <Box
+        <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+          <span
             draggable={!reorderBusy}
             onDragStart={(e) => {
               e.stopPropagation();
@@ -435,259 +485,249 @@ export default function AddOnServicesCard({ triggerAdd }) {
               e.dataTransfer.setData("text/addon-service", String(item.id));
               e.dataTransfer.effectAllowed = "move";
             }}
-            sx={{
+            style={{
               display: "flex",
               alignItems: "center",
               cursor: reorderBusy ? "not-allowed" : "grab",
-              color: "#94A3B8",
+              color: "#8a94a2",
               flexShrink: 0,
-              "&:active": { cursor: "grabbing" },
             }}
             aria-label="Drag to reorder add-on"
           >
             <TbGripVertical size={16} />
-          </Box>
-          <Typography variant="body2" fontFamily="Inter" noWrap>
-            {item.name}
-          </Typography>
-        </Box>
-        <Box className="flex items-center gap-3">
-          <Typography variant="body2" sx={{ color: "#334155", fontWeight: 600 }}>
-            {formatGbp(item.price)}
-          </Typography>
-          <IconButton
+          </span>
+          <span style={{ minWidth: 0 }}>
+            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "block" }}>
+              {item.name}
+            </span>
+            {(() => {
+              const links = getAddonItemLinks(item);
+              return (
+                <DirectoryDotPills
+                  items={[
+                    {
+                      key: "items",
+                      tone: links.itemCount ? "info" : "neutral",
+                      label: `${links.itemCount} ${links.itemCount === 1 ? "item" : "items"}`,
+                    },
+                    ...links.services.map((serviceName) => ({
+                      key: serviceName,
+                      tone: "neutral",
+                      label: serviceName,
+                    })),
+                  ]}
+                />
+              );
+            })()}
+          </span>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <DirectoryMoney>{formatMoney(item.price, "£")}</DirectoryMoney>
+          <Button
+            size="sm"
+            variant="secondary"
             disabled={updating || reorderBusy}
             onClick={() => openEditService(item)}
-            size="small"
-            sx={{ color: "#00028B" }}
           >
-            <TbPencil size="18px" />
-          </IconButton>
-          <IconButton
+            <TbPencil size={14} />
+            Edit
+          </Button>
+          <Button
+            size="sm"
+            variant="danger"
             disabled={deleting || reorderBusy}
-            onClick={() => handleServiceDelete(item.id)}
-            size="small"
-            sx={{ color: "#EF4444" }}
+            onClick={() =>
+              setDeleteTarget({
+                kind: "service",
+                id: item.id,
+                name: item.name,
+              })
+            }
           >
-            <RiDeleteBin6Line size="18px" />
-          </IconButton>
-        </Box>
-      </Box>
+            <RiDeleteBin6Line size={14} />
+            Delete
+          </Button>
+        </div>
+      </DirectoryListRow>
     );
   };
 
-  if (isLoading) return <MiniLoader />;
+  if (isLoading || isError || categoriesError) {
+    return (
+      <QueryState
+        loading={isLoading}
+        error={addOnsQueryError || categoriesQueryError || isError || categoriesError}
+        onRetry={() => {
+          void refetch();
+          void refetchCategories();
+        }}
+        errorLabel="Could not load add-on services. Please try again."
+      />
+    );
+  }
 
   return (
-    <Box
-      sx={{
-        bgcolor: "white",
-        borderRadius: "12px",
-        border: "1px solid #E4E7EC",
-        overflow: "hidden",
-      }}
+    <div>
+      <DirectoryMetrics
+        items={[
+          { label: "Categories", value: categories.length, tone: "brand" },
+          { label: "Add-on services", value: addOnServices.length, tone: "navy" },
+          {
+            label: "Linked to items",
+            value: addOnServices.filter((item) => (item.subCategoryIds || []).length > 0).length,
+            tone: "success",
+          },
+        ]}
+      />
+    <DirectoryFormCard
+      title="Add-on category → add-on"
+      hint="Drag to reorder. Link an add-on category to an item from Categories so it appears in Catalog."
+      flush
     >
-      <Box
-        sx={{ borderBottom: "1px solid #E4E7EC" }}
-        className="flex items-center justify-between gap-4 px-4! py-5! bg-blue10"
-      >
-        <Box>
-          <Typography
-            variant="subtitle1"
-            sx={{
-              fontWeight: 700,
-              fontSize: "18px",
-              color: "#101828",
-              fontFamily: "Inter, sans-serif",
-            }}
-          >
-            Add-on Categories & Services
-          </Typography>
-          <Typography
-            variant="caption"
-            sx={{ color: "#64748B", display: "block", mt: 0.5 }}
-          >
-            Drag the grip handle to reorder categories and add-ons.
-          </Typography>
-        </Box>
-      </Box>
+        {groups.length === 0 ? (
+          <EmptyHint>
+            No categories yet. Use &quot;Manage Categories&quot; to add one.
+          </EmptyHint>
+        ) : (
+          groups.map((group) => {
+            const isUncategorized = group.id === UNCATEGORIZED_KEY;
+            const isCatOver = !isUncategorized && dragOverCategoryId === group.id;
 
-      <Box sx={{ p: "16px" }}>
-        <List sx={{ p: "0 8px" }}>
-          {groups.length === 0 ? (
-            <Typography variant="body2" sx={{ color: "#64748B", p: "8px" }}>
-              No categories yet. Use "Manage Categories" to add one.
-            </Typography>
-          ) : (
-            groups.map((group) => {
-              const isUncategorized = group.id === UNCATEGORIZED_KEY;
-              const isCatOver =
-                !isUncategorized && dragOverCategoryId === group.id;
-
-              return (
-                <Box key={group.id}>
-                  <ListItem
-                    onClick={() => toggleExpand(group.id)}
-                    onDragOver={(e) => {
-                      if (reorderBusy || isUncategorized) return;
-                      e.preventDefault();
-                      setDragOverCategoryId(group.id);
-                    }}
-                    onDragLeave={() => setDragOverCategoryId(null)}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      void handleCategoryDrop(group.id);
-                    }}
-                    sx={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      py: "8px",
-                      px: "16px",
-                      my: "4px",
-                      bgcolor: isCatOver
-                        ? "rgba(21, 112, 239, 0.12)"
-                        : "blue.10",
-                      borderRadius: "4px",
-                      cursor: "pointer",
-                      "&:hover": {
-                        bgcolor: isCatOver
-                          ? "rgba(21, 112, 239, 0.12)"
-                          : "blue.20",
-                      },
-                    }}
-                  >
-                    <Box className="flex items-center gap-2 min-w-0">
-                      {!isUncategorized && (
-                        <Box
-                          draggable={!reorderBusy}
-                          onDragStart={(e) => {
-                            e.stopPropagation();
-                            draggingCategoryIdRef.current = String(group.id);
-                            e.dataTransfer.setData(
-                              "text/addon-category",
-                              String(group.id)
-                            );
-                            e.dataTransfer.effectAllowed = "move";
-                          }}
-                          onClick={(e) => e.stopPropagation()}
-                          sx={{
-                            display: "flex",
-                            alignItems: "center",
-                            cursor: reorderBusy ? "not-allowed" : "grab",
-                            color: "#94A3B8",
-                            flexShrink: 0,
-                            "&:active": { cursor: "grabbing" },
-                          }}
-                          aria-label="Drag to reorder category"
-                        >
-                          <TbGripVertical size={18} />
-                        </Box>
-                      )}
-                      <Box>
-                        <Typography variant="body1">{group.name}</Typography>
-                        <Typography variant="caption" color="grey.40">
-                          {group.items.length} service
-                          {group.items.length === 1 ? "" : "s"}
-                        </Typography>
-                      </Box>
-                    </Box>
-
-                    <Box
-                      sx={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "flex-end",
-                        gap: "8px",
-                      }}
-                    >
-                      {!isUncategorized && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            openAddServiceForCategory(group.id);
-                          }}
-                          className="bg-gray-500 hover:bg-gray-600 text-white px-6 py-1 rounded-lg font-medium text-xs transition-all duration-200 shadow-sm hover:shadow-md flex items-center justify-center h-9 min-w-[120px]"
-                        >
-                          Add Service
-                        </button>
-                      )}
-                      {!isUncategorized && (
-                        <IconButton
-                          size="small"
-                          sx={{ color: "#00028B" }}
-                          disabled={categoryUpdating || reorderBusy}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setCategoryForm({
-                              open: true,
-                              id: group.id,
-                              name: group.name,
-                            });
-                          }}
-                        >
-                          <TbPencil size="18px" />
-                        </IconButton>
-                      )}
-                      {!isUncategorized && (
-                        <IconButton
-                          size="small"
-                          sx={{ color: "#EF4444" }}
-                          disabled={categoryDeleting || reorderBusy}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleCategoryDelete(group.id);
-                          }}
-                        >
-                          <RiDeleteBin6Line size="20px" />
-                        </IconButton>
-                      )}
-                      <IconButton
-                        onClick={(e) => {
+            return (
+              <div key={group.id}>
+                <DirectoryListRow
+                  active={isCatOver}
+                  onClick={() => toggleExpand(group.id)}
+                  onDragOver={(e) => {
+                    if (reorderBusy || isUncategorized) return;
+                    e.preventDefault();
+                    setDragOverCategoryId(group.id);
+                  }}
+                  onDragLeave={() => setDragOverCategoryId(null)}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    void handleCategoryDrop(group.id);
+                  }}
+                  style={{ cursor: "pointer" }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                    {!isUncategorized ? (
+                      <span
+                        draggable={!reorderBusy}
+                        onDragStart={(e) => {
                           e.stopPropagation();
-                          toggleExpand(group.id);
+                          draggingCategoryIdRef.current = String(group.id);
+                          e.dataTransfer.setData(
+                            "text/addon-category",
+                            String(group.id)
+                          );
+                          e.dataTransfer.effectAllowed = "move";
                         }}
-                        size="small"
-                        sx={{
-                          color: "#667085",
-                          transform: expanded[group.id]
-                            ? "rotate(180deg)"
-                            : "rotate(0deg)",
+                        onClick={(e) => e.stopPropagation()}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          cursor: reorderBusy ? "not-allowed" : "grab",
+                          color: "var(--faint)",
+                          flexShrink: 0,
+                        }}
+                        aria-label="Drag to reorder category"
+                      >
+                        <TbGripVertical size={18} />
+                      </span>
+                    ) : null}
+                    <div>
+                      <div>{group.name}</div>
+                      <div style={{ fontSize: 12, color: "var(--muted)" }}>
+                        {group.items.length} service
+                        {group.items.length === 1 ? "" : "s"}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div
+                    style={{ display: "flex", alignItems: "center", gap: 8 }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {!isUncategorized ? (
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => openAddServiceForCategory(group.id)}
+                      >
+                        Add Service
+                      </Button>
+                    ) : null}
+                    {!isUncategorized ? (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        disabled={categoryUpdating || reorderBusy}
+                        onClick={() =>
+                          setCategoryForm({
+                            open: true,
+                            id: group.id,
+                            name: group.name,
+                          })
+                        }
+                      >
+                        <TbPencil size={14} />
+                        Edit
+                      </Button>
+                    ) : null}
+                    {!isUncategorized ? (
+                      <Button
+                        size="sm"
+                        variant="danger"
+                        disabled={categoryDeleting || reorderBusy}
+                        onClick={() =>
+                          setDeleteTarget({
+                            kind: "category",
+                            id: group.id,
+                            name: group.name,
+                          })
+                        }
+                      >
+                        <RiDeleteBin6Line size={14} />
+                        Delete
+                      </Button>
+                    ) : null}
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => toggleExpand(group.id)}
+                      aria-label={expanded[group.id] ? "Collapse" : "Expand"}
+                    >
+                      <TbChevronDown
+                        size={18}
+                        style={{
+                          transform: expanded[group.id] ? "rotate(180deg)" : "none",
                           transition: "transform 0.2s",
                         }}
-                      >
-                        <TbChevronDown size="20px" color="black" />
-                      </IconButton>
-                    </Box>
-                  </ListItem>
+                      />
+                    </Button>
+                  </div>
+                </DirectoryListRow>
 
-                  <Collapse in={Boolean(expanded[group.id])}>
-                    <Box sx={{ pl: "16px", pb: "8px" }}>
-                      {group.items.length === 0 ? (
-                        <Typography
-                          variant="caption"
-                          color="grey.40"
-                          sx={{ display: "block", py: "8px", px: "3px" }}
-                        >
-                          No services in this category yet.
-                        </Typography>
-                      ) : (
-                        group.items.map((item) =>
-                          renderServiceRow(item, group.id)
-                        )
-                      )}
-                    </Box>
-                  </Collapse>
-                </Box>
-              );
-            })
-          )}
-        </List>
-      </Box>
+                {expanded[group.id] ? (
+                  <div style={{ padding: "0 16px 8px" }}>
+                    {group.items.length === 0 ? (
+                      <p style={{ color: "var(--muted)", fontSize: 13, margin: "8px 0" }}>
+                        No services in this category yet.
+                      </p>
+                    ) : (
+                      group.items.map((item) => renderServiceRow(item, group.id))
+                    )}
+                  </div>
+                ) : null}
+              </div>
+            );
+          })
+        )}
+    </DirectoryFormCard>
 
-      {/* Add / Edit add-on service */}
-      <ModalComponent
+      <Modal
         open={serviceForm.open}
         title={
           serviceForm.type === "update"
@@ -695,73 +735,99 @@ export default function AddOnServicesCard({ triggerAdd }) {
             : "Add Add-on Service"
         }
         onClose={closeServiceModal}
-        secondaryAction={{ label: "Cancel", onClick: closeServiceModal }}
-        primaryAction={{
-          label:
-            serviceForm.type === "update"
+        secondaryLabel="Cancel"
+        primaryLabel={
+          creating || updating
+            ? "Saving…"
+            : serviceForm.type === "update"
               ? "Update Add-on Service"
-              : "Add Add-on Service",
-          onClick: handleServiceSave,
-          isLoading: creating || updating,
+              : "Add Add-on Service"
+        }
+        onPrimary={() => {
+          if (creating || updating) return;
+          handleServiceSave();
         }}
       >
-        <Box className="flex flex-col gap-5">
-          <InputFieldModal
-            title="Add-on Name"
-            placeholder="e.g. Blouse Button Resew"
-            name="name"
-            value={serviceForm.name}
-            onChange={handleServiceChange}
-          />
-          <InputFieldModal
-            title="Price (£)"
-            placeholder="e.g. 19.22"
-            name="price"
-            type="number"
-            step="0.01"
-            min="0"
-            value={serviceForm.price}
-            onChange={handleServiceChange}
-          />
-          <SelectField
-            title="Category"
-            placeholder="No category"
-            value={serviceForm.addOnCategoryId}
-            onChange={(e) =>
-              setServiceForm((prev) => ({
-                ...prev,
-                addOnCategoryId: e.target.value,
-              }))
-            }
-            options={categoryOptions}
-          />
-        </Box>
-      </ModalComponent>
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <Field label="Add-on Name" htmlFor="addon-name">
+            <Input
+              id="addon-name"
+              name="name"
+              placeholder="e.g. Blouse Button Resew"
+              value={serviceForm.name}
+              onChange={handleServiceChange}
+            />
+          </Field>
+          <Field label="Price (£)" htmlFor="addon-price">
+            <Input
+              id="addon-price"
+              name="price"
+              type="number"
+              step="0.01"
+              min="0"
+              placeholder="e.g. 19.22"
+              value={serviceForm.price}
+              onChange={handleServiceChange}
+            />
+          </Field>
+          <Field label="Category">
+            <Select
+              value={serviceForm.addOnCategoryId}
+              onChange={(v) =>
+                setServiceForm((prev) => ({
+                  ...prev,
+                  addOnCategoryId: v == null ? "" : String(v),
+                }))
+              }
+              options={categoryOptions}
+              placeholder="No category"
+            />
+          </Field>
+        </div>
+      </Modal>
 
-      {/* Edit category */}
-      <ModalComponent
+      <Modal
         open={categoryForm.open}
         title="Update Category"
         onClose={closeCategoryModal}
-        secondaryAction={{ label: "Cancel", onClick: closeCategoryModal }}
-        primaryAction={{
-          label: "Update Category",
-          onClick: handleCategorySave,
-          isLoading: categoryUpdating,
+        secondaryLabel="Cancel"
+        primaryLabel={categoryUpdating ? "Updating…" : "Update Category"}
+        onPrimary={() => {
+          if (categoryUpdating) return;
+          handleCategorySave();
         }}
       >
-        <Box className="flex flex-col gap-5">
-          <InputFieldModal
-            title="Category Name"
-            placeholder="e.g. Repair Blouse"
+        <Field label="Category Name" htmlFor="addon-category-name">
+          <Input
+            id="addon-category-name"
             name="categoryName"
+            placeholder="e.g. Repair Blouse"
             value={categoryForm.name}
             onChange={(e) =>
               setCategoryForm((prev) => ({ ...prev, name: e.target.value }))
             }
           />
-        </Box>
-      </ModalComponent>
-    </Box>
+        </Field>
+      </Modal>
+
+      <ConfirmDeleteModal
+        open={Boolean(deleteTarget)}
+        title={
+          deleteTarget?.kind === "category"
+            ? "Delete add-on category"
+            : "Delete add-on service"
+        }
+        description={
+          deleteTarget?.name
+            ? `Remove “${deleteTarget.name}”? This cannot be undone.`
+            : "Remove this item? This cannot be undone."
+        }
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={confirmDelete}
+        loading={
+          deleteTarget?.kind === "category" ? categoryDeleting : deleting
+        }
+      />
+    </div>
   );
 }

@@ -1,8 +1,8 @@
 export default function IconMessenger({
-  size = 24,
-  stroke = "currentColor",
-  fill = "none",
-  strokeWidth = 2,
+  size: _size = 24,
+  stroke: _stroke = "currentColor",
+  fill: _fill = "none",
+  strokeWidth: _strokeWidth = 2,
 }) {
   return <img className="!size-6" src="/images/messenger.png" alt="" />;
 }

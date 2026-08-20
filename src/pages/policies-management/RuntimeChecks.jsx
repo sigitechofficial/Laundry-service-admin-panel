@@ -1,19 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import {
-  Alert,
-  Box,
-  Card,
-  CardContent,
-  CircularProgress,
-  Divider,
-  FormControlLabel,
-  Stack,
-  Switch,
-  TextField,
-  Typography,
-} from "@mui/material";
-import { BsCardList } from "../../shared/icons/index";
-import ButtonBlue from "../../components/ui/ButtonBlue";
+import { Button, Field, Input, PageHeader } from "../../design-system";
+import { Notice, Toggle } from "../misc-kit";
+import { DirectoryError, DirectoryFormCard, PageLoading } from "../directory-table/directoryTable";
 import useToaster from "../../components/ui/Toaster";
 import {
   useGetRuntimeSettingsQuery,
@@ -47,10 +35,12 @@ const secondsToMs = (value) => {
 export default function RuntimeChecks() {
   const { success, error: showError } = useToaster();
   const { data, isLoading, isError, refetch } = useGetRuntimeSettingsQuery();
-  const [updateSettings, { isLoading: saving }] =
-    useUpdateRuntimeSettingsMutation();
+  const [updateSettings, { isLoading: saving }] = useUpdateRuntimeSettingsMutation();
 
-  const settings = data?.data?.settings || {};
+  const settings = useMemo(
+    () => data?.data?.settings || {},
+    [data?.data?.settings]
+  );
 
   const [geofenceBypass, setGeofenceBypass] = useState(false);
   const [autoChargeEnabled, setAutoChargeEnabled] = useState(true);
@@ -60,16 +50,27 @@ export default function RuntimeChecks() {
   const [retryGapMinutes, setRetryGapMinutes] = useState("30");
 
   useEffect(() => {
-    if (!settings.geofenceBypassEnabled) return;
-    setGeofenceBypass(Boolean(settings.geofenceBypassEnabled.value));
-    setAutoChargeEnabled(Boolean(settings.invoiceAutoChargeEnabled?.value));
-    setDelayMinutes(msToMinutes(settings.invoiceAutoChargeDelayMs?.value));
-    setIntervalSeconds(
-      msToSeconds(settings.invoiceAutoChargeJobIntervalMs?.value)
-    );
-    setMaxAttempts(String(settings.invoiceAutoChargeMaxAttempts?.value ?? 3));
-    setRetryGapMinutes(msToMinutes(settings.invoiceAutoChargeRetryGapMs?.value));
-  }, [settings]);
+    const next = data?.data?.settings;
+    if (!next || typeof next !== "object") return;
+    if (next.geofenceBypassEnabled) {
+      setGeofenceBypass(Boolean(next.geofenceBypassEnabled.value));
+    }
+    if (next.invoiceAutoChargeEnabled) {
+      setAutoChargeEnabled(Boolean(next.invoiceAutoChargeEnabled.value));
+    }
+    if (next.invoiceAutoChargeDelayMs) {
+      setDelayMinutes(msToMinutes(next.invoiceAutoChargeDelayMs.value));
+    }
+    if (next.invoiceAutoChargeJobIntervalMs) {
+      setIntervalSeconds(msToSeconds(next.invoiceAutoChargeJobIntervalMs.value));
+    }
+    if (next.invoiceAutoChargeMaxAttempts) {
+      setMaxAttempts(String(next.invoiceAutoChargeMaxAttempts.value ?? 3));
+    }
+    if (next.invoiceAutoChargeRetryGapMs) {
+      setRetryGapMinutes(msToMinutes(next.invoiceAutoChargeRetryGapMs.value));
+    }
+  }, [data]);
 
   const envHints = useMemo(() => {
     const geoEnv = settings.geofenceBypassEnabled?.envValue;
@@ -112,128 +113,106 @@ export default function RuntimeChecks() {
   };
 
   return (
-    <Box>
-      <Box className="flex items-center gap-x-5" sx={{ mb: "28px" }}>
-        <Typography color="blue.50">
-          <BsCardList size="24px" color="blue.50" />
-        </Typography>
-        <Box>
-          <Typography variant="h4" fontFamily="Switzer" color="grey.20">
-            Runtime checks
-          </Typography>
-          <Typography
-            variant="body2"
-            sx={{ color: "grey.80", fontFamily: "Switzer", mt: 0.5 }}
-          >
-            Geofence bypass and invoice auto-charge used to live only in
-            server .env. These values are stored in the database and take
-            effect immediately.
-          </Typography>
-        </Box>
-      </Box>
+    <div style={{ display: "grid", gap: 20, maxWidth: 720 }}>
+      <PageHeader
+        title="Runtime checks"
+        description="Geofence bypass and invoice auto-charge used to live only in server .env. These values are stored in the database and take effect immediately."
+      />
 
       {isLoading ? (
-        <Box sx={{ display: "flex", justifyContent: "center", py: 8 }}>
-          <CircularProgress />
-        </Box>
+        <PageLoading label="Loading runtime settings…" />
       ) : isError ? (
-        <Alert severity="error">Could not load runtime settings.</Alert>
+        <DirectoryError>Could not load runtime settings.</DirectoryError>
       ) : (
-        <Stack spacing={3} sx={{ maxWidth: 720 }}>
-          <Card variant="outlined" sx={{ borderRadius: 2 }}>
-            <CardContent>
-              <Typography variant="h6" fontFamily="Switzer" sx={{ mb: 1 }}>
-                Driver geofence
-              </Typography>
-              <Alert severity={geofenceBypass ? "warning" : "info"} sx={{ mb: 2 }}>
-                {geofenceBypass
-                  ? "Bypass is ON. Agents can mark Arrived / Failed from anywhere. Turn this off on production."
-                  : "Bypass is OFF. Agents must be inside the arrival radius."}
-              </Alert>
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={geofenceBypass}
-                    onChange={(e) => setGeofenceBypass(e.target.checked)}
-                  />
-                }
+        <>
+          <DirectoryFormCard title="Driver geofence">
+            <Notice tone={geofenceBypass ? "warning" : "info"}>
+              {geofenceBypass
+                ? "Bypass is ON. Agents can mark Arrived / Failed from anywhere. Turn this off on production."
+                : "Bypass is OFF. Agents must be inside the arrival radius."}
+            </Notice>
+            <div style={{ marginTop: 12 }}>
+              <Toggle
+                checked={geofenceBypass}
+                onChange={(e) => setGeofenceBypass(e.target.checked)}
                 label="Bypass geofence distance check"
               />
-              <Typography variant="caption" display="block" sx={{ color: "grey.80", mt: 1 }}>
-                Env fallback ({settings.geofenceBypassEnabled?.envKey}): {envHints.geofence}
-              </Typography>
-            </CardContent>
-          </Card>
+            </div>
+            <p className="jd-field__hint" style={{ margin: "8px 0 0" }}>
+              Env fallback ({settings.geofenceBypassEnabled?.envKey}): {envHints.geofence}
+            </p>
+          </DirectoryFormCard>
 
-          <Card variant="outlined" sx={{ borderRadius: 2 }}>
-            <CardContent>
-              <Typography variant="h6" fontFamily="Switzer" sx={{ mb: 1 }}>
-                Invoice auto-charge
-              </Typography>
-              <Typography variant="body2" sx={{ color: "grey.80", mb: 2 }}>
-                After the shop finalizes an invoice, the worker charges the
-                remaining card balance. Changing delay does not rewrite
-                bookings already scheduled.
-              </Typography>
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={autoChargeEnabled}
-                    onChange={(e) => setAutoChargeEnabled(e.target.checked)}
-                  />
-                }
-                label="Enable invoice auto-charge"
-              />
-              <Typography variant="caption" display="block" sx={{ color: "grey.80", mb: 2 }}>
-                Env fallback ({settings.invoiceAutoChargeEnabled?.envKey}): {envHints.invoice}
-              </Typography>
-              <Divider sx={{ my: 2 }} />
-              <Stack spacing={2}>
-                <TextField
-                  label="Delay after finalize (minutes)"
+          <DirectoryFormCard
+            title="Invoice auto-charge"
+            hint="After the shop finalizes an invoice, the worker charges the remaining card balance. Changing delay does not rewrite bookings already scheduled."
+          >
+            <Toggle
+              checked={autoChargeEnabled}
+              onChange={(e) => setAutoChargeEnabled(e.target.checked)}
+              label="Enable invoice auto-charge"
+            />
+            <p className="jd-field__hint" style={{ margin: "8px 0 16px" }}>
+              Env fallback ({settings.invoiceAutoChargeEnabled?.envKey}): {envHints.invoice}
+            </p>
+            <div style={{ display: "grid", gap: 12 }}>
+              <Field
+                label="Delay after finalize (minutes)"
+                htmlFor="rc-delay"
+                hint="First charge wait. Local/QA often uses 2 minutes; production default is 120."
+              >
+                <Input
+                  id="rc-delay"
                   type="number"
+                  min={0}
                   value={delayMinutes}
                   onChange={(e) => setDelayMinutes(e.target.value)}
-                  inputProps={{ min: 0 }}
-                  helperText="First charge wait. Local/QA often uses 2 minutes; production default is 120."
                 />
-                <TextField
-                  label="Worker poll interval (seconds)"
+              </Field>
+              <Field
+                label="Worker poll interval (seconds)"
+                htmlFor="rc-interval"
+                hint="How often the worker looks for due charges. Minimum 10 seconds."
+              >
+                <Input
+                  id="rc-interval"
                   type="number"
+                  min={10}
                   value={intervalSeconds}
                   onChange={(e) => setIntervalSeconds(e.target.value)}
-                  inputProps={{ min: 10 }}
-                  helperText="How often the worker looks for due charges. Minimum 10 seconds."
                 />
-                <TextField
-                  label="Max scheduled attempts"
+              </Field>
+              <Field label="Max scheduled attempts" htmlFor="rc-attempts">
+                <Input
+                  id="rc-attempts"
                   type="number"
+                  min={1}
+                  max={10}
                   value={maxAttempts}
                   onChange={(e) => setMaxAttempts(e.target.value)}
-                  inputProps={{ min: 1, max: 10 }}
                 />
-                <TextField
-                  label="Retry gap (minutes)"
+              </Field>
+              <Field
+                label="Retry gap (minutes)"
+                htmlFor="rc-retry"
+                hint="Wait between recoverable card declines."
+              >
+                <Input
+                  id="rc-retry"
                   type="number"
+                  min={0}
                   value={retryGapMinutes}
                   onChange={(e) => setRetryGapMinutes(e.target.value)}
-                  inputProps={{ min: 0 }}
-                  helperText="Wait between recoverable card declines."
                 />
-              </Stack>
-            </CardContent>
-          </Card>
+              </Field>
+            </div>
+          </DirectoryFormCard>
 
-          <Box>
-            <ButtonBlue
-              text={saving ? "Saving…" : "Save runtime checks"}
-              onClick={handleSave}
-              disabled={saving}
-              isLoading={saving}
-            />
-          </Box>
-        </Stack>
+          <Button onClick={handleSave} disabled={saving}>
+            {saving ? "Saving…" : "Save runtime checks"}
+          </Button>
+        </>
       )}
-    </Box>
+    </div>
   );
 }

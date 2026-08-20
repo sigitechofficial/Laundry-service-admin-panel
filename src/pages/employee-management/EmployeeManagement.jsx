@@ -1,233 +1,309 @@
-import { useState } from "react";
-import { Box, Typography } from "@mui/material";
-import { BsCardList, TbFileDownload, TbPlus } from "../../shared/icons/index";
-import Search from "../../components/ui/Search";
-import FiltersButton from "../../components/ui/FiltersButton";
-import DateRangeSelector from "../../components/ui/DateRangeSelector";
-import DataTable from "../../components/ui/DataTable";
-import StatusPill from "../../components/ui/StatusPill";
-import ActionButtons from "../../components/ui/ActionButtons";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useGetAdminEmployeesQuery } from "../../store/services/api";
+import { Button, Modal, PageHeader, Table } from "../../design-system";
+import {
+  DirectoryActions,
+  DirectoryClearButton,
+  DirectoryDateInput,
+  DirectoryIdentity,
+  DirectoryMetrics,
+  DirectorySearch,
+  DirectoryStatusPill,
+  DirectoryTableWrap,
+  DirectoryToolbar,
+  DirectoryToolbarEnd,
+  DirectoryViewModal,
+} from "../directory-table/directoryTable";
+import { joinMeta } from "../directory-table/directoryTableUtils";
+import { useGetAdminEmployeesQuery, useDeleteAdminEmployeeMutation } from "../../store/services/api";
 import { Delay } from "../../components/shared/Loaders";
-import { dateTimeFormat } from "../../shared/constants";
+import useToaster from "../../components/ui/Toaster";
 import AddEmployeeModal from "./employee-modals/AddEmployeeModal";
-import DeleteEmployeeModal from "./employee-modals/DeleteEmployeeModal";
+import { extractAdminEmployees } from "./extractAdminEmployees";
+
+function matchesSearch(row, term) {
+  if (!term) return true;
+  const q = term.toLowerCase();
+  return Object.entries(row).some(([key, value]) => {
+    if (key === "actions") return false;
+    return String(value ?? "").toLowerCase().includes(q);
+  });
+}
+
+function matchesDateRange(row, dateRange) {
+  if (!dateRange.startDate && !dateRange.endDate) return true;
+  if (!row.createdAt) return false;
+
+  const createdAt = new Date(row.createdAt);
+  if (Number.isNaN(createdAt.getTime())) return false;
+
+  const start = dateRange.startDate
+    ? new Date(`${dateRange.startDate}T00:00:00`)
+    : null;
+  const end = dateRange.endDate
+    ? new Date(`${dateRange.endDate}T23:59:59.999`)
+    : null;
+
+  return (!start || createdAt >= start) && (!end || createdAt <= end);
+}
 
 export default function EmployeeManagement() {
   const navigate = useNavigate();
-  const [dateRange, setDateRange] = useState(null);
+  const { success, error: showError } = useToaster();
+  const [dateRange, setDateRange] = useState({ startDate: "", endDate: "" });
   const [searchTerm, setSearchTerm] = useState("");
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [editEmployee, setEditEmployee] = useState(null);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [employeeToDeleteId, setEmployeeToDeleteId] = useState(null);
+  const [viewRow, setViewRow] = useState(null);
 
-  const { data, isLoading, refetch } = useGetAdminEmployeesQuery();
-  const adminEmployees = data?.data?.adminEmployees ?? [];
+  const { data, currentData, isLoading, isFetching, isUninitialized, isError, refetch } =
+    useGetAdminEmployeesQuery(undefined, { refetchOnMountOrArgChange: true });
+  const [deleteEmployee, { isLoading: isDeleting }] = useDeleteAdminEmployeeMutation();
+  const payload = currentData ?? data;
+  const adminEmployees = useMemo(() => extractAdminEmployees(payload), [payload]);
 
-  const employeesData = adminEmployees.map((emp, index) => ({
-    id: emp.id,
-    sl: index + 1,
-    employeeId: emp.id,
-    name: [emp.firstName, emp.lastName].filter(Boolean).join(" ") || "—",
-    email: emp.email ?? "—",
-    phoneNum: emp.phoneNum ?? "—",
-    status: emp.status,
-  }));
+  const employeesData = useMemo(
+    () =>
+      adminEmployees.map((emp, index) => ({
+        id: emp.id,
+        sl: index + 1,
+        employeeId: emp.id,
+        name: [emp.firstName, emp.lastName].filter(Boolean).join(" ") || "—",
+        email: emp.email ?? "—",
+        phoneNum: emp.phoneNum ?? "—",
+        status: emp.status,
+        createdAt: emp.createdAt,
+      })),
+    [adminEmployees]
+  );
 
-  const employeeColumns = [
-    { field: "sl", headerName: "SL", flex: 0.08, minWidth: 60 },
-    { field: "employeeId", headerName: "ID", flex: 0.1, minWidth: 80 },
-    { field: "name", headerName: "Name", flex: 0.2, minWidth: 150 },
-    { field: "email", headerName: "Email", flex: 0.22, minWidth: 180 },
-    { field: "phoneNum", headerName: "Phone", flex: 0.18, minWidth: 130 },
+  const visibleRows = useMemo(
+    () =>
+      employeesData.filter(
+        (row) => matchesSearch(row, searchTerm) && matchesDateRange(row, dateRange)
+      ),
+    [dateRange, employeesData, searchTerm]
+  );
+
+  const showInitialLoader =
+    payload == null && !isError && (isUninitialized || isLoading || isFetching);
+
+  const openEdit = (row) => {
+    const rowId = row?.id ?? row?.employeeId ?? null;
+    const emp = adminEmployees.find(
+      (e) =>
+        String(e.id) === String(rowId) ||
+        String(e.employeeId) === String(rowId)
+    );
+    setEditEmployee(emp ?? null);
+    setAddModalOpen(true);
+  };
+
+  const openDelete = (row) => {
+    setEmployeeToDeleteId(row?.id ?? row?.employeeId ?? null);
+    setDeleteModalOpen(true);
+  };
+
+  const handleDateChange = (part, value) => {
+    setDateRange((prev) => ({ ...prev, [part]: value }));
+  };
+
+  const handleSearchChange = (value) => {
+    setSearchTerm(value);
+  };
+
+  const closeDeleteModal = () => {
+    setDeleteModalOpen(false);
+    setEmployeeToDeleteId(null);
+  };
+
+  const handleConfirmDelete = async () => {
+    const resolvedId =
+      typeof employeeToDeleteId === "object"
+        ? employeeToDeleteId?.id ?? employeeToDeleteId?.employeeId
+        : employeeToDeleteId;
+
+    if (resolvedId == null || resolvedId === "" || isDeleting) {
+      if (resolvedId == null || resolvedId === "") {
+        showError("Employee id is missing. Please close and try again.");
+      }
+      return;
+    }
+
+    const res = await deleteEmployee(resolvedId);
+    if (res?.data?.status === "1") {
+      closeDeleteModal();
+      success(res?.data?.message ?? "Employee deleted successfully.");
+      refetch();
+    } else {
+      showError(res?.error?.data?.message ?? "Failed to delete employee.");
+    }
+  };
+
+  const columns = [
     {
-      field: "status",
-      headerName: "Status",
-      flex: 0.12,
-      minWidth: 100,
-      type: "chip",
-      renderCell: (params) => (
-        <StatusPill status={params.value ? "active" : "block"} />
+      key: "name",
+      header: "Employee",
+      render: (row) => (
+        <DirectoryIdentity
+          name={row.name}
+          meta={joinMeta(row.email, row.phoneNum)}
+          id={row.employeeId}
+        />
       ),
     },
     {
-      field: "actions",
-      headerName: "Actions",
-      flex: 0.15,
-      minWidth: 180,
-      sortable: false,
-      renderCell: (params) => (
-        <ActionButtons
-          showView={false}
-          onEdit={() => {
-            const row = params?.row ?? params;
-            const rowId = row?.id ?? row?.employeeId ?? params?.id;
-            const emp = adminEmployees.find(
-              (e) =>
-                String(e.id) === String(rowId) ||
-                String(e.employeeId) === String(rowId)
-            );
-            setEditEmployee(emp ?? null);
-            setAddModalOpen(true);
-          }}
-          onDelete={() => {
-            const resolvedId = params?.row?.id ?? params?.row?.employeeId ?? params?.id ?? null;
-            setEmployeeToDeleteId(resolvedId);
-            setDeleteModalOpen(true);
-          }}
-        />
+      key: "status",
+      header: "Status",
+      render: (row) => <DirectoryStatusPill active={row.status} />,
+    },
+    {
+      key: "actions",
+      header: "Actions",
+      render: (row) => (
+        <DirectoryActions>
+          <Button size="sm" variant="secondary" onClick={() => setViewRow(row)}>
+            View
+          </Button>
+          <Button size="sm" variant="secondary" onClick={() => openEdit(row)}>
+            Edit
+          </Button>
+          <Button size="sm" variant="danger" onClick={() => openDelete(row)}>
+            Delete
+          </Button>
+        </DirectoryActions>
       ),
     },
   ];
 
-  const handleDateChange = (selectedRange) => {
-    console.log("Selected Date Range:", selectedRange);
-    setDateRange(selectedRange);
-
-    // You can use the date range for filtering customers
-    if (selectedRange) {
-      console.log(
-        "Start Date:",
-        selectedRange.startDate.format(dateTimeFormat)
-      );
-      console.log("End Date:", selectedRange.endDate.format(dateTimeFormat));
-      console.log("Label:", selectedRange.label);
-      console.log("Type:", selectedRange.type);
-    }
-  };
-
-  const handleSearchChange = (searchTerm) => {
-    setSearchTerm(searchTerm);
-    console.log("Search term:", searchTerm);
-    // Implement search logic here - filter the customersData
-  };
-
-  const handleFilter = () => {
-    console.log("Filter button clicked");
-    // Open filter modal or apply filters
-  };
-
-  const handleDownload = (data) => {
-    console.log("Download customers data:", data);
-    // Implement download functionality (CSV, Excel, etc.)
-  };
-
-  const handleRowAction = (actionType, rowData) => {
-    switch (actionType) {
-      case "edit": {
-        const rowId = rowData?.id ?? rowData?.employeeId ?? null;
-        const emp = adminEmployees.find(
-          (e) =>
-            String(e.id) === String(rowId) ||
-            String(e.employeeId) === String(rowId)
-        );
-        setEditEmployee(emp ?? null);
-        setAddModalOpen(true);
-        break;
-      }
-      case "delete":
-        setEmployeeToDeleteId(rowData?.id ?? rowData?.employeeId ?? null);
-        setDeleteModalOpen(true);
-        break;
-      default:
-        break;
-    }
-  };
-  if (isLoading) return <Delay />;
-
   return (
-    <div className="!space-y-11">
-            <Box className="flex items-center gap-x-5 justify-between">
-              <Box className="flex items-center gap-x-5">
-                <Typography color="blue.50">
-                  <BsCardList size="24px" color="blue.50" />
-                </Typography>
+    <div style={{ minHeight: 400 }}>
+      <PageHeader
+        title="Employee Management"
+        description="Add and manage admin employees"
+        actions={
+          <Button
+            onClick={() => {
+              setEditEmployee(null);
+              setAddModalOpen(true);
+            }}
+          >
+            Add Employee
+          </Button>
+        }
+      />
 
-                <Typography variant="h4" fontFamily={"Switzer"} color="grey.20">
-                  Employee Management
-                </Typography>
-              </Box>
+      {showInitialLoader ? (
+        <div
+          style={{
+            minHeight: 280,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <Delay />
+        </div>
+      ) : isError && adminEmployees.length === 0 ? (
+        <div style={{ textAlign: "center", padding: 28 }}>
+          <p className="jd-lead" style={{ margin: "0 0 12px" }}>
+            Could not load employees.
+          </p>
+          <Button variant="secondary" onClick={() => refetch()}>
+            Retry
+          </Button>
+        </div>
+      ) : (
+        <>
+          <DirectoryMetrics
+            items={[{ label: "Total employees", value: adminEmployees.length, tone: "brand" }]}
+          />
 
-              <Box className="flex items-center gap-x-5">
-                <Search
-                  placeholder="Search..."
-                  onChange={handleSearchChange}
+          <DirectoryTableWrap
+            toolbar={
+              <DirectoryToolbar>
+                <DirectorySearch
+                  id="employee-search"
                   value={searchTerm}
+                  onChange={handleSearchChange}
+                  placeholder="Search by ID, name, email…"
                 />
-                <FiltersButton
-                  text="Download"
-                  Icon={
-                    <Typography color="grey.400">
-                      <TbFileDownload size="24px" />
-                    </Typography>
-                  }
+                <DirectoryDateInput
+                  id="employee-start-date"
+                  value={dateRange.startDate}
+                  onChange={(value) => handleDateChange("startDate", value)}
+                  aria-label="Start date"
+                  title="Start date"
                 />
-                <DateRangeSelector
-                  value={dateRange}
-                  onChange={handleDateChange}
-                  placeholder="Select Date Range"
-                  className="w-fit"
+                <DirectoryDateInput
+                  id="employee-end-date"
+                  value={dateRange.endDate}
+                  onChange={(value) => handleDateChange("endDate", value)}
+                  aria-label="End date"
+                  title="End date"
                 />
-                <FiltersButton text="Zone" />
-                <FiltersButton
-                  text="Add Employee"
-                  onClick={() => {
-                    setEditEmployee(null);
-                    setAddModalOpen(true);
-                  }}
-                  Icon={<TbPlus size="20px" />}
-                  variant="blue"
-                />
-              </Box>
-            </Box>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-7 font-Inter">
-              <div className="rounded-lg !px-3.5 !py-5 bg-purple50">
-                <h6 className="font-Inter font-semibold text-lg uppercase">
-                  Total employees
-                </h6>
-                <p className="font-Inter font-medium text-[22px] !pt-10">
-                  {adminEmployees.length}
-                </p>
-              </div>
-            </div>
-
-            <div className="w-full overflow-auto">
-              <DataTable
-                data={employeesData}
-                columns={employeeColumns}
-                searchPlaceholder="Search by ID, name, email..."
-                onSearch={handleSearchChange}
-                onFilter={handleFilter}
-                onDateRangeChange={handleDateChange}
-                onDownload={handleDownload}
-                onRowAction={handleRowAction}
-                height={600}
-              />
-            </div>
-
-            <AddEmployeeModal
-              key={editEmployee ? `edit-${editEmployee.id}` : "add"}
-              open={addModalOpen}
-              onClose={() => {
-                setAddModalOpen(false);
-                setEditEmployee(null);
-              }}
-              onSuccess={() => refetch()}
-              employee={editEmployee}
+                {searchTerm || dateRange.startDate || dateRange.endDate ? (
+                  <DirectoryToolbarEnd>
+                    <DirectoryClearButton
+                      onClick={() => {
+                        handleSearchChange("");
+                        setDateRange({ startDate: "", endDate: "" });
+                      }}
+                    />
+                  </DirectoryToolbarEnd>
+                ) : null}
+              </DirectoryToolbar>
+            }
+          >
+            <Table
+              columns={columns}
+              rows={visibleRows}
+              rowKey={(row) => row.id}
+              empty="No employees found"
             />
-            <DeleteEmployeeModal
-              open={deleteModalOpen}
-              employeeId={employeeToDeleteId}
-              onClose={() => {
-                setDeleteModalOpen(false);
-                setEmployeeToDeleteId(null);
-              }}
-              onSuccess={() => refetch()}
-            />
-          </div>
+          </DirectoryTableWrap>
+        </>
+      )}
+
+      <DirectoryViewModal
+        open={Boolean(viewRow)}
+        title={viewRow?.name || "Employee"}
+        onClose={() => setViewRow(null)}
+        primaryLabel="Open details"
+        onPrimary={() => {
+          if (!viewRow?.id) return;
+          navigate(`/employee-management/details/${viewRow.id}`);
+        }}
+        fields={[
+          { label: "Employee ID", value: viewRow?.employeeId },
+          { label: "Email", value: viewRow?.email },
+          { label: "Phone", value: viewRow?.phoneNum },
+          { label: "Status", value: viewRow?.status ? "Active" : "Inactive" },
+        ]}
+      />
+
+      <AddEmployeeModal
+        key={editEmployee ? `edit-${editEmployee.id}` : "add"}
+        open={addModalOpen}
+        onClose={() => {
+          setAddModalOpen(false);
+          setEditEmployee(null);
+        }}
+        onSuccess={() => refetch()}
+        employee={editEmployee}
+      />
+      <Modal
+        open={deleteModalOpen}
+        title="Delete Employee"
+        description="This will permanently remove the employee. This action can't be undone."
+        onClose={closeDeleteModal}
+        onPrimary={handleConfirmDelete}
+        primaryLabel={isDeleting ? "Deleting…" : "Delete"}
+        secondaryLabel="Cancel"
+        danger
+      />
+    </div>
   );
 }
-

@@ -1,0 +1,36 @@
+---
+description: Locked admin UI kit — use src/design-system tokens and components
+alwaysApply: true
+---
+
+# JustDryCleans admin UI is locked
+
+**Source of truth:** `src/design-system/` — tokens (`styles/tokens.css` on `.jd-ds`), type scale, and primitives.
+
+Authenticated screens already sit inside `Layout` → `DsShell` / `DsScope`. Do not add a second shell.
+
+## Required
+
+- Import UI from `src/design-system`: `Button`, `Field`, `Input`, `Select`, `Badge`, `Modal`, `Table`, `PageHeader`, `Stat`.
+- Lists: kit `Table` + `PageHeader` + `Stat`. `DirectoryTableWrap` / `dataTableChrome` are consumers of the kit, not a second system.
+- Colors and type: `.jd-ds` tokens (`--accent`, `--ink`, `--text-h2`, …). Do not invent hex or a parallel type scale.
+- Money: `formatMoney` / `resolveCurrencySymbol` (`src/utilities/formatMoney.js`). Never hardcode `£` or `$`.
+- Dialogs: DS `Modal` only (header progress bar is already global).
+
+## Forbidden in new code
+
+- `@mui/*`, `@material-ui/*`, `@heroui/*`
+- New raw `<table>`, native `<button>` / `<input>` / `<select>` for product UI, or a new Stat/KPI primitive
+- Treating order-management CSS as the kit — that table may stay for orders only
+
+```js
+// ❌
+import Button from "@mui/material/Button";
+<p>£12.00</p>
+
+// ✅
+import { Button, PageHeader, Table, Stat } from "../../design-system";
+import { formatMoney } from "../../utilities/formatMoney";
+```
+
+Do not restyle existing pages unless asked. Do not invent a parallel kit.

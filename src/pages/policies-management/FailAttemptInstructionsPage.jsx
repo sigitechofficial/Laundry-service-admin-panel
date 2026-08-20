@@ -1,21 +1,13 @@
 import { useMemo, useState } from "react";
+import { Button, Field, Input, Modal, PageHeader, Select, Table, Textarea } from "../../design-system";
+import { CheckRow, Notice, TabBar, Toggle } from "../misc-kit";
 import {
-  Alert,
-  Box,
-  Button,
-  Checkbox,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
-  FormControlLabel,
-  Stack,
-  Tab,
-  Tabs,
-  TextField,
-  Typography,
-} from "@mui/material";
-import ChangeStatus from "../../components/ui/Switch";
+  DirectoryDotPill,
+  DirectoryError,
+  DirectoryFormCard,
+  DirectoryIdentity,
+  DirectoryTableWrap,
+} from "../directory-table/directoryTable";
 import useToaster from "../../components/ui/Toaster";
 import {
   useCreateFailAttemptInstructionMutation,
@@ -26,7 +18,6 @@ import {
   useUpdateFailAttemptInstructionMutation,
 } from "../../store/services/api";
 import { Delay } from "../../components/shared/Loaders";
-import SelectField from "../../components/ui/SelectField";
 import FailAttemptReasonsSection from "./FailAttemptReasonsSection";
 
 function unwrapSets(res) {
@@ -35,6 +26,16 @@ function unwrapSets(res) {
   if (Array.isArray(d?.data)) return d.data;
   return [];
 }
+
+const PAGE_TABS = [
+  { value: "checklist", label: "Checklist" },
+  { value: "reasons", label: "Fail reasons" },
+];
+
+const SCOPE_TABS = [
+  { value: "pickup", label: "Pickup" },
+  { value: "delivery", label: "Delivery" },
+];
 
 export default function FailAttemptInstructionsPage() {
   const { success, error: showError } = useToaster();
@@ -46,13 +47,11 @@ export default function FailAttemptInstructionsPage() {
   const [isRequired, setIsRequired] = useState(true);
   const [zoneId, setZoneId] = useState("");
 
-  const { data, isLoading, refetch } = useGetFailAttemptInstructionSetsQuery(scope);
+  const { data, isLoading, isError, refetch } = useGetFailAttemptInstructionSetsQuery(scope);
   const { data: zonesData } = useGetAllZonesQuery();
-  const [createItem, { isLoading: creating }] =
-    useCreateFailAttemptInstructionMutation();
+  const [createItem, { isLoading: creating }] = useCreateFailAttemptInstructionMutation();
   const [updateItem] = useUpdateFailAttemptInstructionMutation();
-  const [createZoneSet, { isLoading: creatingZone }] =
-    useCreateZoneFailAttemptSetMutation();
+  const [createZoneSet, { isLoading: creatingZone }] = useCreateZoneFailAttemptSetMutation();
   const [setActive] = useSetFailAttemptSetActiveMutation();
 
   const sets = useMemo(() => unwrapSets(data), [data]);
@@ -134,227 +133,178 @@ export default function FailAttemptInstructionsPage() {
   };
 
   return (
-    <Box sx={{ p: 3 }}>
-      <Typography variant="h5" fontWeight={700} mb={1}>
-        Fail attempt settings
-      </Typography>
-      <Typography color="text.secondary" mb={2}>
-        Reasons agents pick when an attempt fails, plus the checklist they
-        must acknowledge. Fee and no-fee reasons both appear in the app and
-        on the order.
-      </Typography>
+    <div style={{ display: "grid", gap: 20 }}>
+      <PageHeader
+        title="Fail attempt settings"
+        description="Reasons agents pick when an attempt fails, plus the checklist they must acknowledge. Fee and no-fee reasons both appear in the app and on the order."
+      />
 
-      <Tabs
-        value={pageTab}
-        onChange={(_, v) => setPageTab(v)}
-        sx={{ mb: 2, borderBottom: "1px solid #E5E7EB" }}
-      >
-        <Tab value="checklist" label="Checklist" />
-        <Tab value="reasons" label="Fail reasons" />
-      </Tabs>
+      <TabBar value={pageTab} tabs={PAGE_TABS} onChange={setPageTab} />
 
       {pageTab === "reasons" ? <FailAttemptReasonsSection /> : null}
 
       {pageTab === "checklist" ? (
-      <>
-      {isLoading ? <Delay /> : null}
-      {!isLoading ? (
-      <>
-      <Typography color="text.secondary" mb={2}>
-        Checklist shown to agents before marking pickup or delivery failed.
-        Disabled items never appear in the app. Required items must be
-        acknowledged.
-      </Typography>
+        isLoading ? (
+          <Delay />
+        ) : isError ? (
+          <DirectoryError onRetry={() => refetch()}>Could not load fail-attempt checklists.</DirectoryError>
+        ) : (
+          <div style={{ display: "grid", gap: 20 }}>
+            <p className="jd-field__hint" style={{ margin: 0 }}>
+              Checklist shown to agents before marking pickup or delivery failed. Disabled items never
+              appear in the app. Required items must be acknowledged.
+            </p>
 
-      <Tabs
-        value={scope}
-        onChange={(_, v) => setScope(v)}
-        sx={{ mb: 2 }}
-      >
-        <Tab value="pickup" label="Pickup" />
-        <Tab value="delivery" label="Delivery" />
-      </Tabs>
+            <TabBar value={scope} tabs={SCOPE_TABS} onChange={setScope} />
 
-      <Alert severity="info" sx={{ mb: 2 }}>
-        Active set: {globalSet?.name || "—"} (v{globalSet?.version || "—"})
-      </Alert>
+            <Notice tone="info">
+              Active set: {globalSet?.name || "—"} (v{globalSet?.version || "—"})
+            </Notice>
 
-      <Stack direction="row" justifyContent="space-between" mb={2}>
-        <Typography fontWeight={600}>Global checklist items</Typography>
-        <Button variant="contained" onClick={() => setAddOpen(true)}>
-          Add instruction
-        </Button>
-      </Stack>
-
-      <Stack spacing={1.5}>
-        {items.map((item) => (
-          <Box
-            key={item.id}
-            sx={{
-              p: 2,
-              border: "1px solid #E5E7EB",
-              borderRadius: 2,
-              bgcolor: "#fff",
-            }}
-          >
-            <Stack
-              direction={{ xs: "column", md: "row" }}
-              justifyContent="space-between"
-              gap={1}
-            >
-              <Box>
-                <Typography fontWeight={700}>{item.title}</Typography>
-                {item.body ? (
-                  <Typography variant="body2" color="text.secondary">
-                    {item.body}
-                  </Typography>
-                ) : null}
-              </Box>
-              <Stack direction="row" spacing={2} alignItems="center">
-                <FormControlLabel
-                  control={
-                    <ChangeStatus
-                      checked={Boolean(item.isEnabled)}
-                      onChange={(e) =>
-                        toggleEnabled(item, e.target.checked)
-                      }
-                    />
-                  }
-                  label="Enabled"
-                />
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      checked={Boolean(item.isRequired)}
-                      onChange={(e) =>
-                        toggleRequired(item, e.target.checked)
-                      }
-                      disabled={!item.isEnabled}
-                    />
-                  }
-                  label="Required"
-                />
-              </Stack>
-            </Stack>
-          </Box>
-        ))}
-        {!items.length ? (
-          <Alert severity="warning">No instructions yet for this scope.</Alert>
-        ) : null}
-      </Stack>
-
-      <Box mt={4}>
-        <Typography fontWeight={700} mb={1}>
-          Zone overrides
-        </Typography>
-        <Typography variant="body2" color="text.secondary" mb={2}>
-          Create a zone-specific checklist (starts as a clone of the global
-          set). Agents in that zone see the zone set when active.
-        </Typography>
-        <Stack direction={{ xs: "column", sm: "row" }} spacing={1} mb={2}>
-          <Box sx={{ minWidth: 220 }}>
-            <SelectField
-              label="Zone"
-              value={zoneId}
-              onChange={(e) => setZoneId(e.target.value)}
-              options={zones}
-            />
-          </Box>
-          <Button
-            variant="outlined"
-            disabled={!zoneId || creatingZone}
-            onClick={onCreateZoneSet}
-          >
-            Create / activate zone set
-          </Button>
-        </Stack>
-        <Stack spacing={1}>
-          {zoneSets.map((zs) => (
-            <Box
-              key={zs.id}
-              sx={{
-                p: 1.5,
-                border: "1px solid #E5E7EB",
-                borderRadius: 2,
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-              }}
-            >
-              <Typography>
-                {zs.name} (zone {zs.zoneId}) — {zs.items?.length || 0} items —
-                v{zs.version}
-              </Typography>
-              <FormControlLabel
-                control={
-                  <ChangeStatus
-                    checked={Boolean(zs.isActive)}
-                    onChange={async (e) => {
-                      try {
-                        await setActive({
-                          setId: zs.id,
-                          isActive: e.target.checked,
-                        }).unwrap();
-                        refetch();
-                      } catch (err) {
-                        showError(
-                          err?.data?.message || err?.message || "Failed"
-                        );
-                      }
-                    }}
-                  />
-                }
-                label="Active"
+            <DirectoryTableWrap>
+              <Table
+                columns={[
+                  {
+                    key: "title",
+                    header: "Instruction",
+                    render: (item) => (
+                      <DirectoryIdentity name={item.title} meta={item.body} id={item.id} />
+                    ),
+                  },
+                  {
+                    key: "required",
+                    header: "Required",
+                    render: (item) => (
+                      <DirectoryDotPill tone={item.isRequired ? "warning" : "neutral"}>
+                        {item.isRequired ? "Required" : "Optional"}
+                      </DirectoryDotPill>
+                    ),
+                  },
+                  {
+                    key: "actions",
+                    header: "Actions",
+                    render: (item) => (
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 12, justifyContent: "flex-end" }}>
+                        <Toggle
+                          checked={Boolean(item.isEnabled)}
+                          onChange={(e) => toggleEnabled(item, e.target.checked)}
+                          label="Enabled"
+                        />
+                        <CheckRow
+                          checked={Boolean(item.isRequired)}
+                          onChange={(e) => toggleRequired(item, e.target.checked)}
+                          disabled={!item.isEnabled}
+                          label="Required"
+                        />
+                      </div>
+                    ),
+                  },
+                ]}
+                rows={items}
+                rowKey={(item) => item.id}
+                empty="No instructions yet for this scope."
               />
-            </Box>
-          ))}
-        </Stack>
-      </Box>
+            </DirectoryTableWrap>
+            <div style={{ display: "flex", justifyContent: "flex-end" }}>
+              <Button onClick={() => setAddOpen(true)}>Add instruction</Button>
+            </div>
 
-      <Dialog open={addOpen} onClose={() => setAddOpen(false)} fullWidth>
-        <DialogTitle>Add instruction</DialogTitle>
-        <DialogContent>
-          <Stack spacing={2} mt={1}>
-            <TextField
-              label="Title"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              fullWidth
-            />
-            <TextField
-              label="Body"
-              value={body}
-              onChange={(e) => setBody(e.target.value)}
-              fullWidth
-              multiline
-              minRows={2}
-            />
-            <FormControlLabel
-              control={
-                <Checkbox
+            <DirectoryFormCard
+              title="Zone overrides"
+              hint="Create a zone-specific checklist (starts as a clone of the global set). Agents in that zone see the zone set when active."
+            >
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-end", marginBottom: 12 }}>
+                <Field label="Zone">
+                  <div style={{ minWidth: 220 }}>
+                    <Select
+                      aria-label="Zone"
+                      value={zoneId}
+                      onChange={setZoneId}
+                      options={zones}
+                      placeholder="Select zone"
+                    />
+                  </div>
+                </Field>
+                <Button variant="secondary" disabled={!zoneId || creatingZone} onClick={onCreateZoneSet}>
+                  {creatingZone ? "Creating…" : "Create / activate zone set"}
+                </Button>
+              </div>
+              <DirectoryTableWrap>
+                <Table
+                  columns={[
+                    {
+                      key: "name",
+                      header: "Zone set",
+                      render: (zs) => (
+                        <DirectoryIdentity
+                          name={zs.name}
+                          meta={`Zone ${zs.zoneId} · ${zs.items?.length || 0} items · v${zs.version}`}
+                          id={zs.id}
+                        />
+                      ),
+                    },
+                    {
+                      key: "actions",
+                      header: "Actions",
+                      render: (zs) => (
+                        <Toggle
+                          checked={Boolean(zs.isActive)}
+                          onChange={async (e) => {
+                            try {
+                              await setActive({
+                                setId: zs.id,
+                                isActive: e.target.checked,
+                              }).unwrap();
+                              refetch();
+                            } catch (err) {
+                              showError(err?.data?.message || err?.message || "Failed");
+                            }
+                          }}
+                          label="Active"
+                        />
+                      ),
+                    },
+                  ]}
+                  rows={zoneSets}
+                  rowKey={(zs) => zs.id}
+                  empty="No zone overrides yet."
+                />
+              </DirectoryTableWrap>
+            </DirectoryFormCard>
+
+            <Modal
+              open={addOpen}
+              title="Add instruction"
+              onClose={() => setAddOpen(false)}
+              primaryLabel="Save"
+              onPrimary={onAdd}
+              primaryDisabled={creating || !title.trim()}
+            >
+              <div style={{ display: "grid", gap: 12 }}>
+                <Field label="Title" htmlFor="fail-inst-title">
+                  <Input
+                    id="fail-inst-title"
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                  />
+                </Field>
+                <Field label="Body" htmlFor="fail-inst-body">
+                  <Textarea
+                    id="fail-inst-body"
+                    value={body}
+                    onChange={(e) => setBody(e.target.value)}
+                  />
+                </Field>
+                <CheckRow
                   checked={isRequired}
                   onChange={(e) => setIsRequired(e.target.checked)}
+                  label="Required acknowledgment"
                 />
-              }
-              label="Required acknowledgment"
-            />
-          </Stack>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setAddOpen(false)}>Cancel</Button>
-          <Button
-            variant="contained"
-            disabled={creating || !title.trim()}
-            onClick={onAdd}
-          >
-            Save
-          </Button>
-        </DialogActions>
-      </Dialog>
-      </>
+              </div>
+            </Modal>
+          </div>
+        )
       ) : null}
-      </>
-      ) : null}
-    </Box>
+    </div>
   );
 }

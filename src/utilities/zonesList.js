@@ -15,7 +15,7 @@ export function zonesArrayFromGetZonesResponse(zonesResponse) {
 }
 
 /** Redux `apiData.zones` is `payload.data` from getZones — array or `{ zones }`. */
-export function zonesArrayFromRedux(zonesNode) {
+function zonesArrayFromRedux(zonesNode) {
   if (zonesNode == null) return [];
   if (Array.isArray(zonesNode)) return zonesNode;
   if (Array.isArray(zonesNode.zones)) return zonesNode.zones;

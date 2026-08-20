@@ -1,9 +1,5 @@
 import { useState, useEffect, useMemo, Fragment, useRef, useCallback } from "react";
-import { Box, Button, CircularProgress, IconButton, Typography, Checkbox, FormControlLabel } from "@mui/material";
-import { BsCardList, TbPlus } from "../../shared/icons/index";
-import DataTable from "../../components/ui/DataTable";
-import ActionButtons from "../../components/ui/ActionButtons";
-import ModalComponent from "../../components/shared/Modal";
+import { TbPlus } from "../../shared/icons/index";
 import { useNavigate } from "react-router-dom";
 import {
   useGetAllZonesQuery,
@@ -18,13 +14,27 @@ import {
 } from "../../store/services/api";
 import { useSelector } from "react-redux";
 import { Delay } from "../../components/shared/Loaders";
-import ButtonBlueLight from "../../components/ui/ButtonBlueLight";
-import SelectField from "../../components/ui/SelectField";
-import { googleApiKey } from "../../utilities/URL";
+import { MapsUnavailableNotice } from "../../utilities/GoogleMapsProvider";
+import { adminGeocode } from "../../utilities/adminGeocode";
+import { triggerGoogleMapResize, useGoogleMaps } from "../../utilities/googleMapsConfig";
+import { formatMoney, resolveCurrencySymbol } from "../../utilities/formatters";
 import ZoneFiltersPopover from "./ZoneFiltersPopover";
+import { Button, Field, Input, Modal, PageHeader, Select, Table, Textarea } from "../../design-system";
+import { CheckRow } from "../misc-kit";
+import {
+  DirectoryActions,
+  DirectoryIdentity,
+  DirectoryMetric,
+  DirectoryMetrics,
+  DirectoryMoney,
+  DirectorySearch,
+  DirectoryStatusPill,
+  DirectoryTableWrap,
+  DirectoryToolbar,
+} from "../directory-table/directoryTable";
+import { joinMeta } from "../directory-table/directoryTableUtils";
 import {
   GoogleMap,
-  useLoadScript,
   DrawingManager,
   Marker,
   Polygon,
@@ -33,8 +43,9 @@ import {
 import { LiaHandPointerSolid } from "react-icons/lia";
 import { TbLassoPolygon, TbChevronLeft, TbChevronRight, TbChevronUp, TbChevronDown } from "react-icons/tb";
 import { RxCross2 } from "react-icons/rx";
-import InputFieldModal from "../../components/ui/InputFieldModal";
 import useToaster from "../../components/ui/Toaster";
+import { fetchWithTimeout } from "../../store/services/fetchWithTimeout";
+import { getApiErrorMessage } from "../../store/services/apiErrors";
 
 /**
  * UK postcode **sector** polygons (e.g. SW1A — not a single unit like SW1A 1AA).
@@ -126,6 +137,13 @@ function normalizeZonePostcodeList(raw) {
   return out;
 }
 
+function asCityList(raw) {
+  if (Array.isArray(raw)) return raw;
+  if (Array.isArray(raw?.cities)) return raw.cities;
+  if (Array.isArray(raw?.data)) return raw.data;
+  return [];
+}
+
 function formatZonePostcodesLabel(raw) {
   const list = normalizeZonePostcodeList(raw);
   if (!list.length) return "—";
@@ -152,10 +170,8 @@ function formatZoneAdminLabel(zone) {
   return "Unassigned";
 }
 
-function formatMoneyCell(value) {
-  const n = Number(value);
-  if (!Number.isFinite(n)) return "—";
-  return n.toFixed(2);
+function formatMoneyCell(value, zone) {
+  return formatMoney(value, resolveCurrencySymbol(zone));
 }
 
 function csvEscape(value) {
@@ -248,7 +264,7 @@ async function fetchUkPostcodeDistrictPolygon(outcode) {
   try {
     let fc = ukPostcodeAreaGeojsonCache.get(area);
     if (!fc) {
-      const res = await fetch(
+      const res = await fetchWithTimeout(
         `${UK_POSTCODE_AREA_GEOJSON_BASE}/${encodeURIComponent(area)}.geojson`
       );
       if (!res.ok) return null;
@@ -292,8 +308,8 @@ function userFacingPostcodesIoError(message) {
 async function lookupPostcodesIoPostcodeOrOutcode(cleanPostcode) {
   const encoded = encodeURIComponent(cleanPostcode);
   const read = async (url) => {
-    const response = await fetch(url);
-    let body = null;
+    const response = await fetchWithTimeout(url);
+    let body;
     try {
       body = await response.json();
     } catch {
@@ -341,7 +357,7 @@ async function enrichPostcodesIoResultForCityCheck(result) {
     const url = `https://api.postcodes.io/postcodes?lon=${encodeURIComponent(
       String(lng)
     )}&lat=${encodeURIComponent(String(lat))}&limit=1`;
-    const response = await fetch(url);
+    const response = await fetchWithTimeout(url);
     if (!response.ok) return result;
     const data = await response.json();
     const nearest = data?.result?.[0];
@@ -359,15 +375,12 @@ async function enrichPostcodesIoResultForCityCheck(result) {
 
 export default function ZoneManagement() {
   const navigate = useNavigate();
-  const libraries = ["places", "drawing"];
-  const { isLoaded: _isLoaded } = useLoadScript({
-    googleMapsApiKey: googleApiKey,
-    libraries,
-  });
+  const { isLoaded: isMapsLoaded } = useGoogleMaps();
 
   const [filterCity, setFilterCity] = useState("");
   const [filterPaymentMethod, setFilterPaymentMethod] = useState("");
   const [filterAssignment, setFilterAssignment] = useState("");
+  const [zoneSearch, setZoneSearch] = useState("");
 
   // Map state
   const [center, setCenter] = useState({ lat: 31.5497, lng: 74.3436 }); // Lahore coordinates
@@ -420,7 +433,6 @@ export default function ZoneManagement() {
   const [editingZoneId, setEditingZoneId] = useState(null);
   /** Normalized postcode set when edit modal opened — omit postcodes on save if unchanged. */
   const [editBaselinePostcodesKey, setEditBaselinePostcodesKey] = useState("");
-  console.log("🚀 ~ ZoneManagement ~ add:", add);
   const { success, error: showError } = useToaster();
   const { data: zonesQueryData, isLoading } = useGetAllZonesQuery();
   const { isLoading: _countriesLoading } = useGetAllCountriesQuery();
@@ -441,19 +453,49 @@ export default function ZoneManagement() {
   });
 
   const currencies = currenciesData?.data || units?.currency || [];
-  const allCities = Array.isArray(allCitiesData?.data)
-    ? allCitiesData.data
-    : Array.isArray(allCitiesData?.data?.cities)
-      ? allCitiesData.data.cities
-      : [];
-
-  // Fetch cities when a country is selected
-  const { isLoading: _citiesLoading } = useGetCitiesByCountryIdQuery(
-    add.countryId,
-    {
-      skip: !add.countryId, // Skip the query if no country is selected
-    }
+  const allCities = useMemo(
+    () =>
+      Array.isArray(allCitiesData?.data)
+        ? allCitiesData.data
+        : Array.isArray(allCitiesData?.data?.cities)
+          ? allCitiesData.data.cities
+          : [],
+    [allCitiesData?.data]
   );
+
+  const {
+    data: citiesByCountryResponse,
+    isLoading: citiesLoading,
+    isFetching: citiesFetching,
+  } = useGetCitiesByCountryIdQuery(add.countryId, {
+    skip: !add.countryId,
+  });
+
+  const countryCities = useMemo(() => {
+    const fromCountry = asCityList(citiesByCountryResponse?.data);
+    if (fromCountry.length) return fromCountry;
+    if (!add.countryId) return [];
+    return allCities.filter(
+      (city) => String(city.countryId ?? city.country?.id) === String(add.countryId)
+    );
+  }, [citiesByCountryResponse, allCities, add.countryId]);
+
+  const cityOptions = useMemo(() => {
+    const opts = countryCities
+      .filter((city) => city?.id != null && city?.name)
+      .map((city) => ({ value: String(city.id), label: city.name }));
+    if (add.cityId && !opts.some((option) => option.value === String(add.cityId))) {
+      const extra =
+        allCities.find((city) => String(city.id) === String(add.cityId)) ||
+        (Array.isArray(cities)
+          ? cities.find((city) => String(city.id) === String(add.cityId))
+          : null);
+      if (extra?.id && extra?.name) {
+        opts.unshift({ value: String(extra.id), label: extra.name });
+      }
+    }
+    return opts;
+  }, [countryCities, add.cityId, allCities, cities]);
 
   // In edit mode, if city is known but country isn't, derive country from full city list
   useEffect(() => {
@@ -474,8 +516,17 @@ export default function ZoneManagement() {
     if (!editPendingMapCenter || !map || !add.open) return;
     map.setCenter(editPendingMapCenter);
     map.setZoom(14);
+    triggerGoogleMapResize(map, editPendingMapCenter);
     setEditPendingMapCenter(null);
   }, [editPendingMapCenter, map, add.open]);
+
+  useEffect(() => {
+    if (!map || !add.open || !isMapsLoaded) return undefined;
+    const timer = window.setTimeout(() => {
+      triggerGoogleMapResize(map, center);
+    }, 220);
+    return () => window.clearTimeout(timer);
+  }, [map, add.open, isMapsLoaded, center]);
 
   const updateChipsScrollState = useCallback(() => {
     const el = postcodeChipsScrollRef.current;
@@ -517,9 +568,6 @@ export default function ZoneManagement() {
     el.scrollBy({ left: dir === "left" ? -amount : amount, behavior: "smooth" });
   };
 
-  console.log("🚀 ~ ZoneManagement ~ countries:", countries);
-  console.log("🚀 ~ ZoneManagement ~ cities:", cities);
-
   // Map zone data
   const zonesData = useMemo(
     () =>
@@ -533,7 +581,9 @@ export default function ZoneManagement() {
           zoneName: zone.name,
           city: zone?.city?.name || "—",
           postcodes: formatZonePostcodesLabel(postcodes),
+          postcodeCount: postcodes.length,
           currency: formatZoneCurrencyLabel(zone),
+          currencySymbol: resolveCurrencySymbol(zone),
           paymentMethod: formatPaymentMethodsLabel(
             parseZonePaymentMethods(
               zone.paymentMethod ??
@@ -542,8 +592,10 @@ export default function ZoneManagement() {
                 zone.paymentMethods
             )
           ),
-          zoneMinimumAmount: formatMoneyCell(zone.zoneMinimumAmount),
-          serviceFee: formatMoneyCell(zone.serviceCharge),
+          zoneMinimumAmount: formatMoneyCell(zone.zoneMinimumAmount, zone),
+          serviceFee: formatMoneyCell(zone.serviceCharge, zone),
+          zoneMinimumAmountRaw: zone.zoneMinimumAmount,
+          serviceChargeRaw: zone.serviceCharge,
           noOfShops: (() => {
             const n = Number(zone.shopCount ?? zone.shops);
             return Number.isFinite(n) ? n : 0;
@@ -605,8 +657,15 @@ export default function ZoneManagement() {
     } else if (filterAssignment === "unassigned") {
       rows = rows.filter((r) => !r._isAssigned);
     }
+    const q = zoneSearch.trim().toLowerCase();
+    if (q) {
+      rows = rows.filter((r) =>
+        [r.zoneName, r.city, r.postcodes, r.paymentMethod, r.zoneAssign]
+          .some((v) => String(v ?? "").toLowerCase().includes(q))
+      );
+    }
     return rows.map((row, index) => ({ ...row, sl: index + 1 }));
-  }, [zonesData, filterCity, filterPaymentMethod, filterAssignment]);
+  }, [zonesData, filterCity, filterPaymentMethod, filterAssignment, zoneSearch]);
 
   const extractZonePostcodes = (zone) => {
     const postcodeRegex = /\b[A-Z]{1,2}\d[A-Z\d]?\s?\d[A-Z]{2}\b/i;
@@ -785,7 +844,7 @@ export default function ZoneManagement() {
 
     const lookupPostcodePostcodesIo = async (lng, lat) => {
       try {
-        const response = await fetch(
+        const response = await fetchWithTimeout(
           `https://api.postcodes.io/postcodes?lon=${lng}&lat=${lat}`
         );
         if (!response.ok) return "";
@@ -797,12 +856,8 @@ export default function ZoneManagement() {
     };
 
     const lookupPostcodeGoogle = async (lng, lat) => {
-      if (!googleApiKey) return "";
       try {
-        const geoUrl = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${googleApiKey}`;
-        const response = await fetch(geoUrl);
-        if (!response.ok) return "";
-        const data = await response.json();
+        const data = await adminGeocode({ latlng: `${lat},${lng}` });
         const postcodeComponent = data?.results
           ?.flatMap((result) => result?.address_components || [])
           ?.find((component) => component?.types?.includes("postal_code"));
@@ -857,7 +912,7 @@ export default function ZoneManagement() {
       if (postcode) results.push(postcode);
     }
 
-    if (results.length === 0 && googleApiKey) {
+    if (results.length === 0) {
       for (const point of sampled.slice(0, 5)) {
         const [lng, lat] = point || [];
         if (typeof lng !== "number" || typeof lat !== "number") continue;
@@ -1053,102 +1108,110 @@ export default function ZoneManagement() {
       }
       // LIST tag invalidation refreshes useGetAllZonesQuery
     } catch (err) {
-      showError(err?.data?.message || "Failed to delete zone.");
+      showError(getApiErrorMessage(err, "Failed to delete zone."));
     }
   };
 
   // Column configuration for zone table
+  const zoneExportColumns = [
+    { field: "sl", headerName: "SL" },
+    { field: "zoneName", headerName: "Zone Name" },
+    { field: "city", headerName: "City" },
+    { field: "postcodes", headerName: "Postcodes" },
+    { field: "currency", headerName: "Currency" },
+    { field: "paymentMethod", headerName: "Payment Method" },
+    { field: "zoneMinimumAmount", headerName: "Zone Minimum" },
+    { field: "serviceFee", headerName: "Service Fee" },
+    { field: "commission", headerName: "Agent commission %" },
+    { field: "noOfShops", headerName: "No of Shops" },
+    { field: "zoneAssign", headerName: "Zone Assign" },
+  ];
+
   const zoneColumns = [
     {
-      field: "sl",
-      headerName: "SL",
-      flex: 0.08,
-      minWidth: 70,
-      align: "center",
-    },
-    {
-      field: "zoneName",
-      headerName: "Zone Name",
-      flex: 0.18,
-      minWidth: 160,
-      align: "left",
-    },
-    {
-      field: "city",
-      headerName: "City",
-      flex: 0.12,
-      minWidth: 120,
-      align: "center",
-    },
-    {
-      field: "postcodes",
-      headerName: "Postcodes",
-      flex: 0.18,
-      minWidth: 180,
-      align: "left",
-    },
-    {
-      field: "currency",
-      headerName: "Currency",
-      flex: 0.12,
-      minWidth: 120,
-      align: "center",
-    },
-    {
-      field: "paymentMethod",
-      headerName: "Payment Method",
-      flex: 0.12,
-      minWidth: 130,
-      align: "center",
-    },
-    {
-      field: "zoneMinimumAmount",
-      headerName: "Zone Minimum",
-      flex: 0.12,
-      minWidth: 120,
-      align: "center",
-    },
-    {
-      field: "serviceFee",
-      headerName: "Service Fee",
-      flex: 0.1,
-      minWidth: 110,
-      align: "center",
-    },
-    {
-      field: "commission",
-      headerName: "Agent commission %",
-      flex: 0.12,
-      minWidth: 150,
-      align: "center",
-    },
-    {
-      field: "noOfShops",
-      headerName: "No of Shops",
-      flex: 0.1,
-      minWidth: 110,
-      align: "center",
-    },
-    {
-      field: "zoneAssign",
-      headerName: "Zone Assign",
-      flex: 0.14,
-      minWidth: 140,
-      align: "center",
-    },
-    {
-      field: "actions",
-      headerName: "Actions",
-      flex: 0.12,
-      minWidth: 140,
-      sortable: false,
-      align: "center",
-      renderCell: (params) => (
-        <ActionButtons
-          showView={false}
-          onEdit={() => handleEditZone(params)}
-          onDelete={() => handleDeleteZone(params)}
+      key: "zoneName",
+      header: "Zone",
+      render: (row) => (
+        <DirectoryIdentity
+          name={row.zoneName}
+          meta={joinMeta(row.city, row.postcodes)}
+          id={row.zoneId}
         />
+      ),
+    },
+    {
+      key: "status",
+      header: "Status",
+      render: (row) => (
+        <DirectoryStatusPill
+          active={row._isAssigned}
+          activeLabel="Assigned"
+          inactiveLabel="Unassigned"
+        />
+      ),
+    },
+    {
+      key: "city",
+      header: "City",
+      render: (row) => row.city || "—",
+    },
+    {
+      key: "postcodeCount",
+      header: "Postcodes",
+      render: (row) => {
+        const n = Number(row.postcodeCount);
+        if (!Number.isFinite(n) || n <= 0) {
+          return <span title={row.postcodes}>—</span>;
+        }
+        return (
+          <span title={row.postcodes}>
+            <DirectoryMetric value={`${n} ${n === 1 ? "code" : "codes"}`} />
+          </span>
+        );
+      },
+    },
+    {
+      key: "noOfShops",
+      header: "Shops",
+      render: (row) => (
+        <DirectoryMetric value={row.noOfShops} hint={row.zoneAssign} />
+      ),
+    },
+    {
+      key: "zoneMinimumAmount",
+      header: "Minimum",
+      align: "right",
+      render: (row) => (
+        <DirectoryMoney>
+          {formatMoney(row.zoneMinimumAmountRaw, row.currencySymbol)}
+        </DirectoryMoney>
+      ),
+    },
+    {
+      key: "serviceFee",
+      header: "Service fee",
+      align: "right",
+      render: (row) => (
+        <DirectoryMoney>
+          {formatMoney(row.serviceChargeRaw, row.currencySymbol)}
+        </DirectoryMoney>
+      ),
+    },
+    {
+      key: "actions",
+      header: "Actions",
+      render: (row) => (
+        <DirectoryActions>
+          <Button size="sm" variant="secondary" onClick={() => handleRowAction("view", row)}>
+            View
+          </Button>
+          <Button size="sm" variant="secondary" onClick={() => handleEditZone(row)}>
+            Edit
+          </Button>
+          <Button size="sm" variant="danger" onClick={() => handleDeleteZone(row)}>
+            Delete
+          </Button>
+        </DirectoryActions>
       ),
     },
   ];
@@ -1298,7 +1361,6 @@ export default function ZoneManagement() {
         ...paymentPayload,
       };
 
-      console.log("Zone data being sent:", zoneData);
       if (isEditMode && editingZoneId) {
         // Any edit should reactivate the zone.
         const editPayload = {
@@ -1312,15 +1374,13 @@ export default function ZoneManagement() {
         if (editBaselinePostcodesKey && currentKey === editBaselinePostcodesKey) {
           delete editPayload.postcodes;
         }
-        const result = await editZoneByPostcodes({
+        await editZoneByPostcodes({
           id: editingZoneId,
           body: editPayload,
         }).unwrap();
-        console.log("Zone updated successfully:", result);
         success("Zone updated successfully!");
       } else {
-        const result = await addZoneByPostcodes(zoneData).unwrap();
-        console.log("Zone added successfully:", result);
+        await addZoneByPostcodes(zoneData).unwrap();
         success("Zone added successfully!");
       }
 
@@ -1333,8 +1393,7 @@ export default function ZoneManagement() {
       handleToggle();
       // Zones LIST + detail tags invalidated by the mutation — no manual refetch.
     } catch (err) {
-      console.error("Error adding zone:", err);
-      showError(err?.data?.message || "Failed to add zone. Please try again.");
+      showError(getApiErrorMessage(err, "Failed to add zone. Please try again."));
     }
   };
 
@@ -1344,7 +1403,7 @@ export default function ZoneManagement() {
       showError("No zones to download.");
       return;
     }
-    downloadZonesCsv(filteredZonesData, zoneColumns);
+    downloadZonesCsv(filteredZonesData, zoneExportColumns);
     success("Zones CSV downloaded.");
   };
 
@@ -1354,38 +1413,15 @@ export default function ZoneManagement() {
     setFilterAssignment("");
   };
 
-  const handelCountryChange = (e) => {
-    const selectedCountryId = e.target.value;
-    const selectedCountry = Array.isArray(countries)
-      ? countries.find((country) => String(country.id) === String(selectedCountryId))
-      : null;
-
-    console.log("Country selected:", {
-      id: selectedCountryId,
-      name: selectedCountry?.name,
-      country: selectedCountry,
-    });
-
-    // Reset city when country changes and update country
+  const handelCountryChange = (selectedCountryId) => {
     setAdd((prev) => ({
       ...prev,
       countryId: selectedCountryId,
-      cityId: "", // Reset city when country changes
+      cityId: "",
     }));
   };
 
-  const handleCityChange = (e) => {
-    const selectedCityId = e.target.value;
-    const selectedCity = Array.isArray(cities)
-      ? cities.find((city) => String(city.id) === String(selectedCityId))
-      : null;
-
-    console.log("City selected:", {
-      id: selectedCityId,
-      name: selectedCity?.name,
-      city: selectedCity,
-    });
-
+  const handleCityChange = (selectedCityId) => {
     setAdd((prev) => ({
       ...prev,
       cityId: selectedCityId,
@@ -1393,47 +1429,9 @@ export default function ZoneManagement() {
   };
 
   const handleRowAction = (actionType, rowData) => {
-    console.log("🚀 ~ handleRowAction ~ rowData:", rowData);
-    switch (actionType) {
-      case "view":
-        navigate(`/zone-management/details/${rowData.id}`);
-        break;
-      case "edit":
-        handleEditZone(rowData);
-        break;
-      case "delete":
-        handleDeleteZone(rowData);
-        break;
-      case "toggle-status":
-        // Toggle zone status
-        console.log("Toggling status for zone:", rowData.zoneName);
-        break;
-      default:
-        break;
+    if (actionType === "view") {
+      navigate(`/zone-management/details/${rowData.id}`);
     }
-  };
-
-  // Create polygon from nearby postcodes or create a hexagon
-  const createPolygonFromNearbyPostcodes = (centerLat, centerLng, nearbyPostcodes) => {
-    if (!nearbyPostcodes || nearbyPostcodes.length === 0) {
-      // If no nearby postcodes, create a hexagon around the center point
-      return createHexagon(centerLat, centerLng, 0.005); // ~500m radius
-    }
-
-    // Collect all coordinates from nearby postcodes
-    const coordinates = nearbyPostcodes
-      .filter((pc) => pc.latitude && pc.longitude)
-      .map((pc) => ({ lat: pc.latitude, lng: pc.longitude }));
-
-    if (coordinates.length === 0) {
-      return createHexagon(centerLat, centerLng, 0.005);
-    }
-
-    // Add center point
-    coordinates.push({ lat: centerLat, lng: centerLng });
-
-    // Create bounding polygon
-    return createBoundingPolygon(coordinates);
   };
 
   // Create a hexagon shape
@@ -1451,34 +1449,6 @@ export default function ZoneManagement() {
     return points;
   };
 
-  // Create a bounding polygon from coordinates
-  const createBoundingPolygon = (coordinates) => {
-    if (coordinates.length === 1) {
-      return createHexagon(coordinates[0].lat, coordinates[0].lng, 0.005);
-    }
-
-    // Calculate bounding box
-    const lats = coordinates.map((c) => c.lat);
-    const lngs = coordinates.map((c) => c.lng);
-    const minLat = Math.min(...lats);
-    const maxLat = Math.max(...lats);
-    const minLng = Math.min(...lngs);
-    const maxLng = Math.max(...lngs);
-
-    // Add padding
-    const latPadding = (maxLat - minLat) * 0.2 || 0.005;
-    const lngPadding = (maxLng - minLng) * 0.2 || 0.005;
-
-    // Create rounded rectangle polygon
-    return [
-      { lat: minLat - latPadding, lng: minLng - lngPadding },
-      { lat: maxLat + latPadding, lng: minLng - lngPadding },
-      { lat: maxLat + latPadding, lng: maxLng + lngPadding },
-      { lat: minLat - latPadding, lng: maxLng + lngPadding },
-      { lat: minLat - latPadding, lng: minLng - lngPadding }, // Close polygon
-    ];
-  };
-
   // Helper function to fetch postal code boundary for the map.
   // UK full unit (e.g. SW1A 1AA): postcodes.io gives outcode SW1A + incode — open GeoJSON is **sector** SW1A
   // (huge, wrong vs Google’s unit outline). Skip GeoJSON for those; use Geocoding viewport if tight enough,
@@ -1491,7 +1461,7 @@ export default function ZoneManagement() {
     try {
       const cleanPostcode = postalCode.replace(/\s+/g, "");
 
-      const centerRes = await fetch(
+      const centerRes = await fetchWithTimeout(
         `https://api.postcodes.io/postcodes/${encodeURIComponent(cleanPostcode)}`
       );
 
@@ -1516,7 +1486,7 @@ export default function ZoneManagement() {
       }
 
       if (!centerPoint) {
-        const outcodeRes = await fetch(
+        const outcodeRes = await fetchWithTimeout(
           `https://api.postcodes.io/outcodes/${encodeURIComponent(cleanPostcode)}`
         );
         if (outcodeRes.ok) {
@@ -1546,16 +1516,11 @@ export default function ZoneManagement() {
         }
       }
 
-      // ── 2. Google Geocoding bounding-box ──
+      // ── 2. Google Geocoding bounding-box (admin API; server key) ──
       try {
-        const geocodingRes = await fetch(
-          `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(postalCode)}&key=${googleApiKey}`
-        );
+        const geocodingData = await adminGeocode({ address: postalCode });
 
-        if (geocodingRes.ok) {
-          const geocodingData = await geocodingRes.json();
-
-          if (geocodingData.results && geocodingData.results.length > 0) {
+        if (geocodingData.results && geocodingData.results.length > 0) {
             const result = geocodingData.results[0];
             const geometry = result.geometry;
             const gCenter = {
@@ -1583,10 +1548,9 @@ export default function ZoneManagement() {
                 };
               }
             }
-          }
         }
-      } catch (geocodingError) {
-        console.log("Google Geocoding failed, trying hexagon fallback:", geocodingError);
+      } catch {
+        // Geocoding failures fall back to the local polygon approximation.
       }
 
       // ── 3. Centroid + hexagon (tighter radius for full UK units) ──
@@ -1623,7 +1587,6 @@ export default function ZoneManagement() {
     }));
 
     setDrawingMode(null);
-    console.log("Polygon coordinates saved:", coordinatesArray);
   };
 
   const clearPolygons = () => {
@@ -1643,7 +1606,6 @@ export default function ZoneManagement() {
     if (map) {
       map.setOptions({ draggableCursor: "pointer" });
     }
-    console.log("Polygon cleared");
   };
 
 
@@ -1860,6 +1822,9 @@ export default function ZoneManagement() {
 
   const onMapLoad = (mapInstance) => {
     setMap(mapInstance);
+    window.requestAnimationFrame(() => {
+      triggerGoogleMapResize(mapInstance, center);
+    });
   };
 
   /** Same rules as `handleAddZone` — primary button stays disabled until all required fields are valid. */
@@ -1901,547 +1866,475 @@ export default function ZoneManagement() {
 
   if (isLoading) return <Delay />;
 
+  const countryOptions = Array.isArray(countries)
+    ? countries.map((country) => ({ value: String(country.id), label: country.name }))
+    : [];
+  const currencyOptions = Array.isArray(currencies)
+    ? currencies.map((currency) => ({
+        value: currency.name,
+        label: `${currency.name} (${currency.symbol})`,
+      }))
+    : [];
+
   return (
-    <div className="!space-y-11">
-            <ModalComponent
-              open={add.open}
-              title={isEditMode ? "EDIT ZONE" : "ADD ZONE"}
-              onClose={handleToggle}
-              secondaryAction={{ label: "Cancel", onClick: handleToggle }}
-              primaryAction={{
-                label: isEditMode ? "Update Zone" : "Add Zone",
-                onClick: handleAddZone,
-                isLoading: isAddingZone || isEditingZone,
-                disabled: !canSubmitZone,
+    <div style={{ display: "grid", gap: 20 }}>
+      <PageHeader
+        title="Zones"
+        description="Service areas, postcodes, and zone fees."
+        actions={
+          <>
+            <Button variant="secondary" onClick={handleDownload} disabled={!filteredZonesData.length}>
+              Export CSV
+            </Button>
+            <Button onClick={handleToggle}>
+              <TbPlus size={18} />
+              Add Zone
+            </Button>
+          </>
+        }
+      />
+
+      <DirectoryMetrics
+        items={[
+          { label: "Total cities", value: zones?.totalCities || 0, tone: "brand" },
+          { label: "Total zones", value: zones?.totalZones || 0, tone: "navy" },
+          { label: "Total shops", value: zones?.totalShops || 0, tone: "success" },
+        ]}
+      />
+
+      <DirectoryTableWrap
+        toolbar={
+          <DirectoryToolbar>
+            <DirectorySearch
+              id="zone-search"
+              value={zoneSearch}
+              onChange={setZoneSearch}
+              placeholder="Search by zone name, city, postcode…"
+            />
+            <ZoneFiltersPopover
+              city={filterCity}
+              onCityChange={setFilterCity}
+              paymentMethod={filterPaymentMethod}
+              onPaymentMethodChange={setFilterPaymentMethod}
+              assignment={filterAssignment}
+              onAssignmentChange={setFilterAssignment}
+              cityOptions={zoneFilterCityOptions}
+              paymentOptions={zoneFilterPaymentOptions}
+              onClearFilters={clearZoneFilters}
+              hasActiveFilters={hasZoneFilters}
+            />
+          </DirectoryToolbar>
+        }
+      >
+        <Table
+          columns={zoneColumns}
+          rows={filteredZonesData}
+          rowKey={(row) => row.id}
+          empty="No zones match these filters."
+        />
+      </DirectoryTableWrap>
+
+      <Modal
+        open={add.open}
+        title={isEditMode ? "Edit zone" : "Add zone"}
+        onClose={handleToggle}
+        size="xl"
+        primaryLabel={
+          isAddingZone || isEditingZone
+            ? isEditMode
+              ? "Updating…"
+              : "Adding…"
+            : isEditMode
+              ? "Update zone"
+              : "Add zone"
+        }
+        secondaryLabel="Cancel"
+        onPrimary={handleAddZone}
+        primaryDisabled={!canSubmitZone || isAddingZone || isEditingZone}
+      >
+        <div style={{ display: "grid", gap: 16 }}>
+          <Field label="Country">
+            <Select
+              aria-label="Country"
+              value={add.countryId || ""}
+              onChange={handelCountryChange}
+              options={countryOptions}
+              placeholder="Select country"
+            />
+          </Field>
+          <Field
+            label="City"
+            hint={
+              add.countryId && !citiesLoading && !citiesFetching && cityOptions.length === 0
+                ? "No cities found for this country. Add a city under Countries & Cities first."
+                : undefined
+            }
+          >
+            <Select
+              aria-label="City"
+              value={add.cityId || ""}
+              onChange={handleCityChange}
+              options={cityOptions}
+              placeholder={
+                !add.countryId
+                  ? "Select country first"
+                  : citiesLoading || citiesFetching
+                    ? "Loading cities…"
+                    : "Select city"
+              }
+              disabled={!add.countryId || citiesLoading}
+            />
+          </Field>
+
+          <div className="jd-modal-map" style={{ position: "relative" }}>
+            {isEditPostcodesLoading ? (
+              <div
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  zIndex: 200,
+                  display: "grid",
+                  placeItems: "center",
+                  background: "rgba(255,255,255,0.75)",
+                }}
+                aria-live="polite"
+                aria-busy="true"
+              >
+                <span className="jd-field__hint">Loading postcodes…</span>
+              </div>
+            ) : null}
+
+            <div
+              style={{
+                position: "absolute",
+                top: 16,
+                left: "50%",
+                transform: "translateX(-50%)",
+                width: "100%",
+                maxWidth: 500,
+                padding: "0 16px",
+                zIndex: 100,
+                display: "grid",
+                gap: 8,
               }}
             >
-              <Box className="flex flex-col gap-5">
-                <Box className="flex flex-col gap-y-3">
-                  <label htmlFor="zoneName" className="text-grey40">
-                    Country
-                  </label>
-
-                  <SelectField
-                    title=""
-                    value={add.countryId || ""}
-                    onChange={(e) => handelCountryChange(e)}
-                    options={
-                      Array.isArray(countries)
-                        ? countries.map((country) => ({
-                          value: String(country.id),
-                          label: country.name,
-                        }))
-                        : []
-                    }
-                    placeholder="Select country"
-                    fullWidth
-                    bgcolor={"grey.200"}
-                  />
-                </Box>
-                <Box className="flex flex-col gap-y-3">
-                  <label htmlFor="cityId" className="text-grey40">
-                    City
-                  </label>
-
-                  <SelectField
-                    title=""
-                    value={add.cityId || ""}
-                    onChange={(e) => handleCityChange(e)}
-                    options={
-                      Array.isArray(cities)
-                        ? cities.map((city) => ({
-                          value: String(city.id),
-                          label: city.name,
-                        }))
-                        : []
-                    }
-                    placeholder={add.countryId ? "Select city" : "Select country first"}
-                    fullWidth
-                    bgcolor={"grey.200"}
-                    disabled={!add.countryId}
-                  />
-                </Box>
-                <Box className="flex flex-col gap-y-3">
-                  <div className="mt-4 relative">
-                    {isEditPostcodesLoading && (
-                      <div
-                        className="absolute inset-0 z-[200] flex items-center justify-center bg-white/75 backdrop-blur-[1px] pointer-events-auto"
-                        aria-live="polite"
-                        aria-busy="true"
-                      >
-                        <Box display="flex" flexDirection="column" alignItems="center" gap={1}>
-                          <CircularProgress size={40} />
-                          <Typography variant="body2" color="text.secondary">
-                            Loading postcodes…
-                          </Typography>
-                        </Box>
-                      </div>
-                    )}
-                    <div className="absolute top-4 left-1/2 -translate-x-1/2 w-full px-4 max-w-[500px] mx-auto z-[100] flex flex-col gap-2 min-w-0">
-                      {addedPostcodes.length > 0 && (
-                        <div className="z-[101] w-full min-w-0 flex flex-col gap-1">
-                          <div
-                            ref={postcodeChipsScrollRef}
-                            onScroll={updateChipsScrollState}
-                            className="flex flex-nowrap gap-2 items-center overflow-x-auto overflow-y-hidden w-full min-w-0 py-0.5 [scrollbar-width:thin]"
-                          >
-                            {addedPostcodes.map((postcodeData, index) => (
-                              <div
-                                key={index}
-                                onClick={() => handlePostcodeClick(postcodeData)}
-                                className="flex flex-shrink-0 items-center justify-center gap-1 bg-white rounded-lg px-4 py-2 shadow-md min-w-[120px] h-[40px] cursor-pointer hover:bg-gray-50 transition-colors"
-                              >
-                                <span className="text-sm font-medium text-gray-800">
-                                  {postcodeData.postcode}
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={(e) => handleRemovePostcode(postcodeData.postcode, e)}
-                                  className="text-gray-500 hover:text-red-600 transition-colors ml-1"
-                                  title="Remove postal code"
-                                >
-                                  <RxCross2 size={16} />
-                                </button>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {addedPostcodes.length > 4 && (
-                        <div className="flex w-full min-w-0 items-center justify-between gap-2 z-[101]">
-                          <div className="flex min-w-0 flex-1 items-center gap-2">
-                            <div className="flex shrink-0 items-center gap-2">
-                              <button
-                                type="button"
-                                onClick={() => scrollPostcodeChips("left")}
-                                disabled={!chipsCanScrollLeft}
-                                className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-700 shadow-sm hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-30"
-                                title="Scroll postcodes left"
-                                aria-label="Scroll postcodes left"
-                              >
-                                <TbChevronLeft size={20} />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => scrollPostcodeChips("right")}
-                                disabled={!chipsCanScrollRight}
-                                className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-700 shadow-sm hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-30"
-                                title="Scroll postcodes right"
-                                aria-label="Scroll postcodes right"
-                              >
-                                <TbChevronRight size={20} />
-                              </button>
-                            </div>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => setPostcodeAddSectionVisible((v) => !v)}
-                            className="inline-flex h-9 min-w-24 shrink-0 items-center justify-center gap-2 rounded-md border border-gray-300 bg-white px-6 text-xs font-semibold text-gray-800 shadow-sm transition-colors hover:bg-gray-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-1"
-                            title={
-                              postcodeAddSectionVisible
-                                ? "Hide postal code field and add/clear actions"
-                                : "Show postal code field and add/clear actions"
-                            }
-                            aria-expanded={postcodeAddSectionVisible}
-                            aria-label={
-                              postcodeAddSectionVisible
-                                ? "Hide postal code input"
-                                : "Show postal code input"
-                            }
-                          >
-                            {postcodeAddSectionVisible ? (
-                              <>
-                                <TbChevronUp className="size-3.5 shrink-0 opacity-80" aria-hidden />
-                                <span className="whitespace-nowrap">Hide</span>
-                              </>
-                            ) : (
-                              <>
-                                <TbChevronDown className="size-3.5 shrink-0 opacity-80" aria-hidden />
-                                <span className="whitespace-nowrap">Show</span>
-                              </>
-                            )}
-                          </button>
-                        </div>
-                      )}
-
-                      <div className="w-full z-[101] flex flex-col gap-2">
-                        {postcodeAddSectionVisible && (
-                          <>
-                            <textarea
-                              value={newPostcodeInput}
-                              onChange={(e) => setNewPostcodeInput(e.target.value)}
-                              placeholder="Enter postal codes separated by comma: SW1A 1AA, SW1A 1AB, SW1A 1AC"
-                              className="w-full h-32 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none text-sm bg-white"
-                              rows={4}
-                            />
-                            <div className="flex gap-3">
-                              <button
-                                type="button"
-                                onClick={handleAddPostcode}
-                                disabled={isAddingPostcode || !newPostcodeInput.trim()}
-                                className="flex-1 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-400 disabled:cursor-not-allowed text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-colors shadow-md min-w-[120px] h-[40px] flex items-center justify-center"
-                              >
-                                {isAddingPostcode ? "Adding..." : "Add Postal Codes"}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setNewPostcodeInput("")}
-                                disabled={!newPostcodeInput.trim()}
-                                className="bg-white hover:bg-gray-100 text-gray-700 border border-gray-300 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors shadow-md min-w-[120px] h-[40px] flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
-                              >
-                                Clear
-                              </button>
-                            </div>
-                          </>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Action buttons at bottom left */}
-                    <div className="absolute bottom-4 left-4 z-30 flex flex-col !space-y-4">
-                      <button
-                        onClick={() => {
-                          setDrawingMode(null);
-                          map.setOptions({ draggableCursor: "grab" });
-                        }}
-                        className="bg-white rounded-md p-4 shadow-lg hover:bg-gray-50 transition-colors"
-                        title="Grab/Pan tool"
-                      >
-                        <LiaHandPointerSolid size={24} />
-                      </button>
-                      <button
-                        onClick={() => setDrawingMode("polygon")}
-                        className="bg-white rounded-md p-4 shadow-lg hover:bg-gray-50 transition-colors"
-                        title="Draw polygon"
-                      >
-                        <TbLassoPolygon size={24} />
-                      </button>
-                      <button
-                        className="bg-white rounded-md p-4 shadow-lg hover:bg-gray-50 transition-colors"
-                        onClick={clearPolygons}
-                        title="Clear polygons"
-                      >
-                        <RxCross2 size={24} />
-                      </button>
-                    </div>
-                    <GoogleMap
-                      mapContainerStyle={containerStyle}
-                      center={center}
-                      zoom={10}
-                      onLoad={onMapLoad}
-                      options={{
-                        mapTypeControl: false,
-                        streetViewControl: false,
-                        fullscreenControl: false,
-                        zoomControl: true,
-                        styles: [
-                          {
-                            featureType: "poi",
-                            elementType: "labels",
-                            stylers: [{ visibility: "off" }],
-                          },
-                        ],
+              {addedPostcodes.length > 0 ? (
+                <div
+                  ref={postcodeChipsScrollRef}
+                  onScroll={updateChipsScrollState}
+                  style={{ display: "flex", gap: 8, overflowX: "auto", padding: "2px 0" }}
+                >
+                  {addedPostcodes.map((postcodeData, index) => (
+                    <button
+                      key={`${postcodeData.postcode}-${index}`}
+                      type="button"
+                      onClick={() => handlePostcodeClick(postcodeData)}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 6,
+                        flexShrink: 0,
+                        background: "var(--surface)",
+                        border: "1px solid var(--line)",
+                        borderRadius: 8,
+                        padding: "8px 12px",
+                        cursor: "pointer",
                       }}
                     >
-                      {drawingMode && (
-                        <DrawingManager
-                          options={{
-                            drawingControl: false,
-                            drawingMode: drawingMode,
-                            polygonOptions: {
-                              fillColor: "#2196F3",
-                              fillOpacity: 0.5,
-                              strokeWeight: 2,
-                              clickable: true,
-                              editable: true,
-                              draggable: true,
-                            },
-                          }}
-                          onPolygonComplete={onPolygonComplete}
-                        />
-                      )}
-                      {/* Single postal code highlight: fill + red dotted border */}
-                      {postalCodeHighlight && postalCodeHighlight.paths && (
-                        <>
-                          <Polygon
-                            paths={postalCodeHighlight.paths}
-                            options={{
-                              fillColor: "#87CEEB",
-                              fillOpacity: 0.3,
-                              strokeOpacity: 0,
-                              strokeWeight: 0,
-                              clickable: false,
-                            }}
-                          />
-                          <Polyline
-                            path={postalCodeHighlight.paths}
-                            options={getPostcodeDottedRedOutlineOptions()}
-                          />
-                        </>
-                      )}
-                      {/* Multiple postal code highlight polygons */}
-                      {multiplePostcodeHighlights.map((highlight, index) => (
-                        <Fragment key={`highlight-${index}`}>
-                          <Polygon
-                            paths={highlight.paths}
-                            options={{
-                              fillColor: "#87CEEB",
-                              fillOpacity: 0.3,
-                              strokeOpacity: 0,
-                              strokeWeight: 0,
-                              clickable: false,
-                            }}
-                          />
-                          <Polyline
-                            path={highlight.paths}
-                            options={getPostcodeDottedRedOutlineOptions()}
-                          />
-                        </Fragment>
-                      ))}
-                      {/* Postal code markers */}
-                      {postalCodeMarkers.map((marker, index) => (
-                        <Marker
-                          key={`marker-${index}`}
-                          position={marker.position}
-                          label={{
-                            text: marker.postcode,
-                            color: "#ffffff",
-                            fontSize: "11px",
-                            fontWeight: "bold",
-                          }}
-                        />
-                      ))}
-                    </GoogleMap>
+                      <span>{postcodeData.postcode}</span>
+                      <span
+                        role="button"
+                        tabIndex={0}
+                        onClick={(e) => handleRemovePostcode(postcodeData.postcode, e)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            handleRemovePostcode(postcodeData.postcode, e);
+                          }
+                        }}
+                        title="Remove postal code"
+                        style={{ color: "var(--muted)" }}
+                      >
+                        <RxCross2 size={16} />
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+
+              {addedPostcodes.length > 4 ? (
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => scrollPostcodeChips("left")}
+                      disabled={!chipsCanScrollLeft}
+                      aria-label="Scroll postcodes left"
+                    >
+                      <TbChevronLeft size={18} />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => scrollPostcodeChips("right")}
+                      disabled={!chipsCanScrollRight}
+                      aria-label="Scroll postcodes right"
+                    >
+                      <TbChevronRight size={18} />
+                    </Button>
                   </div>
-                </Box>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => setPostcodeAddSectionVisible((v) => !v)}
+                    aria-expanded={postcodeAddSectionVisible}
+                  >
+                    {postcodeAddSectionVisible ? <TbChevronUp size={16} /> : <TbChevronDown size={16} />}
+                    {postcodeAddSectionVisible ? "Hide" : "Show"}
+                  </Button>
+                </div>
+              ) : null}
 
-                <Box className="flex flex-col gap-y-3">
-                  <label htmlFor="description" className="text-grey40">
-                    Zone Name
-                  </label>
-                  <InputFieldModal
-                    name="zoneName"
-                    value={add.zoneName}
-                    onChange={handleChange}
-                    placeholder="Enter zone name"
+              {postcodeAddSectionVisible ? (
+                <div style={{ display: "grid", gap: 8 }}>
+                  <Textarea
+                    value={newPostcodeInput}
+                    onChange={(e) => setNewPostcodeInput(e.target.value)}
+                    placeholder="Enter postal codes separated by comma: SW1A 1AA, SW1A 1AB, SW1A 1AC"
+                    rows={4}
                   />
-                </Box>
-                <Box className="flex flex-col gap-y-3">
-                  <label htmlFor="zoneMinimumAmount" className="text-grey40">
-                    Zone Minimum Amount
-                  </label>
-                  <InputFieldModal
-                    name="zoneMinimumAmount"
-                    type="number"
-                    value={add.zoneMinimumAmount}
-                    onChange={handleChange}
-                    placeholder="Enter zone minimum amount"
-                  />
-                </Box>
-                <Box className="flex flex-col gap-y-3">
-                  <label htmlFor="serviceCharge" className="text-grey40">
-                    Service Fee
-                  </label>
-                  <InputFieldModal
-                    name="serviceCharge"
-                    type="number"
-                    value={add.serviceCharge}
-                    onChange={handleChange}
-                    placeholder="e.g. 20"
-                  />
-                </Box>
-                <Box className="flex flex-col gap-y-3">
-                  <label htmlFor="zoneCommission" className="text-grey40">
-                    Agent commission % (paid to agent)
-                  </label>
-                  <InputFieldModal
-                    name="zoneCommission"
-                    type="number"
-                    value={add.zoneCommission}
-                    onChange={handleChange}
-                    placeholder="e.g. 80 — percent the agent/shop receives"
-                  />
-                </Box>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <Button onClick={handleAddPostcode} disabled={isAddingPostcode || !newPostcodeInput.trim()}>
+                      {isAddingPostcode ? "Adding…" : "Add postal codes"}
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      onClick={() => setNewPostcodeInput("")}
+                      disabled={!newPostcodeInput.trim()}
+                    >
+                      Clear
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
+            </div>
 
-                <Box className="flex flex-col gap-y-3">
-                  <label htmlFor="zoneCurrency" className="text-grey40">
-                    Zone Currency
-                  </label>
-                  <SelectField
-                    title=""
-                    value={add.zoneCurrency || ""}
-                    onChange={(e) => {
-                      const selectedName = e.target.value;
-                      const selectedCurrencyId = Array.isArray(currencies)
-                        ? currencies.find((currency) => currency.name === selectedName)?.id
-                        : "";
-                      setAdd((prev) => ({
-                        ...prev,
-                        zoneCurrency: selectedName,
-                        currencyUnitId: selectedCurrencyId
-                          ? String(selectedCurrencyId)
-                          : prev.currencyUnitId,
-                      }));
-                    }}
-                    options={
-                      Array.isArray(currencies)
-                        ? currencies.map((currency) => ({
-                          value: currency.name,
-                          label: `${currency.name} (${currency.symbol})`,
-                        }))
-                        : []
-                    }
-                    placeholder="Select currency"
-                    fullWidth
-                    bgcolor={"grey.200"}
-                  />
-                </Box>
-
-                <Box className="flex flex-col gap-y-2">
-                  <label className="text-grey40">Payment Method</label>
-                  <Box className="flex flex-col gap-y-1">
-                    {ZONE_PAYMENT_METHOD_OPTIONS.map((option) => (
-                      <FormControlLabel
-                        key={option.value}
-                        control={
-                          <Checkbox
-                            checked={(add.paymentMethods || []).includes(
-                              option.value
-                            )}
-                            onChange={(e) => {
-                              const checked = e.target.checked;
-                              setAdd((prev) => {
-                                const current = new Set(
-                                  prev.paymentMethods || []
-                                );
-                                if (checked) {
-                                  current.add(option.value);
-                                } else {
-                                  current.delete(option.value);
-                                }
-                                return {
-                                  ...prev,
-                                  paymentMethods: [...current],
-                                };
-                              });
-                            }}
-                            size="small"
-                          />
-                        }
-                        label={option.label}
-                      />
-                    ))}
-                  </Box>
-                </Box>
-
-                {/* Hidden for now — express delivery, zone admin ID */}
-                <Box sx={{ display: "none" }}>
-                <Box className="flex flex-col gap-y-3">
-                  <label htmlFor="ExDeliveryCharges" className="text-grey40">
-                    Express-Delivery Charges
-                  </label>
-                  <InputFieldModal
-                    name="ExDeliveryCharges"
-                    value={add.ExDeliveryCharges}
-                    onChange={handleChange}
-                    placeholder="Enter express-delivery charges"
-                  />
-                </Box>
-
-                <Box className="flex flex-col gap-y-3">
-                  <label htmlFor="zoneAdminId" className="text-grey40">
-                    Zone Admin ID
-                  </label>
-                  <InputFieldModal
-                    name="zoneAdminId"
-                    type="number"
-                    value={add.zoneAdminId}
-                    onChange={handleChange}
-                    placeholder="Enter zone admin ID"
-                  />
-                </Box>
-                </Box>
-              </Box>
-            </ModalComponent>
-            <Box className="flex items-center gap-x-5 justify-between">
-              <Box className="flex items-center gap-x-5">
-                <Typography color="blue.50">
-                  <BsCardList size="24px" color="blue.50" />
-                </Typography>
-
-                <Typography variant="h4" fontFamily={"Switzer"} color="grey.20">
-                  All Zones
-                </Typography>
-              </Box>
-
-              <ButtonBlueLight
-                variant="outlined"
-                bgColor="blue.200"
-                color="white"
-                radius="8px"
-                startIcon={<TbPlus size={"24px"} />}
-                onClick={handleToggle}
+            <div
+              style={{
+                position: "absolute",
+                bottom: 16,
+                left: 16,
+                zIndex: 30,
+                display: "grid",
+                gap: 8,
+              }}
+            >
+              <Button
+                variant="secondary"
+                disabled={!isMapsLoaded}
+                onClick={() => {
+                  setDrawingMode(null);
+                  map?.setOptions({ draggableCursor: "grab" });
+                }}
+                title="Grab/Pan tool"
               >
-                Add Zone
-              </ButtonBlueLight>
-            </Box>
-
-            <div className="grid grid-cols-4 gap-7 font-Inter">
-              <div className="rounded-lg !px-3.5 !py-5 bg-green50">
-                <h6 className="font-Inter font-semibold text-lg uppercase">
-                  Total Cities
-                </h6>
-                <p className="font-Inter font-medium text-[22px] !pt-10">
-                  {zones?.totalCities || 0}
-                </p>
-              </div>
-
-              <div className="rounded-lg !px-3.5 !py-5 bg-red50">
-                <h6 className="font-Inter font-semibold text-lg uppercase">
-                  Total Zone
-                </h6>
-                <p className="font-Inter font-medium text-[22px] !pt-10">
-                  {zones?.totalZones || 0}
-                </p>
-              </div>
-
-              <div className="rounded-lg !px-3.5 !py-5 bg-purple50">
-                <h6 className="font-Inter font-semibold text-lg uppercase">
-                  Total SHOPS
-                </h6>
-                <p className="font-Inter font-medium text-[22px] !pt-10">
-                  {zones?.totalShops || 0}
-                </p>
-              </div>
+                <LiaHandPointerSolid size={20} />
+              </Button>
+              <Button
+                variant="secondary"
+                disabled={!isMapsLoaded}
+                onClick={() => setDrawingMode("polygon")}
+                title="Draw polygon"
+              >
+                <TbLassoPolygon size={20} />
+              </Button>
+              <Button variant="secondary" onClick={clearPolygons} title="Clear polygons">
+                <RxCross2 size={20} />
+              </Button>
             </div>
 
-            <div className="w-full overflow-auto">
-              <DataTable
-                data={filteredZonesData}
-                columns={zoneColumns}
-                searchPlaceholder="Search by zone name, city, postcode..."
-                showDateRange={false}
-                showFilters={false}
-                filtersSlot={
-                  <ZoneFiltersPopover
-                    city={filterCity}
-                    onCityChange={setFilterCity}
-                    paymentMethod={filterPaymentMethod}
-                    onPaymentMethodChange={setFilterPaymentMethod}
-                    assignment={filterAssignment}
-                    onAssignmentChange={setFilterAssignment}
-                    cityOptions={zoneFilterCityOptions}
-                    paymentOptions={zoneFilterPaymentOptions}
-                    onClearFilters={clearZoneFilters}
-                    hasActiveFilters={hasZoneFilters}
+            {isMapsLoaded ? (
+            <GoogleMap
+              mapContainerStyle={containerStyle}
+              center={center}
+              zoom={10}
+              onLoad={onMapLoad}
+              options={{
+                mapTypeControl: false,
+                streetViewControl: false,
+                fullscreenControl: false,
+                zoomControl: true,
+                styles: [{ featureType: "poi", elementType: "labels", stylers: [{ visibility: "off" }] }],
+              }}
+            >
+              {drawingMode ? (
+                <DrawingManager
+                  options={{
+                    drawingControl: false,
+                    drawingMode,
+                    polygonOptions: {
+                      fillColor: "#2196F3",
+                      fillOpacity: 0.5,
+                      strokeWeight: 2,
+                      clickable: true,
+                      editable: true,
+                      draggable: true,
+                    },
+                  }}
+                  onPolygonComplete={onPolygonComplete}
+                />
+              ) : null}
+              {postalCodeHighlight?.paths ? (
+                <>
+                  <Polygon
+                    paths={postalCodeHighlight.paths}
+                    options={{
+                      fillColor: "#87CEEB",
+                      fillOpacity: 0.3,
+                      strokeOpacity: 0,
+                      strokeWeight: 0,
+                      clickable: false,
+                    }}
                   />
-                }
-                onDownload={handleDownload}
-                height={600}
-              />
-            </div>
+                  <Polyline path={postalCodeHighlight.paths} options={getPostcodeDottedRedOutlineOptions()} />
+                </>
+              ) : null}
+              {multiplePostcodeHighlights.map((highlight, index) => (
+                <Fragment key={`highlight-${index}`}>
+                  <Polygon
+                    paths={highlight.paths}
+                    options={{
+                      fillColor: "#87CEEB",
+                      fillOpacity: 0.3,
+                      strokeOpacity: 0,
+                      strokeWeight: 0,
+                      clickable: false,
+                    }}
+                  />
+                  <Polyline path={highlight.paths} options={getPostcodeDottedRedOutlineOptions()} />
+                </Fragment>
+              ))}
+              {postalCodeMarkers.map((marker, index) => (
+                <Marker
+                  key={`marker-${index}`}
+                  position={marker.position}
+                  label={{
+                    text: marker.postcode,
+                    color: "#ffffff",
+                    fontSize: "11px",
+                    fontWeight: "bold",
+                  }}
+                />
+              ))}
+            </GoogleMap>
+            ) : (
+              <MapsUnavailableNotice minHeight={400} />
+            )}
           </div>
+
+          <Field label="Zone name" htmlFor="zoneName">
+            <Input
+              id="zoneName"
+              name="zoneName"
+              value={add.zoneName}
+              onChange={handleChange}
+              placeholder="Enter zone name"
+            />
+          </Field>
+          <Field label="Zone minimum amount" htmlFor="zoneMinimumAmount">
+            <Input
+              id="zoneMinimumAmount"
+              name="zoneMinimumAmount"
+              type="number"
+              value={add.zoneMinimumAmount}
+              onChange={handleChange}
+              placeholder="Enter zone minimum amount"
+            />
+          </Field>
+          <Field label="Service fee" htmlFor="serviceCharge">
+            <Input
+              id="serviceCharge"
+              name="serviceCharge"
+              type="number"
+              value={add.serviceCharge}
+              onChange={handleChange}
+              placeholder="e.g. 20"
+            />
+          </Field>
+          <Field label="Agent commission % (paid to agent)" htmlFor="zoneCommission">
+            <Input
+              id="zoneCommission"
+              name="zoneCommission"
+              type="number"
+              value={add.zoneCommission}
+              onChange={handleChange}
+              placeholder="e.g. 80 — percent the agent/shop receives"
+            />
+          </Field>
+          <Field label="Zone currency">
+            <Select
+              aria-label="Zone currency"
+              value={add.zoneCurrency || ""}
+              onChange={(selectedName) => {
+                const selectedCurrencyId = Array.isArray(currencies)
+                  ? currencies.find((currency) => currency.name === selectedName)?.id
+                  : "";
+                setAdd((prev) => ({
+                  ...prev,
+                  zoneCurrency: selectedName,
+                  currencyUnitId: selectedCurrencyId ? String(selectedCurrencyId) : prev.currencyUnitId,
+                }));
+              }}
+              options={currencyOptions}
+              placeholder="Select currency"
+            />
+          </Field>
+          <Field label="Payment method">
+            <div style={{ display: "grid", gap: 8 }}>
+              {ZONE_PAYMENT_METHOD_OPTIONS.map((option) => (
+                <CheckRow
+                  key={option.value}
+                  label={option.label}
+                  checked={(add.paymentMethods || []).includes(option.value)}
+                  onChange={(e) => {
+                    const checked = e.target.checked;
+                    setAdd((prev) => {
+                      const current = new Set(prev.paymentMethods || []);
+                      if (checked) current.add(option.value);
+                      else current.delete(option.value);
+                      return { ...prev, paymentMethods: [...current] };
+                    });
+                  }}
+                />
+              ))}
+            </div>
+          </Field>
+
+          <div style={{ display: "none" }}>
+            <Field label="Express-delivery charges" htmlFor="ExDeliveryCharges">
+              <Input
+                id="ExDeliveryCharges"
+                name="ExDeliveryCharges"
+                value={add.ExDeliveryCharges}
+                onChange={handleChange}
+                placeholder="Enter express-delivery charges"
+              />
+            </Field>
+            <Field label="Zone admin ID" htmlFor="zoneAdminId">
+              <Input
+                id="zoneAdminId"
+                name="zoneAdminId"
+                type="number"
+                value={add.zoneAdminId}
+                onChange={handleChange}
+                placeholder="Enter zone admin ID"
+              />
+            </Field>
+          </div>
+        </div>
+      </Modal>
+    </div>
   );
 }
 

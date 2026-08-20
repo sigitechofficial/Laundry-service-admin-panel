@@ -6,10 +6,23 @@ import {
   clearAuthTokens,
   getActiveEmployeeFeatureId,
 } from "../../utilities/authStorage";
+import {
+  getRequestMethod,
+  isRetryableGetError,
+  normalizeApiError,
+} from "./apiErrors";
 
-const baseQuery = fetchBaseQuery({
+/** Abort in-flight requests that exceed this budget. */
+export const API_REQUEST_TIMEOUT_MS = 30_000;
+
+/** Extra GET attempts after the first failure (2 retries = 3 total tries). */
+const GET_RETRY_MAX = 2;
+const GET_RETRY_BASE_DELAY_MS = 400;
+
+const rawBaseQuery = fetchBaseQuery({
   baseUrl: BASE_URL,
   credentials: "include",
+  timeout: API_REQUEST_TIMEOUT_MS,
   prepareHeaders: (headers) => {
     const token = localStorage.getItem(LS_ACCESS_TOKEN);
     const activeFeatureId = getActiveEmployeeFeatureId();
@@ -31,44 +44,30 @@ const baseQuery = fetchBaseQuery({
 
     return headers;
   },
-  // Override fetch to handle FormData and JSON properly
+  // Override fetch to handle FormData and JSON properly.
   fetchFn: async (input, init) => {
-    // Debug logging for FormData requests
     if (init?.body instanceof FormData) {
-      console.log('Sending FormData request:', {
-        url: input,
-        method: init.method,
-        bodyType: 'FormData'
-      });
-
-      // Log FormData contents
-      for (let [key, value] of init.body.entries()) {
-        if (value instanceof File) {
-          console.log(`FormData ${key}:`, {
-            name: value.name,
-            size: value.size,
-            type: value.type
-          });
-        } else {
-          console.log(`FormData ${key}:`, value);
-        }
-      }
-
-      // Ensure Content-Type is removed - browser will set it with boundary
+      // The browser must set the multipart boundary. Never log form contents:
+      // admin forms may contain personal data and uploaded documents.
       const headers = new Headers(init.headers || {});
-      headers.delete('Content-Type');
-      console.log('Headers after FormData processing:', Object.fromEntries(headers));
+      headers.delete("Content-Type");
       init.headers = headers;
-    } else if (init?.body && typeof init.body === 'object' && !(init.body instanceof FormData) && !(init.body instanceof Blob) && !(init.body instanceof ArrayBuffer)) {
+    } else if (
+      init?.body &&
+      typeof init.body === "object" &&
+      !(init.body instanceof FormData) &&
+      !(init.body instanceof Blob) &&
+      !(init.body instanceof ArrayBuffer)
+    ) {
       // For JSON requests, ensure Content-Type is set
       const headers = new Headers(init.headers || {});
-      if (!headers.has('Content-Type')) {
-        headers.set('Content-Type', 'application/json');
+      if (!headers.has("Content-Type")) {
+        headers.set("Content-Type", "application/json");
       }
       init.headers = headers;
     }
     return fetch(input, init);
-  }
+  },
 });
 
 const shouldForceLogout = (error) => {
@@ -106,8 +105,43 @@ const isCredentialAuthRequest = (args) => {
   );
 };
 
+const sleep = (ms, signal) =>
+  new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(signal.reason || new DOMException("Aborted", "AbortError"));
+      return;
+    }
+    const timer = setTimeout(resolve, ms);
+    if (!signal) return;
+    const onAbort = () => {
+      clearTimeout(timer);
+      reject(signal.reason || new DOMException("Aborted", "AbortError"));
+    };
+    signal.addEventListener("abort", onAbort, { once: true });
+  });
+
 const baseQueryWithReauth = async (args, api, extraOptions) => {
-  const result = await baseQuery(args, api, extraOptions);
+  let result = await rawBaseQuery(args, api, extraOptions);
+  const method = getRequestMethod(args);
+  let attempt = 0;
+
+  // Retry GET only: network / 502 / 503 / 504. Never retry writes or 401.
+  while (
+    result?.error &&
+    attempt < GET_RETRY_MAX &&
+    !api.signal?.aborted &&
+    isRetryableGetError(result.error, method)
+  ) {
+    attempt += 1;
+    const backoffMs = GET_RETRY_BASE_DELAY_MS * 2 ** (attempt - 1);
+    try {
+      await sleep(backoffMs, api.signal);
+    } catch {
+      break;
+    }
+    if (api.signal?.aborted) break;
+    result = await rawBaseQuery(args, api, extraOptions);
+  }
 
   if (shouldForceLogout(result?.error) && !isCredentialAuthRequest(args)) {
     console.warn("Session expired/invalid. Logging out...");
@@ -119,6 +153,14 @@ const baseQueryWithReauth = async (args, api, extraOptions) => {
     if (!window.location.pathname.includes("/auth/login")) {
       window.location.href = "/auth/login";
     }
+  }
+
+  if (result?.error) {
+    const retryAfter = result.meta?.response?.headers?.get?.("Retry-After");
+    const error = retryAfter
+      ? { ...result.error, retryAfter }
+      : result.error;
+    return { ...result, error: normalizeApiError(error) };
   }
 
   return result;

@@ -5,6 +5,7 @@ frontend:
     preBuild:
       commands:
         - npm ci
+        - npm test
         - export VITE_APP_COMMIT="${AWS_COMMIT_ID:-local}"
         - export VITE_APP_BRANCH="${AWS_BRANCH:-unknown}"
         - export VITE_APP_DEPLOYED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
