@@ -19,6 +19,8 @@
   height: 100vh;
   position: sticky;
   top: 0;
+  overflow: visible;
+  z-index: 30;
 }
 
 .jd-ds .jd-brand {
@@ -27,6 +29,7 @@
   gap: 13px;
   padding: 22px 20px 16px;
   position: relative;
+  overflow: visible;
 }
 
 .jd-ds .jd-brand__logo {
@@ -40,19 +43,33 @@
 
 .jd-ds .jd-col {
   position: absolute;
-  right: -14px;
-  top: 28px;
-  width: 28px;
-  height: 28px;
+  right: -15px;
+  top: 30px;
+  width: 30px;
+  height: 30px;
+  padding: 0;
   border-radius: 50%;
   background: var(--surface);
-  border: 1px solid var(--line-2);
+  border: 1.5px solid var(--line-2);
   display: grid;
   place-items: center;
-  color: var(--n-700);
-  z-index: 20;
-  box-shadow: 0 4px 10px -3px rgba(20, 24, 38, 0.28);
+  color: var(--ink);
+  z-index: 40;
+  box-shadow: 0 4px 12px -4px rgba(20, 24, 38, 0.35);
   cursor: pointer;
+  transition: background 0.15s var(--ease), border-color 0.15s var(--ease), color 0.15s var(--ease);
+}
+
+.jd-ds .jd-col:hover {
+  background: var(--canvas);
+  border-color: var(--n-400);
+  color: var(--accent);
+}
+
+.jd-ds .jd-col svg {
+  display: block;
+  flex-shrink: 0;
+  transition: transform 0.2s var(--ease);
 }
 
 .jd-ds.is-collapsed .jd-col svg {

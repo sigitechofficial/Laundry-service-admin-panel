@@ -787,12 +787,12 @@ export default function OrderDetailsPage() {
                 <div className="flex items-center justify-between gap-2 mb-1.5">
                   <div className="flex items-center gap-2">
                     <TbFileDescription size={16} color="#2563EB" />
-                    <p style={{ margin: 0,  color: "#2563EB", fontWeight: 700, fontSize: 10, letterSpacing: "0.05em" }}>
+                    <p style={{ margin: 0,  color: "#2563EB", fontWeight: 700, fontSize: 12, letterSpacing: "0.05em" }}>
                       COLLECTION
                     </p>
                   </div>
                   <div style={{ paddingLeft: 8.8, paddingRight: 8.8, paddingTop: 2.8, paddingBottom: 2.8, borderRadius: "999px", background: "#EFF6FF", border: "1px solid #BFDBFE" }}>
-                    <p style={{ margin: 0, fontSize: 10, color: "#1D4ED8", fontWeight: 700 }}>
+                    <p style={{ margin: 0, fontSize: 12, color: "#1D4ED8", fontWeight: 700 }}>
                       Pickup Window
                     </p>
                   </div>
@@ -827,12 +827,12 @@ export default function OrderDetailsPage() {
                 <div className="flex items-center justify-between gap-2 mb-1.5">
                   <div className="flex items-center gap-2">
                     <MdOutlineStore size={16} color="#059669" />
-                    <p style={{ margin: 0,  color: "#059669", fontWeight: 700, fontSize: 10, letterSpacing: "0.05em" }}>
+                    <p style={{ margin: 0,  color: "#059669", fontWeight: 700, fontSize: 12, letterSpacing: "0.05em" }}>
                       DELIVERY
                     </p>
                   </div>
                   <div style={{ paddingLeft: 8.8, paddingRight: 8.8, paddingTop: 2.8, paddingBottom: 2.8, borderRadius: "999px", background: "#ECFDF5", border: "1px solid #A7F3D0" }}>
-                    <p style={{ margin: 0, fontSize: 10, color: "#047857", fontWeight: 700 }}>
+                    <p style={{ margin: 0, fontSize: 12, color: "#047857", fontWeight: 700 }}>
                       Drop-off Window
                     </p>
                   </div>
@@ -869,7 +869,7 @@ export default function OrderDetailsPage() {
             <div className="flex items-center justify-between" style={{ ...SECTION_HEAD }}>
               <div className="flex items-center gap-1.5">
                 <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#A78BFA" }} />
-                <p style={{ margin: 0, color: "var(--muted)",  fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}>
+                <p style={{ margin: 0, color: "var(--muted)",  fontSize: 12, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}>
                   Proof of Collection & Delivery
                 </p>
               </div>
@@ -886,7 +886,7 @@ export default function OrderDetailsPage() {
 
             <div className="grid grid-cols-1 md:grid-cols-2">
               <div style={{ padding: 20, borderRight: "1px solid #E4E7EC", borderBottom: "none" }}>
-                <p style={{ margin: 0,  color: "#2563EB", fontWeight: 700, fontSize: 10 }}>
+                <p style={{ margin: 0,  color: "#2563EB", fontWeight: 700, fontSize: 12 }}>
                   PROOF OF PICKUP
                 </p>
                 <div className="grid grid-cols-3 gap-2 mt-2">
@@ -917,21 +917,21 @@ export default function OrderDetailsPage() {
                 </div>
                 <div className="space-y-0" style={{ marginTop: 16 }}>
                   <div className="flex items-center justify-between py-2" style={{ borderTop: "1px solid #F1F5F9" }}>
-                    <p style={{ margin: 0, fontSize: 11, color: "#94A3B8" }}>Items Collected</p>
+                    <p style={{ margin: 0, fontSize: 13, color: "#64748B" }}>Items Collected</p>
                     <p style={{ margin: 0, fontSize: 11, color: "#334155", fontWeight: 600 }}>
                       {pickupItemsDisplayCount || 0} items
                     </p>
                   </div>
                   <div className="flex items-center justify-between py-2" style={{ borderTop: "1px solid #F1F5F9" }}>
-                    <p style={{ margin: 0, fontSize: 11, color: "#94A3B8" }}>Driver Signature</p>
-                    <p style={{ margin: 0, fontSize: 11, color: "#94A3B8", fontStyle: "italic" }}>Not captured</p>
+                    <p style={{ margin: 0, fontSize: 13, color: "#64748B" }}>Driver Signature</p>
+                    <p style={{ margin: 0, fontSize: 13, color: "#64748B", fontStyle: "italic" }}>Not captured</p>
                   </div>
                   <div className="flex items-center justify-between py-2" style={{ borderTop: "1px solid #F1F5F9" }}>
-                    <p style={{ margin: 0, fontSize: 11, color: "#94A3B8" }}>Customer Signature</p>
-                    <p style={{ margin: 0, fontSize: 11, color: "#94A3B8", fontStyle: "italic" }}>Not captured</p>
+                    <p style={{ margin: 0, fontSize: 13, color: "#64748B" }}>Customer Signature</p>
+                    <p style={{ margin: 0, fontSize: 13, color: "#64748B", fontStyle: "italic" }}>Not captured</p>
                   </div>
                   <div className="flex items-center justify-between py-2" style={{ borderTop: "1px solid #F1F5F9" }}>
-                    <p style={{ margin: 0, fontSize: 11, color: "#94A3B8" }}>Timestamp</p>
+                    <p style={{ margin: 0, fontSize: 13, color: "#64748B" }}>Timestamp</p>
                     <p style={{ margin: 0, fontSize: 11, color: "#334155", fontWeight: 500 }}>{pickupProofTime}</p>
                   </div>
                 </div>
@@ -943,7 +943,7 @@ export default function OrderDetailsPage() {
                       border: "1px solid #FDE68A",
                       borderRadius: "var(--r-md)", }}
                   >
-                    <p style={{ margin: 0, fontSize: 10, fontWeight: 700, color: "#D97706", textTransform: "uppercase", marginBottom: 4.8 }}>
+                    <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: "#D97706", textTransform: "uppercase", marginBottom: 4.8 }}>
                       Driver Note
                     </p>
                     <p style={{ margin: 0, fontSize: 13, color: "#334155" }}>
@@ -954,7 +954,7 @@ export default function OrderDetailsPage() {
               </div>
 
               <div style={{ padding: 20 }}>
-                <p style={{ margin: 0,  color: "#059669", fontWeight: 700, fontSize: 10 }}>
+                <p style={{ margin: 0,  color: "#059669", fontWeight: 700, fontSize: 12 }}>
                   PROOF OF DELIVERY
                 </p>
                 <div className="grid grid-cols-3 gap-2 mt-2">
@@ -985,7 +985,7 @@ export default function OrderDetailsPage() {
                 </div>
                 <div className="space-y-0" style={{ marginTop: 16 }}>
                   <div className="flex items-center justify-between py-2" style={{ borderTop: "1px solid #F1F5F9" }}>
-                    <p style={{ margin: 0, fontSize: 11, color: "#94A3B8" }}>Items Delivered</p>
+                    <p style={{ margin: 0, fontSize: 13, color: "#64748B" }}>Items Delivered</p>
                     <p style={{ margin: 0, fontSize: 11,
                         color: deliveryItemsCount > 0 ? "#334155" : "#EF4444",
                         fontWeight: 600, }}>
@@ -993,15 +993,15 @@ export default function OrderDetailsPage() {
                     </p>
                   </div>
                   <div className="flex items-center justify-between py-2" style={{ borderTop: "1px solid #F1F5F9" }}>
-                    <p style={{ margin: 0, fontSize: 11, color: "#94A3B8" }}>Driver Signature</p>
-                    <p style={{ margin: 0, fontSize: 11, color: "#94A3B8", fontStyle: "italic" }}>Not captured</p>
+                    <p style={{ margin: 0, fontSize: 13, color: "#64748B" }}>Driver Signature</p>
+                    <p style={{ margin: 0, fontSize: 13, color: "#64748B", fontStyle: "italic" }}>Not captured</p>
                   </div>
                   <div className="flex items-center justify-between py-2" style={{ borderTop: "1px solid #F1F5F9" }}>
-                    <p style={{ margin: 0, fontSize: 11, color: "#94A3B8" }}>Customer Signature</p>
-                    <p style={{ margin: 0, fontSize: 11, color: "#94A3B8", fontStyle: "italic" }}>Not captured</p>
+                    <p style={{ margin: 0, fontSize: 13, color: "#64748B" }}>Customer Signature</p>
+                    <p style={{ margin: 0, fontSize: 13, color: "#64748B", fontStyle: "italic" }}>Not captured</p>
                   </div>
                   <div className="flex items-center justify-between py-2" style={{ borderTop: "1px solid #F1F5F9" }}>
-                    <p style={{ margin: 0, fontSize: 11, color: "#94A3B8" }}>Timestamp</p>
+                    <p style={{ margin: 0, fontSize: 13, color: "#64748B" }}>Timestamp</p>
                     <p style={{ margin: 0, fontSize: 11, color: "#334155", fontWeight: 500 }}>{deliveryProofTime}</p>
                   </div>
                 </div>
@@ -1013,7 +1013,7 @@ export default function OrderDetailsPage() {
                       border: "1px solid #FECACA",
                       borderRadius: "var(--r-md)", }}
                   >
-                    <p style={{ margin: 0, fontSize: 10, fontWeight: 700, color: "#EF4444", textTransform: "uppercase", marginBottom: 4.8 }}>
+                    <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: "#EF4444", textTransform: "uppercase", marginBottom: 4.8 }}>
                       Alert
                     </p>
                     <p style={{ margin: 0, fontSize: 11, color: "#475569", lineHeight: 1.4 }}>
@@ -1074,7 +1074,7 @@ export default function OrderDetailsPage() {
                               {imgUrl ? (
                                 <img src={imgUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                               ) : (
-                                <p style={{ margin: 0, fontSize: 15, color: "#94A3B8" }}>{initial}</p>
+                                <p style={{ margin: 0, fontSize: 15, color: "#64748B" }}>{initial}</p>
                               )}
                             </div>
                             <p style={{ margin: 0, fontSize: 12, fontWeight: 600, lineHeight: 1.25, color: active ? "#2563EB" : "#64748B" }}>
@@ -1145,7 +1145,7 @@ export default function OrderDetailsPage() {
                               </p>
                               <p style={{ margin: 0, marginTop: 3.6, fontSize: 13, color: "#0F172A", fontWeight: 600 }}>
                                 {formatMoney(item.unitPrice, paymentCurrencySymbol)}{" "}
-                                <span style={{ color: "#94A3B8", fontWeight: 500 }}>
+                                <span style={{ color: "#64748B", fontWeight: 500 }}>
                                   / piece
                                 </span>
                               </p>
@@ -1323,17 +1323,17 @@ export default function OrderDetailsPage() {
               <div className="flex items-center justify-between" style={{ ...SECTION_HEAD }}>
                 <div className="flex items-center gap-1.5">
                   <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#F59E0B" }} />
-                  <p style={{ margin: 0, color: "var(--muted)",  fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}>
+                  <p style={{ margin: 0, color: "var(--muted)",  fontSize: 12, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}>
                     Service Comparison
                   </p>
                   {comparisonData?.fallbackToLive && (
-                    <p style={{ margin: 0,  fontSize: 10, color: "#9CA3AF", fontStyle: "italic", marginLeft: 8 }}>
+                    <p style={{ margin: 0,  fontSize: 12, color: "#9CA3AF", fontStyle: "italic", marginLeft: 8 }}>
                       (snapshot not yet available — showing current services)
                     </p>
                   )}
                 </div>
                 <div style={{ paddingLeft: 10.4, paddingRight: 10.4, minHeight: 22, borderRadius: "999px", background: "#FFFBEB", border: "1px solid #FDE68A", display: "inline-flex", alignItems: "center" }}>
-                  <p style={{ margin: 0, fontSize: 10, color: "#B45309", fontWeight: 700 }}>Customer vs Agent</p>
+                  <p style={{ margin: 0, fontSize: 12, color: "#B45309", fontWeight: 700 }}>Customer vs Agent</p>
                 </div>
               </div>
 
@@ -1388,7 +1388,7 @@ export default function OrderDetailsPage() {
                                       <div style={{ marginTop: 6, display: "flex", flexWrap: "wrap", gap: 4 }}>
                                         {svc.preferences.map((pref, pi) => (
                                           <div key={pi} style={{ paddingLeft: 8, paddingRight: 8, paddingTop: 2.4, paddingBottom: 2.4, borderRadius: "999px", background: "#FEF3C7", border: "1px solid #FDE68A" }}>
-                                            <p style={{ margin: 0, fontSize: 10, color: "#92400E", fontWeight: 600 }}>
+                                            <p style={{ margin: 0, fontSize: 12, color: "#92400E", fontWeight: 600 }}>
                                               {pref.preferenceType?.name && `${pref.preferenceType.name}: `}{pref.preferenceValue?.value || "—"}
                                             </p>
                                           </div>
@@ -1411,13 +1411,13 @@ export default function OrderDetailsPage() {
                           />
                           {(comparisonData.customerOriginal.bookingPreferences || []).length > 0 && (
                             <div>
-                              <p style={{ margin: 0, fontSize: 10, color: "#92400E", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>
+                              <p style={{ margin: 0, fontSize: 12, color: "#92400E", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>
                                 Booking Preferences
                               </p>
                               <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
                                 {comparisonData.customerOriginal.bookingPreferences.map((pref, pi) => (
                                   <div key={pi} style={{ paddingLeft: 8, paddingRight: 8, paddingTop: 2.4, paddingBottom: 2.4, borderRadius: "999px", background: "#FEF3C7", border: "1px solid #FDE68A" }}>
-                                    <p style={{ margin: 0, fontSize: 10, color: "#92400E", fontWeight: 600 }}>
+                                    <p style={{ margin: 0, fontSize: 12, color: "#92400E", fontWeight: 600 }}>
                                       {pref.preferenceType?.name && `${pref.preferenceType.name}: `}{pref.preferenceValue?.value || "—"}
                                     </p>
                                   </div>
@@ -1481,7 +1481,7 @@ export default function OrderDetailsPage() {
                                       <div style={{ marginTop: 6, display: "flex", flexWrap: "wrap", gap: 4 }}>
                                         {svc.selectedServicePreferences.map((pref, pi) => (
                                           <div key={pi} style={{ paddingLeft: 8, paddingRight: 8, paddingTop: 2.4, paddingBottom: 2.4, borderRadius: "999px", background: "#E0E7FF", border: "1px solid #C7D2FE" }}>
-                                            <p style={{ margin: 0, fontSize: 10, color: "#3730A3", fontWeight: 600 }}>
+                                            <p style={{ margin: 0, fontSize: 12, color: "#3730A3", fontWeight: 600 }}>
                                               {pref.preferenceType?.name && `${pref.preferenceType.name}: `}{pref.preferenceValue?.value || "—"}
                                             </p>
                                           </div>
@@ -1586,7 +1586,7 @@ export default function OrderDetailsPage() {
             <div style={{ ...SECTION_HEAD }}>
               <div className="flex items-center gap-1.5">
                 <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#C4B5FD" }} />
-                <p style={{ margin: 0, color: "var(--muted)",  fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}>
+                <p style={{ margin: 0, color: "var(--muted)",  fontSize: 12, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}>
                   Shop
                 </p>
               </div>
@@ -1615,7 +1615,7 @@ export default function OrderDetailsPage() {
             <div style={{ ...SECTION_HEAD }}>
               <div className="flex items-center gap-1.5">
                 <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#FBBF24" }} />
-                <p style={{ margin: 0, color: "var(--muted)",  fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}>
+                <p style={{ margin: 0, color: "var(--muted)",  fontSize: 12, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}>
                   Customer Review
                 </p>
               </div>
@@ -1646,7 +1646,7 @@ export default function OrderDetailsPage() {
                   <p style={{ margin: 0, fontSize: 13, color: "#334155" }}>
                     {shopReview.comment || "No written comment"}
                   </p>
-                  <p style={{ margin: 0, fontSize: 11, color: "#94A3B8" }}>
+                  <p style={{ margin: 0, fontSize: 13, color: "#64748B" }}>
                     {shopReview.customerName || "Customer"}
                     {shopReview.submittedAt
                       ? ` · ${formatDate(shopReview.submittedAt, "DD MMM YYYY, HH:mm")}`
@@ -1661,20 +1661,20 @@ export default function OrderDetailsPage() {
             <div style={{ ...SECTION_HEAD }}>
               <div className="flex items-center gap-1.5">
                 <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#60A5FA" }} />
-                <p style={{ margin: 0, color: "var(--muted)",  fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}>
+                <p style={{ margin: 0, color: "var(--muted)",  fontSize: 12, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}>
                   Delivery Address
                 </p>
               </div>
             </div>
             <div className="space-y-3" style={{ padding: 20 }}>
-              <p style={{ margin: 0,  color: "#2563EB", fontWeight: 700, fontSize: 10 }}>
+              <p style={{ margin: 0,  color: "#2563EB", fontWeight: 700, fontSize: 12 }}>
                 DELIVERY LOCATION
               </p>
               <p style={{ margin: 0, fontSize: 14, lineHeight: 1.45 }}>
                 {formatAddress(orderData.pickupAddress || orderData.dropOffAddress)}
               </p>
               <div className="flex justify-between gap-3">
-                <p style={{ margin: 0, color: "var(--muted)",  fontSize: 10, textTransform: "uppercase" }}>
+                <p style={{ margin: 0, color: "var(--muted)",  fontSize: 12, textTransform: "uppercase" }}>
                   Instructions
                 </p>
                 <p style={{ margin: 0, textAlign: "right", fontSize: 12 }}>
@@ -1688,14 +1688,14 @@ export default function OrderDetailsPage() {
             <div style={{ ...SECTION_HEAD }}>
               <div className="flex items-center gap-1.5">
                 <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#FBBF24" }} />
-                <p style={{ margin: 0, color: "var(--muted)",  fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}>
+                <p style={{ margin: 0, color: "var(--muted)",  fontSize: 12, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}>
                   Drivers
                 </p>
               </div>
             </div>
             <div className="space-y-3" style={{ padding: 20 }}>
               <div>
-                <p style={{ margin: 0,  color: "#2563EB", fontWeight: 700, fontSize: 10 }}>
+                <p style={{ margin: 0,  color: "#2563EB", fontWeight: 700, fontSize: 12 }}>
                   COLLECTION DRIVER
                 </p>
                 <div className="flex items-center gap-2.5 mt-2">
@@ -1729,7 +1729,7 @@ export default function OrderDetailsPage() {
                 ) : null}
               </div>
               <div>
-                <p style={{ margin: 0,  color: "#059669", fontWeight: 700, fontSize: 10 }}>
+                <p style={{ margin: 0,  color: "#059669", fontWeight: 700, fontSize: 12 }}>
                   DELIVERY DRIVER
                 </p>
                 <div className="flex items-center gap-2.5 mt-2">
@@ -1764,7 +1764,7 @@ export default function OrderDetailsPage() {
             <div style={{ ...SECTION_HEAD }}>
               <div className="flex items-center gap-1.5">
                 <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#F87171" }} />
-                <p style={{ margin: 0, color: "var(--muted)",  fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}>
+                <p style={{ margin: 0, color: "var(--muted)",  fontSize: 12, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}>
                   Attempt outcomes
                 </p>
               </div>
@@ -1781,7 +1781,7 @@ export default function OrderDetailsPage() {
                         background: failed ? "#FFF7F7" : "#F8FAFC", }}>
                       <div className="flex items-center justify-between gap-2" style={{ marginBottom: 6 }}>
                         <p style={{ margin: 0,  fontWeight: 700,
-                            fontSize: 10,
+                            fontSize: 12,
                             letterSpacing: "0.06em",
                             textTransform: "uppercase",
                             color: attempt.attemptType === "delivery" ? "#059669" : "#2563EB", }}>
@@ -1815,7 +1815,7 @@ export default function OrderDetailsPage() {
                         </p>
                       )}
                       {attempt.driverName ? (
-                        <p style={{ margin: 0, fontSize: 12, display: "block", marginTop: 6, color: "#94A3B8" }}>
+                        <p style={{ margin: 0, fontSize: 12, display: "block", marginTop: 6, color: "#64748B" }}>
                           By {attempt.driverName}
                         </p>
                       ) : null}
@@ -1823,7 +1823,7 @@ export default function OrderDetailsPage() {
                   );
                 })
               ) : (
-                <p style={{ margin: 0,  color: "#94A3B8", fontSize: 13 }}>
+                <p style={{ margin: 0,  color: "#64748B", fontSize: 13 }}>
                   No pickup or delivery attempts recorded yet.
                 </p>
               )}

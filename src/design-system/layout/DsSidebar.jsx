@@ -188,7 +188,7 @@ export default function DsSidebar({ collapsed, onToggle, mobileOpen, searchRef }
             alt="Just Dry Cleaners"
           />
           <button type="button" className="jd-col" aria-label="Collapse sidebar" onClick={onToggle}>
-            <DsIcon name="chev" size={15} />
+            <DsIcon name="chevLeft" size={16} />
           </button>
         </div>
 
