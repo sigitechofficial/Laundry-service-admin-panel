@@ -182,13 +182,11 @@ export default function DsSidebar({ collapsed, onToggle, mobileOpen, searchRef }
     <>
       <aside className="jd-side" aria-label="Application sidebar">
         <div className="jd-brand">
-          <div className="logo">
-            <DsIcon name="drop" size={22} />
-          </div>
-          <div className="bt">
-            <b>Just Dry</b>
-            <small>Admin</small>
-          </div>
+          <img
+            className="jd-brand__logo"
+            src="/images/logo.png"
+            alt="Just Dry Cleaners"
+          />
           <button type="button" className="jd-col" aria-label="Collapse sidebar" onClick={onToggle}>
             <DsIcon name="chev" size={15} />
           </button>

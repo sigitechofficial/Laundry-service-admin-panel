@@ -20,7 +20,6 @@ import {
 } from "../../utilities/deploymentInfo";
 import { DsScope, Button, Field, Input } from "../../design-system";
 import { getApiErrorMessage } from "../../store/services/apiErrors";
-import DsIcon from "../../design-system/icons";
 
 export default function LoginPage() {
   const { success, error } = useToaster();
@@ -147,10 +146,11 @@ export default function LoginPage() {
     <DsScope as="main" className="jd-auth">
       <div className="jd-auth__card">
         <div className="jd-auth__brand">
-          <div className="logo" aria-hidden="true">
-            <DsIcon name="drop" size={22} />
-          </div>
-          <p className="jd-auth__eyebrow">Just Dry</p>
+          <img
+            className="jd-auth__logo"
+            src="/images/logo1.png"
+            alt="Just Dry Cleaners"
+          />
         </div>
         <h1 className="jd-h1">Sign in</h1>
         <p className="jd-lead">
