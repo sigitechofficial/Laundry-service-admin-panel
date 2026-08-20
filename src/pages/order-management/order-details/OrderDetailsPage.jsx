@@ -1181,7 +1181,40 @@ export default function OrderDetailsPage() {
                   <div style={{ display: "flex", flexDirection: "column", gap: 9.6 }}>
                     {visibleOrderItems.map((item) => {
                       const lineTotal = (item.qty || 0) * (item.unitPrice || 0);
-                      const itemLabel = item.itemName
+
+                      // Flat customer booking row — no subCategory, zero price, no invoice lines.
+                      // Show as a compact customer-notes card (like the agent app — no qty×price row).
+                      const isCustomerNotesRow =
+                        item.unitPrice === 0 &&
+                        item.itemName === "Item" &&
+                        (item.addOns || []).length === 0 &&
+                        (item.repairItems || []).length === 0;
+
+                      if (isCustomerNotesRow) {
+                        const hasPrefs = (item.preferences || []).length > 0;
+                        const hasNote = (item.instruction || "").trim().length > 0;
+                        if (!hasPrefs && !hasNote) return null;
+                        return (
+                          <div key={`item-${item.id}`} style={{ border: "1px solid #DBEAFE", borderRadius: "12px", padding: "10px 14px", background: "#F0F7FF" }}>
+                            <p style={{ margin: 0, marginBottom: 4, fontSize: 11, fontWeight: 700, color: "#2563EB", letterSpacing: 0.3, textTransform: "uppercase" }}>
+                              Customer Preferences
+                            </p>
+                            {hasPrefs && (
+                              <p style={{ margin: 0, fontSize: 12, color: "#334155", lineHeight: 1.5 }}>
+                                {item.preferences.join(" · ")}
+                              </p>
+                            )}
+                            {hasNote && (
+                              <p style={{ margin: 0, marginTop: hasPrefs ? 4 : 0, fontSize: 12, color: "#475569", fontStyle: "italic" }}>
+                                Note: {item.instruction}
+                              </p>
+                            )}
+                          </div>
+                        );
+                      }
+
+                      // Normal priced item row — matches agent app format.
+                      const itemLabel = item.itemName && item.itemName !== "Item"
                         ? `${item.serviceName} - ${item.itemName}`
                         : item.serviceName;
                       return (
