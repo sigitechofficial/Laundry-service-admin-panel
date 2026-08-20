@@ -132,6 +132,43 @@ function formatDateTime(date, timeFrom, timeTo, fallback = "N/A") {
   return formattedDate || fallback;
 }
 
+/** Prefer subcategory (e.g. 3kg / 5kg) over bare category name. */
+function formatAgentInvoiceItemName(row) {
+  const repairLabel = (Array.isArray(row?.repairItems) ? row.repairItems : [])
+    .map((r) => r?.garmentName)
+    .filter(Boolean)
+    .join(", ");
+  if (repairLabel) return repairLabel;
+
+  const sub = row?.subCategory;
+  const base =
+    String(sub?.name || row?.category?.name || "").trim() || "Item";
+  const kg = Number(sub?.weightKg);
+  if (Number.isFinite(kg) && kg > 0 && !/\d+\s*kg/i.test(base)) {
+    return `${base} (${kg}kg)`;
+  }
+  return base;
+}
+
+/** Flat CSS add-ons, or line-split add-ons when the agent used serviceLines. */
+function collectInvoiceAddOns(row) {
+  const fromLines = (Array.isArray(row?.serviceLines) ? row.serviceLines : [])
+    .flatMap((line) => (Array.isArray(line?.addOns) ? line.addOns : []));
+  if (fromLines.length > 0) return fromLines;
+  return Array.isArray(row?.addOns) ? row.addOns : [];
+}
+
+function normalizeInvoiceAddOn(ad) {
+  const quantity = Number(ad?.items ?? ad?.quantity ?? 1) || 1;
+  const unitPrice = Number(ad?.price ?? ad?.addOnService?.price ?? 0) || 0;
+  return {
+    ...ad,
+    quantity,
+    price: unitPrice,
+    name: ad?.addOnService?.name || ad?.name || "Add-on",
+  };
+}
+
 function formatAddress(address) {
   if (!address) return "N/A";
   const parts = [address.streetAddress, address.district, address.province].filter(
@@ -292,18 +329,12 @@ export default function OrderDetailsPage() {
         };
       }
       const repairItems = Array.isArray(it?.repairItems) ? it.repairItems : [];
-      const repairLabel = repairItems
-        .map((r) => r?.garmentName)
-        .filter(Boolean)
-        .join(", ");
       map[sid].items.push({
         id: it?.id,
-        itemName:
-          repairLabel ||
-          it?.subCategory?.name ||
-          it?.category?.name ||
-          "Item",
+        itemName: formatAgentInvoiceItemName(it),
         categoryName: it?.category?.name || "",
+        subCategoryName: it?.subCategory?.name || "",
+        weightKg: it?.subCategory?.weightKg ?? null,
         qty:
           Number(it?.items) ||
           repairItems.reduce(
@@ -311,9 +342,13 @@ export default function OrderDetailsPage() {
             0
           ) ||
           0,
-        unitPrice: Number(it?.categoryPrice || it?.subCategory?.price || 0),
+        unitPrice: Number(
+          it?.categoryPrice || it?.subCategory?.price || 0
+        ),
+        unitLabel:
+          Number(it?.subCategory?.weightKg) > 0 ? "/ load" : "/ piece",
         serviceImage: it?.service?.image || "",
-        addOns: Array.isArray(it?.addOns) ? it.addOns : [],
+        addOns: collectInvoiceAddOns(it).map(normalizeInvoiceAddOn),
         preferences: Array.isArray(it?.selectedServicePreferences)
           ? it.selectedServicePreferences
               .map((p) => p?.preferenceValue?.value)
@@ -390,8 +425,8 @@ export default function OrderDetailsPage() {
         svc.items.reduce(
           (itemSum, item) =>
             itemSum +
-            Number(item.quantity ?? item.items ?? 0) *
-              Number(item.categoryPrice ?? item.price ?? 0),
+            Number(item.qty ?? item.quantity ?? item.items ?? 0) *
+              Number(item.unitPrice ?? item.categoryPrice ?? item.price ?? 0),
           0
         ),
       0
@@ -1146,7 +1181,7 @@ export default function OrderDetailsPage() {
                               <p style={{ margin: 0, marginTop: 3.6, fontSize: 13, color: "#0F172A", fontWeight: 600 }}>
                                 {formatMoney(item.unitPrice, paymentCurrencySymbol)}{" "}
                                 <span style={{ color: "#64748B", fontWeight: 500 }}>
-                                  / piece
+                                  {item.unitLabel || "/ piece"}
                                 </span>
                               </p>
                             </div>
@@ -1162,8 +1197,8 @@ export default function OrderDetailsPage() {
                           {(item.addOns || []).length > 0 && (
                             <div style={{ marginTop: 6 }}>
                               {(item.addOns || []).map((ad, idx) => (
-                                <p key={`addon-${item.id}-${idx}`} style={{ margin: 0, fontSize: 11, color: "#475569" }}>
-                                  + {Number(ad?.quantity || 1)}x {ad?.name || ad?.addOnService?.name || "Add-on"} (
+                                <p key={`addon-${item.id}-${idx}`} style={{ margin: 0, fontSize: 12, color: "#475569" }}>
+                                  + {Number(ad?.quantity || 1)}x {ad?.name || "Add-on"} (
                                   {formatMoney(
                                     Number(ad?.quantity || 1) * Number(ad?.price || 0),
                                     paymentCurrencySymbol
