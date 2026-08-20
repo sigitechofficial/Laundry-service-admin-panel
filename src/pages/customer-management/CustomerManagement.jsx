@@ -2,9 +2,12 @@ import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { Button, Modal, PageHeader, Table } from "../../design-system";
-import { formatDate, formatMoney, resolveCurrencySymbol } from "../../utilities/formatters";
+import { formatDate, formatAmount, resolveCurrencySymbol } from "../../utilities/formatters";
 import {
+  DirectoryActionDelete,
+  DirectoryActionEdit,
   DirectoryActions,
+  DirectoryActionView,
   DirectoryClearButton,
   DirectoryDateInput,
   DirectoryIdentity,
@@ -77,7 +80,7 @@ export default function CustomerManagement() {
         email: cus?.email,
         phoneNumber: cus?.phoneNum,
         amountSpent: cus?.totalAmountSpent,
-        currencySymbol: resolveCurrencySymbol(cus),
+        currencySymbol: resolveCurrencySymbol(cus, { applyDefault: true }),
         lastOrderDate: cus?.lastBookingDate,
         totalOrders: cus?.bookingCount,
         address: cus?.address,
@@ -151,7 +154,9 @@ export default function CustomerManagement() {
       key: "amountSpent",
       header: "Spent",
       render: (row) => (
-        <DirectoryMoney>{formatMoney(row.amountSpent, row.currencySymbol)}</DirectoryMoney>
+        <DirectoryMoney>
+          {formatAmount(row.amountSpent, row, { applyDefault: true })}
+        </DirectoryMoney>
       ),
     },
     {
@@ -159,23 +164,13 @@ export default function CustomerManagement() {
       header: "Actions",
       render: (row) => (
         <DirectoryActions>
-          <Button size="sm" variant="secondary" onClick={() => setViewRow(row)}>
-            View
-          </Button>
-          <Button
-            size="sm"
-            variant="secondary"
+          <DirectoryActionView onClick={() => setViewRow(row)} />
+          <DirectoryActionEdit
             onClick={() => navigate(`/customer-management/edit/${row?.id}`)}
-          >
-            Edit
-          </Button>
-          <Button
-            size="sm"
-            variant="danger"
+          />
+          <DirectoryActionDelete
             onClick={() => setModalData({ open: true, data: row })}
-          >
-            Delete
-          </Button>
+          />
         </DirectoryActions>
       ),
     },
@@ -272,7 +267,10 @@ export default function CustomerManagement() {
           { label: "Address", value: viewRow?.address },
           { label: "Orders", value: viewRow?.totalOrders },
           { label: "Last order", value: formatDate(viewRow?.lastOrderDate) },
-          { label: "Spent", value: formatMoney(viewRow?.amountSpent, viewRow?.currencySymbol) },
+          {
+            label: "Spent",
+            value: formatAmount(viewRow?.amountSpent, viewRow, { applyDefault: true }),
+          },
           { label: "Status", value: viewRow?.status ? "Active" : "Inactive" },
           { label: "Created", value: formatDate(viewRow?.createdAt) },
           { label: "Updated", value: formatDate(viewRow?.updatedAt) },

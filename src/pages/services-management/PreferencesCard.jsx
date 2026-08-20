@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { TbChevronDown, TbPencil, RiDeleteBin6Line } from "../../shared/icons/index";
+import { TbChevronDown } from "../../shared/icons/index";
 import {
   useAddPreferenceMutation,
   useAddPreferenceValueMutation,
@@ -17,6 +17,8 @@ import useToaster from "../../components/ui/Toaster";
 import ConfirmDeleteModal from "./ConfirmDeleteModal";
 import { EmptyHint, QueryState } from "./QueryState";
 import {
+  DirectoryActionDelete,
+  DirectoryActionEdit,
   DirectoryDotPills,
   DirectoryFormCard,
   DirectoryListRow,
@@ -511,9 +513,7 @@ export default function PreferencesCard({ triggerAdd }) {
                 >
                   Add Sub Preference
                 </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
+                <DirectoryActionEdit
                   onClick={() => {
                     setPreferenceData({
                       type: "preference",
@@ -527,13 +527,8 @@ export default function PreferencesCard({ triggerAdd }) {
                         : readParentPreferenceTypeId(preference),
                     });
                   }}
-                >
-                  <TbPencil size={16} />
-                  Edit
-                </Button>
-                <Button
-                  size="sm"
-                  variant="danger"
+                />
+                <DirectoryActionDelete
                   disabled={preferenceDeleteLoading}
                   onClick={() =>
                     setDeleteTarget({
@@ -542,10 +537,7 @@ export default function PreferencesCard({ triggerAdd }) {
                       name: preference?.name,
                     })
                   }
-                >
-                  <RiDeleteBin6Line size={14} />
-                  Delete
-                </Button>
+                />
                 <Button
                   size="sm"
                   variant="ghost"
@@ -573,10 +565,8 @@ export default function PreferencesCard({ triggerAdd }) {
                       <input type="checkbox" defaultChecked readOnly />
                       <span>{option?.value}</span>
                     </label>
-                    <div style={{ display: "flex", gap: 8 }}>
-                      <Button
-                        size="sm"
-                        variant="secondary"
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <DirectoryActionEdit
                         onClick={() => {
                           setPreferenceData((prev) => ({
                             ...prev,
@@ -590,12 +580,8 @@ export default function PreferencesCard({ triggerAdd }) {
                             open: false,
                           }));
                         }}
-                      >
-                        Edit
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="danger"
+                      />
+                      <DirectoryActionDelete
                         disabled={deletePrefValueLoading}
                         onClick={() =>
                           setDeleteTarget({
@@ -604,9 +590,7 @@ export default function PreferencesCard({ triggerAdd }) {
                             name: option?.value,
                           })
                         }
-                      >
-                        Delete
-                      </Button>
+                      />
                     </div>
                   </DirectoryListRow>
                 ))}

@@ -3,6 +3,7 @@ import { Button, Field, Modal, Table, Textarea } from "../../design-system";
 import { DATE_TIME_FORMAT, formatDate } from "../../utilities/formatters";
 import {
   DirectoryActions,
+  DirectoryActionView,
   DirectoryClearButton,
   DirectoryDotPill,
   DirectoryIdentity,
@@ -217,9 +218,7 @@ export default function PendingAgents() {
         header: "Actions",
         render: (row) => (
           <DirectoryActions>
-            <Button size="sm" variant="secondary" onClick={() => setViewRow(row)}>
-              View
-            </Button>
+            <DirectoryActionView onClick={() => setViewRow(row)} />
             {isRejectedTab ? (
               <Button
                 size="sm"

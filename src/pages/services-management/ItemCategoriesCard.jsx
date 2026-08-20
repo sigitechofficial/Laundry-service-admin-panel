@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { TbChevronDown, RiDeleteBin6Line, TbPencil } from "../../shared/icons/index";
+import { TbChevronDown } from "../../shared/icons/index";
 import {
   useDeleteCategoryMutation,
   useDeleteSubCategoryMutation,
@@ -11,13 +11,17 @@ import { useSelector } from "react-redux";
 import { Button, Select } from "../../design-system";
 import CategoryModal from "./categories-modal/CategoryModal";
 import SubCategoryModal from "./categories-modal/SubCategoryModal";
+import CategoryLinkAddOnsModal from "./CategoryLinkAddOnsModal";
 import ConfirmDeleteModal from "./ConfirmDeleteModal";
 import useToaster from "../../components/ui/Toaster";
-import { formatMoney } from "../../utilities/formatters";
+import { formatAmount } from "../../utilities/formatters";
 import { getApiErrorMessage } from "../../store/services/apiErrors";
 import { EmptyHint, QueryState } from "./QueryState";
 import {
+  DirectoryActionDelete,
+  DirectoryActionEdit,
   DirectoryActions,
+  DirectoryIdentity,
   DirectoryListRow,
   DirectoryMetrics,
   DirectoryMoney,
@@ -32,6 +36,7 @@ export default function ItemCategoriesCard({ triggerAdd }) {
   const { success, error } = useToaster();
   const { isLoading, isError, error: categoriesQueryError, refetch } = useGetCategoriesQuery();
   const [categoryToDelete, setCategoryToDelete] = useState(null);
+  const [linkAddOnsCategory, setLinkAddOnsCategory] = useState(null);
   useGetSubCategoriesQuery();
   const { data: servicesResponse } = useGetAllServicesQuery();
   const services = useMemo(
@@ -241,27 +246,35 @@ export default function ItemCategoriesCard({ triggerAdd }) {
                   items
                 </div>
               </div>
-          {group.items.map((category) => (
+          {group.items.map((category) => {
+            const serviceLabel =
+              category?.service?.name ||
+              servicesMap[category?.serviceId] ||
+              "Not assigned";
+            const itemCount = (categoryData?.subCategories || []).filter(
+              (item) => item?.categoryId === category?.id
+            ).length;
+            const linkedAddOnGroups = Array.isArray(category?.addOnCategories)
+              ? category.addOnCategories.length
+              : 0;
+            return (
             <div key={category?.id}>
               <DirectoryListRow
                 onClick={() => handleCategoryToggle(category?.id)}
                 style={{ cursor: "pointer" }}
               >
-                <div>
-                  <div>{category?.name}</div>
-                  <div style={{ fontSize: 12, color: "var(--muted)" }}>
-                    {category?.service?.name ||
-                      servicesMap[category?.serviceId] ||
-                      "Not assigned"}{" "}
-                    /{" "}
-                    {(() => {
-                      const itemCount = (categoryData?.subCategories || []).filter(
-                        (item) => item?.categoryId === category?.id
-                      ).length;
-                      return `${itemCount} ${itemCount === 1 ? "item" : "items"}`;
-                    })()}
-                  </div>
-                </div>
+                <DirectoryIdentity
+                  name={category?.name}
+                  meta={`${serviceLabel} / ${itemCount} ${
+                    itemCount === 1 ? "item" : "items"
+                  }${
+                    linkedAddOnGroups
+                      ? ` · ${linkedAddOnGroups} add-on ${
+                          linkedAddOnGroups === 1 ? "group" : "groups"
+                        }`
+                      : ""
+                  }`}
+                />
                 <DirectoryActions
                   onClick={(e) => e.stopPropagation()}
                 >
@@ -273,7 +286,10 @@ export default function ItemCategoriesCard({ triggerAdd }) {
                         ...isModalOpen,
                         isSubModalOpen: true,
                         type: "",
-                        data: category,
+                        data: {
+                          ...category,
+                          parentAddOnCategories: category?.addOnCategories || [],
+                        },
                       });
                     }}
                   >
@@ -281,7 +297,17 @@ export default function ItemCategoriesCard({ triggerAdd }) {
                   </Button>
                   <Button
                     size="sm"
-                    variant="ghost"
+                    variant="secondary"
+                    onClick={() =>
+                      setLinkAddOnsCategory({
+                        ...category,
+                        itemCount,
+                      })
+                    }
+                  >
+                    Link Add-ons
+                  </Button>
+                  <DirectoryActionEdit
                     onClick={() => {
                       setIsModalOpen({
                         ...isModalOpen,
@@ -290,13 +316,8 @@ export default function ItemCategoriesCard({ triggerAdd }) {
                         type: "update",
                       });
                     }}
-                  >
-                    <TbPencil size={16} />
-                    Edit
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="danger"
+                  />
+                  <DirectoryActionDelete
                     disabled={deleteLoading}
                     onClick={() =>
                       setCategoryToDelete({
@@ -304,10 +325,7 @@ export default function ItemCategoriesCard({ triggerAdd }) {
                         name: category.name,
                       })
                     }
-                  >
-                    <RiDeleteBin6Line size={14} />
-                    Delete
-                  </Button>
+                  />
                   <Button
                     size="sm"
                     variant="ghost"
@@ -338,18 +356,18 @@ export default function ItemCategoriesCard({ triggerAdd }) {
                       return (
                         <DirectoryListRow key={item?.id}>
                           <div>
-                            <div>{item?.name}</div>
-                            <DirectoryMoney>{formatMoney(item?.price, "£")}</DirectoryMoney>
-                            {uc === undefined || uc === null || uc === "" ? null : (
-                              <div style={{ fontSize: 12, color: "#5c6673" }}>
-                                Unit count: {uc}
-                              </div>
-                            )}
+                            <DirectoryIdentity
+                              name={item?.name}
+                              meta={
+                                uc === undefined || uc === null || uc === ""
+                                  ? undefined
+                                  : `Unit count: ${uc}`
+                              }
+                            />
+                            <DirectoryMoney>{formatAmount(item?.price, null, { applyDefault: true })}</DirectoryMoney>
                           </div>
                           <DirectoryActions>
-                            <Button
-                              size="sm"
-                              variant="secondary"
+                            <DirectoryActionEdit
                               onClick={() => {
                                 setIsModalOpen({
                                   ...isModalOpen,
@@ -359,19 +377,15 @@ export default function ItemCategoriesCard({ triggerAdd }) {
                                   data: {
                                     ...item,
                                     categoryName: category.name,
+                                    parentAddOnCategories:
+                                      category?.addOnCategories || [],
                                   },
                                 });
                               }}
-                            >
-                              Edit
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="danger"
+                            />
+                            <DirectoryActionDelete
                               onClick={() => setSubToDelete(item?.id)}
-                            >
-                              Delete
-                            </Button>
+                            />
                           </DirectoryActions>
                         </DirectoryListRow>
                       );
@@ -379,7 +393,8 @@ export default function ItemCategoriesCard({ triggerAdd }) {
                 </div>
               ) : null}
             </div>
-          ))}
+            );
+          })}
             </div>
           ))
         ) : (
@@ -407,6 +422,12 @@ export default function ItemCategoriesCard({ triggerAdd }) {
             data: {},
           });
         }}
+      />
+
+      <CategoryLinkAddOnsModal
+        open={Boolean(linkAddOnsCategory)}
+        category={linkAddOnsCategory}
+        onClose={() => setLinkAddOnsCategory(null)}
       />
 
       <ConfirmDeleteModal

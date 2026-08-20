@@ -6,6 +6,7 @@ import { useGetShopsDataQuery } from "../../store/services/api";
 import { formatMoney, resolveCurrencySymbol } from "../../utilities/formatters";
 import {
   DirectoryActions,
+  DirectoryActionView,
   DirectoryIdentity,
   DirectoryMetric,
   DirectoryMetrics,
@@ -78,9 +79,7 @@ export default function ShopDashboard() {
         header: "Actions",
         render: (row) => (
           <DirectoryActions>
-            <Button size="sm" variant="secondary" onClick={() => setViewRow(row)}>
-              View
-            </Button>
+            <DirectoryActionView onClick={() => setViewRow(row)} />
           </DirectoryActions>
         ),
       },

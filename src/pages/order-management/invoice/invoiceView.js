@@ -1,7 +1,7 @@
 import {
   formatDate,
   formatMoney,
-  resolveCurrencySymbol,
+  resolveDisplayCurrency,
 } from "../../../utilities/formatters";
 import {
   resolveOrderSubtotal,
@@ -14,11 +14,17 @@ function formatDay(value) {
 }
 
 export function formatInvoiceMoney(value, symbol, code) {
-  return formatMoney(value ?? 0, symbol || "£", code);
+  const fallback = resolveDisplayCurrency(null, { applyDefault: true });
+  return formatMoney(value ?? 0, symbol || fallback.symbol, code || fallback.code);
 }
 
 function invoiceMoney(view, amount) {
-  return formatMoney(amount, view?.currencySymbol || "£", view?.currencyCode);
+  const fallback = resolveDisplayCurrency(null, { applyDefault: true });
+  return formatMoney(
+    amount,
+    view?.currencySymbol || fallback.symbol,
+    view?.currencyCode || fallback.code
+  );
 }
 
 export function invoiceStatusTone(label) {
@@ -38,14 +44,16 @@ export function buildInvoiceView(invoiceDetails, fallbackShopName = "") {
     `${invoiceDetails?.customer?.firstName || ""} ${invoiceDetails?.customer?.lastName || ""}`.trim() ||
     "Customer";
   const invoiceNo = invoiceDetails?.orderTrackId || `INV-${invoiceDetails?.id || ""}`;
-  const currencySymbol =
-    resolveCurrencySymbol(invoiceDetails?.paymentSummary) ||
-    resolveCurrencySymbol(invoiceDetails) ||
-    "£";
+  const resolvedCurrency = resolveDisplayCurrency(
+    invoiceDetails?.paymentSummary ?? invoiceDetails,
+    { applyDefault: true }
+  );
+  const currencySymbol = resolvedCurrency.symbol;
   const currencyCode =
     invoiceDetails?.paymentSummary?.currency ||
     invoiceDetails?.paymentSummary?.currencyCode ||
-    invoiceDetails?.currency;
+    invoiceDetails?.currency ||
+    resolvedCurrency.code;
   const dateText = invoiceDetails?.createdAt || invoiceDetails?.collectionDate
     ? formatDate(invoiceDetails.createdAt || invoiceDetails.collectionDate)
     : "N/A";

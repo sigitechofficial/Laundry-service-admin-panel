@@ -10,7 +10,9 @@ import {
 } from "../../design-system";
 import { CheckRow, Notice, Toggle } from "../misc-kit";
 import {
+  DirectoryActionEdit,
   DirectoryActions,
+  DirectoryActionView,
   DirectoryIdentity,
   DirectoryMetrics,
   DirectoryStatusPill,
@@ -323,12 +325,14 @@ export default function RolePermission() {
       header: "Actions",
       render: (role) => (
         <DirectoryActions>
-          <Button size="sm" variant="secondary" onClick={() => setViewRole(role)}>
-            View
-          </Button>
-          <Button size="sm" variant="secondary" onClick={() => openEditRoleModal(role)}>
-            {isAgentShopStaffRole(role) ? "Edit defaults" : "Edit"}
-          </Button>
+          <DirectoryActionView onClick={() => setViewRole(role)} />
+          {isAgentShopStaffRole(role) ? (
+            <Button size="sm" variant="secondary" onClick={() => openEditRoleModal(role)}>
+              Edit defaults
+            </Button>
+          ) : (
+            <DirectoryActionEdit onClick={() => openEditRoleModal(role)} />
+          )}
         </DirectoryActions>
       ),
     },

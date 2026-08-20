@@ -40,7 +40,7 @@ function resolveColumn(col) {
   const role = inferRole(col);
   const align =
     columnAlign(col.align) ||
-    (role === "money" || role === "actions" ? "right" : "left");
+    (role === "money" ? "right" : "left");
   return { role, align, width: columnWidth(col.width) };
 }
 

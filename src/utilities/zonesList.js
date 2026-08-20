@@ -56,6 +56,27 @@ export function buildCurrencyUnitsList(currencyQueryPayload, reduxCurrency) {
   return Array.from(byId.values());
 }
 
+/**
+ * Unique currency units for Select options (label = name + symbol).
+ * Dev/stage DBs often re-seed `units` so the same currency name exists under many ids.
+ * Keep the lowest id per normalized name/code.
+ */
+export function uniqueCurrencyUnitsByName(currencyUnits = []) {
+  const list = Array.isArray(currencyUnits) ? currencyUnits : [];
+  const sorted = [...list].sort((a, b) => Number(a?.id ?? 0) - Number(b?.id ?? 0));
+  const seen = new Set();
+  const unique = [];
+  for (const unit of sorted) {
+    const key = String(unit?.name ?? unit?.code ?? "")
+      .trim()
+      .toUpperCase();
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    unique.push(unit);
+  }
+  return unique;
+}
+
 /** Unwrap zone entity from `getZoneById` (or similar) JSON. */
 export function unwrapZoneFromApiResponse(res) {
   if (res == null) return null;

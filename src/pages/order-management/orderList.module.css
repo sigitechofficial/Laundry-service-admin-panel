@@ -105,6 +105,28 @@
   background: #f4f5f8;
 }
 
+.toolbarActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  flex: 0 0 auto;
+}
+
+/* Desktop: keep Search → filters → sort → Download on one row.
+   Search absorbs squeeze (min-width: 0); controls stay flex-shrink: 0.
+   Below 1024px, wrap remains intentional for narrow viewports. */
+@media (min-width: 1024px) {
+  .toolbar {
+    flex-wrap: nowrap;
+  }
+
+  .search {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+}
+
 .search:focus-within {
   border-color: #2c3ba0;
   background: #fff;
@@ -537,7 +559,7 @@ button.dotPill:hover {
   color: #0e131c;
 }
 
-/* Payment Failures ops column: equal-width DS buttons, right-aligned. */
+/* Payment Failures ops column: equal-width DS buttons, start-aligned with ACTIONS header. */
 .resolveActions {
   display: flex;
   flex-direction: column;
@@ -545,7 +567,7 @@ button.dotPill:hover {
   gap: 7px;
   width: 152px;
   min-width: 152px;
-  margin-left: auto;
+  margin-left: 0;
 }
 
 .resolveActions :global(.jd-btn),

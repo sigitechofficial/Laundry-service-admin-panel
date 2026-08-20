@@ -357,6 +357,11 @@
   transition: opacity 180ms var(--ease), transform 180ms var(--ease);
 }
 
+/* Content dialogs that should hug short content and hard-cap at 80vh. */
+.jd-ds .jd-modal--mh-80 {
+  max-height: min(80vh, calc(100vh - 40px));
+}
+
 .jd-ds .jd-modal:focus {
   outline: none;
 }

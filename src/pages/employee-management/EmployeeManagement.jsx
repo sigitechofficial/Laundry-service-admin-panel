@@ -2,7 +2,10 @@ import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button, Modal, PageHeader, Table } from "../../design-system";
 import {
+  DirectoryActionDelete,
+  DirectoryActionEdit,
   DirectoryActions,
+  DirectoryActionView,
   DirectoryClearButton,
   DirectoryDateInput,
   DirectoryIdentity,
@@ -164,15 +167,9 @@ export default function EmployeeManagement() {
       header: "Actions",
       render: (row) => (
         <DirectoryActions>
-          <Button size="sm" variant="secondary" onClick={() => setViewRow(row)}>
-            View
-          </Button>
-          <Button size="sm" variant="secondary" onClick={() => openEdit(row)}>
-            Edit
-          </Button>
-          <Button size="sm" variant="danger" onClick={() => openDelete(row)}>
-            Delete
-          </Button>
+          <DirectoryActionView onClick={() => setViewRow(row)} />
+          <DirectoryActionEdit onClick={() => openEdit(row)} />
+          <DirectoryActionDelete onClick={() => openDelete(row)} />
         </DirectoryActions>
       ),
     },

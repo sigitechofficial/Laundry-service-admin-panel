@@ -29,7 +29,10 @@ import {
 } from "../../store/services/api";
 import { formatDate, formatMoney, joinMediaUrl, resolveCurrencySymbol } from "../../utilities/formatters";
 import {
+  DirectoryActionDelete,
+  DirectoryActionEdit,
   DirectoryActions,
+  DirectoryActionView,
   DirectoryIdentity,
   DirectoryMetrics,
   DirectoryStatusPill,
@@ -693,15 +696,9 @@ export default function BannersPage() {
       header: "Actions",
       render: (row) => (
         <DirectoryActions>
-          <Button size="sm" variant="secondary" onClick={() => setViewRow(row)}>
-            View
-          </Button>
-          <Button size="sm" variant="secondary" onClick={() => openEdit(row)}>
-            Edit
-          </Button>
-          <Button size="sm" variant="danger" onClick={() => setDeleteTarget(row)}>
-            Delete
-          </Button>
+          <DirectoryActionView onClick={() => setViewRow(row)} />
+          <DirectoryActionEdit onClick={() => openEdit(row)} />
+          <DirectoryActionDelete onClick={() => setDeleteTarget(row)} />
         </DirectoryActions>
       ),
     },

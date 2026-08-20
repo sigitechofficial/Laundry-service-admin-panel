@@ -30,7 +30,7 @@ import {
   Modal,
 } from "../../design-system";
 import useToaster from "../../components/ui/Toaster";
-import { formatMoney, joinMediaUrl } from "../../utilities/formatters";
+import { formatAmount, joinMediaUrl } from "../../utilities/formatters";
 import {
   IMAGE_UPLOAD_ACCEPT,
   acceptImageFile,
@@ -443,7 +443,7 @@ function ServiceCategoriesExpandableTable({
                                     <td style={{ fontWeight: 500 }}>
                                       {sub.name ?? "—"}
                                     </td>
-                                    <td>{formatMoney(sub.price, "£")}</td>
+                                    <td>{formatAmount(sub.price, null, { applyDefault: true })}</td>
                                     <td>
                                       <DirectoryDotPill tone={sub.status ? "success" : "neutral"}>
                                         {sub.status ? "Active" : "Inactive"}

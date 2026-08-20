@@ -9,6 +9,8 @@ import {
 import useToaster from "../../components/ui/Toaster";
 import { QueryState } from "./QueryState";
 import {
+  DirectoryActionDelete,
+  DirectoryActionEdit,
   DirectoryActions,
   DirectoryDotPills,
   DirectoryIdentity,
@@ -18,7 +20,7 @@ import {
   DirectoryToolbar,
 } from "../directory-table/directoryTable";
 import CatalogChrome from "./catalogChrome";
-import { formatMoney } from "../../utilities/formatters";
+import { formatAmount } from "../../utilities/formatters";
 import {
   useCreateRepairGarmentMutation,
   useCreateRepairOptionMutation,
@@ -40,8 +42,9 @@ function unwrapList(res) {
   return [];
 }
 
+/** Catalog prices have no zone row — use platform default (zone→country→GBP). */
 function money(value) {
-  return formatMoney(value, "£");
+  return formatAmount(value, null, { applyDefault: true });
 }
 
 export default function RepairCatalogPage() {
@@ -249,18 +252,12 @@ export default function RepairCatalogPage() {
       header: "Actions",
       render: (row) => (
         <DirectoryActions>
-          <Button size="sm" variant="secondary" onClick={() => openEditOption(row)}>
-            Edit
-          </Button>
-          <Button
-            size="sm"
-            variant="danger"
+          <DirectoryActionEdit onClick={() => openEditOption(row)} />
+          <DirectoryActionDelete
             onClick={() =>
               setConfirmDelete({ type: "option", id: row.id, label: row.name })
             }
-          >
-            Delete
-          </Button>
+          />
         </DirectoryActions>
       ),
     },
@@ -314,18 +311,12 @@ export default function RepairCatalogPage() {
       header: "Actions",
       render: (row) => (
         <DirectoryActions>
-          <Button size="sm" variant="secondary" onClick={() => openEditGarment(row)}>
-            Edit
-          </Button>
-          <Button
-            size="sm"
-            variant="danger"
+          <DirectoryActionEdit onClick={() => openEditGarment(row)} />
+          <DirectoryActionDelete
             onClick={() =>
               setConfirmDelete({ type: "garment", id: row.id, label: row.name })
             }
-          >
-            Delete
-          </Button>
+          />
         </DirectoryActions>
       ),
     },
@@ -406,7 +397,7 @@ export default function RepairCatalogPage() {
                 columns={optionColumns}
                 rows={optionRows}
                 rowKey={(row) => row.id}
-                empty="Add your first repair — example: Hemming at £8.00. Then switch to Garments to link them."
+                empty="Add your first repair — example: Hemming at 8.00 in your zone currency. Then switch to Garments to link them."
               />
             </DirectoryTableWrap>
           )}
@@ -506,7 +497,7 @@ export default function RepairCatalogPage() {
               }
             />
           </Field>
-          <Field label="Price (£)" htmlFor="repair-price">
+          <Field label="Price" htmlFor="repair-price">
             <Input
               id="repair-price"
               placeholder="0.00"

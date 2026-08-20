@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { TbGripVertical } from "react-icons/tb";
-import { RiDeleteBin6Line, TbPencil } from "../../shared/icons/index";
 import {
   useAddServiceMutation,
   useDeleteServiceMutation,
@@ -14,7 +13,7 @@ import { useDispatch, useSelector } from "react-redux";
 import { setServices } from "../../store/services/apiReducer";
 import { Button, Field, Input, Textarea, Modal } from "../../design-system";
 import useToaster from "../../components/ui/Toaster";
-import { formatMoney, joinMediaUrl } from "../../utilities/formatters";
+import { formatAmount, joinMediaUrl } from "../../utilities/formatters";
 import {
   IMAGE_UPLOAD_ACCEPT,
   acceptImageFile,
@@ -23,6 +22,8 @@ import { getApiErrorMessage } from "../../store/services/apiErrors";
 import ConfirmDeleteModal from "./ConfirmDeleteModal";
 import { EmptyHint, QueryState } from "./QueryState";
 import {
+  DirectoryActionDelete,
+  DirectoryActionEdit,
   DirectoryActions,
   DirectoryDotPill,
   DirectoryIdentity,
@@ -516,31 +517,21 @@ export default function ServicesCard({ triggerAdd }) {
                 {pricedByWeight ? "By weight" : "By item"}
               </DirectoryDotPill>
               {pricedByWeight && service.basePrice != null ? (
-                <DirectoryMoney>{formatMoney(service.basePrice, "£")}</DirectoryMoney>
+                <DirectoryMoney>{formatAmount(service.basePrice, null, { applyDefault: true })}</DirectoryMoney>
               ) : null}
             </div>
 
             <DirectoryActions>
-              <Button
-                size="sm"
-                variant="secondary"
+              <DirectoryActionEdit
                 disabled={editServiceLoading || reorderLoading}
                 onClick={() => handleUpdateClick(service)}
-              >
-                <TbPencil size={16} />
-                Edit
-              </Button>
-              <Button
-                size="sm"
-                variant="danger"
+              />
+              <DirectoryActionDelete
                 disabled={deleteLoading || reorderLoading}
                 onClick={() =>
                   setDeleteTarget({ id: service.id, name: service.name })
                 }
-              >
-                <RiDeleteBin6Line size={14} />
-                Delete
-              </Button>
+              />
             </DirectoryActions>
           </DirectoryListRow>
           );
@@ -611,7 +602,7 @@ export default function ServicesCard({ triggerAdd }) {
                 }))
               }
             />
-            Priced by weight (e.g. £18.85 / 6 kg)
+            Priced by weight (e.g. 18.85 / 6 kg in zone currency)
           </label>
 
           {add.pricedByWeight ? (
@@ -630,7 +621,7 @@ export default function ServicesCard({ triggerAdd }) {
                 Weight Pricing Details
               </div>
               <div style={{ display: "flex", gap: 16 }}>
-                <Field label="Base Price (£)" htmlFor="base-price">
+                <Field label="Base Price" htmlFor="base-price">
                   <Input
                     id="base-price"
                     name="basePrice"
@@ -655,7 +646,7 @@ export default function ServicesCard({ triggerAdd }) {
                 <div style={{ color: "var(--ink-2)", fontSize: 14 }}>
                   Preview:{" "}
                   <strong>
-                    {formatMoney(add.basePrice, "£")} / {add.baseWeightKg} kg
+                    {formatAmount(add.basePrice, null, { applyDefault: true })} / {add.baseWeightKg} kg
                   </strong>
                 </div>
               ) : null}

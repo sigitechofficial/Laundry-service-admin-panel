@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { TbChevronDown, TbPencil, RiDeleteBin6Line } from "../../shared/icons/index";
+import { TbChevronDown } from "../../shared/icons/index";
 import { TbGripVertical } from "react-icons/tb";
 import {
   useCreateAddOnServiceMutation,
@@ -16,10 +16,12 @@ import {
 } from "../../store/services/api";
 import { Button, Field, Input, Select, Modal } from "../../design-system";
 import useToaster from "../../components/ui/Toaster";
-import { formatMoney } from "../../utilities/formatters";
+import { formatAmount } from "../../utilities/formatters";
 import ConfirmDeleteModal from "./ConfirmDeleteModal";
 import { EmptyHint, QueryState } from "./QueryState";
 import {
+  DirectoryActionDelete,
+  DirectoryActionEdit,
   DirectoryDotPills,
   DirectoryFormCard,
   DirectoryListRow,
@@ -521,20 +523,13 @@ export default function AddOnServicesCard({ triggerAdd }) {
             })()}
           </span>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <DirectoryMoney>{formatMoney(item.price, "£")}</DirectoryMoney>
-          <Button
-            size="sm"
-            variant="secondary"
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <DirectoryMoney>{formatAmount(item.price, null, { applyDefault: true })}</DirectoryMoney>
+          <DirectoryActionEdit
             disabled={updating || reorderBusy}
             onClick={() => openEditService(item)}
-          >
-            <TbPencil size={14} />
-            Edit
-          </Button>
-          <Button
-            size="sm"
-            variant="danger"
+          />
+          <DirectoryActionDelete
             disabled={deleting || reorderBusy}
             onClick={() =>
               setDeleteTarget({
@@ -543,10 +538,7 @@ export default function AddOnServicesCard({ triggerAdd }) {
                 name: item.name,
               })
             }
-          >
-            <RiDeleteBin6Line size={14} />
-            Delete
-          </Button>
+          />
         </div>
       </DirectoryListRow>
     );
@@ -660,9 +652,7 @@ export default function AddOnServicesCard({ triggerAdd }) {
                       </Button>
                     ) : null}
                     {!isUncategorized ? (
-                      <Button
-                        size="sm"
-                        variant="ghost"
+                      <DirectoryActionEdit
                         disabled={categoryUpdating || reorderBusy}
                         onClick={() =>
                           setCategoryForm({
@@ -671,15 +661,10 @@ export default function AddOnServicesCard({ triggerAdd }) {
                             name: group.name,
                           })
                         }
-                      >
-                        <TbPencil size={14} />
-                        Edit
-                      </Button>
+                      />
                     ) : null}
                     {!isUncategorized ? (
-                      <Button
-                        size="sm"
-                        variant="danger"
+                      <DirectoryActionDelete
                         disabled={categoryDeleting || reorderBusy}
                         onClick={() =>
                           setDeleteTarget({
@@ -688,10 +673,7 @@ export default function AddOnServicesCard({ triggerAdd }) {
                             name: group.name,
                           })
                         }
-                      >
-                        <RiDeleteBin6Line size={14} />
-                        Delete
-                      </Button>
+                      />
                     ) : null}
                     <Button
                       size="sm"
@@ -758,7 +740,7 @@ export default function AddOnServicesCard({ triggerAdd }) {
               onChange={handleServiceChange}
             />
           </Field>
-          <Field label="Price (£)" htmlFor="addon-price">
+          <Field label="Price" htmlFor="addon-price">
             <Input
               id="addon-price"
               name="price"

@@ -12,6 +12,7 @@ import {
 import { PaginationBar, Toggle } from "../misc-kit";
 import {
   DirectoryActions,
+  DirectoryActionView,
   DirectoryIdentity,
   DirectoryMetric,
   DirectoryMetrics,
@@ -22,7 +23,7 @@ import {
 import useToaster from "../../components/ui/Toaster";
 import { useAddCouponMutation, useGetAllCouponsQuery } from "../../store/services/api";
 import { TbPlus } from "../../shared/icons/index";
-import { formatDate, formatMoney, resolveCurrencySymbol } from "../../utilities/formatters";
+import { formatDate, formatAmount } from "../../utilities/formatters";
 
 const initialPromoForm = () => ({
   code: "",
@@ -54,11 +55,7 @@ function parseOptionalDecimal(s) {
 }
 
 function money(amount, source) {
-  return formatMoney(
-    amount,
-    resolveCurrencySymbol(source),
-    source?.currency ?? source?.currencyCode ?? source?.currency_code
-  );
+  return formatAmount(amount, source, { applyDefault: true });
 }
 
 function rowFromPayload(body, id) {
@@ -471,9 +468,7 @@ export default function PromoCodesPage() {
       header: "Actions",
       render: (row) => (
         <DirectoryActions>
-          <Button size="sm" variant="secondary" onClick={() => setViewRow(row)}>
-            View
-          </Button>
+          <DirectoryActionView onClick={() => setViewRow(row)} />
         </DirectoryActions>
       ),
     },

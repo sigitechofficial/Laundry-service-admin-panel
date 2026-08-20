@@ -1,9 +1,12 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button, Modal, PageHeader, Table } from "../../design-system";
-import { formatDate, formatMoney, resolveCurrencySymbol } from "../../utilities/formatters";
+import { formatAmount, formatDate, resolveCurrencySymbol } from "../../utilities/formatters";
 import {
+  DirectoryActionDelete,
+  DirectoryActionEdit,
   DirectoryActions,
+  DirectoryActionView,
   DirectoryClearButton,
   DirectoryDateInput,
   DirectoryIdentity,
@@ -17,7 +20,6 @@ import {
   DirectoryToolbarEnd,
   DirectoryViewModal,
 } from "../directory-table/directoryTable";
-import { joinMeta } from "../directory-table/directoryTableUtils";
 import NewDriverModal from "./NewDriverModal";
 import EditDriverModal from "./EditDriverModal";
 import {
@@ -94,7 +96,7 @@ export default function DriverManagement() {
         completedOrders: driver.completedOrders || 0,
         pendingOrders: driver.pendingOrders || 0,
         driverEarnings: driver.driverEarnings || 0,
-        currencySymbol: resolveCurrencySymbol(driver),
+        currencySymbol: resolveCurrencySymbol(driver, { applyDefault: true }),
         createdAt: driver.createdAt,
         status: driver.status,
         changeStatus: driver.status,
@@ -167,7 +169,7 @@ export default function DriverManagement() {
       render: (row) => (
         <DirectoryIdentity
           name={row.name}
-          meta={joinMeta(row.email, row.role)}
+          meta={row.email}
           id={row.driverId}
         />
       ),
@@ -191,7 +193,9 @@ export default function DriverManagement() {
       key: "driverEarnings",
       header: "Earnings",
       render: (row) => (
-        <DirectoryMoney>{formatMoney(row.driverEarnings, row.currencySymbol)}</DirectoryMoney>
+        <DirectoryMoney>
+          {formatAmount(row.driverEarnings, row, { applyDefault: true })}
+        </DirectoryMoney>
       ),
     },
     {
@@ -199,29 +203,19 @@ export default function DriverManagement() {
       header: "Actions",
       render: (row) => (
         <DirectoryActions>
-          <Button size="sm" variant="secondary" onClick={() => setViewRow(row)}>
-            View
-          </Button>
-          <Button
-            size="sm"
-            variant="secondary"
+          <DirectoryActionView onClick={() => setViewRow(row)} />
+          <DirectoryActionEdit
             onClick={() => {
               setSelectedDriver(row);
               setIsEditDriverModalOpen(true);
             }}
-          >
-            Edit
-          </Button>
-          <Button
-            size="sm"
-            variant="danger"
+          />
+          <DirectoryActionDelete
             onClick={() => {
               setDriverToDelete(row);
               setIsDeleteModalOpen(true);
             }}
-          >
-            Delete
-          </Button>
+          />
         </DirectoryActions>
       ),
     },
@@ -315,7 +309,10 @@ export default function DriverManagement() {
           { label: "Total orders", value: viewRow?.totalOrders },
           { label: "Completed", value: viewRow?.completedOrders },
           { label: "Pending", value: viewRow?.pendingOrders },
-          { label: "Earnings", value: formatMoney(viewRow?.driverEarnings, viewRow?.currencySymbol) },
+          {
+            label: "Earnings",
+            value: formatAmount(viewRow?.driverEarnings, viewRow, { applyDefault: true }),
+          },
           { label: "Status", value: viewRow?.status ? "Active" : "Inactive" },
           { label: "Created", value: formatDate(viewRow?.createdAt) },
         ]}

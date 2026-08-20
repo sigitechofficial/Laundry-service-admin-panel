@@ -28,6 +28,7 @@ import {
   resolvePolicyCurrencySymbol,
 } from "./policyUtils";
 import {
+  DirectoryActionView,
   DirectoryClearButton,
   DirectoryMetrics,
   DirectorySearch,
@@ -180,9 +181,7 @@ export default function OverallPolicies() {
       key: "actions",
       header: "Actions",
       render: (row) => (
-        <Button size="sm" variant="secondary" onClick={() => setViewingZone(row._rawZone)}>
-          View
-        </Button>
+        <DirectoryActionView onClick={() => setViewingZone(row._rawZone)} />
       ),
     },
   ];

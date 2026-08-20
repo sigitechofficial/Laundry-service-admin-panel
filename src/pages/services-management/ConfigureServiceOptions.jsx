@@ -1,5 +1,5 @@
 import { useGetServiceWitPreferencesQuery } from "../../store/services/api";
-import { formatMoney } from "../../utilities/formatters";
+import { formatAmount } from "../../utilities/formatters";
 import { QueryState } from "./QueryState";
 import {
   DirectoryDotPill,
@@ -90,7 +90,7 @@ export default function ConfigureServiceOptions({ serviceId }) {
                         readOnly
                       />
                       <span>
-                        {sub.name} – {formatMoney(sub.price, "£")}
+                        {sub.name} – {formatAmount(sub.price, null, { applyDefault: true })}
                       </span>
                       <DirectoryDotPill tone={sub.status ? "success" : "neutral"}>
                         {sub.status ? "Active" : "Inactive"}

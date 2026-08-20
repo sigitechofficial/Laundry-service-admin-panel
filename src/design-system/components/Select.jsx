@@ -145,7 +145,7 @@ export default function Select({
             const on = String(o.value) === String(value);
             return (
               <div
-                key={String(o.value)}
+                key={`${String(o.value)}-${i}`}
                 id={`${uid}-opt-${i}`}
                 data-sel-i={i}
                 role="option"

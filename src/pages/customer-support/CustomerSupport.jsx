@@ -6,8 +6,38 @@ import {
   useGetSupportContactQuery,
 } from "../../store/services/api";
 import { DirectoryFormCard, DirectoryStack } from "../directory-table/directoryTable";
+import { DATE_TIME_FORMAT, formatDate } from "../../utilities/formatters";
 
 const INITIAL = { supportEmail: "", supportPhone: "", supportHours: "" };
+
+/**
+ * Convert clock-like 12h tokens (e.g. `9am`, `9:30 PM`) to `HH:mm`.
+ * Leaves non-time free text unchanged (`24/7`, day names, notes).
+ */
+function amPmTokenToHHmm(hourStr, minuteStr, meridiem) {
+  let hour = Number(hourStr);
+  const minute = minuteStr != null && minuteStr !== "" ? Number(minuteStr) : 0;
+  if (!Number.isInteger(hour) || hour < 1 || hour > 12) return null;
+  if (!Number.isInteger(minute) || minute < 0 || minute > 59) return null;
+  const isPm = String(meridiem).toLowerCase().startsWith("p");
+  if (hour === 12) {
+    hour = isPm ? 12 : 0;
+  } else if (isPm) {
+    hour += 12;
+  }
+  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+}
+
+function to24HourHoursText(value) {
+  if (value == null || value === "") return "";
+  if (typeof value !== "string") return String(value);
+  // Match `9am` / `9:30 PM` / `9 a.m.` — consume optional trailing dots; avoid bare `\b` after `.`.
+  return value.replace(
+    /\b(\d{1,2})(?::(\d{2}))?\s*((?:[AaPp]\.[Mm])|(?:[AaPp][Mm]))\.?(?!\w)/g,
+    (match, hourStr, minuteStr, meridiem) =>
+      amPmTokenToHHmm(hourStr, minuteStr, meridiem) ?? match
+  );
+}
 
 const INFO_ROW = {
   display: "grid",
@@ -47,7 +77,7 @@ export default function CustomerSupport() {
     setForm({
       supportEmail: contact.supportEmail || "",
       supportPhone: contact.supportPhone || "",
-      supportHours: contact.supportHours || "",
+      supportHours: to24HourHoursText(contact.supportHours || ""),
     });
     setHydrated(true);
   }, [contact, hydrated]);
@@ -85,11 +115,13 @@ export default function CustomerSupport() {
       return;
     }
     try {
+      const supportHours = to24HourHoursText(form.supportHours.trim());
       await updateSupportContact({
         supportEmail: form.supportEmail.trim(),
         supportPhone: form.supportPhone.trim(),
-        supportHours: form.supportHours.trim(),
+        supportHours,
       }).unwrap();
+      setForm((prev) => ({ ...prev, supportHours }));
       toast.success("Support contact updated successfully.");
     } catch (err) {
       toast.error(err?.data?.message || "Failed to update support contact.");
@@ -147,15 +179,25 @@ export default function CustomerSupport() {
             <Field
               label="Support Hours"
               htmlFor="support-hours"
+              hint="Use 24-hour times (e.g. Mon–Fri 09:00–18:00)."
               error={errors.supportHours}
             >
               <Input
                 id="support-hours"
                 name="supportHours"
                 type="text"
-                placeholder="Mon–Fri 9am–6pm"
+                placeholder="Mon–Fri 09:00–18:00"
+                title="24-hour support hours"
                 value={form.supportHours}
                 onChange={handleChange("supportHours")}
+                onBlur={() => {
+                  setForm((prev) => {
+                    const next = to24HourHoursText(prev.supportHours);
+                    return next === prev.supportHours
+                      ? prev
+                      : { ...prev, supportHours: next };
+                  });
+                }}
                 error={Boolean(errors.supportHours)}
               />
             </Field>
@@ -185,7 +227,7 @@ export default function CustomerSupport() {
           />
           <InfoRow
             label="Support Hours"
-            value={contact?.supportHours}
+            value={to24HourHoursText(contact?.supportHours)}
             isLoading={isFetching}
           />
           {contact?.helpUrl ? (
@@ -198,11 +240,7 @@ export default function CustomerSupport() {
 
           {contact?.updatedAt ? (
             <p className="jd-field__hint" style={{ margin: "20px 0 0" }}>
-              Last updated:{" "}
-              {new Date(contact.updatedAt).toLocaleString(undefined, {
-                dateStyle: "medium",
-                timeStyle: "short",
-              })}
+              Last updated: {formatDate(contact.updatedAt, DATE_TIME_FORMAT)}
             </p>
           ) : null}
         </DirectoryFormCard>

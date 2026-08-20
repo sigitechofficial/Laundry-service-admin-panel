@@ -1,3 +1,4 @@
+import { useLayoutEffect, useRef, useState } from "react";
 import { Button, Modal } from "../../design-system";
 import styles from "./DirectoryTable.module.css";
 import chrome from "./dataTableChrome.module.css";
@@ -308,8 +309,60 @@ export function DirectoryStatusPill({ active, activeLabel = "Active", inactiveLa
   );
 }
 
-export function DirectoryIdentity({ name, meta, id, onClick, title }) {
+const META_CLAMP_CLASS = {
+  1: styles.metaClamp1,
+  2: styles.metaClamp2,
+  3: styles.metaClamp3,
+  4: styles.metaClamp4,
+  5: styles.metaClamp5,
+  6: styles.metaClamp6,
+};
+
+/**
+ * Optional multi-line meta clamp with Show more / Show less when content overflows.
+ * Opt-in via `metaClamp` (1–6). Default remains single-line ellipsis.
+ */
+export function DirectoryIdentity({ name, meta, id, onClick, title, metaClamp }) {
   const Tag = onClick ? "button" : "div";
+  const lines = Number(metaClamp);
+  const clampEnabled = Number.isFinite(lines) && lines >= 1 && lines <= 6;
+  const [expanded, setExpanded] = useState(false);
+  const [needsToggle, setNeedsToggle] = useState(false);
+  const metaRef = useRef(null);
+
+  useLayoutEffect(() => {
+    setExpanded(false);
+  }, [meta]);
+
+  useLayoutEffect(() => {
+    if (!clampEnabled || !meta) return undefined;
+    const el = metaRef.current;
+    if (!el) return undefined;
+
+    const measure = () => {
+      if (expanded) return;
+      setNeedsToggle(el.scrollHeight > el.clientHeight + 1);
+    };
+
+    measure();
+    if (typeof ResizeObserver === "undefined") return undefined;
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [meta, clampEnabled, expanded, lines]);
+
+  const clampClass = clampEnabled
+    ? `${styles.meta} ${styles.metaClamp} ${META_CLAMP_CLASS[lines] || styles.metaClamp3} ${
+        expanded ? styles.metaExpanded : ""
+      }`.trim()
+    : styles.meta;
+
+  const toggle = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setExpanded((prev) => !prev);
+  };
+
   return (
     <Tag
       type={onClick ? "button" : undefined}
@@ -318,7 +371,31 @@ export function DirectoryIdentity({ name, meta, id, onClick, title }) {
       title={title}
     >
       <span className={styles.name}>{name || "—"}</span>
-      {meta ? <span className={styles.meta}>{meta}</span> : null}
+      {meta ? (
+        <span ref={clampEnabled ? metaRef : undefined} className={clampClass}>
+          {meta}
+        </span>
+      ) : null}
+      {clampEnabled && needsToggle ? (
+        onClick ? (
+          <span
+            role="button"
+            tabIndex={0}
+            className={styles.metaToggle}
+            aria-expanded={expanded}
+            onClick={toggle}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") toggle(e);
+            }}
+          >
+            {expanded ? "Show less" : "Show more"}
+          </span>
+        ) : (
+          <button type="button" className={styles.metaToggle} onClick={toggle} aria-expanded={expanded}>
+            {expanded ? "Show less" : "Show more"}
+          </button>
+        )
+      ) : null}
       {id != null && id !== "" ? <span className={styles.id}>ID {id}</span> : null}
     </Tag>
   );
@@ -361,6 +438,13 @@ export function DirectoryActions({ children, className = "", ...rest }) {
     </div>
   );
 }
+
+export {
+  DirectoryActionIcon,
+  DirectoryActionView,
+  DirectoryActionEdit,
+  DirectoryActionDelete,
+} from "./DirectoryActionIcon";
 
 export function DirectoryViewFields({ fields = [] }) {
   return (

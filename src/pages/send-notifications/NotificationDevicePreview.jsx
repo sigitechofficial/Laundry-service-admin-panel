@@ -3,7 +3,11 @@ import styles from "./SendNotifications.module.css";
 function nowClock() {
   const d = new Date();
   return {
-    time: d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }),
+    time: d.toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }),
     date: d.toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" }),
   };
 }

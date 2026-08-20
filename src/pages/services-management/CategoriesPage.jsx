@@ -10,7 +10,7 @@ export default function CategoriesPage() {
     <CatalogChrome
       section="categories"
       title="Categories"
-      description="Item types grouped under a parent service. Expand a category to price and link add-ons on each item."
+      description="Item types under a parent service. Link add-ons on a category for all items, or on each item individually."
       breadcrumb={["Catalog", "Categories"]}
       actions={
         <Button onClick={() => setTriggerAdd((prev) => prev + 1)}>

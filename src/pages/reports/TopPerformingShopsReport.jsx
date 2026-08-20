@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { Button, Table } from "../../design-system";
 import {
   DirectoryActions,
+  DirectoryActionView,
   DirectoryIdentity,
   DirectoryMetric,
   DirectoryMetrics,
@@ -96,9 +97,7 @@ export default function TopPerformingShopsReport() {
       header: "Actions",
       render: (row) => (
         <DirectoryActions>
-          <Button size="sm" variant="secondary" onClick={() => setViewRow(row)}>
-            View
-          </Button>
+          <DirectoryActionView onClick={() => setViewRow(row)} />
         </DirectoryActions>
       ),
     },

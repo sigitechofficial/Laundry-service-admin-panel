@@ -5,7 +5,7 @@ import {
   DATE_TIME_FORMAT,
   formatDate,
   formatMoney,
-  resolveCurrencySymbol,
+  resolveDisplayCurrency,
 } from "../../utilities/formatters";
 
 function formatDriverName(user, { shopOwnerUserId = null, assigneeId = null } = {}) {
@@ -24,21 +24,15 @@ function formatDriverName(user, { shopOwnerUserId = null, assigneeId = null } = 
   return name || null;
 }
 
-function resolveOrderMoneySymbol(source) {
-  return (
-    resolveCurrencySymbol(source?.paymentSummary) ||
-    resolveCurrencySymbol(source) ||
-    "£"
-  );
+function resolveOrderMoney(source) {
+  return resolveDisplayCurrency(source?.paymentSummary ?? source, {
+    applyDefault: true,
+  });
 }
 
 export function formatOrderMoney(amount, source) {
-  const symbol = resolveOrderMoneySymbol(source);
-  const code =
-    source?.paymentSummary?.currency ||
-    source?.paymentSummary?.currencyCode ||
-    source?.currency;
-  return formatMoney(amount, symbol, code);
+  const { symbol, code } = resolveOrderMoney(source);
+  return formatMoney(amount, symbol, code || undefined);
 }
 
 function normalizeStatusKey(value) {
@@ -299,7 +293,7 @@ export function mapBookingToOrderListRow(booking) {
       pickupDriver: pickupDriver || "",
       deliveryDriver: deliveryDriver || "",
       shopName: shopLabel || "",
-      cost: formatOrderMoney(costAmount),
+      cost: formatOrderMoney(costAmount, booking),
       status: statusTitle,
       paymentHold: paymentWaitingAdmin ? "Payment hold — admin" : "",
     },

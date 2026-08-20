@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { Button, Table } from "../../design-system";
 import {
   DirectoryActions,
+  DirectoryActionView,
   DirectoryDotPill,
   DirectoryIdentity,
   DirectoryMetric,
@@ -70,9 +71,7 @@ export default function OnHoldReport() {
       header: "Actions",
       render: (row) => (
         <DirectoryActions>
-          <Button size="sm" variant="secondary" onClick={() => setViewRow(row)}>
-            View
-          </Button>
+          <DirectoryActionView onClick={() => setViewRow(row)} />
         </DirectoryActions>
       ),
     },

@@ -124,7 +124,7 @@ export function DateTimeStack({ value, title }) {
       <div className="font-mono text-[13px] font-semibold tabular-nums text-[#0e131c]">
         {formatDate(value, "DD MMM YYYY")}
       </div>
-      <div className="mt-0.5 text-[12.5px] text-[#5c6673]">{formatDate(value, "hh:mm A")}</div>
+      <div className="mt-0.5 text-[12.5px] text-[#5c6673]">{formatDate(value, "HH:mm")}</div>
     </div>
   );
 }
@@ -267,10 +267,10 @@ function compactSlot(raw, timeFrom) {
   if (timeFrom) {
     const hm = String(timeFrom).trim().slice(0, 5);
     const stamp = `${formatDate(raw, "YYYY-MM-DD")} ${hm}`;
-    const withTime = formatDate(stamp, "h:mm A");
+    const withTime = formatDate(stamp, "HH:mm");
     return withTime === "—" ? `${datePart} · ${hm}` : `${datePart} · ${withTime}`;
   }
-  return formatDate(raw, "DD MMM · h:mm A");
+  return formatDate(raw, "DD MMM · HH:mm");
 }
 
 export function PickupDropCell({ pickup, drop, pickupTime, dropTime, title }) {

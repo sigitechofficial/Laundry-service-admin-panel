@@ -18,11 +18,18 @@ import { MapsUnavailableNotice } from "../../utilities/GoogleMapsProvider";
 import { adminGeocode } from "../../utilities/adminGeocode";
 import { triggerGoogleMapResize, useGoogleMaps } from "../../utilities/googleMapsConfig";
 import { formatMoney, resolveCurrencySymbol } from "../../utilities/formatters";
+import {
+  buildCurrencyUnitsList,
+  uniqueCurrencyUnitsByName,
+} from "../../utilities/zonesList";
 import ZoneFiltersPopover from "./ZoneFiltersPopover";
 import { Button, Field, Input, Modal, PageHeader, Select, Table, Textarea } from "../../design-system";
 import { CheckRow } from "../misc-kit";
 import {
+  DirectoryActionDelete,
+  DirectoryActionEdit,
   DirectoryActions,
+  DirectoryActionView,
   DirectoryIdentity,
   DirectoryMetric,
   DirectoryMetrics,
@@ -452,7 +459,16 @@ export default function ZoneManagement() {
     skip: false,
   });
 
-  const currencies = currenciesData?.data || units?.currency || [];
+  // Full list (unique by id) for lookups — zone FKs may point at any seeded duplicate id.
+  const currencies = useMemo(
+    () => buildCurrencyUnitsList(currenciesData, units?.currency),
+    [currenciesData, units?.currency]
+  );
+  // Select options: one row per currency name (DB often has dozens of re-seeded GBP/USD rows).
+  const currenciesForSelect = useMemo(
+    () => uniqueCurrencyUnitsByName(currencies),
+    [currencies]
+  );
   const allCities = useMemo(
     () =>
       Array.isArray(allCitiesData?.data)
@@ -1202,15 +1218,9 @@ export default function ZoneManagement() {
       header: "Actions",
       render: (row) => (
         <DirectoryActions>
-          <Button size="sm" variant="secondary" onClick={() => handleRowAction("view", row)}>
-            View
-          </Button>
-          <Button size="sm" variant="secondary" onClick={() => handleEditZone(row)}>
-            Edit
-          </Button>
-          <Button size="sm" variant="danger" onClick={() => handleDeleteZone(row)}>
-            Delete
-          </Button>
+          <DirectoryActionView onClick={() => handleRowAction("view", row)} />
+          <DirectoryActionEdit onClick={() => handleEditZone(row)} />
+          <DirectoryActionDelete onClick={() => handleDeleteZone(row)} />
         </DirectoryActions>
       ),
     },
@@ -1336,10 +1346,10 @@ export default function ZoneManagement() {
       // Extract postcodes array from addedPostcodes
       const postcodes = addedPostcodes.map((pc) => pc.postcode);
 
-      // Find the selected currency to get its ID
-      const selectedCurrency = Array.isArray(currencies)
-        ? currencies.find((currency) => currency.name === add.zoneCurrency)
-        : null;
+      // Find the selected currency to get its ID (canonical lowest id per name)
+      const selectedCurrency = currenciesForSelect.find(
+        (currency) => currency.name === add.zoneCurrency
+      );
       const currencyUnitId = selectedCurrency ? selectedCurrency.id : null;
 
       // Keep existing distance unit in edit mode; default to 2 for new zones
@@ -1869,12 +1879,10 @@ export default function ZoneManagement() {
   const countryOptions = Array.isArray(countries)
     ? countries.map((country) => ({ value: String(country.id), label: country.name }))
     : [];
-  const currencyOptions = Array.isArray(currencies)
-    ? currencies.map((currency) => ({
-        value: currency.name,
-        label: `${currency.name} (${currency.symbol})`,
-      }))
-    : [];
+  const currencyOptions = currenciesForSelect.map((currency) => ({
+    value: currency.name,
+    label: `${currency.name} (${currency.symbol})`,
+  }));
 
   return (
     <div style={{ display: "grid", gap: 20 }}>
@@ -2277,9 +2285,9 @@ export default function ZoneManagement() {
               aria-label="Zone currency"
               value={add.zoneCurrency || ""}
               onChange={(selectedName) => {
-                const selectedCurrencyId = Array.isArray(currencies)
-                  ? currencies.find((currency) => currency.name === selectedName)?.id
-                  : "";
+                const selectedCurrencyId = currenciesForSelect.find(
+                  (currency) => currency.name === selectedName
+                )?.id;
                 setAdd((prev) => ({
                   ...prev,
                   zoneCurrency: selectedName,

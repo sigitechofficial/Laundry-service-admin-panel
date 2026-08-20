@@ -1,16 +1,26 @@
-import { useState } from "react";
-import { TbPlus, TbPencil, TbTrash } from "../../shared/icons/index";
-import { Button, Modal, PageHeader, Table } from "../../design-system";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { TbPlus, TbChevronDown } from "../../shared/icons/index";
+import { Button, Modal, PageHeader } from "../../design-system";
 import AddFAQModal from "./AddFAQModal";
-import { useGetAllFAQsQuery, useCreateFAQMutation, useUpdateFAQMutation, useDeleteFAQMutation } from "../../store/services/api";
 import {
+  useGetAllFAQsQuery,
+  useCreateFAQMutation,
+  useUpdateFAQMutation,
+  useDeleteFAQMutation,
+} from "../../store/services/api";
+import {
+  DirectoryActionDelete,
+  DirectoryActionEdit,
   DirectoryActions,
   DirectoryError,
-  DirectoryIdentity,
+  DirectorySearch,
   DirectoryTableWrap,
+  DirectoryToolbar,
+  DirectoryListRow,
   PageLoading,
 } from "../directory-table/directoryTable";
 import useToaster from "../../components/ui/Toaster";
+import styles from "./FAQ.module.css";
 
 function extractFaqs(payload) {
   if (Array.isArray(payload?.message)) return payload.message;
@@ -21,11 +31,57 @@ function extractFaqs(payload) {
   return [];
 }
 
+function previewAnswer(answer) {
+  if (!answer) return "";
+  return String(answer).replace(/\s+/g, " ").trim();
+}
+
+function FAQAnswerClamp({ text }) {
+  const [expanded, setExpanded] = useState(false);
+  const [overflows, setOverflows] = useState(false);
+  const ref = useRef(null);
+
+  useLayoutEffect(() => {
+    setExpanded(false);
+  }, [text]);
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el || expanded) return;
+    setOverflows(el.scrollHeight > el.clientHeight + 1);
+  }, [text, expanded]);
+
+  return (
+    <div>
+      <p
+        ref={ref}
+        className={`${styles.answer} ${expanded ? "" : styles.answerClamped}`.trim()}
+      >
+        {text || "—"}
+      </p>
+      {overflows ? (
+        <button
+          type="button"
+          className={styles.toggle}
+          onClick={(e) => {
+            e.stopPropagation();
+            setExpanded((v) => !v);
+          }}
+        >
+          {expanded ? "Show less" : "Show more"}
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
 export default function FAQ() {
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [faqToEdit, setFaqToEdit] = useState(null);
   const [faqToDelete, setFaqToDelete] = useState(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [expandedId, setExpandedId] = useState(null);
   const { success, error: showError } = useToaster();
   const { data, isLoading, isError, refetch } = useGetAllFAQsQuery();
   const [createFAQ, { isLoading: isCreating }] = useCreateFAQMutation();
@@ -33,6 +89,22 @@ export default function FAQ() {
   const [deleteFAQ, { isLoading: isDeleting }] = useDeleteFAQMutation();
 
   const faqs = extractFaqs(data);
+
+  const filteredFaqs = useMemo(() => {
+    const q = searchTerm.trim().toLowerCase();
+    if (!q) return faqs;
+    return faqs.filter((faq) => {
+      const question = String(faq.question || "").toLowerCase();
+      const answer = String(faq.answer || "").toLowerCase();
+      return question.includes(q) || answer.includes(q);
+    });
+  }, [faqs, searchTerm]);
+
+  useEffect(() => {
+    if (expandedId == null) return;
+    const stillVisible = filteredFaqs.some((faq) => faq.id === expandedId);
+    if (!stillVisible) setExpandedId(null);
+  }, [filteredFaqs, expandedId]);
 
   const handleEdit = (faq) => {
     setFaqToEdit(faq);
@@ -49,6 +121,7 @@ export default function FAQ() {
     try {
       await deleteFAQ(faqToDelete.id).unwrap();
       success("FAQ deleted successfully!");
+      if (expandedId === faqToDelete.id) setExpandedId(null);
       setDeleteConfirmOpen(false);
       setFaqToDelete(null);
       refetch();
@@ -91,6 +164,10 @@ export default function FAQ() {
     }
   };
 
+  const toggleExpanded = (id) => {
+    setExpandedId((current) => (current === id ? null : id));
+  };
+
   if (isLoading) return <PageLoading label="Loading FAQs…" />;
 
   return (
@@ -111,41 +188,85 @@ export default function FAQ() {
           Could not load FAQs. Check your connection and try again.
         </DirectoryError>
       ) : (
-        <DirectoryTableWrap>
-          <Table
-            columns={[
-              {
-                key: "question",
-                header: "Question",
-                render: (faq) => (
-                  <DirectoryIdentity
-                    name={faq.question}
-                    meta={faq.answer}
-                    id={faq.id}
-                  />
-                ),
-              },
-              {
-                key: "actions",
-                header: "Actions",
-                render: (faq) => (
-                  <DirectoryActions>
-                    <Button variant="secondary" size="sm" onClick={() => handleEdit(faq)}>
-                      <TbPencil size={16} />
-                      Edit
-                    </Button>
-                    <Button variant="danger" size="sm" onClick={() => handleDelete(faq)}>
-                      <TbTrash size={16} />
-                      Delete
-                    </Button>
-                  </DirectoryActions>
-                ),
-              },
-            ]}
-            rows={faqs}
-            rowKey={(faq) => faq.id}
-            empty="No FAQs yet. Click Add to create your first FAQ."
-          />
+        <DirectoryTableWrap
+          toolbar={
+            <DirectoryToolbar>
+              <DirectorySearch
+                id="faq-search"
+                value={searchTerm}
+                onChange={setSearchTerm}
+                placeholder="Search by question or answer…"
+                aria-label="Search FAQs"
+              />
+            </DirectoryToolbar>
+          }
+        >
+          {filteredFaqs.length === 0 ? (
+            <p className={styles.empty}>
+              {searchTerm.trim()
+                ? "No FAQs match your search."
+                : "No FAQs yet. Click Add to create your first FAQ."}
+            </p>
+          ) : (
+            filteredFaqs.map((faq) => {
+              const isOpen = expandedId === faq.id;
+              const preview = previewAnswer(faq.answer);
+
+              return (
+                <div key={faq.id} className={styles.item}>
+                  <DirectoryListRow
+                    active={isOpen}
+                    className={styles.row}
+                    onClick={() => toggleExpanded(faq.id)}
+                    role="button"
+                    tabIndex={0}
+                    aria-expanded={isOpen}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        toggleExpanded(faq.id);
+                      }
+                    }}
+                  >
+                    <div className={styles.rowMain}>
+                      <TbChevronDown
+                        size={18}
+                        className={`${styles.chevron} ${isOpen ? styles.chevronOpen : ""}`.trim()}
+                        aria-hidden="true"
+                      />
+                      <div className={styles.question}>
+                        <p className={styles.questionTitle} title={faq.question}>
+                          {faq.question || "—"}
+                        </p>
+                        {!isOpen && preview ? (
+                          <p className={styles.questionMeta}>{preview}</p>
+                        ) : null}
+                        {faq.id != null && faq.id !== "" ? (
+                          <p className={styles.questionId}>ID {faq.id}</p>
+                        ) : null}
+                      </div>
+                    </div>
+
+                    <DirectoryActions
+                      className={styles.actions}
+                      onClick={(e) => e.stopPropagation()}
+                      onKeyDown={(e) => e.stopPropagation()}
+                    >
+                      <DirectoryActionEdit onClick={() => handleEdit(faq)} />
+                      <DirectoryActionDelete onClick={() => handleDelete(faq)} />
+                    </DirectoryActions>
+                  </DirectoryListRow>
+
+                  {isOpen ? (
+                    <div className={styles.panel}>
+                      <p className={styles.answerLabel}>Answer</p>
+                      <FAQAnswerClamp text={faq.answer} />
+                    </div>
+                  ) : null}
+                </div>
+              );
+            })
+          )}
         </DirectoryTableWrap>
       )}
 

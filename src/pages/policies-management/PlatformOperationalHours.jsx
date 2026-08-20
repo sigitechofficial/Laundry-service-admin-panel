@@ -25,6 +25,46 @@ const toHourMinute = (value, fallback = "07:00") => {
   return `${hh.padStart(2, "0")}:${mm.padStart(2, "0")}`;
 };
 
+/** Normalize typed/partial input to 24h `HH:mm` (no AM/PM). */
+const normalizeHHmm = (value, fallback = "07:00") => {
+  if (!value || typeof value !== "string") return fallback;
+  const match = value.trim().match(/^(\d{1,2}):(\d{1,2})$/);
+  if (!match) return fallback;
+  const hour = Number(match[1]);
+  const minute = Number(match[2]);
+  if (!Number.isInteger(hour) || !Number.isInteger(minute) || hour > 23 || minute > 59) {
+    return fallback;
+  }
+  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+};
+
+/** Text HH:mm field — avoids native `type="time"` which follows OS locale (often AM/PM). */
+function Time24Input({ value, onChange, "aria-label": ariaLabel, fallback = "07:00" }) {
+  const [draft, setDraft] = useState(toHourMinute(value, fallback));
+
+  useEffect(() => {
+    setDraft(toHourMinute(value, fallback));
+  }, [value, fallback]);
+
+  return (
+    <Input
+      type="text"
+      inputMode="numeric"
+      placeholder="HH:mm"
+      aria-label={ariaLabel}
+      title="24-hour time (HH:mm)"
+      value={draft}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={() => {
+        const next = normalizeHHmm(draft, fallback);
+        setDraft(next);
+        onChange(next);
+      }}
+      style={{ width: 88, fontVariantNumeric: "tabular-nums" }}
+    />
+  );
+}
+
 const buildRowsFromApi = (days = []) => {
   const byDay = new Map((Array.isArray(days) ? days : []).map((d) => [d.dayOfWeek, d]));
   return DAY_ORDER.map((day) => {
@@ -175,26 +215,28 @@ export default function PlatformOperationalHours() {
                   />
                   {row.enabled ? (
                     <>
-                      <Input
-                        type="time"
+                      <Time24Input
+                        aria-label={`${row.dayOfWeek} open time`}
                         value={row.start}
-                        onChange={(e) =>
+                        fallback="07:00"
+                        onChange={(next) =>
                           handleChange(
                             rows.findIndex((r) => r.dayOfWeek === row.dayOfWeek),
                             "start",
-                            e.target.value || "07:00"
+                            next
                           )
                         }
                       />
                       <span className="jd-field__hint">to</span>
-                      <Input
-                        type="time"
+                      <Time24Input
+                        aria-label={`${row.dayOfWeek} close time`}
                         value={row.end}
-                        onChange={(e) =>
+                        fallback="20:00"
+                        onChange={(next) =>
                           handleChange(
                             rows.findIndex((r) => r.dayOfWeek === row.dayOfWeek),
                             "end",
-                            e.target.value || "20:00"
+                            next
                           )
                         }
                       />

@@ -16,6 +16,7 @@ import {
 import { Delay } from "../../components/shared/Loaders";
 import {
   DirectoryActions,
+  DirectoryActionView,
   DirectoryClearButton,
   DirectoryDotPill,
   DirectoryDotPills,
@@ -155,9 +156,7 @@ export default function ShopReviewsInbox() {
       header: "Actions",
       render: (row) => (
         <DirectoryActions>
-          <Button variant="secondary" size="sm" onClick={() => setDetail(row.raw)}>
-            View
-          </Button>
+          <DirectoryActionView onClick={() => setDetail(row.raw)} />
         </DirectoryActions>
       ),
     },

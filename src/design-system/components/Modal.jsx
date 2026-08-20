@@ -5,6 +5,9 @@ import useScrollProgress from "../hooks/useScrollProgress";
 import Button from "./Button";
 
 const SIZES = ["sm", "md", "lg", "xl"];
+const MAX_HEIGHTS = {
+  "80vh": "jd-modal--mh-80",
+};
 const EXIT_MS = 200;
 const EXIT_MS_REDUCED = 80;
 const FOCUSABLE =
@@ -37,11 +40,16 @@ export default function Modal({
   primaryDisabled = false,
   secondaryDisabled = false,
   size,
+  maxHeight,
 }) {
   const titleId = useId();
   const descId = useId();
   const dialogRef = useRef(null);
   const restoreFocusRef = useRef(null);
+  // Keep latest onClose without re-running the focus-trap effect (unstable
+  // inline handlers would otherwise steal focus back to the first field on every parent render).
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
   const [present, setPresent] = useState(() => Boolean(open));
   const [shown, setShown] = useState(false);
   const hasBody = Boolean(children);
@@ -89,7 +97,7 @@ export default function Modal({
     const onKey = (e) => {
       if (e.key === "Escape") {
         e.stopPropagation();
-        onClose?.();
+        onCloseRef.current?.();
         return;
       }
       if (
@@ -153,7 +161,9 @@ export default function Modal({
       restoreFocusRef.current = null;
       if (prev && document.contains(prev)) prev.focus();
     };
-  }, [open, present, onClose, bodyRef, targetRef]);
+    // Only re-run when the dialog opens/closes. bodyRef/targetRef are stable;
+    // onClose is read via onCloseRef so parent re-renders do not re-focus the first field.
+  }, [open, present, bodyRef, targetRef]);
 
   const handleScrimTransitionEnd = (e) => {
     if (e.target !== e.currentTarget) return;
@@ -164,6 +174,7 @@ export default function Modal({
   if (!present) return null;
 
   const widthClass = SIZES.includes(size) ? ` jd-modal--${size}` : "";
+  const maxHeightClass = MAX_HEIGHTS[maxHeight] ? ` ${MAX_HEIGHTS[maxHeight]}` : "";
   const labelledBy = !hideHeader && title ? titleId : undefined;
   const describedBy = !hideHeader && description ? descId : undefined;
 
@@ -175,7 +186,7 @@ export default function Modal({
     >
       <div
         ref={dialogRef}
-        className={`jd-modal${widthClass}`}
+        className={`jd-modal${widthClass}${maxHeightClass}`}
         role="dialog"
         aria-modal="true"
         tabIndex={-1}

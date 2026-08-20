@@ -7,6 +7,7 @@ import {
 } from "../../store/services/api";
 import {
   DirectoryActions,
+  DirectoryActionView,
   DirectoryClearButton,
   DirectoryDotPill,
   DirectoryMetric,
@@ -202,9 +203,7 @@ export default function ShopRatingsReport() {
       header: "Actions",
       render: (row) => (
         <DirectoryActions>
-          <Button size="sm" variant="secondary" onClick={() => setViewRow({ kind: "shop", ...row })}>
-            View
-          </Button>
+          <DirectoryActionView onClick={() => setViewRow({ kind: "shop", ...row })} />
         </DirectoryActions>
       ),
     },

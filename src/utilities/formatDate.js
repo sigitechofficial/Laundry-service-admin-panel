@@ -3,8 +3,8 @@ import dayjs from "dayjs";
 /** Admin display date — matches order/invoice tables. */
 export const DATE_FORMAT = "DD MMM YYYY";
 
-/** Admin display datetime — matches `src/shared/constants` dateTimeFormat. */
-export const DATE_TIME_FORMAT = "DD MMM YYYY hh:mm A";
+/** Admin display datetime — matches `src/shared/constants` dateTimeFormat (24-hour). */
+export const DATE_TIME_FORMAT = "DD MMM YYYY HH:mm";
 
 /**
  * Single date helper for the admin panel.

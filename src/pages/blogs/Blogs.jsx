@@ -1,9 +1,11 @@
 import { useState } from "react";
-import { TbPencil, TbTrash, TbPlus } from "../../shared/icons/index";
+import { TbPlus } from "../../shared/icons/index";
 import { Button, Modal, PageHeader, Table } from "../../design-system";
 import AddBlogModal from "./AddBlogModal";
 import { useGetAllBlogsQuery, useDeleteBlogMutation, useCreateBlogMutation, useUpdateBlogMutation } from "../../store/services/api";
 import {
+  DirectoryActionDelete,
+  DirectoryActionEdit,
   DirectoryActions,
   DirectoryError,
   DirectoryIdentity,
@@ -66,12 +68,17 @@ function BlogCover({ src, alt }) {
   );
 }
 
+const PREVIEW_MAX_CHARS = 1200;
+
+/** Strip rich HTML to plain text for list previews (never dump full HTML in the table). */
 function previewText(html) {
   if (!html) return "";
-  return String(html)
+  const plain = String(html)
     .replace(/<[^>]+>/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+  if (plain.length <= PREVIEW_MAX_CHARS) return plain;
+  return `${plain.slice(0, PREVIEW_MAX_CHARS).trimEnd()}…`;
 }
 
 export default function Blogs() {
@@ -180,30 +187,37 @@ export default function Blogs() {
               {
                 key: "title",
                 header: "Article",
-                render: (blog) => (
-                  <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
-                    <BlogCover src={mediaUrl(blog.image)} alt={blog.title} />
-                    <DirectoryIdentity
-                      name={blog.title}
-                      meta={previewText(blog.description) || "No preview"}
-                      id={blog.id}
-                    />
-                  </div>
-                ),
+                render: (blog) => {
+                  const excerpt = previewText(blog.description);
+                  return (
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "flex-start",
+                        gap: 12,
+                        minWidth: 0,
+                        width: "100%",
+                      }}
+                    >
+                      <BlogCover src={mediaUrl(blog.image)} alt={blog.title || "Blog cover"} />
+                      <DirectoryIdentity
+                        name={blog.title}
+                        meta={excerpt || "No preview"}
+                        id={blog.id}
+                        title={blog.title || undefined}
+                        metaClamp={3}
+                      />
+                    </div>
+                  );
+                },
               },
               {
                 key: "actions",
                 header: "Actions",
                 render: (blog) => (
                   <DirectoryActions>
-                    <Button size="sm" variant="secondary" onClick={() => handleEdit(blog)}>
-                      <TbPencil size={16} />
-                      Edit
-                    </Button>
-                    <Button size="sm" variant="danger" onClick={() => handleDelete(blog)}>
-                      <TbTrash size={16} />
-                      Delete
-                    </Button>
+                    <DirectoryActionEdit onClick={() => handleEdit(blog)} />
+                    <DirectoryActionDelete onClick={() => handleDelete(blog)} />
                   </DirectoryActions>
                 ),
               },

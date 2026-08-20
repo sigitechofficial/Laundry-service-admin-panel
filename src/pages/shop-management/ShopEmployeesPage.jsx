@@ -6,7 +6,10 @@ import {
   Table,
 } from "../../design-system";
 import {
+  DirectoryActionDelete,
+  DirectoryActionEdit,
   DirectoryActions,
+  DirectoryActionView,
   DirectoryClearButton,
   DirectoryIdentity,
   DirectoryMetrics,
@@ -126,30 +129,20 @@ export default function ShopEmployeesPage() {
       header: "Actions",
       render: (row) => (
         <DirectoryActions>
-          <Button size="sm" variant="secondary" onClick={() => setViewRow(row)}>
-            View
-          </Button>
-          <Button
-            size="sm"
-            variant="secondary"
+          <DirectoryActionView onClick={() => setViewRow(row)} />
+          <DirectoryActionEdit
             onClick={() => {
               const fullEmployee = employees.find((e) => e.id === row?.id);
               setEmployeeToEdit(fullEmployee ?? null);
               setAddEmployeeModalOpen(true);
             }}
-          >
-            Edit
-          </Button>
-          <Button
-            size="sm"
-            variant="danger"
+          />
+          <DirectoryActionDelete
             onClick={() => {
               setEmployeeIdToDelete(row?.id ?? null);
               setDeleteModalOpen(true);
             }}
-          >
-            Delete
-          </Button>
+          />
         </DirectoryActions>
       ),
     },

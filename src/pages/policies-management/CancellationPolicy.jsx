@@ -3,7 +3,10 @@ import { TbPlus, TbTrash } from "../../shared/icons/index";
 import { Button, Field, Input, Modal, PageHeader, Select, Table } from "../../design-system";
 import { PaginationBar, Toggle } from "../misc-kit";
 import {
+  DirectoryActionDelete,
+  DirectoryActionEdit,
   DirectoryActions,
+  DirectoryActionView,
   DirectoryStatusPill,
   DirectoryTableWrap,
   DirectoryToolSelect,
@@ -211,7 +214,11 @@ export default function CancellationPolicy() {
       key: "actions",
       header: "Actions",
       render: (row) => (
-        <DirectoryActions><Button size="sm" variant="secondary" onClick={() => handleView(row)}>View</Button><Button size="sm" variant="secondary" onClick={() => handleEdit(row._rawPolicy || row)}>Edit</Button><Button size="sm" variant="danger" onClick={() => handleDelete(row._rawPolicy || row)}>Delete</Button></DirectoryActions>
+        <DirectoryActions>
+          <DirectoryActionView onClick={() => handleView(row)} />
+          <DirectoryActionEdit onClick={() => handleEdit(row._rawPolicy || row)} />
+          <DirectoryActionDelete onClick={() => handleDelete(row._rawPolicy || row)} />
+        </DirectoryActions>
       ),
     },
   ];

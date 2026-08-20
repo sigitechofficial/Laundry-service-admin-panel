@@ -11,7 +11,7 @@ export function resolvePolicyCurrencySymbol({ zone, code, currencyUnits = [] } =
   return (
     resolveCurrencySymbol(zone, currencyUnits) ||
     resolveCurrencySymbol(code, currencyUnits) ||
-    ""
+    resolveCurrencySymbol(null, { applyDefault: true, forceDefault: true })
   );
 }
 

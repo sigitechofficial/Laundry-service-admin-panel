@@ -1,5 +1,5 @@
 import { Badge, Modal } from "../../design-system";
-import { formatMoney } from "../../utilities/formatters";
+import { formatAmount } from "../../utilities/formatters";
 import {
   getAddOnsForCategoryItems,
   groupAddOnsByCategory,
@@ -107,7 +107,7 @@ export default function CategoryAddOnsModal({
                     }}
                   >
                     <span style={{ fontWeight: 500 }}>{svc.name}</span>
-                    <Badge tone="brand">{formatMoney(svc.price, "£")}</Badge>
+                    <Badge tone="brand">{formatAmount(svc.price, null, { applyDefault: true })}</Badge>
                   </div>
                 ))}
               </div>

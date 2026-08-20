@@ -19,7 +19,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import AddItemModal from "./AddItemModal";
 import { TbPlus } from "../../../shared/icons/index";
 import { canEditOrderFromBooking } from "../../../shared/orderEditStatusGate";
-import { formatMoney, joinMediaUrl, resolveCurrencySymbol } from "../../../utilities/formatters";
+import { formatMoney, joinMediaUrl, resolveDisplayCurrency } from "../../../utilities/formatters";
 import { mergeInvoiceDetailsFromResponse } from "../../../utilities/invoiceTotals";
 import InvoiceDetailModal from "../invoice/InvoiceDetailModal";
 import {
@@ -922,10 +922,10 @@ export default function EditOrder() {
       ),
     0
   );
-  const moneySymbol =
-    resolveCurrencySymbol(orderData?.paymentSummary) ||
-    resolveCurrencySymbol(orderData) ||
-    "£";
+  const moneySymbol = resolveDisplayCurrency(
+    orderData?.paymentSummary ?? orderData,
+    { applyDefault: true }
+  ).symbol;
 
   const addOnServices =
     addOnServicesResponse?.data?.addOnServices || addOnServicesResponse?.data || [];

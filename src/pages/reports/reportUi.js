@@ -1,4 +1,4 @@
-import { formatMoney, resolveCurrencySymbol } from "../../utilities/formatters";
+import { formatAmount } from "../../utilities/formatters";
 
 export function unwrapReport(response) {
   const payload = response?.data || {};
@@ -16,15 +16,7 @@ export function unwrapReport(response) {
 }
 
 export function reportMoney(amount, currencyOrRow) {
-  const symbol =
-    resolveCurrencySymbol(currencyOrRow) ||
-    currencyOrRow?.currencySymbol ||
-    "";
-  const code =
-    currencyOrRow?.currencyCode ||
-    currencyOrRow?.currency ||
-    "";
-  return formatMoney(amount, symbol, code);
+  return formatAmount(amount, currencyOrRow, { applyDefault: true });
 }
 
 /** Honest share from already-loaded counts. Returns "—" when either value is unusable. */

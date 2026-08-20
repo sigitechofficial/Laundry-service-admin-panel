@@ -11,12 +11,14 @@ import { Delay } from "../../components/shared/Loaders";
 import useToaster from "../../components/ui/Toaster";
 import {
   DATE_TIME_FORMAT,
+  formatAmount,
   formatDate,
   formatMoney,
   resolveCurrencySymbol,
 } from "../../utilities/formatters";
 import {
   DirectoryActions,
+  DirectoryActionView,
   DirectoryIdentity,
   DirectoryMetrics,
   DirectoryMoney,
@@ -38,7 +40,7 @@ import {
 const isSuccess = (res) => res?.status === "1" || res?.status === 1;
 
 function formatAgentMoney(amount, source) {
-  return formatMoney(amount, resolveCurrencySymbol(source?.currency ?? source), source?.currency);
+  return formatAmount(amount, source, { applyDefault: true });
 }
 
 const emptyActionModal = {
@@ -146,7 +148,9 @@ export default function AgentSettlement() {
       (sum, row) => sum + Number(row.platformOwesAgent || 0),
       0
     );
-    const symbols = new Set(cashDueAgents.map((agent) => resolveCurrencySymbol(agent.currency ?? agent)));
+    const symbols = new Set(
+      cashDueAgents.map((agent) => resolveCurrencySymbol(agent, { applyDefault: true }))
+    );
     return {
       totalCashDue,
       totalPending,
@@ -342,9 +346,7 @@ export default function AgentSettlement() {
         header: "Actions",
         render: (row) => (
           <DirectoryActions>
-            <Button size="sm" variant="secondary" onClick={() => setViewRow({ kind: "cash", ...row })}>
-              View
-            </Button>
+            <DirectoryActionView onClick={() => setViewRow({ kind: "cash", ...row })} />
             <Button
               size="sm"
               disabled={row.cashDue <= 0 || isActing}
@@ -386,9 +388,7 @@ export default function AgentSettlement() {
         header: "Actions",
         render: (row) => (
           <DirectoryActions>
-            <Button size="sm" variant="secondary" onClick={() => setViewRow({ kind: "remit", ...row })}>
-              View
-            </Button>
+            <DirectoryActionView onClick={() => setViewRow({ kind: "remit", ...row })} />
             <Button
               size="sm"
               disabled={isActing}

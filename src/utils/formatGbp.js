@@ -1,6 +1,6 @@
-/** Format amount as GBP with exactly two decimal places (e.g. £2.50). */
+import { formatAmount } from "../utilities/formatters";
+
+/** @deprecated Prefer formatAmount / formatMoney with zone→country resolution. */
 export function formatGbp(amount) {
-  const n = Number(amount);
-  if (!Number.isFinite(n)) return "£0.00";
-  return `£${n.toFixed(2)}`;
+  return formatAmount(amount, null, { applyDefault: true });
 }

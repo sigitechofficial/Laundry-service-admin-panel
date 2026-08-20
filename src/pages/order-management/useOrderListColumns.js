@@ -1,6 +1,9 @@
 import { createElement as h, useMemo } from "react";
-import { LuEye, LuTrash2 } from "react-icons/lu";
 import OrderAssignActionButton from "./order-modals/OrderAssignActionButton";
+import {
+  DirectoryActionDelete,
+  DirectoryActionView,
+} from "../directory-table/DirectoryActionIcon";
 import {
   DateTimeStack,
   DotPill,
@@ -96,11 +99,10 @@ export function useOrderListColumns({
       {
         key: "actions",
         header: "Actions",
-        align: "right",
         render: (row) =>
           h(
             "div",
-            { className: "flex min-w-max items-center justify-end gap-1.5" },
+            { className: "flex min-w-max items-center justify-start gap-1.5" },
             showAssign && setAssignModal
               ? h(OrderAssignActionButton, {
                   booking: row._booking,
@@ -112,30 +114,16 @@ export function useOrderListColumns({
                     }),
                 })
               : null,
-            h(
-              "button",
-              {
-                type: "button",
-                title: "View order",
-                "aria-label": `View order ${row.orderId}`,
-                className:
-                  "grid h-[34px] w-[34px] place-items-center rounded-[9px] border border-[#e6e9f0] bg-white text-[#5c6673] hover:border-[#2c3ba0] hover:bg-[#eef0fb] hover:text-[#2c3ba0]",
-                onClick: () => navigate(`/orders/details/${row.id}`),
-              },
-              h(LuEye, { size: 16 })
-            ),
-            h(
-              "button",
-              {
-                type: "button",
-                title: "Delete order",
-                "aria-label": `Delete order ${row.orderId}`,
-                className:
-                  "grid h-[34px] w-[34px] place-items-center rounded-[9px] border border-[#e6e9f0] bg-white text-[#5c6673] hover:border-[#c9403f] hover:bg-[#fdecec] hover:text-[#c9403f]",
-                onClick: () => setDeleteModal({ open: true, orderId: row.id }),
-              },
-              h(LuTrash2, { size: 16 })
-            )
+            h(DirectoryActionView, {
+              title: "View order",
+              "aria-label": `View order ${row.orderId}`,
+              onClick: () => navigate(`/orders/details/${row.id}`),
+            }),
+            h(DirectoryActionDelete, {
+              title: "Delete order",
+              "aria-label": `Delete order ${row.orderId}`,
+              onClick: () => setDeleteModal({ open: true, orderId: row.id }),
+            })
           ),
       },
     ],

@@ -1,86 +1,358 @@
 /**
  * Single currency formatter for the admin panel.
- * Always pass the API symbol (paymentSummary.currencySymbol, zone.currencyUnitZ.symbol, etc.).
- * Do not hardcode £ or $.
+ *
+ * Resolution order (enterprise):
+ *   1. Explicit payload (currencySymbol / paymentSummary / feeCurrency / ISO code)
+ *   2. Zone currency (currencyUnitZ / currencyUnitId via units lookup)
+ *   3. Country currency (zones under that country if unanimous; else ISO shortName map)
+ *   4. Platform default GBP / £
+ *
+ * Always prefer API-provided symbols. Do not scatter hard-coded £ / $ in call sites.
  */
+
+export const DEFAULT_CURRENCY = Object.freeze({
+  code: "GBP",
+  symbol: "£",
+});
+
+/** Soft fallback when a country has no zones with currency yet. */
+const COUNTRY_ISO_TO_CURRENCY = Object.freeze({
+  GB: { code: "GBP", symbol: "£" },
+  UK: { code: "GBP", symbol: "£" },
+  US: { code: "USD", symbol: "$" },
+  AE: { code: "AED", symbol: "د.إ" },
+  SA: { code: "SAR", symbol: "﷼" },
+  PK: { code: "PKR", symbol: "Rs" },
+  IN: { code: "INR", symbol: "₹" },
+  EU: { code: "EUR", symbol: "€" },
+  IE: { code: "EUR", symbol: "€" },
+  DE: { code: "EUR", symbol: "€" },
+  FR: { code: "EUR", symbol: "€" },
+  CA: { code: "CAD", symbol: "$" },
+  AU: { code: "AUD", symbol: "$" },
+});
+
+/** When API sends ISO code only (e.g. "GBP") and units list is unavailable. */
+const CODE_TO_SYMBOL = Object.freeze(
+  Object.fromEntries(
+    Object.values(COUNTRY_ISO_TO_CURRENCY).map((c) => [c.code, c.symbol])
+  )
+);
+
+function symbolForIsoCode(code, currencyUnits = []) {
+  const needle = trimStr(code).toUpperCase();
+  if (!needle) return "";
+  return lookupSymbolByCode(needle, currencyUnits) || CODE_TO_SYMBOL[needle] || "";
+}
 
 function trimStr(value) {
   return value == null ? "" : String(value).trim();
 }
 
-function lookupSymbolByCode(code, currencyUnits = []) {
+function normalizeOptions(currencyUnitsOrOptions, maybeOptions) {
+  if (Array.isArray(currencyUnitsOrOptions)) {
+    return {
+      currencyUnits: currencyUnitsOrOptions,
+      ...(maybeOptions && typeof maybeOptions === "object" ? maybeOptions : {}),
+    };
+  }
+  if (currencyUnitsOrOptions && typeof currencyUnitsOrOptions === "object") {
+    return {
+      currencyUnits: currencyUnitsOrOptions.currencyUnits || [],
+      ...currencyUnitsOrOptions,
+    };
+  }
+  return { currencyUnits: [] };
+}
+
+function lookupUnitByCode(code, currencyUnits = []) {
   const needle = trimStr(code).toUpperCase();
-  if (!needle || !Array.isArray(currencyUnits) || !currencyUnits.length) return "";
-  const match = currencyUnits.find((unit) => {
-    const name = trimStr(unit?.name).toUpperCase();
-    const unitCode = trimStr(unit?.code).toUpperCase();
-    return name === needle || unitCode === needle;
-  });
-  return trimStr(match?.symbol);
+  if (!needle || !Array.isArray(currencyUnits) || !currencyUnits.length) return null;
+  return (
+    currencyUnits.find((unit) => {
+      const name = trimStr(unit?.name).toUpperCase();
+      const unitCode = trimStr(unit?.code).toUpperCase();
+      return name === needle || unitCode === needle;
+    }) || null
+  );
+}
+
+function lookupSymbolByCode(code, currencyUnits = []) {
+  return trimStr(lookupUnitByCode(code, currencyUnits)?.symbol);
+}
+
+function lookupUnitById(id, currencyUnits = []) {
+  if (id == null || id === "" || !Array.isArray(currencyUnits) || !currencyUnits.length) {
+    return null;
+  }
+  return currencyUnits.find((unit) => String(unit?.id) === String(id)) || null;
 }
 
 function lookupSymbolByUnitId(id, currencyUnits = []) {
-  if (id == null || id === "" || !Array.isArray(currencyUnits) || !currencyUnits.length) {
-    return "";
-  }
-  const match = currencyUnits.find((unit) => String(unit?.id) === String(id));
-  return trimStr(match?.symbol);
+  return trimStr(lookupUnitById(id, currencyUnits)?.symbol);
 }
 
-function symbolFromZone(zone, currencyUnits = []) {
-  if (!zone || typeof zone !== "object") return "";
-  const unit =
+function currencyFromUnit(unit) {
+  if (!unit || typeof unit !== "object") return null;
+  const symbol = trimStr(unit.symbol);
+  const code = trimStr(unit.name ?? unit.code).toUpperCase();
+  if (!symbol && !code) return null;
+  return {
+    symbol: symbol || code,
+    code: code || "",
+  };
+}
+
+function zoneUnit(zone) {
+  if (!zone || typeof zone !== "object") return null;
+  return (
     zone.currencyUnitZ ??
     zone.currencyUnit ??
     zone.currency_unit ??
     zone.currency_unit_z ??
     zone.CurrencyUnitZ ??
-    zone.CurrencyUnit;
-  const fromUnit = trimStr(unit?.symbol);
-  if (fromUnit) return fromUnit;
-  return lookupSymbolByUnitId(
-    zone.currencyUnitId ?? zone.currency_unit_id ?? zone.currencyUnitID ?? unit?.id,
-    currencyUnits
+    zone.CurrencyUnit ??
+    null
   );
 }
 
+function currencyFromZone(zone, currencyUnits = []) {
+  if (!zone || typeof zone !== "object") return null;
+  const fromUnit = currencyFromUnit(zoneUnit(zone));
+  if (fromUnit) return fromUnit;
+
+  const id =
+    zone.currencyUnitId ??
+    zone.currency_unit_id ??
+    zone.currencyUnitID ??
+    zoneUnit(zone)?.id;
+  const looked = lookupUnitById(id, currencyUnits);
+  if (looked) return currencyFromUnit(looked);
+
+  for (const field of [zone.currencyCode, zone.currency_code, zone.zoneCurrency, zone.currency]) {
+    if (typeof field === "string" && /^[A-Za-z]{3}$/.test(field.trim())) {
+      const code = field.trim().toUpperCase();
+      const symbol = symbolForIsoCode(code, currencyUnits) || code;
+      return { symbol, code };
+    }
+  }
+  return null;
+}
+
+function countryRefFromSource(source) {
+  if (!source || typeof source !== "object") return null;
+  return (
+    source.country ??
+    source.Country ??
+    source.city?.country ??
+    source.city?.Country ??
+    source.zone?.city?.country ??
+    source.zone?.city?.Country ??
+    source.addressDb?.country ??
+    source.address?.country ??
+    null
+  );
+}
+
+function countryIdFromSource(source, explicitCountryId) {
+  if (explicitCountryId != null && explicitCountryId !== "") return explicitCountryId;
+  if (!source || typeof source !== "object") return null;
+  return (
+    source.countryId ??
+    source.country_id ??
+    countryRefFromSource(source)?.id ??
+    source.city?.countryId ??
+    source.zone?.city?.countryId ??
+    source.addressDb?.countryId ??
+    null
+  );
+}
+
+function currencyFromCountryIso(countryLike, currencyUnits = []) {
+  if (!countryLike) return null;
+  const short =
+    typeof countryLike === "string"
+      ? countryLike
+      : countryLike.shortName ?? countryLike.code ?? countryLike.iso ?? countryLike.iso2;
+  const key = trimStr(short).toUpperCase();
+  if (!key) return null;
+  const mapped = COUNTRY_ISO_TO_CURRENCY[key];
+  if (!mapped) return null;
+  const symbol =
+    symbolForIsoCode(mapped.code, currencyUnits) || mapped.symbol || mapped.code;
+  return { symbol, code: mapped.code };
+}
+
+function currencyFromCountryZones(countryId, zones = [], currencyUnits = []) {
+  if (countryId == null || countryId === "" || !Array.isArray(zones) || !zones.length) {
+    return null;
+  }
+  const needle = String(countryId);
+  const matched = zones.filter((z) => {
+    const id =
+      z?.city?.countryId ??
+      z?.city?.country?.id ??
+      z?.countryId ??
+      z?.country?.id;
+    return id != null && String(id) === needle;
+  });
+  if (!matched.length) return null;
+
+  const currencies = matched
+    .map((z) => currencyFromZone(z, currencyUnits))
+    .filter((c) => c && (c.symbol || c.code));
+  if (!currencies.length) return null;
+
+  const keys = new Set(
+    currencies.map((c) => `${trimStr(c.code).toUpperCase()}|${trimStr(c.symbol)}`)
+  );
+  // Mixed currencies under one country → do not invent a single symbol.
+  if (keys.size !== 1) return null;
+  return currencies[0];
+}
+
+function currencyFromString(raw, currencyUnits = []) {
+  const text = trimStr(raw);
+  if (!text) return null;
+  if (/^[A-Za-z]{3}$/.test(text)) {
+    const code = text.toUpperCase();
+    const symbol = symbolForIsoCode(code, currencyUnits) || code;
+    return { symbol, code };
+  }
+  return { symbol: text, code: "" };
+}
+
 /**
- * Pick a display symbol from common API payloads. Never invent £/$.
+ * Full currency resolution for display.
  *
  * @param {string|object|null|undefined} source
- *   String symbol/code, or an object such as paymentSummary, a zone, or a currency unit.
- * @param {Array<{id?: *, name?: string, code?: string, symbol?: string}>} [currencyUnits]
+ * @param {{
+ *   currencyUnits?: Array,
+ *   zones?: Array,
+ *   countryId?: *,
+ *   country?: *,
+ *   applyDefault?: boolean
+ * }} [options]
+ * @returns {{ symbol: string, code: string }}
  */
-export function resolveCurrencySymbol(source, currencyUnits = []) {
-  if (source == null || source === "") return "";
+export function resolveDisplayCurrency(source, options = {}) {
+  const {
+    currencyUnits = [],
+    zones = [],
+    countryId: optionCountryId,
+    country: optionCountry,
+    applyDefault = true,
+  } = normalizeOptions(options);
+
+  let found = null;
 
   if (typeof source === "string") {
-    const raw = trimStr(source);
-    if (!raw) return "";
-    if (/^[A-Za-z]{3}$/.test(raw)) {
-      return lookupSymbolByCode(raw, currencyUnits) || raw.toUpperCase();
+    found = currencyFromString(source, currencyUnits);
+  } else if (source && typeof source === "object") {
+    const directSymbol = trimStr(
+      source.currencySymbol ?? source.symbol ?? source.currency_symbol
+    );
+    const codeCandidates = [
+      source.feeCurrency,
+      source.currencyCode,
+      source.currency_code,
+      typeof source.currency === "string" && /^[A-Za-z]{3}$/.test(source.currency.trim())
+        ? source.currency
+        : null,
+      source.code,
+      typeof source.name === "string" && /^[A-Za-z]{3}$/.test(source.name.trim())
+        ? source.name
+        : null,
+    ];
+    let directCode = "";
+    for (const candidate of codeCandidates) {
+      const text = trimStr(candidate).toUpperCase();
+      if (text) {
+        directCode = text;
+        break;
+      }
     }
-    return raw;
+
+    if (directSymbol) {
+      const symbolLooksLikeCode = /^[A-Za-z]{3}$/.test(directSymbol);
+      const codeFromSymbol = symbolLooksLikeCode ? directSymbol.toUpperCase() : "";
+      found = {
+        symbol:
+          (codeFromSymbol ? symbolForIsoCode(codeFromSymbol, currencyUnits) : "") ||
+          directSymbol,
+        code: directCode || codeFromSymbol,
+      };
+    } else if (directCode) {
+      found = {
+        symbol: symbolForIsoCode(directCode, currencyUnits) || directCode,
+        code: directCode,
+      };
+    }
+
+    if (!found) {
+      found =
+        currencyFromZone(source.zone ?? source, currencyUnits) ||
+        currencyFromZone(source.addressDb?.zone, currencyUnits) ||
+        currencyFromZone(source.paymentSummary?.zone, currencyUnits);
+    }
+
+    if (!found && source.paymentSummary) {
+      const ps = source.paymentSummary;
+      const psSymbol = trimStr(ps.currencySymbol ?? ps.symbol);
+      const psCode = trimStr(ps.currency ?? ps.currencyCode).toUpperCase();
+      if (psSymbol || psCode) {
+        found = {
+          symbol: psSymbol || symbolForIsoCode(psCode, currencyUnits) || psCode,
+          code: psCode,
+        };
+      }
+    }
   }
 
-  if (typeof source !== "object") return "";
+  if (!found) {
+    const countryId = countryIdFromSource(source, optionCountryId);
+    found =
+      currencyFromCountryZones(countryId, zones, currencyUnits) ||
+      currencyFromCountryIso(optionCountry ?? countryRefFromSource(source), currencyUnits) ||
+      currencyFromCountryIso(
+        typeof optionCountryId === "string" && /^[A-Za-z]{2}$/.test(optionCountryId)
+          ? optionCountryId
+          : null,
+        currencyUnits
+      );
+  }
 
-  const direct = trimStr(
-    source.currencySymbol ?? source.symbol ?? source.currency_symbol
-  );
-  if (direct) return direct;
+  if (found?.symbol || found?.code) {
+    return {
+      symbol: found.symbol || found.code || "",
+      code: found.code || "",
+    };
+  }
 
-  const fromZone = symbolFromZone(source.zone ?? source, currencyUnits);
-  if (fromZone) return fromZone;
+  if (!applyDefault) return { symbol: "", code: "" };
+  return { symbol: DEFAULT_CURRENCY.symbol, code: DEFAULT_CURRENCY.code };
+}
 
-  const code =
-    source.feeCurrency ??
-    source.currency ??
-    source.currencyCode ??
-    source.currency_code ??
-    source.code ??
-    source.name;
-  return lookupSymbolByCode(code, currencyUnits);
+/**
+ * Pick a display symbol from common API payloads.
+ *
+ * @param {string|object|null|undefined} source
+ * @param {Array|{currencyUnits?: Array, zones?: Array, countryId?: *, country?: *, applyDefault?: boolean}} [currencyUnitsOrOptions]
+ * @param {object} [maybeOptions]
+ */
+export function resolveCurrencySymbol(source, currencyUnitsOrOptions, maybeOptions) {
+  const options = normalizeOptions(currencyUnitsOrOptions, maybeOptions);
+  // Preserve historical behaviour: bare resolve without options does not invent £.
+  // Pass `{ applyDefault: true }` (or use resolveDisplayCurrency / formatAmount) for defaults.
+  if (options.applyDefault == null) {
+    options.applyDefault = Boolean(
+      options.zones?.length ||
+        options.countryId != null ||
+        options.country != null ||
+        options.forceDefault
+    );
+  }
+  return resolveDisplayCurrency(source, options).symbol;
 }
 
 /**
@@ -106,4 +378,16 @@ export function formatMoney(amount, symbol, code) {
   const iso = trimStr(code);
   if (iso) return `${iso} ${num}`;
   return num;
+}
+
+/**
+ * Format using zone → country → default resolution.
+ *
+ * @param {number|string|null|undefined} amount
+ * @param {string|object|null|undefined} source
+ * @param {object} [options] same as resolveDisplayCurrency
+ */
+export function formatAmount(amount, source, options) {
+  const { symbol, code } = resolveDisplayCurrency(source, options);
+  return formatMoney(amount, symbol, code);
 }

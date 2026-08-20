@@ -3,7 +3,10 @@ import { Controller, useForm } from "react-hook-form";
 import { Autocomplete } from "@react-google-maps/api";
 import { Button, Field, Input, Modal, PageHeader, Select, Table } from "../../design-system";
 import {
+  DirectoryActionDelete,
+  DirectoryActionEdit,
   DirectoryActions,
+  DirectoryActionView,
   DirectoryFlagIdentity,
   DirectoryIdentity,
   DirectoryMetrics,
@@ -197,15 +200,11 @@ export default function CitiesPage() {
       header: "Actions",
       render: (row) => (
         <DirectoryActions>
-          <Button size="sm" variant="secondary" onClick={() => setViewRow(row)}>
-            View
-          </Button>
-          <Button size="sm" variant="secondary" onClick={() => handleEditCity(row)}>
-            Edit
-          </Button>
-          <Button size="sm" variant="danger" onClick={() => setDeleteModal({ open: true, data: row })}>
-            Delete
-          </Button>
+          <DirectoryActionView onClick={() => setViewRow(row)} />
+          <DirectoryActionEdit onClick={() => handleEditCity(row)} />
+          <DirectoryActionDelete
+            onClick={() => setDeleteModal({ open: true, data: row })}
+          />
         </DirectoryActions>
       ),
     },

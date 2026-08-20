@@ -14,7 +14,9 @@ import { getApiErrorMessage } from "../../../store/services/apiErrors";
 import DeleteOrderModal from "../../order-management/order-modals/DeleteOrderModal";
 import { formatDate, formatMoney, resolveCurrencySymbol } from "../../../utilities/formatters";
 import {
+  DirectoryActionDelete,
   DirectoryActions,
+  DirectoryActionView,
   DirectoryDotPill,
   DirectoryIdentity,
   DirectoryMetric,
@@ -185,12 +187,12 @@ export default function CustomerDetails() {
       header: "Actions",
       render: (row) => (
         <DirectoryActions>
-          <Button size="sm" variant="secondary" onClick={() => row.id && navigate(`/orders/details/${row.id}`)}>
-            View
-          </Button>
-          <Button size="sm" variant="danger" onClick={() => setDeleteModal({ open: true, orderId: row.id })}>
-            Delete
-          </Button>
+          <DirectoryActionView
+            onClick={() => row.id && navigate(`/orders/details/${row.id}`)}
+          />
+          <DirectoryActionDelete
+            onClick={() => setDeleteModal({ open: true, orderId: row.id })}
+          />
         </DirectoryActions>
       ),
     },

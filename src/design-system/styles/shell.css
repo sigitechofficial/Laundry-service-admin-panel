@@ -734,10 +734,14 @@
 }
 
 .jd-ds .jd-tbl th.jd-tbl--money,
-.jd-ds .jd-tbl td.jd-tbl--money,
+.jd-ds .jd-tbl td.jd-tbl--money {
+  text-align: right;
+}
+
+/* Actions: left-align header + cells (overrides co-present jd-tbl--right) */
 .jd-ds .jd-tbl th.jd-tbl--actions,
 .jd-ds .jd-tbl td.jd-tbl--actions {
-  text-align: right;
+  text-align: left;
 }
 
 .jd-ds .jd-tbl th.jd-tbl--money,

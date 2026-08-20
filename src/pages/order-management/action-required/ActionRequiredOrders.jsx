@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { LuExternalLink, LuEye } from "react-icons/lu";
+import { LuExternalLink } from "react-icons/lu";
 import dayjs from "dayjs";
 import { useNavigate } from "react-router-dom";
 import useToaster from "../../../components/ui/Toaster";
@@ -13,6 +13,10 @@ import { matchesOrderListSearch } from "../listSearch";
 import OrderListDataTable from "../OrderListDataTable";
 import AssignOrderModal from "../order-modals/AssignOrderModal";
 import OrderAssignActionButton from "../order-modals/OrderAssignActionButton";
+import {
+  DirectoryActionIcon,
+  DirectoryActionView,
+} from "../../directory-table/DirectoryActionIcon";
 import styles from "../orderList.module.css";
 import {
   CustomerNamePhone,
@@ -55,9 +59,6 @@ const FILTERS = [
   { value: "overdue_delivery", label: "Overdue delivery" },
   { value: "delivery_failed", label: "Delivery" },
 ];
-
-const ACTION_BTN =
-  "grid h-[34px] w-[34px] place-items-center rounded-[9px] border border-[#e6e9f0] bg-white text-[#5c6673] hover:border-[#2c3ba0] hover:bg-[#eef0fb] hover:text-[#2c3ba0]";
 
 function openPathForItem(item) {
   if (item.reasons?.includes("payment_failed")) {
@@ -336,9 +337,8 @@ export default function ActionRequiredOrders() {
       {
         key: "actions",
         header: "Actions",
-        align: "right",
         render: (row) => (
-          <div className="flex min-w-max items-center justify-end gap-1.5">
+          <div className="flex min-w-max items-center justify-start gap-1.5">
             <OrderAssignActionButton
               booking={row._booking}
               onClick={() =>
@@ -349,27 +349,21 @@ export default function ActionRequiredOrders() {
                 })
               }
             />
-            <button
-              type="button"
+            <DirectoryActionIcon
               title="Open exception"
               aria-label={`Open ${row.orderId}`}
-              className={ACTION_BTN}
               onClick={(e) => {
                 e.stopPropagation();
                 navigate(openPathForItem(row.raw));
               }}
             >
-              <LuExternalLink size={16} />
-            </button>
-            <button
-              type="button"
+              <LuExternalLink size={16} aria-hidden />
+            </DirectoryActionIcon>
+            <DirectoryActionView
               title="View order"
               aria-label={`View order ${row.orderId}`}
-              className={ACTION_BTN}
               onClick={() => navigate(`/orders/details/${row.id}`)}
-            >
-              <LuEye size={16} />
-            </button>
+            />
           </div>
         ),
       },

@@ -1,8 +1,7 @@
+import { DATE_TIME_FORMAT, formatDate } from "../../utilities/formatters";
+
 export function formatDisplayDate(value) {
-  if (value == null || value === "" || value === "—") return "—";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return String(value);
-  return date.toLocaleString();
+  return formatDate(value, DATE_TIME_FORMAT);
 }
 
 export function joinMeta(...parts) {

@@ -1,7 +1,10 @@
 import { useState, useMemo } from "react";
 import { PageHeader, Table, Button, Modal } from "../../design-system";
 import {
+  DirectoryActionDelete,
+  DirectoryActionEdit,
   DirectoryActions,
+  DirectoryActionView,
   DirectoryDotPill,
   DirectoryIdentity,
   DirectoryMetrics,
@@ -146,30 +149,20 @@ export default function ReviewReasonCodes() {
       header: "Actions",
       render: (row) => (
         <DirectoryActions>
-          <Button size="sm" variant="secondary" onClick={() => setViewRow(row)}>
-            View
-          </Button>
-          <Button
-            size="sm"
-            variant="secondary"
+          <DirectoryActionView onClick={() => setViewRow(row)} />
+          <DirectoryActionEdit
             onClick={() => {
               const full = reasons.find((r) => r.id === row.id);
               setReasonToEdit(full || row);
               setAddModalOpen(true);
             }}
-          >
-            Edit
-          </Button>
-          <Button
-            size="sm"
-            variant="danger"
+          />
+          <DirectoryActionDelete
             onClick={() => {
               setReasonToDelete(row);
               setDeleteConfirmOpen(true);
             }}
-          >
-            Delete
-          </Button>
+          />
         </DirectoryActions>
       ),
     },

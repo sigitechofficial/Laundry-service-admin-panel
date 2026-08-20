@@ -3,7 +3,10 @@ import { TbTrash } from "../../shared/icons/index";
 import { Button, Field, Input, Modal, Select, Table } from "../../design-system";
 import { PaginationBar, Toggle } from "../misc-kit";
 import {
+  DirectoryActionDelete,
+  DirectoryActionEdit,
   DirectoryActions,
+  DirectoryActionView,
   DirectoryClearButton,
   DirectoryStatusPill,
   DirectoryTableWrap,
@@ -216,7 +219,11 @@ export default function ReschedulePolicyContent({
       key: "actions",
       header: "Actions",
       render: (row) => (
-        <DirectoryActions><Button size="sm" variant="secondary" onClick={() => handleView(row)}>View</Button><Button size="sm" variant="secondary" onClick={() => handleEdit(row)}>Edit</Button><Button size="sm" variant="danger" onClick={() => handleDelete(row)}>Delete</Button></DirectoryActions>
+        <DirectoryActions>
+          <DirectoryActionView onClick={() => handleView(row)} />
+          <DirectoryActionEdit onClick={() => handleEdit(row)} />
+          <DirectoryActionDelete onClick={() => handleDelete(row)} />
+        </DirectoryActions>
       ),
     },
   ];

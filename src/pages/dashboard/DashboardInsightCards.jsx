@@ -1,16 +1,19 @@
 import { HiArrowNarrowRight } from "react-icons/hi";
 import FigureShimmer from "./FigureShimmer";
-import { formatMoney, resolveCurrencySymbol } from "../../utilities/formatters";
+import { formatAmount, resolveCurrencySymbol } from "../../utilities/formatters";
 
 function money(amount, source, fallbackSymbol, fallbackCode) {
-  const symbol = resolveCurrencySymbol(source) || fallbackSymbol;
-  const code =
-    source?.currency ??
-    source?.currencyCode ??
-    source?.currency_code ??
-    source?.feeCurrency ??
-    fallbackCode;
-  return formatMoney(amount, symbol, code);
+  if (fallbackSymbol || fallbackCode) {
+    const symbol = resolveCurrencySymbol(source) || fallbackSymbol;
+    const code =
+      source?.currency ??
+      source?.currencyCode ??
+      source?.currency_code ??
+      source?.feeCurrency ??
+      fallbackCode;
+    return formatAmount(amount, { currencySymbol: symbol, currency: code }, { applyDefault: true });
+  }
+  return formatAmount(amount, source, { applyDefault: true });
 }
 
 function CardShell({ children }) {

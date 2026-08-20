@@ -22,7 +22,7 @@ import {
   formatDate,
   formatMoney,
   joinMediaUrl,
-  resolveCurrencySymbol,
+  resolveDisplayCurrency,
 } from "../../../utilities/formatters";
 import { canEditOrderFromBooking } from "../../../shared/orderEditStatusGate";
 import useToaster from "../../../components/ui/Toaster";
@@ -579,10 +579,10 @@ export default function OrderDetailsPage() {
   const paymentStatusBadge = getPaymentStatusBadge(
     paymentSummary?.billingPaymentStatus ?? orderData?.billingDetail?.paymentStatus
   );
-  const paymentCurrencySymbol =
-    resolveCurrencySymbol(paymentSummary) ||
-    resolveCurrencySymbol(orderData) ||
-    "£";
+  const paymentCurrencySymbol = resolveDisplayCurrency(
+    paymentSummary ?? orderData,
+    { applyDefault: true }
+  ).symbol;
   const amountDueNow = Number(
     paymentSummary?.amountDueNow ??
       (String(orderData?.billingDetail?.paymentStatus || "").toLowerCase() === "paid"
@@ -696,8 +696,7 @@ export default function OrderDetailsPage() {
   const attemptRows = Array.isArray(orderData?.attempts) ? orderData.attempts : [];
 
   const formatAttemptFeeLabel = (attempt) => {
-    const feeSymbol =
-      resolveCurrencySymbol(attempt) || attempt?.feeCurrency || "£";
+    const feeSymbol = resolveDisplayCurrency(attempt, { applyDefault: true }).symbol;
     if (attempt?.feeCharged) {
       return `Charged ${formatMoney(attempt?.feeAmount, feeSymbol, attempt?.feeCurrency)}`;
     }

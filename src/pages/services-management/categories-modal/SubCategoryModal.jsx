@@ -227,8 +227,28 @@ export default function SubCategoryModal({
           control={control}
           render={({ field: { onChange, value } }) => {
             const selected = Array.isArray(value) ? value : [];
+            const inherited = Array.isArray(categoryData?.parentAddOnCategories)
+              ? categoryData.parentAddOnCategories
+              : Array.isArray(categoryData?.inheritedAddOnCategories)
+                ? categoryData.inheritedAddOnCategories
+                : Array.isArray(categoryData?.addOnCategories) && !isUpdate
+                  ? categoryData.addOnCategories
+                  : [];
+            const inheritedIds = new Set(
+              inherited.map((c) => String(c.id ?? c))
+            );
+            const inheritedOnly = inherited.filter(
+              (c) => !selected.includes(String(c.id ?? c))
+            );
             return (
-              <Field label="Add-on / Repair Categories">
+              <Field
+                label="Add-on / Repair Categories"
+                hint={
+                  inheritedOnly.length
+                    ? "Gray rows come from the parent category and apply automatically."
+                    : undefined
+                }
+              >
                 {addOnCategoryOptions.length === 0 ? (
                   <p style={{ color: "var(--muted)", margin: 0 }}>
                     No add-on categories available
@@ -247,7 +267,33 @@ export default function SubCategoryModal({
                       borderRadius: "var(--r-md)",
                     }}
                   >
+                    {inheritedOnly.map((opt) => {
+                      const id = String(opt.id ?? opt);
+                      const label =
+                        opt.name ||
+                        addOnCategoryOptions.find((o) => o.value === id)
+                          ?.label ||
+                        id;
+                      return (
+                        <label
+                          key={`inherited-${id}`}
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 8,
+                            opacity: 0.85,
+                          }}
+                        >
+                          <input type="checkbox" checked disabled readOnly />
+                          <span>{label}</span>
+                          <Badge tone="neutral">From category</Badge>
+                        </label>
+                      );
+                    })}
                     {addOnCategoryOptions.map((opt) => {
+                      if (inheritedIds.has(opt.value) && !selected.includes(opt.value)) {
+                        return null;
+                      }
                       const checked = selected.includes(opt.value);
                       return (
                         <label

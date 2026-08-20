@@ -20,14 +20,10 @@ import { SalesIcons } from "./salesIcons";
 import { DashboardQueryState } from "./DashboardQueryState";
 import { useDashboardDataQuery } from "../../store/services/api";
 import { getUserProfile } from "../../utilities/authStorage";
-import { formatDate, formatMoney, resolveCurrencySymbol } from "../../utilities/formatters";
+import { formatDate, formatAmount } from "../../utilities/formatters";
 
 function money(amount, source) {
-  return formatMoney(
-    amount,
-    resolveCurrencySymbol(source),
-    source?.currency ?? source?.currencyCode ?? source?.currency_code ?? source?.feeCurrency
-  );
+  return formatAmount(amount, source, { applyDefault: true });
 }
 
 function formatPct(n) {

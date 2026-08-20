@@ -1,7 +1,9 @@
-import { Button } from "../../design-system";
 import { formatMoney, resolveCurrencySymbol } from "../../utilities/formatters";
 import {
+  DirectoryActionDelete,
+  DirectoryActionEdit,
   DirectoryActions,
+  DirectoryActionView,
   DirectoryIdentity,
   DirectoryMetric,
   DirectoryMoney,
@@ -11,10 +13,6 @@ import { joinMeta } from "../directory-table/directoryTableUtils";
 
 function placeLine(row) {
   return joinMeta(row.city, row.zone);
-}
-
-function contactLine(row) {
-  return joinMeta(row.email, row.phoneNumber);
 }
 
 export function mapShopToRow(item) {
@@ -102,7 +100,7 @@ export function buildShopListColumns({ navigate, onView, onEdit, onDelete }) {
       key: "contact",
       header: "Contact",
       render: (row) => (
-        <DirectoryIdentity name={contactLine(row)} meta={row.locationLine} />
+        <DirectoryIdentity name={row.email} meta={row.phoneNumber || undefined} />
       ),
     },
     {
@@ -110,15 +108,9 @@ export function buildShopListColumns({ navigate, onView, onEdit, onDelete }) {
       header: "Actions",
       render: (row) => (
         <DirectoryActions>
-          <Button size="sm" variant="secondary" onClick={() => onView?.(row)}>
-            View
-          </Button>
-          <Button size="sm" variant="secondary" onClick={() => onEdit?.(row)}>
-            Edit
-          </Button>
-          <Button size="sm" variant="danger" onClick={() => onDelete?.(row)}>
-            Delete
-          </Button>
+          <DirectoryActionView onClick={() => onView?.(row)} />
+          <DirectoryActionEdit onClick={() => onEdit?.(row)} />
+          <DirectoryActionDelete onClick={() => onDelete?.(row)} />
         </DirectoryActions>
       ),
     },

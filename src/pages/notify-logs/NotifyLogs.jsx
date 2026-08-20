@@ -10,6 +10,7 @@ import {
 import { useGetNotifyLogsQuery } from "../../store/services/api";
 import {
   DirectoryActions,
+  DirectoryActionView,
   DirectoryClearButton,
   DirectoryDateInput,
   DirectoryDotPill,
@@ -309,9 +310,7 @@ export default function NotifyLogs() {
       header: "Actions",
       render: (row) => (
         <DirectoryActions>
-          <Button size="sm" variant="secondary" onClick={() => openDetail("notification", row.raw)}>
-            View
-          </Button>
+          <DirectoryActionView onClick={() => openDetail("notification", row.raw)} />
         </DirectoryActions>
       ),
     },
@@ -350,9 +349,7 @@ export default function NotifyLogs() {
       header: "Actions",
       render: (row) => (
         <DirectoryActions>
-          <Button size="sm" variant="secondary" onClick={() => openDetail("session", row.raw)}>
-            View
-          </Button>
+          <DirectoryActionView onClick={() => openDetail("session", row.raw)} />
         </DirectoryActions>
       ),
     },

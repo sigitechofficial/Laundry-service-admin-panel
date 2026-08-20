@@ -8,6 +8,10 @@ import {
 import { Button, Field, Input, Modal } from "../../design-system";
 import useToaster from "../../components/ui/Toaster";
 import { QueryState } from "./QueryState";
+import {
+  DirectoryActionDelete,
+  DirectoryActionEdit,
+} from "../directory-table/directoryTable";
 
 const isExplicitFailure = (res) =>
   res && (res.status === "0" || res.status === 0 || res.success === false);
@@ -167,23 +171,15 @@ export default function AddOnCategoriesModal({ open, onClose }) {
                 <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>
                   {item.name}
                 </span>
-                <div style={{ display: "flex", gap: 8 }}>
-                  <Button
-                    size="sm"
-                    variant="secondary"
+                <div style={{ display: "flex", gap: 6 }}>
+                  <DirectoryActionEdit
                     disabled={updating}
                     onClick={() => handleEdit(item)}
-                  >
-                    Edit
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="danger"
+                  />
+                  <DirectoryActionDelete
                     disabled={deleting}
                     onClick={() => handleDelete(item.id)}
-                  >
-                    Delete
-                  </Button>
+                  />
                 </div>
               </div>
             ))

@@ -384,12 +384,17 @@ button.tool {
 }
 
 .table :global(.jd-tbl th.jd-tbl--money),
-.table :global(.jd-tbl td.jd-tbl--money),
+.table :global(.jd-tbl td.jd-tbl--money) {
+  width: 1%;
+  white-space: nowrap;
+  text-align: right;
+}
+
 .table :global(.jd-tbl th.jd-tbl--actions),
 .table :global(.jd-tbl td.jd-tbl--actions) {
   width: 1%;
   white-space: nowrap;
-  text-align: right;
+  text-align: left;
 }
 
 .table :global(.jd-tbl__empty) {
@@ -462,6 +467,12 @@ button.tool {
   padding: 14px 16px;
   border-bottom: 1px solid #e6e9f0;
   background: var(--surface);
+}
+
+/* Give the identity/name column remaining space so titles don't wrap early */
+.listRow > :first-child {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .listRow:last-child {

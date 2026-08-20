@@ -10,6 +10,11 @@ import {
   Table,
 } from "../design-system";
 import { PaginationBar, Toggle } from "./misc-kit";
+import {
+  DirectoryActionDelete,
+  DirectoryActionEdit,
+  DirectoryActionView,
+} from "./directory-table/DirectoryActionIcon";
 
 export function Box({ children, className = "", sx, component, display, ...props }) {
   const Tag = component === "button" ? "button" : "div";
@@ -325,22 +330,10 @@ export function StatusPill({ status }) {
 
 export function ActionButtons({ showView = true, onView, onEdit, onDelete }) {
   return (
-    <div style={{ display: "flex", gap: 8 }}>
-      {showView && onView ? (
-        <DsButton size="sm" variant="secondary" onClick={onView}>
-          View
-        </DsButton>
-      ) : null}
-      {onEdit ? (
-        <DsButton size="sm" variant="secondary" onClick={onEdit}>
-          Edit
-        </DsButton>
-      ) : null}
-      {onDelete ? (
-        <DsButton size="sm" variant="danger" onClick={onDelete}>
-          Delete
-        </DsButton>
-      ) : null}
+    <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+      {showView && onView ? <DirectoryActionView onClick={onView} /> : null}
+      {onEdit ? <DirectoryActionEdit onClick={onEdit} /> : null}
+      {onDelete ? <DirectoryActionDelete onClick={onDelete} /> : null}
     </div>
   );
 }

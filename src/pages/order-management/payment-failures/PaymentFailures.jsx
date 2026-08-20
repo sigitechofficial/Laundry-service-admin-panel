@@ -9,8 +9,7 @@ import {
 import {
   DATE_TIME_FORMAT,
   formatDate,
-  formatMoney,
-  resolveCurrencySymbol,
+  formatAmount,
 } from "../../../utilities/formatters";
 import { matchesOrderListSearch } from "../listSearch";
 import OrderListDataTable from "../OrderListDataTable";
@@ -30,6 +29,9 @@ import {
   StatusDotPill,
 } from "../orderListTable";
 import { customerDetailsPath, resolveCustomerId } from "../orderListUtils";
+import {
+  DirectoryActionView,
+} from "../../directory-table/DirectoryActionIcon";
 import {
   OrderError,
   OrderMetrics,
@@ -90,15 +92,9 @@ function formatFailureAmount(row) {
   const attempt = Array.isArray(row?.invoicePaymentAttempts)
     ? row.invoicePaymentAttempts[0]
     : null;
-  const symbol =
-    resolveCurrencySymbol(row?.paymentSummary) ||
-    resolveCurrencySymbol(row) ||
-    resolveCurrencySymbol(attempt);
-  const code =
-    row?.paymentSummary?.currency ||
-    row?.currency ||
-    attempt?.currency;
-  return formatMoney(amount, symbol, code);
+  return formatAmount(amount, row?.paymentSummary ?? row ?? attempt, {
+    applyDefault: true,
+  });
 }
 
 function IconRefresh() {
@@ -316,16 +312,11 @@ export default function PaymentFailures() {
       {
         key: "actions",
         header: "Actions",
-        align: "right",
         render: (row) => (
           <div className={styles.resolveActions}>
-            <Button
-              variant="secondary"
-              size="sm"
+            <DirectoryActionView
               onClick={() => navigate(`/orders/details/${row.id}`)}
-            >
-              View
-            </Button>
+            />
             <Button
               variant="primary"
               size="sm"

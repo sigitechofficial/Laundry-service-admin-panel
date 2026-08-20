@@ -3,9 +3,10 @@ import { Button, PageHeader, Table } from "../../../design-system";
 import { useNavigate, useParams } from "react-router-dom";
 import { useGetSpecificDriverDetailQuery } from "../../../store/services/api";
 import { Delay } from "../../../components/shared/Loaders";
-import { DATE_TIME_FORMAT, formatDate, formatMoney, resolveCurrencySymbol } from "../../../utilities/formatters";
+import { DATE_TIME_FORMAT, formatAmount, formatDate, resolveCurrencySymbol } from "../../../utilities/formatters";
 import {
   DirectoryActions,
+  DirectoryActionView,
   DirectoryDotPill,
   DirectoryIdentity,
   DirectoryMetric,
@@ -58,7 +59,8 @@ export default function DriverDetails() {
         pickupDateTime: formatDate(booking?.collectionDate, DATE_TIME_FORMAT),
         deliveryDateTime: formatDate(booking?.deliveryDate, DATE_TIME_FORMAT),
         currencySymbol: resolveCurrencySymbol(
-          booking?.billingDetail ?? booking?.paymentSummary ?? booking?.zone ?? booking
+          booking?.billingDetail ?? booking?.paymentSummary ?? booking?.zone ?? booking,
+          { applyDefault: true }
         ),
         onHold: booking?.OnHoldConfirmations?.length || 0,
         pickupDriver: `${booking?.driver?.firstName || ""} ${booking?.driver?.lastName || ""}`.trim() || "—",
@@ -124,7 +126,11 @@ export default function DriverDetails() {
     {
       key: "cost",
       header: "Total",
-      render: (row) => <DirectoryMoney>{formatMoney(row.cost, row.currencySymbol)}</DirectoryMoney>,
+      render: (row) => (
+        <DirectoryMoney>
+          {formatAmount(row.cost, row, { applyDefault: true })}
+        </DirectoryMoney>
+      ),
     },
     {
       key: "status",
@@ -138,9 +144,9 @@ export default function DriverDetails() {
       header: "Actions",
       render: (row) => (
         <DirectoryActions>
-          <Button size="sm" variant="secondary" onClick={() => row.id && navigate(`/orders/details/${row.id}`)}>
-            View
-          </Button>
+          <DirectoryActionView
+            onClick={() => row.id && navigate(`/orders/details/${row.id}`)}
+          />
         </DirectoryActions>
       ),
     },

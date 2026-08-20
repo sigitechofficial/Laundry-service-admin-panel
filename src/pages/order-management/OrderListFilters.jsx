@@ -298,7 +298,7 @@ export default function OrderListFilters({
         </>
       ) : null}
 
-      <div className="ml-auto flex items-center gap-2">
+      <div className={styles.toolbarActions}>
         {hasActiveFilters && onClearFilters && !showStatusFilter ? (
           <button
             type="button"
