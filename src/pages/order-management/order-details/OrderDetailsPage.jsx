@@ -338,6 +338,7 @@ export default function OrderDetailsPage() {
       const repairItems = Array.isArray(it?.repairItems) ? it.repairItems : [];
       map[sid].items.push({
         id: it?.id,
+        serviceName: it?.service?.name || map[sid].serviceName || "Service",
         itemName: formatAgentInvoiceItemName(it),
         categoryName: it?.category?.name || "",
         subCategoryName: it?.subCategory?.name || "",
@@ -1180,51 +1181,69 @@ export default function OrderDetailsPage() {
                   <div style={{ display: "flex", flexDirection: "column", gap: 9.6 }}>
                     {visibleOrderItems.map((item) => {
                       const lineTotal = (item.qty || 0) * (item.unitPrice || 0);
+                      const itemLabel = item.itemName
+                        ? `${item.serviceName} - ${item.itemName}`
+                        : item.serviceName;
                       return (
-                        <div key={`item-${item.id}`} style={{ border: "1px solid #E5E7EB", borderRadius: "12px", padding: 12, background: "#fff" }}>
+                        <div key={`item-${item.id}`} style={{ border: "1px solid #E5E7EB", borderRadius: "12px", padding: "12px 14px", background: "#fff" }}>
+
+                          {/* Main row: qty label + price total */}
                           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
-                            <div>
-                              <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: "#0F172A" }}>
-                                {item.itemName}
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <p style={{ margin: 0, fontSize: 13.5, fontWeight: 600, color: "#0F172A", lineHeight: 1.4 }}>
+                                {item.qty}x {itemLabel}
                               </p>
-                              <p style={{ margin: 0, fontSize: 11, color: "#64748B" }}>
-                                {item.categoryName || selectedServiceData?.serviceName}
-                              </p>
-                              <p style={{ margin: 0, marginTop: 3.6, fontSize: 13, color: "#0F172A", fontWeight: 600 }}>
-                                {formatMoney(item.unitPrice, paymentCurrencySymbol)}{" "}
-                                <span style={{ color: "#64748B", fontWeight: 500 }}>
-                                  {item.unitLabel || "/ piece"}
-                                </span>
-                              </p>
-                            </div>
-                            <div style={{ textAlign: "right" }}>
-                              <p style={{ margin: 0, fontSize: 11, color: "#334155" }}>
-                                Qty: <b>{item.qty}</b>
-                              </p>
-                              <p style={{ margin: 0, marginTop: 3.2, fontSize: 22, fontWeight: 700, color: "#0F172A" }}>
-                                {formatMoney(lineTotal, paymentCurrencySymbol)}
-                              </p>
-                            </div>
-                          </div>
-                          {(item.addOns || []).length > 0 && (
-                            <div style={{ marginTop: 6 }}>
-                              {(item.addOns || []).map((ad, idx) => (
-                                <p key={`addon-${item.id}-${idx}`} style={{ margin: 0, fontSize: 12, color: "#475569" }}>
-                                  + {Number(ad?.quantity || 1)}x {ad?.name || "Add-on"} (
-                                  {formatMoney(
-                                    Number(ad?.quantity || 1) * Number(ad?.price || 0),
-                                    paymentCurrencySymbol
-                                  )}
-                                  )
+                              {item.unitPrice > 0 && (
+                                <p style={{ margin: 0, marginTop: 2, fontSize: 12, color: "#64748B" }}>
+                                  {formatMoney(item.unitPrice, paymentCurrencySymbol)} × {item.qty}
                                 </p>
-                              ))}
+                              )}
+                            </div>
+                            <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: "#0F172A", whiteSpace: "nowrap" }}>
+                              {item.unitPrice > 0
+                                ? formatMoney(lineTotal, paymentCurrencySymbol)
+                                : <span style={{ color: "#94A3B8", fontWeight: 500, fontSize: 12 }}>—</span>}
+                            </p>
+                          </div>
+
+                          {/* Add-ons */}
+                          {(item.addOns || []).length > 0 && (
+                            <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 6 }}>
+                              {(item.addOns || []).map((ad, idx) => {
+                                const adQty = Number(ad?.quantity || 1);
+                                const adPrice = Number(ad?.price || 0);
+                                const adTotal = adQty * adPrice;
+                                return (
+                                  <div key={`addon-${item.id}-${idx}`}>
+                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                                      <p style={{ margin: 0, fontSize: 13, color: "#0F172A", fontWeight: 500 }}>
+                                        + {ad?.name || "Add-on"}
+                                      </p>
+                                      {adPrice > 0 && (
+                                        <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: "#0F172A", whiteSpace: "nowrap" }}>
+                                          {formatMoney(adTotal, paymentCurrencySymbol)}
+                                        </p>
+                                      )}
+                                    </div>
+                                    {adPrice > 0 && (
+                                      <p style={{ margin: 0, fontSize: 11.5, color: "#64748B" }}>
+                                        {formatMoney(adPrice, paymentCurrencySymbol)} × {adQty}
+                                      </p>
+                                    )}
+                                  </div>
+                                );
+                              })}
                             </div>
                           )}
+
+                          {/* Preferences */}
                           {(item.preferences || []).length > 0 && (
-                            <p style={{ margin: 0, marginTop: 4.4, fontSize: 11, color: "#64748B" }}>
+                            <p style={{ margin: 0, marginTop: 6, fontSize: 11, color: "#64748B" }}>
                               Preferences: {item.preferences.join(", ")}
                             </p>
                           )}
+
+                          {/* Repair items */}
                           {(item.repairItems || []).length > 0 && (
                             <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 4.8 }}>
                               {(item.repairItems || []).map((ri, rIdx) => {
