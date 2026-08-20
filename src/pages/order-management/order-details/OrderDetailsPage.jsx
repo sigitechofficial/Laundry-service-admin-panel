@@ -312,11 +312,18 @@ export default function OrderDetailsPage() {
 
   const selectedServiceGroups = useMemo(() => {
     const rows = Array.isArray(orderData?.customerSelectedServices)
-      ? orderData.customerSelectedServices.filter(
-          (it) =>
-            Number(it?.items) > 0 ||
-            (Array.isArray(it?.repairItems) && it.repairItems.length > 0)
-        )
+      ? orderData.customerSelectedServices.filter((it) => {
+          if (Number(it?.items) > 0) return true;
+          // Agent used serviceLines (multi-line add-on flow) — items may be 0 on the parent row.
+          if (
+            Array.isArray(it?.serviceLines) &&
+            it.serviceLines.some((l) => Number(l?.items) > 0)
+          )
+            return true;
+          if (Array.isArray(it?.repairItems) && it.repairItems.length > 0)
+            return true;
+          return false;
+        })
       : [];
     const map = {};
     rows.forEach((it) => {
@@ -335,13 +342,18 @@ export default function OrderDetailsPage() {
         categoryName: it?.category?.name || "",
         subCategoryName: it?.subCategory?.name || "",
         weightKg: it?.subCategory?.weightKg ?? null,
-        qty:
-          Number(it?.items) ||
-          repairItems.reduce(
+        qty: (() => {
+          const flat = Number(it?.items);
+          if (flat > 0) return flat;
+          const fromLines = Array.isArray(it?.serviceLines)
+            ? it.serviceLines.reduce((s, l) => s + (Number(l?.items) || 0), 0)
+            : 0;
+          if (fromLines > 0) return fromLines;
+          return repairItems.reduce(
             (sum, r) => sum + (Number(r?.quantity) || 1),
             0
-          ) ||
-          0,
+          ) || 0;
+        })(),
         unitPrice: Number(
           it?.categoryPrice || it?.subCategory?.price || 0
         ),
