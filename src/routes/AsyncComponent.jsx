@@ -71,6 +71,10 @@ export const ZoneManagement = lazy(() =>
   import("../pages/zone-management/Zone")
 );
 
+export const ZoneDetails = lazy(() =>
+  import("../pages/zone-management/zone-details/ZoneDetails")
+);
+
 export const EmployeeManagement = lazy(() =>
   import("../pages/employee-management/EmployeeManagement")
 );
@@ -229,3 +233,6 @@ export const BannersPage = lazy(() =>
 );
 
 export const LoginPage = lazy(() => import("../pages/auth/LoginPage"));
+
+export const PrivacyPolicy = lazy(() => import("./PrivacyPolicy"));
+export const NotFound = lazy(() => import("./NotFound"));

@@ -1,35 +1,51 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  Alert,
-  Autocomplete,
-  Box,
+  Badge,
   Button,
-  Chip,
-  CircularProgress,
-  Divider,
-  FormControl,
-  FormControlLabel,
-  FormLabel,
-  Radio,
-  RadioGroup,
-  Stack,
-  TextField,
-  Typography,
-} from "@mui/material";
-import { MdNotificationsNone } from "../../shared/icons/index";
+  Field,
+  Input,
+  Modal,
+  PageHeader,
+  Select,
+  Textarea,
+} from "../../design-system";
 import useToaster from "../../components/ui/Toaster";
-import ModalComponent from "../../components/shared/Modal";
 import {
   useLazySearchNotificationRecipientsQuery,
   usePreviewAdminNotificationMutation,
   useSendAdminNotificationMutation,
 } from "../../store/services/api";
+import NotificationDevicePreview from "./NotificationDevicePreview";
+import styles from "./SendNotifications.module.css";
 
 const AUDIENCES = [
   { value: "customers", label: "Customers" },
   { value: "agents", label: "Agents" },
   { value: "all", label: "All (customers + agents)" },
 ];
+
+const TARGETS = [
+  { value: "broadcast", label: "Everyone in audience" },
+  { value: "specific", label: "Specific customer / agent" },
+];
+
+function Notice({ tone = "info", children }) {
+  const toneClass =
+    tone === "warning"
+      ? styles.noticeWarning
+      : tone === "danger"
+        ? styles.noticeDanger
+        : tone === "success"
+          ? styles.noticeSuccess
+          : styles.noticeInfo;
+  return <div className={`${styles.notice} ${toneClass}`}>{children}</div>;
+}
+
+function recipientLabel(user) {
+  return `${user.name} (#${user.id}) · ${user.role}${
+    user.phoneNumber ? ` · ${user.phoneNumber}` : ""
+  }`;
+}
 
 export default function SendNotificationsPage() {
   const { success, error: showError } = useToaster();
@@ -44,6 +60,8 @@ export default function SendNotificationsPage() {
   const [preview, setPreview] = useState(null);
   const [lastResult, setLastResult] = useState(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [previewError, setPreviewError] = useState(null);
+  const [sendError, setSendError] = useState(null);
 
   const [triggerSearch, { isFetching: searching }] =
     useLazySearchNotificationRecipientsQuery();
@@ -52,11 +70,23 @@ export default function SendNotificationsPage() {
   const [sendMutation, { isLoading: sending }] =
     useSendAdminNotificationMutation();
 
-  useEffect(() => {
+  const resetTargeting = () => {
     setSelectedUsers([]);
     setOptions([]);
     setPreview(null);
-  }, [audience, mode]);
+    setPreviewError(null);
+    setSearchInput("");
+  };
+
+  const onAudienceChange = (next) => {
+    setAudience(next);
+    resetTargeting();
+  };
+
+  const onModeChange = (next) => {
+    setMode(next);
+    resetTargeting();
+  };
 
   useEffect(() => {
     if (mode !== "specific") return undefined;
@@ -99,36 +129,63 @@ export default function SendNotificationsPage() {
     Boolean(payloadBase.body) &&
     (mode === "broadcast" || selectedUsers.length > 0);
 
-  const onPreview = async () => {
+  const payloadRef = useRef(payloadBase);
+  payloadRef.current = payloadBase;
+
+  const runPreview = async (silent = false) => {
     if (!canPreview) {
-      showError("Fill title, description, and recipients first");
+      if (!silent) showError("Fill title, description, and recipients first");
       return;
     }
     try {
-      const res = await previewMutation(payloadBase).unwrap();
+      const res = await previewMutation(payloadRef.current).unwrap();
       setPreview(res?.data || null);
-      success(res?.message || "Preview ready");
+      setPreviewError(null);
+      if (!silent) success(res?.message || "Preview ready");
     } catch (err) {
-      showError(err?.data?.message || err?.error || "Preview failed");
+      const message = err?.data?.message || err?.error || "Preview failed";
+      setPreviewError(message);
+      if (!silent) showError(message);
     }
   };
+
+  const recipientKey =
+    mode === "specific" ? selectedUsers.map((u) => u.id).sort().join(",") : "";
+
+  useEffect(() => {
+    if (!canPreview) return undefined;
+    const handle = setTimeout(async () => {
+      try {
+        const res = await previewMutation(payloadRef.current).unwrap();
+        setPreview(res?.data || null);
+        setPreviewError(null);
+      } catch (err) {
+        setPreviewError(err?.data?.message || err?.error || "Preview failed");
+      }
+    }, 400);
+    return () => clearTimeout(handle);
+  }, [audience, mode, recipientKey, canPreview, previewMutation]);
 
   const onSendClick = async () => {
     if (!canPreview) {
       showError("Fill title, description, and recipients first");
       return;
     }
-    // Always dry-run first for safety, then confirm for real send
+    setSendError(null);
     try {
       const dry = await sendMutation({ ...payloadBase, dryRun: true }).unwrap();
       setPreview(dry?.data || null);
       setConfirmOpen(true);
     } catch (err) {
-      showError(err?.data?.message || err?.error || "Dry run failed");
+      const message = err?.data?.message || err?.error || "Dry run failed";
+      setSendError(message);
+      showError(message);
     }
   };
 
   const onConfirmSend = async () => {
+    if (sending) return;
+    setSendError(null);
     try {
       const res = await sendMutation({
         ...payloadBase,
@@ -139,299 +196,224 @@ export default function SendNotificationsPage() {
       setConfirmOpen(false);
       success(res?.message || "Notifications sent");
     } catch (err) {
-      showError(err?.data?.message || err?.error || "Send failed");
+      const message = err?.data?.message || err?.error || "Send failed";
+      setSendError(message);
+      showError(message);
     }
   };
 
   const busy = previewing || sending;
 
   return (
-    <div className="!space-y-8">
-      <Box className="flex items-center gap-x-5 justify-between flex-wrap gap-y-3">
-        <Box className="flex items-center gap-x-5">
-          <Typography color="blue.50">
-            <MdNotificationsNone size="24px" color="blue.50" />
-          </Typography>
-          <Typography variant="h4" fontFamily="Switzer" color="grey.20">
-            Send Notifications
-          </Typography>
-        </Box>
-      </Box>
+    <div className={styles.page}>
+      <PageHeader
+        title="Send Notifications"
+        description="Compose a push and watch the lock-screen and in-app cards update as you type. Delivery still goes through FCM to devices with an active token."
+      />
 
-      <Alert severity="info">
-        Push goes through FCM to devices that have an active app token. Use{" "}
-        <strong>Preview</strong> before broadcast. Broadcast to many users
-        requires an extra confirmation.
-      </Alert>
+      <Notice>
+        Use <strong>Preview audience</strong> to refresh targeted counts. Broadcast
+        to many users requires an extra confirmation.
+      </Notice>
 
-      <Box
-        sx={{
-          p: 3,
-          border: "1px solid",
-          borderColor: "divider",
-          borderRadius: 2,
-          bgcolor: "background.paper",
-        }}
-      >
-        <Stack spacing={3}>
-          <FormControl>
-            <FormLabel>Audience</FormLabel>
-            <RadioGroup
-              row
+      <div className={styles.layout}>
+        <div className={`${styles.panel} ${styles.form}`}>
+          <Field label="Audience">
+            <Select
               value={audience}
-              onChange={(e) => setAudience(e.target.value)}
-            >
-              {AUDIENCES.map((a) => (
-                <FormControlLabel
-                  key={a.value}
-                  value={a.value}
-                  control={<Radio />}
-                  label={a.label}
-                />
-              ))}
-            </RadioGroup>
-          </FormControl>
+              onChange={onAudienceChange}
+              options={AUDIENCES}
+              aria-label="Audience"
+            />
+          </Field>
 
-          <FormControl>
-            <FormLabel>Target</FormLabel>
-            <RadioGroup
-              row
+          <Field label="Target">
+            <Select
               value={mode}
-              onChange={(e) => setMode(e.target.value)}
-            >
-              <FormControlLabel
-                value="broadcast"
-                control={<Radio />}
-                label="Everyone in audience"
-              />
-              <FormControlLabel
-                value="specific"
-                control={<Radio />}
-                label="Specific customer / agent"
-              />
-            </RadioGroup>
-          </FormControl>
+              onChange={onModeChange}
+              options={TARGETS}
+              aria-label="Target"
+            />
+          </Field>
 
           {mode === "specific" && (
-            <Autocomplete
-              multiple
-              options={options}
-              value={selectedUsers}
-              loading={searching}
-              filterOptions={(x) => x}
-              getOptionLabel={(o) =>
-                `${o.name} (#${o.id}) · ${o.role}${
-                  o.phoneNumber ? ` · ${o.phoneNumber}` : ""
-                }`
-              }
-              isOptionEqualToValue={(a, b) => a.id === b.id}
-              onChange={(_, value) => setSelectedUsers(value)}
-              onInputChange={(_, value) => setSearchInput(value)}
-              renderTags={(value, getTagProps) =>
-                value.map((option, index) => (
-                  <Chip
-                    {...getTagProps({ index })}
-                    key={option.id}
-                    label={`${option.name} (#${option.id})`}
-                    size="small"
-                  />
-                ))
-              }
-              renderInput={(params) => (
-                <TextField
-                  {...params}
-                  label="Search by name, email, phone, or user ID"
-                  helperText="Select one or more recipients from the audience above"
-                  InputProps={{
-                    ...params.InputProps,
-                    endAdornment: (
-                      <>
-                        {searching ? (
-                          <CircularProgress color="inherit" size={18} />
-                        ) : null}
-                        {params.InputProps.endAdornment}
-                      </>
-                    ),
-                  }}
-                />
-              )}
-            />
+            <Field
+              label="Search by name, email, phone, or user ID"
+              hint="Select one or more recipients from the audience above"
+            >
+              <Input
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                placeholder="Search recipients"
+                aria-label="Search recipients"
+              />
+              {searching ? (
+                <span className="jd-field__hint">Searching…</span>
+              ) : null}
+              {mode === "specific" &&
+              searchInput.trim() &&
+              !searching &&
+              options.length === 0 ? (
+                <span className="jd-field__hint">No matches</span>
+              ) : null}
+              {options.length > 0 ? (
+                <div className={styles.searchHits}>
+                  {options.map((option) => {
+                    const on = selectedUsers.some((user) => user.id === option.id);
+                    return (
+                      <button
+                        key={option.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedUsers((prev) =>
+                            prev.some((user) => user.id === option.id)
+                              ? prev
+                              : [...prev, option]
+                          );
+                        }}
+                        className={`${styles.searchHit}${on ? ` ${styles.searchHitOn}` : ""}`}
+                      >
+                        {recipientLabel(option)}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : null}
+              {selectedUsers.length > 0 ? (
+                <div className={styles.chips}>
+                  {selectedUsers.map((user) => (
+                    <button
+                      key={user.id}
+                      type="button"
+                      onClick={() =>
+                        setSelectedUsers((prev) =>
+                          prev.filter((item) => item.id !== user.id)
+                        )
+                      }
+                      className={styles.chipBtn}
+                      aria-label={`Remove ${user.name}`}
+                    >
+                      <Badge tone="brand">{`${user.name} (#${user.id})`} ×</Badge>
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </Field>
           )}
 
-          <TextField
-            label="Title"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            fullWidth
-            inputProps={{ maxLength: 120 }}
-            helperText={`${title.length}/120`}
-          />
-          <TextField
-            label="Description / body"
-            value={body}
-            onChange={(e) => setBody(e.target.value)}
-            fullWidth
-            multiline
-            minRows={3}
-            inputProps={{ maxLength: 500 }}
-            helperText={`${body.length}/500`}
-          />
-
-          <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5}>
-            <Button
-              variant="outlined"
-              disabled={!canPreview || busy}
-              onClick={onPreview}
-            >
-              Preview audience
-            </Button>
-            <Button
-              variant="contained"
-              disabled={!canPreview || busy}
-              onClick={onSendClick}
-            >
-              Send notification
-            </Button>
-          </Stack>
-        </Stack>
-      </Box>
-
-      {preview && (
-        <Box
-          sx={{
-            p: 2.5,
-            border: "1px solid",
-            borderColor: "divider",
-            borderRadius: 2,
-          }}
-        >
-          <Typography variant="subtitle1" fontWeight={600} mb={1}>
-            Audience preview
-          </Typography>
-          <Stack direction="row" flexWrap="wrap" gap={1} mb={1.5}>
-            <Chip label={`Targeted: ${preview.targetedUsers ?? 0}`} />
-            <Chip
-              color="success"
-              label={`With tokens: ${preview.usersWithTokens ?? 0}`}
+          <Field label="Title" hint={`${title.length}/120`}>
+            <Input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              maxLength={120}
+              placeholder="Notification title"
+              aria-label="Notification title"
             />
-            <Chip
-              color="warning"
-              label={`No token: ${preview.usersWithoutTokens ?? 0}`}
+          </Field>
+
+          <Field label="Description / body" hint={`${body.length}/500`}>
+            <Textarea
+              value={body}
+              onChange={(e) => setBody(e.target.value)}
+              maxLength={500}
+              rows={4}
+              placeholder="Notification body"
+              aria-label="Notification body"
             />
-            <Chip label={`Devices: ${preview.tokenCount ?? 0}`} />
-            <Chip label={`Mode: ${preview.mode || mode}`} />
-          </Stack>
-          {Array.isArray(preview.sample) && preview.sample.length > 0 && (
-            <Typography variant="body2" color="text.secondary">
-              Sample:{" "}
-              {preview.sample
-                .map((s) => `${s.name} (#${s.id}/${s.role})`)
-                .join(", ")}
-            </Typography>
-          )}
-        </Box>
-      )}
+          </Field>
+
+          {previewError ? <Notice tone="danger">{previewError}</Notice> : null}
+          {sendError ? <Notice tone="danger">{sendError}</Notice> : null}
+
+          <div className={styles.actions}>
+            <Button
+              variant="secondary"
+              disabled={!canPreview || busy}
+              onClick={() => runPreview(false)}
+            >
+              {previewing ? "Previewing…" : "Preview audience"}
+            </Button>
+            <Button disabled={!canPreview || busy} onClick={onSendClick}>
+              {sending ? "Sending…" : "Send notification"}
+            </Button>
+          </div>
+        </div>
+
+        <aside className={`${styles.panel} ${styles.previewCol}`}>
+          <div className={styles.previewHead}>
+            <h2 className={styles.previewTitle}>Live device preview</h2>
+            {preview ? (
+              <div className={styles.counts}>
+                <Badge>Targeted: {preview.targetedUsers ?? 0}</Badge>
+                <Badge tone="success">With tokens: {preview.usersWithTokens ?? 0}</Badge>
+                <Badge tone="warning">No token: {preview.usersWithoutTokens ?? 0}</Badge>
+                <Badge>Devices: {preview.tokenCount ?? 0}</Badge>
+                <Badge>Mode: {preview.mode || mode}</Badge>
+              </div>
+            ) : (
+              <p className="jd-field__hint" style={{ margin: 0 }}>
+                {previewing
+                  ? "Loading audience counts…"
+                  : "Audience counts appear here after a preview."}
+              </p>
+            )}
+          </div>
+
+          <NotificationDevicePreview title={title} body={body} />
+        </aside>
+      </div>
 
       {lastResult && !lastResult.dryRun && (
-        <Box
-          sx={{
-            p: 2.5,
-            border: "1px solid",
-            borderColor: "divider",
-            borderRadius: 2,
-          }}
-        >
-          <Typography variant="subtitle1" fontWeight={600} mb={1}>
-            Last send result
-          </Typography>
-          <Stack direction="row" flexWrap="wrap" gap={1} mb={1.5}>
-            <Chip
-              color="success"
-              label={`Delivered users: ${lastResult.usersDelivered ?? 0}`}
-            />
-            <Chip
-              color="warning"
-              label={`No token: ${lastResult.usersNoToken ?? 0}`}
-            />
-            <Chip
-              color="error"
-              label={`Failed: ${lastResult.usersFailed ?? 0}`}
-            />
-            <Chip
-              label={`Device OK: ${lastResult.deviceSuccessCount ?? 0}`}
-            />
-            <Chip label={`${lastResult.durationMs ?? 0} ms`} />
-          </Stack>
-          <Divider sx={{ my: 1.5 }} />
-          <Box
-            component="pre"
-            sx={{
-              m: 0,
-              p: 2,
-              maxHeight: 280,
-              overflow: "auto",
-              borderRadius: 1,
-              bgcolor: "#0f172a",
-              color: "#e2e8f0",
-              fontSize: 12,
-              whiteSpace: "pre-wrap",
-            }}
-          >
-            {JSON.stringify(lastResult, null, 2)}
-          </Box>
-        </Box>
+        <div className={styles.panel}>
+          <h2 className={styles.resultTitle}>Last send result</h2>
+          <div className={styles.counts}>
+            <Badge tone="success">
+              Delivered users: {lastResult.usersDelivered ?? 0}
+            </Badge>
+            <Badge tone="warning">No token: {lastResult.usersNoToken ?? 0}</Badge>
+            <Badge tone="danger">Failed: {lastResult.usersFailed ?? 0}</Badge>
+            <Badge>Device OK: {lastResult.deviceSuccessCount ?? 0}</Badge>
+            <Badge>{lastResult.durationMs ?? 0} ms</Badge>
+          </div>
+        </div>
       )}
 
-      <ModalComponent
+      <Modal
         open={confirmOpen}
         onClose={() => !sending && setConfirmOpen(false)}
         title="Confirm push notification"
+        description="You are about to send:"
+        secondaryLabel="Cancel"
+        primaryLabel={sending ? "Sending…" : "Confirm & send"}
+        primaryDisabled={sending}
+        secondaryDisabled={sending}
+        onPrimary={() => {
+          if (sending) return;
+          onConfirmSend();
+        }}
       >
-        <Stack spacing={2} sx={{ p: 1 }}>
-          <Typography variant="body2">
-            You are about to send:
-          </Typography>
-          <Typography variant="subtitle1" fontWeight={700}>
-            {title}
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
+        <div style={{ display: "grid", gap: 12 }}>
+          <strong style={{ fontSize: 16 }}>{title}</strong>
+          <p className="jd-field__hint" style={{ margin: 0 }}>
             {body}
-          </Typography>
-          <Stack direction="row" flexWrap="wrap" gap={1}>
-            <Chip label={`Audience: ${audience}`} />
-            <Chip label={`Mode: ${mode}`} />
-            <Chip
-              color="primary"
-              label={`Users: ${preview?.targetedUsers ?? "?"}`}
-            />
-            <Chip
-              color="success"
-              label={`With tokens: ${preview?.usersWithTokens ?? "?"}`}
-            />
-          </Stack>
+          </p>
+          <div className={styles.counts}>
+            <Badge>Audience: {audience}</Badge>
+            <Badge>Mode: {mode}</Badge>
+            <Badge tone="brand">Users: {preview?.targetedUsers ?? "?"}</Badge>
+            <Badge tone="success">
+              With tokens: {preview?.usersWithTokens ?? "?"}
+            </Badge>
+          </div>
+          {sendError ? <Notice tone="danger">{sendError}</Notice> : null}
           {mode === "broadcast" && (preview?.targetedUsers || 0) > 1 && (
-            <Alert severity="warning">
+            <Notice tone="warning">
               This is a broadcast to multiple users. Only continue if the
               preview counts look correct.
-            </Alert>
+            </Notice>
           )}
-          <Stack direction="row" spacing={1} justifyContent="flex-end">
-            <Button
-              disabled={sending}
-              onClick={() => setConfirmOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="contained"
-              disabled={sending}
-              onClick={onConfirmSend}
-            >
-              {sending ? "Sending…" : "Confirm & send"}
-            </Button>
-          </Stack>
-        </Stack>
-      </ModalComponent>
+        </div>
+      </Modal>
     </div>
   );
 }

@@ -4,6 +4,8 @@
  * /release.json is written at build time so you can confirm the served files.
  */
 
+import { fetchWithTimeout } from "../store/services/fetchWithTimeout";
+
 const FALLBACK = {
   app: "laundry-admin",
   version: "0.0.0",
@@ -54,7 +56,7 @@ function normalize(raw, source) {
   };
 }
 
-export function getBundledDeploymentInfo() {
+function getBundledDeploymentInfo() {
   try {
     return fromBundle();
   } catch {
@@ -73,7 +75,7 @@ export async function loadDeploymentInfo() {
   let fetchError = null;
 
   try {
-    const res = await fetch(`/release.json?t=${Date.now()}`, {
+    const res = await fetchWithTimeout(`/release.json?t=${Date.now()}`, {
       cache: "no-store",
     });
     if (res.ok) {

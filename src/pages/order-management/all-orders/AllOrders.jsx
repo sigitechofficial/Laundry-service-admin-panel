@@ -1,26 +1,24 @@
-import { Box, Typography } from "@mui/material";
-import { BsCardList } from "../../../shared/icons/index";
-import StatCard from "../../../components/ui/StatCard";
 import { useState, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   useGetAllOrderQuery,
   useGetAllOrderStatusesQuery,
 } from "../../../store/services/api";
-import {
-  ORDER_TABLE_STICKY_LEFT_FIELDS,
-  ORDER_TABLE_STICKY_RIGHT_FIELDS,
-} from "../../../shared/constants";
 import DeleteOrderModal from "../order-modals/DeleteOrderModal";
 import AssignOrderModal from "../order-modals/AssignOrderModal";
-import {
-  buildOrderListColumns,
-  mapBookingToOrderListRow,
-} from "../orderListTable";
+import { useOrderListColumns } from "../useOrderListColumns";
+import { mapBookingToOrderListRow } from "../orderListUtils";
 import { useOrderListTableFilters } from "../useOrderListTableFilters";
 import OrderListDataTable from "../OrderListDataTable";
 import { useOrderListPageQueries } from "../useOrderListPageQueries";
 import { useOrderListStatsQuery } from "../useOrderListStatsQuery";
+import { allOrderMetricItems, downloadOrderListCsv } from "../orderListUtils";
+import {
+  OrderError,
+  OrderHeaderActions,
+  OrderMetrics,
+  OrderPageHeader,
+} from "../OrderWorkspace";
 
 export default function ShopManagement() {
   const navigate = useNavigate();
@@ -31,6 +29,7 @@ export default function ShopManagement() {
     rows: orderBookings,
     totalRows,
     isTableLoading,
+    isError,
     refetch,
     embeddedCounts,
   } = useOrderListPageQueries({
@@ -62,99 +61,66 @@ export default function ShopManagement() {
     [orderBookings]
   );
 
-  const customerColumns = useMemo(
-    () =>
-      buildOrderListColumns({
-        navigate,
-        orderStatuses,
-        setDeleteModal,
-        setAssignModal,
-        showAssign: true,
-      }),
-    [navigate, orderStatuses]
-  );
+  const customerColumns = useOrderListColumns({
+    navigate,
+    orderStatuses,
+    setDeleteModal,
+    setAssignModal,
+    showAssign: true,
+  });
 
   return (
     <>
-    <div className="!space-y-11">
-              <Box className="flex items-center gap-x-5 justify-between">
-                <Box className="flex items-center gap-x-5">
-                  <Typography color="blue.50">
-                    <BsCardList size="24px" color="blue.50" />
-                  </Typography>
+      <div className="min-w-0">
+        <OrderPageHeader
+          title="Order Management"
+          description="Track, filter and act on every order. Cards, table and filters share the same zone, date and status selection."
+          actions={
+            <OrderHeaderActions
+              onExport={() => downloadOrderListCsv(customersData, "orders_export.csv")}
+            />
+          }
+        />
 
-                  <Typography variant="h4" fontFamily={"Switzer"} color="grey.20">
-                    Order Management
-                  </Typography>
-                </Box>
-              </Box>
+        {isError ? (
+          <OrderError>
+            Could not load orders. Adjust filters or refresh the page.
+          </OrderError>
+        ) : null}
 
-              <div className="grid sm:grid-cols-2 md:grid-cols-4 gap-7 font-Inter">
-                <StatCard
-                  title="TOTAL ORDERS"
-                  value={totalRows}
-                  bgColor="bg-purple50"
-                />
-                <StatCard
-                  title="new ORDERS"
-                  value={dashboardStats.newOrders}
-                  bgColor="bg-red50"
-                />
-                <StatCard
-                  title={
-                    dashboardStats.hasExtended
-                      ? "active orders"
-                      : "open orders"
-                  }
-                  value={dashboardStats.activeOrders}
-                  bgColor="bg-green50"
-                />
-                <StatCard
-                  title="repeat orders"
-                  value={dashboardStats.repeatOrders}
-                  bgColor="bg-green200"
-                />
-              </div>
+        <OrderMetrics
+          items={allOrderMetricItems(dashboardStats, {
+            filtered: tableFilters.hasActiveFilters,
+          })}
+        />
 
-              <Typography
-                variant="body2"
-                sx={{ fontSize: 13, color: "text.secondary", mt: -4 }}
-              >
-                Cards and table use the same zone, date, status, and search
-                filters{tableFilters.zoneId ? " (including zone)" : ""}. The table
-                is paginated — use the footer to see more rows.
-                {!dashboardStats.hasExtended ? (
-                  <> New/repeat counts need an updated backend on stage.</>
-                ) : null}
-              </Typography>
-
-              <div className="w-full min-w-0">
-                <OrderListDataTable
-                  data={customersData}
-                  columns={customerColumns}
-                  totalRows={totalRows}
-                  page={tableFilters.page}
-                  pageSize={tableFilters.pageSize}
-                  onPageChange={tableFilters.setPage}
-                  onPageSizeChange={tableFilters.setPageSize}
-                  zoneId={tableFilters.zoneId}
-                  onZoneIdChange={tableFilters.setZoneId}
-                  statusId={tableFilters.statusId}
-                  onStatusIdChange={tableFilters.setStatusId}
-                  dateRange={tableFilters.dateRange}
-                  onDateRangeChange={tableFilters.setDateRange}
-                  orderStatuses={orderStatuses}
-                  showStatusFilter
-                  onClearFilters={tableFilters.clearFilters}
-                  hasActiveFilters={tableFilters.hasActiveFilters}
-                  stickyLeftFields={ORDER_TABLE_STICKY_LEFT_FIELDS}
-                  stickyRightFields={ORDER_TABLE_STICKY_RIGHT_FIELDS}
-                  searchInput={tableFilters.searchInput}
-                  onSearchInputChange={tableFilters.setSearchInput}
-                  isTableLoading={isTableLoading}
-                />
-              </div>
-            </div>
+        <OrderListDataTable
+          data={customersData}
+          columns={customerColumns}
+          totalRows={totalRows}
+          page={tableFilters.page}
+          pageSize={tableFilters.pageSize}
+          onPageChange={tableFilters.setPage}
+          onPageSizeChange={tableFilters.setPageSize}
+          zoneId={tableFilters.zoneId}
+          onZoneIdChange={tableFilters.setZoneId}
+          statusId={tableFilters.statusId}
+          onStatusIdChange={tableFilters.setStatusId}
+          dateRange={tableFilters.dateRange}
+          onDateRangeChange={tableFilters.setDateRange}
+          orderStatuses={orderStatuses}
+          showStatusFilter
+          onClearFilters={tableFilters.clearFilters}
+          hasActiveFilters={tableFilters.hasActiveFilters}
+          searchInput={tableFilters.searchInput}
+          onSearchInputChange={tableFilters.setSearchInput}
+          sortBy={tableFilters.sortBy}
+          onSortByChange={tableFilters.setSortBy}
+          sortDir={tableFilters.sortDir}
+          onSortDirChange={tableFilters.setSortDir}
+          isTableLoading={isTableLoading}
+        />
+      </div>
       <DeleteOrderModal
         open={deleteModal.open}
         orderId={deleteModal.orderId}

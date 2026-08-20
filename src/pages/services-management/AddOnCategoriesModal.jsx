@@ -1,23 +1,20 @@
-import React, { useState } from "react";
-import { Box, IconButton, List, ListItem, Typography } from "@mui/material";
-import { RiDeleteBin6Line, TbPencil } from "../../shared/icons/index";
+import { useState } from "react";
 import {
   useCreateAddOnCategoryMutation,
   useDeleteAddOnCategoryMutation,
   useGetAllAddOnCategoriesQuery,
   useUpdateAddOnCategoryMutation,
 } from "../../store/services/api";
-import ModalComponent from "../../components/shared/Modal";
-import InputFieldModal from "../../components/ui/InputFieldModal";
-import { MiniLoader } from "../../components/shared/Loaders";
+import { Button, Field, Input, Modal } from "../../design-system";
 import useToaster from "../../components/ui/Toaster";
+import { QueryState } from "./QueryState";
 
 const isExplicitFailure = (res) =>
   res && (res.status === "0" || res.status === 0 || res.success === false);
 
 export default function AddOnCategoriesModal({ open, onClose }) {
   const { success, error } = useToaster();
-  const { data, isLoading, refetch } = useGetAllAddOnCategoriesQuery(
+  const { data, isLoading, isError, error: categoriesQueryError, refetch } = useGetAllAddOnCategoriesQuery(
     { includeServices: false },
     { skip: !open }
   );
@@ -102,98 +99,97 @@ export default function AddOnCategoriesModal({ open, onClose }) {
     }
   };
 
+  const saving = creating || updating;
+
   return (
-    <ModalComponent
+    <Modal
       open={open}
       title="Manage Add-on Categories"
       onClose={handleClose}
-      secondaryAction={{ label: "Close", onClick: handleClose }}
-      primaryAction={{
-        label: editingId ? "Update Category" : "Add Category",
-        onClick: handleSave,
-        isLoading: creating || updating,
+      secondaryLabel="Close"
+      primaryLabel={
+        saving ? "Saving…" : editingId ? "Update Category" : "Add Category"
+      }
+      onPrimary={() => {
+        if (saving) return;
+        handleSave();
       }}
     >
-      <Box className="flex flex-col gap-5">
-        <InputFieldModal
-          title="Category Name"
-          label="Name"
-          placeholder="e.g. Blouse"
-          name="categoryName"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-        />
+      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        <Field label="Category Name" htmlFor="addon-cat-name">
+          <Input
+            id="addon-cat-name"
+            name="categoryName"
+            placeholder="e.g. Blouse"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
+        </Field>
 
-        {editingId && (
-          <Typography
-            variant="caption"
-            sx={{ color: "#1570EF", cursor: "pointer" }}
-            onClick={resetForm}
-          >
+        {editingId ? (
+          <Button variant="ghost" size="sm" onClick={resetForm}>
             + Add new category instead
-          </Typography>
-        )}
+          </Button>
+        ) : null}
 
-        <Box>
-          <Typography
-            variant="subtitle2"
-            sx={{ fontWeight: 600, color: "#101828", mb: 1 }}
-          >
+        <div>
+          <div style={{ fontWeight: 600, marginBottom: 8, color: "var(--ink)" }}>
             Existing Categories
-          </Typography>
-
-          {isLoading ? (
-            <MiniLoader />
+          </div>
+          {isLoading || isError ? (
+            <QueryState
+              loading={isLoading}
+              error={categoriesQueryError || isError}
+              onRetry={refetch}
+              errorLabel="Could not load add-on categories."
+            />
           ) : categories.length === 0 ? (
-            <Typography variant="body2" sx={{ color: "#64748B" }}>
+            <p style={{ color: "var(--muted)", margin: 0 }}>
               No categories yet. Add one above.
-            </Typography>
+            </p>
           ) : (
-            <List sx={{ p: 0 }}>
-              {categories.map((item) => (
-                <ListItem
-                  key={item.id}
-                  sx={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    py: "8px",
-                    px: "12px",
-                    my: "6px",
-                    bgcolor:
-                      editingId === item.id ? "rgba(21, 112, 239, 0.12)" : "blue.10",
-                    borderRadius: "4px",
-                  }}
-                >
-                  <Typography variant="body1" noWrap sx={{ flex: 1 }}>
-                    {item.name}
-                  </Typography>
-                  <Box className="flex items-center gap-2">
-                    <IconButton
-                      disabled={updating}
-                      onClick={() => handleEdit(item)}
-                      size="small"
-                    >
-                      <TbPencil size="18px" />
-                    </IconButton>
-                    <IconButton
-                      disabled={deleting}
-                      onClick={() => handleDelete(item.id)}
-                      size="small"
-                      sx={{
-                        color: "#EF4444",
-                        "&:hover": { bgcolor: "#FEF2F2" },
-                      }}
-                    >
-                      <RiDeleteBin6Line size="16px" />
-                    </IconButton>
-                  </Box>
-                </ListItem>
-              ))}
-            </List>
+            categories.map((item) => (
+              <div
+                key={item.id}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  padding: "8px 12px",
+                  margin: "6px 0",
+                  background:
+                    editingId === item.id
+                      ? "var(--accent-tint)"
+                      : "var(--canvas)",
+                  borderRadius: "var(--r-sm)",
+                }}
+              >
+                <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>
+                  {item.name}
+                </span>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    disabled={updating}
+                    onClick={() => handleEdit(item)}
+                  >
+                    Edit
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="danger"
+                    disabled={deleting}
+                    onClick={() => handleDelete(item.id)}
+                  >
+                    Delete
+                  </Button>
+                </div>
+              </div>
+            ))
           )}
-        </Box>
-      </Box>
-    </ModalComponent>
+        </div>
+      </div>
+    </Modal>
   );
 }

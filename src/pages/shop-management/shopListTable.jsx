@@ -1,66 +1,20 @@
-import { Box, Typography } from "@mui/material";
-import ActionButtons from "../../components/ui/ActionButtons";
-import StatusPill from "../../components/ui/StatusPill";
-import ChangeStatus from "../../components/ui/Switch";
-import { formatGbp } from "../../utils/formatGbp";
+import { Button } from "../../design-system";
+import { formatMoney, resolveCurrencySymbol } from "../../utilities/formatters";
+import {
+  DirectoryActions,
+  DirectoryIdentity,
+  DirectoryMetric,
+  DirectoryMoney,
+  DirectoryStatusPill,
+} from "../directory-table/directoryTable";
+import { joinMeta } from "../directory-table/directoryTableUtils";
 
-function PrimaryLine({ children, title }) {
-  return (
-    <Typography
-      component="div"
-      title={title}
-      sx={{
-        fontSize: 13,
-        fontWeight: 600,
-        fontFamily: "Inter, sans-serif",
-        color: "#101828",
-        lineHeight: 1.35,
-        overflow: "hidden",
-        textOverflow: "ellipsis",
-        whiteSpace: "nowrap",
-        maxWidth: "100%",
-      }}
-    >
-      {children}
-    </Typography>
-  );
+function placeLine(row) {
+  return joinMeta(row.city, row.zone);
 }
 
-function SecondaryLine({ children, title }) {
-  return (
-    <Typography
-      component="div"
-      title={title}
-      sx={{
-        fontSize: 12,
-        fontFamily: "Inter, sans-serif",
-        color: "#667085",
-        lineHeight: 1.35,
-        overflow: "hidden",
-        textOverflow: "ellipsis",
-        whiteSpace: "nowrap",
-        maxWidth: "100%",
-        mt: 0.15,
-      }}
-    >
-      {children}
-    </Typography>
-  );
-}
-
-function StackedCell({ primary, secondary, title }) {
-  return (
-    <Box sx={{ py: 0.25, minWidth: 0, maxWidth: "100%" }} title={title}>
-      <PrimaryLine title={typeof primary === "string" ? primary : title}>
-        {primary || "—"}
-      </PrimaryLine>
-      {secondary ? (
-        <SecondaryLine title={typeof secondary === "string" ? secondary : undefined}>
-          {secondary}
-        </SecondaryLine>
-      ) : null}
-    </Box>
-  );
+function contactLine(row) {
+  return joinMeta(row.email, row.phoneNumber);
 }
 
 export function mapShopToRow(item) {
@@ -77,6 +31,7 @@ export function mapShopToRow(item) {
   const statusValue = addr?.status != null ? !!addr.status : false;
   const email = biz?.email ?? item?.email ?? "";
   const phone = biz?.phoneNum ?? item?.phone ?? item?.phoneNum ?? "";
+  const rawEmployees = biz?.TotalEmployees ?? item?.totalEmployees ?? item?.noOfEmployee;
 
   return {
     id: item.id,
@@ -85,8 +40,11 @@ export function mapShopToRow(item) {
     email,
     phoneNumber: phone,
     amountSpent: Number(addr?.TotalRevenue ?? item?.totalRevenue ?? 0) || 0,
+    currencySymbol: resolveCurrencySymbol(addr?.zone ?? item),
     totalOrders: Number(addr?.TotalBookingCount ?? item?.totalOrders ?? 0) || 0,
     pendingOrders: Number(addr?.PendingBookingCount ?? 0) || 0,
+    employees:
+      rawEmployees == null || rawEmployees === "" ? null : Number(rawEmployees) || 0,
     address,
     locationLine,
     zone: zone || "-",
@@ -97,91 +55,71 @@ export function mapShopToRow(item) {
   };
 }
 
-export function buildShopListColumns({ navigate, onEdit, onDelete }) {
+export function buildShopListColumns({ navigate, onView, onEdit, onDelete }) {
   return [
     {
-      field: "name",
-      sortField: "name",
-      headerName: "Shop",
-      minWidth: 168,
-      renderCell: (row) => (
-        <StackedCell
-          primary={row.name || "—"}
-          secondary={`ID ${row.customerId}`}
-          title={`${row.name || "—"} (ID ${row.customerId})`}
+      key: "shop",
+      header: "Shop",
+      render: (row) => {
+        const place = placeLine(row);
+        const title = [row.name || "—", place, row.address !== "-" ? row.address : ""]
+          .filter(Boolean)
+          .join("\n");
+        return (
+          <DirectoryIdentity
+            name={row.name}
+            meta={place}
+            id={row.customerId}
+            title={title}
+            onClick={() => navigate(`/shop-management/details/${row?.id}`)}
+          />
+        );
+      },
+    },
+    {
+      key: "status",
+      header: "Status",
+      render: (row) => <DirectoryStatusPill active={row.status} />,
+    },
+    {
+      key: "orders",
+      header: "Orders",
+      render: (row) => (
+        <DirectoryMetric
+          value={row.totalOrders}
+          hint={row.pendingOrders > 0 ? `${row.pendingOrders} pending` : undefined}
         />
       ),
     },
     {
-      field: "contact",
-      sortField: "email",
-      headerName: "Contact",
-      minWidth: 180,
-      renderCell: (row) => (
-        <StackedCell
-          primary={row.email || "—"}
-          secondary={row.phoneNumber || "—"}
-          title={[row.email, row.phoneNumber].filter(Boolean).join(" · ")}
-        />
+      key: "revenue",
+      header: "Revenue",
+      render: (row) => (
+        <DirectoryMoney>{formatMoney(row.amountSpent, row.currencySymbol)}</DirectoryMoney>
       ),
     },
     {
-      field: "location",
-      sortField: "locationLine",
-      headerName: "Location",
-      minWidth: 200,
-      renderCell: (row) => (
-        <StackedCell
-          primary={row.locationLine}
-          secondary={row.address !== "-" ? row.address : null}
-          title={[row.locationLine, row.address].filter(Boolean).join("\n")}
-        />
+      key: "contact",
+      header: "Contact",
+      render: (row) => (
+        <DirectoryIdentity name={contactLine(row)} meta={row.locationLine} />
       ),
     },
     {
-      field: "activity",
-      sortField: "amountSpent",
-      headerName: "Activity",
-      minWidth: 120,
-      renderCell: (row) => (
-        <Box sx={{ py: 0.25 }}>
-          <PrimaryLine>{formatGbp(row.amountSpent)}</PrimaryLine>
-          <SecondaryLine>
-            {row.totalOrders} bookings · {row.pendingOrders} pending
-          </SecondaryLine>
-        </Box>
-      ),
-    },
-    {
-      field: "status",
-      sortField: "status",
-      headerName: "Status",
-      minWidth: 128,
-      renderCell: (row) => (
-        <Box
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            gap: 1,
-            py: 0.25,
-          }}
-        >
-          <StatusPill status={row.status ? "active" : "block"} />
-          <ChangeStatus width="42px" checked={row.changeStatus} />
-        </Box>
-      ),
-    },
-    {
-      field: "actions",
-      headerName: "Actions",
-      minWidth: 148,
-      sortable: false,
-      renderCell: (row) => (
-        <ActionButtons
-          onView={() => navigate(`/shop-management/details/${row?.id}`)}
-          onEdit={() => onEdit?.(row)}
-          onDelete={() => onDelete?.(row)}
-        />
+      key: "actions",
+      header: "Actions",
+      render: (row) => (
+        <DirectoryActions>
+          <Button size="sm" variant="secondary" onClick={() => onView?.(row)}>
+            View
+          </Button>
+          <Button size="sm" variant="secondary" onClick={() => onEdit?.(row)}>
+            Edit
+          </Button>
+          <Button size="sm" variant="danger" onClick={() => onDelete?.(row)}>
+            Delete
+          </Button>
+        </DirectoryActions>
       ),
     },
   ];

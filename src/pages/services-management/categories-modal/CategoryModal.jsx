@@ -1,14 +1,14 @@
-import React, { useEffect, useMemo } from "react";
-import { Box, Typography } from "@mui/material";
+import { useEffect, useMemo, useRef } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
-import ModalComponent from "../../../components/shared/Modal";
-import InputFieldModal from "../../../components/ui/InputFieldModal";
-import ImageUpload from "../../../components/ui/ImageUpload";
-import RichTextEditor from "../../../components/ui/RichTextEditor";
-import SelectField from "../../../components/ui/SelectField";
+import { Button, Field, Input, Textarea, Select, Modal } from "../../../design-system";
 import useToaster from "../../../components/ui/Toaster";
-import { BASE_URL } from "../../../utilities/URL";
+import { joinMediaUrl } from "../../../utilities/formatters";
+import {
+  IMAGE_UPLOAD_ACCEPT,
+  acceptImageFile,
+} from "../../../utilities/imageUploadPolicy";
+import { getApiErrorMessage } from "../../../store/services/apiErrors";
 import {
   useAddCategoryMutation,
   useEditCategoryMutation,
@@ -39,19 +39,12 @@ const normalizeEditorContent = (value = "") => {
 const resolveCategoryImageUrl = (path) => {
   if (!path) return "";
   if (path instanceof File) return path;
-  const value = String(path);
-  if (value.startsWith("http://") || value.startsWith("https://")) {
-    return value;
-  }
-  if (value.startsWith("blob:") || value.startsWith("data:")) {
-    return value;
-  }
-  return `${BASE_URL}${value.replace(/^\//, "")}`;
+  return joinMediaUrl(String(path));
 };
 
 const buildCategoryFormValues = (categoryData) => ({
   name: categoryData?.name || "",
-  description: categoryData?.description || "",
+  description: normalizeEditorContent(categoryData?.description || ""),
   serviceId: categoryData?.serviceId ?? categoryData?.service?.id ?? "",
   image: resolveCategoryImageUrl(
     categoryData?.CategoryImg ||
@@ -61,6 +54,70 @@ const buildCategoryFormValues = (categoryData) => ({
       ""
   ),
 });
+
+function ImageField({ label, value, onChange, error }) {
+  const { error: toastError } = useToaster();
+  const fileInputRef = useRef(null);
+  const src =
+    !value ? "" : typeof value === "string" ? value : URL.createObjectURL(value);
+
+  return (
+    <Field label={label} hint="JPEG, PNG, GIF, or WebP. Max 5MB." error={error}>
+      <button
+        type="button"
+        onClick={() => fileInputRef.current?.click()}
+        style={{
+          width: "100%",
+          cursor: "pointer",
+          borderRadius: "var(--r-md)",
+          background: "var(--canvas)",
+          border: "1px dashed var(--line-2)",
+          padding: 16,
+          textAlign: "center",
+          color: "var(--muted)",
+          font: "inherit",
+        }}
+      >
+        {src ? (
+          <img
+            src={src}
+            alt="Category preview"
+            style={{
+              maxHeight: 150,
+              maxWidth: "100%",
+              borderRadius: "var(--r-sm)",
+              objectFit: "cover",
+              display: "block",
+              margin: "0 auto",
+            }}
+          />
+        ) : (
+          "Upload image"
+        )}
+      </button>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept={IMAGE_UPLOAD_ACCEPT}
+        hidden
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          e.target.value = "";
+          if (!file) return;
+          const accepted = acceptImageFile(file, toastError);
+          if (accepted) onChange(accepted);
+        }}
+      />
+      {value ? (
+        <div style={{ marginTop: 8, textAlign: "center" }}>
+          <Button variant="ghost" size="sm" onClick={() => onChange(null)}>
+            Remove
+          </Button>
+        </div>
+      ) : null}
+    </Field>
+  );
+}
 
 export default function CategoryModal({ open, onClose, type, categoryData }) {
   const { success, error } = useToaster();
@@ -72,7 +129,10 @@ export default function CategoryModal({ open, onClose, type, categoryData }) {
     skip: !open,
   });
 
-  const services = servicesResponse?.data?.services || [];
+  const services = useMemo(
+    () => servicesResponse?.data?.services || [],
+    [servicesResponse?.data?.services]
+  );
   const serviceOptions = useMemo(
     () =>
       services.map((svc) => ({
@@ -86,12 +146,12 @@ export default function CategoryModal({ open, onClose, type, categoryData }) {
   const validationSchema = isUpdate
     ? categoryUpdateValidationSchema
     : categoryValidationSchema;
+  const saving = isAddCategoryLoading || isEditCategoryLoading;
 
   const {
     control,
     handleSubmit,
     reset,
-    setValue,
     formState: { errors },
   } = useForm({
     resolver: yupResolver(validationSchema),
@@ -156,57 +216,55 @@ export default function CategoryModal({ open, onClose, type, categoryData }) {
         error(res?.message || "Something went wrong");
       }
     } catch (err) {
-      const errorMessage =
-        err?.data?.message ||
-        err?.data?.error ||
-        err?.message ||
-        (isUpdate ? "Failed to update category" : "Failed to add category");
-      error(errorMessage);
+      error(
+        getApiErrorMessage(
+          err,
+          isUpdate ? "Failed to update category" : "Failed to add category"
+        )
+      );
     }
   };
 
   return (
-    <ModalComponent
+    <Modal
       open={open}
       title={isUpdate ? "Update Category" : "Add Category"}
       onClose={handleClose}
-      secondaryAction={{
-        label: "Cancel",
-        onClick: handleClose,
-      }}
-      primaryAction={{
-        label: isUpdate ? "Update Category" : "Add Category",
-        onClick: handleSubmit(onSubmit, onInvalid),
-        isLoading: isAddCategoryLoading || isEditCategoryLoading,
+      secondaryLabel="Cancel"
+      primaryLabel={
+        saving
+          ? "Saving…"
+          : isUpdate
+            ? "Update Category"
+            : "Add Category"
+      }
+      onPrimary={() => {
+        if (saving) return;
+        handleSubmit(onSubmit, onInvalid)();
       }}
     >
-      <Box className="flex flex-col gap-5">
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 16,
+          maxHeight: "60vh",
+          overflowY: "auto",
+        }}
+      >
         <Controller
           name="serviceId"
           control={control}
           render={({ field: { onChange, value } }) => (
-            <Box>
-              <SelectField
-                title="Service*"
+            <Field label="Service*" error={errors.serviceId?.message}>
+              <Select
                 value={value === "" || value == null ? "" : String(value)}
-                onChange={(e) => {
-                  const next = e.target.value;
-                  onChange(next === "" ? "" : Number(next));
-                }}
+                onChange={(next) => onChange(next === "" ? "" : Number(next))}
                 options={serviceOptions}
                 placeholder="Select service for this category"
-                fullWidth
-                bgcolor="grey.60"
+                error={!!errors.serviceId}
               />
-              {errors.serviceId && (
-                <Typography
-                  variant="caption"
-                  sx={{ color: "error.main", mt: 1, display: "block" }}
-                >
-                  {errors.serviceId.message}
-                </Typography>
-              )}
-            </Box>
+            </Field>
           )}
         />
 
@@ -214,22 +272,12 @@ export default function CategoryModal({ open, onClose, type, categoryData }) {
           name="image"
           control={control}
           render={({ field: { onChange, value } }) => (
-            <Box>
-              <ImageUpload
-                title="Category Image*"
-                value={value}
-                name="image"
-                onChange={onChange}
-              />
-              {errors.image && (
-                <Typography
-                  variant="caption"
-                  sx={{ color: "error.main", mt: 1, display: "block" }}
-                >
-                  {errors.image.message}
-                </Typography>
-              )}
-            </Box>
+            <ImageField
+              label="Category Image*"
+              value={value}
+              onChange={onChange}
+              error={errors.image?.message}
+            />
           )}
         />
 
@@ -237,24 +285,16 @@ export default function CategoryModal({ open, onClose, type, categoryData }) {
           name="name"
           control={control}
           render={({ field: { onChange, value } }) => (
-            <Box>
-              <InputFieldModal
-                title="Name (Category)*"
-                label="Category Name"
-                placeholder="Enter category name"
+            <Field label="Name (Category)*" htmlFor="category-name" error={errors.name?.message}>
+              <Input
+                id="category-name"
                 name="name"
+                placeholder="Enter category name"
                 value={value}
                 onChange={(e) => onChange(e.target.value)}
+                error={!!errors.name}
               />
-              {errors.name && (
-                <Typography
-                  variant="caption"
-                  sx={{ color: "error.main", mt: 1, display: "block" }}
-                >
-                  {errors.name.message}
-                </Typography>
-              )}
-            </Box>
+            </Field>
           )}
         />
 
@@ -262,25 +302,20 @@ export default function CategoryModal({ open, onClose, type, categoryData }) {
           name="description"
           control={control}
           render={({ field: { onChange, value } }) => (
-            <Box>
-              <RichTextEditor
-                title={isUpdate ? "Description" : "Description*"}
+            <Field
+              label={isUpdate ? "Description" : "Description*"}
+              error={errors.description?.message}
+            >
+              <Textarea
                 value={value}
                 onChange={(e) => onChange(e.target.value)}
                 placeholder="Enter category description"
+                rows={5}
               />
-              {errors.description && (
-                <Typography
-                  variant="caption"
-                  sx={{ color: "error.main", mt: 1, display: "block" }}
-                >
-                  {errors.description.message}
-                </Typography>
-              )}
-            </Box>
+            </Field>
           )}
         />
-      </Box>
-    </ModalComponent>
+      </div>
+    </Modal>
   );
 }

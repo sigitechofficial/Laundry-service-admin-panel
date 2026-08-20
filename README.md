@@ -1,4 +1,18 @@
-# React + Vite
+# JustDryCleans Admin Panel
+
+## Environment configuration
+
+Copy `.env.example` to `.env.local` for local development. Without local
+configuration, the app uses the documented development API URL, while Google
+Maps and Firebase messaging remain disabled.
+
+Production builds require `VITE_API_BASE_URL`, `VITE_GOOGLE_MAPS_KEY`, and the
+complete `VITE_FIREBASE_*` configuration listed in `.env.example`. The Vite
+configuration fails the build if any required production value is missing.
+
+Never commit `.env`, `.env.local`, access tokens, or service credentials.
+
+## Development
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 

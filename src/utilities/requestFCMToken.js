@@ -4,11 +4,7 @@ import { getMessagingInstance } from "./firebase";
 
 const DEV_TOKEN_KEY = "devToken";
 
-function fcmLog(...args) {
-  if (import.meta.env.DEV) {
-    console.log("[FCM]", ...args);
-  }
-}
+function fcmLog() {}
 
 function fcmDevHint(message) {
   if (import.meta.env.DEV) {

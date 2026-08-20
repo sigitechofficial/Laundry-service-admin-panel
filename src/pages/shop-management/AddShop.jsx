@@ -1,20 +1,7 @@
-import React, { useState, useRef, useMemo } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useLoadScript, Autocomplete } from "@react-google-maps/api";
-import InputFieldBordered from "../../components/ui/InputFieldBordered";
-import SelectField from "../../components/ui/SelectField";
-import {
-  Select,
-  MenuItem,
-  FormControl,
-  Typography,
-  Checkbox,
-  ListItemText,
-  Radio,
-  RadioGroup,
-  FormControlLabel,
-  FormLabel,
-} from "@mui/material";
+import { Autocomplete } from "@react-google-maps/api";
+import { Badge, Button, Field, Input, PageHeader, Select, Textarea } from "../../design-system";
 import {
   useGetAllServicesQuery,
   useGetAllCountriesQuery,
@@ -28,36 +15,60 @@ import {
 } from "../../store/services/api";
 import { useSelector } from "react-redux";
 import useToaster from "../../components/ui/Toaster";
-import { googleApiKey } from "../../utilities/URL";
+import { useGoogleMaps } from "../../utilities/googleMapsConfig";
 import { buildCurrencyUnitsList } from "../../utilities/zonesList";
+import {
+  DEFAULT_WORKING_DAYS,
+  MACHINERY_COUNT_OPTIONS,
+  WIZARD_STEPS,
+  buildAddressPayload,
+  buildBusinessPayload,
+  buildRegisterPayload,
+  formatHoursSummary,
+  getAccountErrors,
+  isAccountComplete,
+  isLocationComplete,
+} from "./addShopForm";
+import styles from "./AddShop.module.css";
 
-const MACHINERY_COUNT_OPTIONS = ["0", "1-2", "3-5", "5+"];
-// Map radio value to API numeric total
-const MACHINERY_COUNT_TO_NUMBER = { "0": 0, "1-2": 2, "3-5": 5, "5+": 6 };
-
-const DAYS_OF_WEEK = [
-  "Monday",
-  "Tuesday",
-  "Wednesday",
-  "Thursday",
-  "Friday",
-  "Saturday",
-  "Sunday",
-];
-
-const DEFAULT_WORKING_DAYS = DAYS_OF_WEEK.map((dayOfWeek) =>
-  dayOfWeek === "Sunday"
-    ? { dayOfWeek, openTime: null, closeTime: null, status: false }
-    : { dayOfWeek, openTime: "09:00:00", closeTime: "18:00:00", status: true }
+const CheckIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <path d="M4 12l5 5L20 6" />
+  </svg>
 );
+
+function Section({ title, description, children }) {
+  return (
+    <section className={styles.section}>
+      <h3 className={styles.sectionTitle}>{title}</h3>
+      {description ? <p className={styles.sectionDesc}>{description}</p> : null}
+      {children}
+    </section>
+  );
+}
+
+function labelWithReq(label, required) {
+  return (
+    <>
+      {label}
+      {required ? <span className={styles.req} aria-hidden>*</span> : null}
+    </>
+  );
+}
+
+function optionLabel(options, value, fallback = "—") {
+  if (value === undefined || value === null || value === "") return fallback;
+  return options.find((o) => String(o.value) === String(value))?.label ?? String(value);
+}
 
 export default function ShopProfile() {
   const navigate = useNavigate();
   const { success, error } = useToaster();
   const [step, setStep] = useState(0);
+  const [attempted, setAttempted] = useState(false);
   const [registeredUserId, setRegisteredUserId] = useState(null);
+  const [addressSaved, setAddressSaved] = useState(false);
   const [formData, setFormData] = useState({
-    // Step 1 - Register agent
     firstName: "",
     lastName: "",
     email: "",
@@ -69,7 +80,6 @@ export default function ShopProfile() {
     noOfEmployee: "",
     zone: "",
     currencyUnitId: "",
-    // Step 2 - Address
     streetAddress: "",
     district: "",
     province: "",
@@ -78,31 +88,46 @@ export default function ShopProfile() {
     lng: "",
     coordinates: "",
     addressType: "LaundaryShopAddress",
-    // Step 3 - Business info
     shopName: "",
     matchProfileOptions: "",
     otherText: "",
     services: [],
-    serviceTimes: {}, // { [serviceId]: hours (number) }
+    serviceTimes: {},
     bussinessWorkingDays: DEFAULT_WORKING_DAYS,
-    machineryCount: {}, // { [machineId]: "0" | "1-2" | "3-5" | "5+" }
+    machineryCount: {},
   });
 
   const addressAutocompleteRef = useRef(null);
+  const accountLocked = Boolean(registeredUserId);
 
-  const { data: countriesData } = useGetAllCountriesQuery();
-  const { data: zonesResponse } = useGetAllZonesQuery();
+  const {
+    data: countriesData,
+    isError: countriesError,
+    isLoading: countriesLoading,
+    refetch: refetchCountries,
+  } = useGetAllCountriesQuery();
+  const { data: zonesResponse, isLoading: zonesLoading } = useGetAllZonesQuery();
   const { data: currencyUnitsPayload } = useGetUnitsDistanceAndCurrencyQuery("currency");
   const currencyUnitsRedux = useSelector((state) => state?.apiData?.units?.currency);
   const currencyUnitsList = useMemo(
     () => buildCurrencyUnitsList(currencyUnitsPayload, currencyUnitsRedux),
     [currencyUnitsPayload, currencyUnitsRedux]
   );
-  const { data: citiesData } = useGetCitiesByCountryIdQuery(formData.countryId, {
+  const { data: citiesData, isFetching: citiesFetching } = useGetCitiesByCountryIdQuery(formData.countryId, {
     skip: !formData.countryId,
   });
-  const { data: servicesData } = useGetAllServicesQuery();
-  const { data: businessInfoData } = useGetBusinessInformationQuery(registeredUserId, {
+  const {
+    data: servicesData,
+    isLoading: servicesLoading,
+    isError: servicesError,
+    refetch: refetchServices,
+  } = useGetAllServicesQuery();
+  const {
+    data: businessInfoData,
+    isLoading: machinesLoading,
+    isError: machinesError,
+    refetch: refetchMachines,
+  } = useGetBusinessInformationQuery(registeredUserId, {
     skip: !registeredUserId,
   });
 
@@ -110,17 +135,16 @@ export default function ShopProfile() {
   const [addAgentAddress, { isLoading: isAddingAddress }] = useAddAgentAddressMutation();
   const [addAgentBusinessInfo, { isLoading: isAddingBusiness }] = useAddAgentBusinessInfoMutation();
 
-  const { isLoaded: isGoogleMapsLoaded } = useLoadScript({
-    googleMapsApiKey: googleApiKey,
-    libraries: ["places"],
-  });
+  const { isLoaded: isGoogleMapsLoaded, mapsError } = useGoogleMaps();
 
   const services = useSelector((state) => state.apiData.services);
   const countries = countriesData?.data ?? [];
-  const zonesRaw = Array.isArray(zonesResponse?.data)
-    ? zonesResponse.data
-    : zonesResponse?.data?.zones ?? zonesResponse?.zones ?? [];
-  const zones = Array.isArray(zonesRaw) ? zonesRaw : [];
+  const zones = useMemo(() => {
+    const zonesRaw = Array.isArray(zonesResponse?.data)
+      ? zonesResponse.data
+      : zonesResponse?.data?.zones ?? zonesResponse?.zones ?? [];
+    return Array.isArray(zonesRaw) ? zonesRaw : [];
+  }, [zonesResponse]);
   const cities = citiesData?.data ?? [];
   const machines =
     businessInfoData?.machines ??
@@ -176,6 +200,9 @@ export default function ShopProfile() {
     return [{ value: String(id), label }];
   }, [selectedZone, currencyUnitsList]);
 
+  const accountErrors = attempted && step === 0 ? getAccountErrors(formData) : {};
+  const busy = isRegistering || isAddingAddress || isAddingBusiness;
+
   const handleChange = (field) => (e) => {
     const value = e?.target?.value ?? e;
     setFormData((s) => {
@@ -190,7 +217,7 @@ export default function ShopProfile() {
   };
 
   const handleZoneChange = (e) => {
-    const zoneId = String(e?.target?.value ?? "");
+    const zoneId = String(e?.target?.value ?? e ?? "");
     setFormData((s) => {
       if (!zoneId) {
         return { ...s, zone: "", currencyUnitId: "" };
@@ -217,16 +244,21 @@ export default function ShopProfile() {
           lng: lng ? String(lng) : s.lng,
           coordinates: lat && lng ? `${lat},${lng}` : s.coordinates,
         }));
+        setAddressSaved(false);
       }
     }
   };
 
-  const handleServicesChange = (e) => {
-    const value = e.target.value;
-    setFormData((s) => ({
-      ...s,
-      services: typeof value === "string" ? value.split(",") : value,
-    }));
+  const toggleService = (id) => {
+    setFormData((s) => {
+      const has = s.services.some((value) => String(value) === String(id));
+      return {
+        ...s,
+        services: has
+          ? s.services.filter((value) => String(value) !== String(id))
+          : [...s.services, id],
+      };
+    });
   };
 
   const setMachineryCount = (machineId, total) => {
@@ -251,60 +283,24 @@ export default function ShopProfile() {
     });
   };
 
-  const isStep1Complete = () => {
-    const {
-      firstName,
-      lastName,
-      email,
-      password,
-      phoneNum,
-      countryId,
-      cityId,
-      noOfEmployee,
-      zone,
-      currencyUnitId,
-    } = formData;
-    if (
-      !firstName ||
-      !lastName ||
-      !email ||
-      !password ||
-      !phoneNum ||
-      !countryId ||
-      !cityId ||
-      !noOfEmployee ||
-      !zone ||
-      !currencyUnitId
-    )
-      return false;
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-  };
-
-  const isStep2Complete = () => {
-    const { streetAddress } = formData;
-    return !!streetAddress?.trim();
+  const goToStep = (next) => {
+    setAttempted(false);
+    setStep(next);
   };
 
   const handleStep1Next = async () => {
+    setAttempted(true);
+    if (!isAccountComplete(formData)) return;
+    if (registeredUserId) {
+      goToStep(1);
+      return;
+    }
     try {
-      const res = await registerAgent({
-        firstName: formData.firstName,
-        lastName: formData.lastName,
-        email: formData.email,
-        password: formData.password,
-        phoneNum: formData.phoneNum,
-        countryCode: formData.countryCode || "+44",
-        countryId: Number(formData.countryId) || formData.countryId,
-        cityId: Number(formData.cityId) || formData.cityId,
-        zoneId: formData.zone ? Number(formData.zone) : undefined,
-        currencyUnitId: formData.currencyUnitId
-          ? Number(formData.currencyUnitId)
-          : undefined,
-      }).unwrap();
+      const res = await registerAgent(buildRegisterPayload(formData)).unwrap();
       const userId = res?.data?.id ?? res?.data?.userId ?? res?.userId ?? res?.id;
       if (userId) {
         setRegisteredUserId(userId);
-        setStep(1);
+        goToStep(1);
         success(res?.message ?? "Agent registered");
       } else {
         error(res?.message ?? "Registration succeeded but no user id returned");
@@ -317,25 +313,23 @@ export default function ShopProfile() {
   };
 
   const handleStep2Next = async () => {
+    setAttempted(true);
+    if (!isLocationComplete(formData)) return;
     if (!registeredUserId) {
       error("Missing user id");
+      return;
+    }
+    if (addressSaved) {
+      goToStep(2);
       return;
     }
     try {
       await addAgentAddress({
         userId: registeredUserId,
-        body: {
-          streetAddress: formData.streetAddress,
-          district: formData.district || undefined,
-          province: formData.province || undefined,
-          postalcode: formData.postalcode || undefined,
-          lat: formData.lat || undefined,
-          lng: formData.lng || undefined,
-          coordinates: formData.coordinates || undefined,
-          addressType: formData.addressType || "LaundaryShopAddress",
-        },
+        body: buildAddressPayload(formData),
       }).unwrap();
-      setStep(2);
+      setAddressSaved(true);
+      goToStep(2);
       success("Address added");
     } catch (err) {
       const msg =
@@ -344,52 +338,19 @@ export default function ShopProfile() {
     }
   };
 
+  const handleStep3Next = () => {
+    goToStep(3);
+  };
+
   const handleStep3Save = async () => {
     if (!registeredUserId) {
       error("Missing user id");
       return;
     }
     try {
-      const machineryCount = Object.entries(formData.machineryCount)
-        .filter(([, v]) => v != null && v !== "")
-        .map(([machineId, radioValue]) => ({
-          machineId: Number(machineId) || machineId,
-          total: MACHINERY_COUNT_TO_NUMBER[radioValue] ?? 0,
-        }));
-
-      const services = (formData.services || []).map((id) => ({
-        serviceId: Number(id) || id,
-      }));
-
-      const serviceTimes = (formData.services || [])
-        .map((serviceId) => {
-          const hours = formData.serviceTimes?.[serviceId];
-          if (hours == null || hours === "") return null;
-          return {
-            serviceId: Number(serviceId) || serviceId,
-            serviceTimeRequired: Number(hours) || 0,
-          };
-        })
-        .filter(Boolean);
-
-      const bussinessWorkingDays = (formData.bussinessWorkingDays || []).map((day) => ({
-        dayOfWeek: day.dayOfWeek,
-        openTime: day.status ? day.openTime : null,
-        closeTime: day.status ? day.closeTime : null,
-        status: !!day.status,
-      }));
-
       await addAgentBusinessInfo({
         userId: registeredUserId,
-        body: {
-          shopName: formData.shopName || null,
-          matchProfileOptions: formData.matchProfileOptions || null,
-          otherText: formData.otherText || null,
-          machineryCount: machineryCount.length ? machineryCount : [],
-          services,
-          serviceTimes,
-          bussinessWorkingDays,
-        },
+        body: buildBusinessPayload(formData),
       }).unwrap();
       success("Shop added successfully");
       navigate("/shop-management/shops");
@@ -400,395 +361,709 @@ export default function ShopProfile() {
     }
   };
 
-  const isSaving = isRegistering || isAddingAddress || isAddingBusiness;
+  const primaryAction = () => {
+    if (step === 0) return handleStep1Next();
+    if (step === 1) return handleStep2Next();
+    if (step === 2) return handleStep3Next();
+    return handleStep3Save();
+  };
+
+  const primaryLabel = (() => {
+    if (step === 0) return isRegistering ? "Registering…" : accountLocked ? "Continue" : "Save account";
+    if (step === 1) return isAddingAddress ? "Saving…" : addressSaved ? "Continue" : "Save location";
+    if (step === 2) return "Review shop";
+    return isAddingBusiness ? "Creating…" : "Create shop";
+  })();
+
+  const primaryDisabled = busy;
+
+  const cityPlaceholder = !formData.countryId
+    ? "Select country first"
+    : citiesFetching
+      ? "Loading cities…"
+      : cityOptions.length === 0
+        ? "No cities for this country"
+        : "Select city";
+
+  const zonePlaceholder = !formData.cityId
+    ? "Select city first"
+    : zonesLoading
+      ? "Loading zones…"
+      : zoneOptions.length === 0
+        ? "No zones for this city"
+        : "Select zone";
+
+  const currencyPlaceholder = !formData.zone
+    ? "Select zone first"
+    : zoneCurrencyOptions.length === 0
+      ? "No currency on this zone"
+      : "Currency";
 
   return (
-    <div className="w-full">
-      <div className="flex items-center gap-5 font-Inter font-medium text-lg !py-8">
-        {["User Information", "Address", "Business Information"].map((label, i) => (
-          <p
-            key={label}
-            className={`shadow-chip !px-3 !py-1 rounded-full ${
-              step === i ? "bg-blue100 text-white" : "bg-white"
-            }`}
+    <div className={styles.page}>
+      <PageHeader
+        title="Add Shop"
+        description="Register a shop owner, then save address and business details in order."
+      />
+      <nav className={styles.stepper} aria-label="Add shop steps">
+        {WIZARD_STEPS.map((item, i) => {
+          const done = i < step;
+          const current = i === step;
+          const clickable = i < step;
+          return (
+            <span key={item.id} style={{ display: "contents" }}>
+              <button
+                type="button"
+                className={`${styles.step} ${done ? styles.isDone : ""} ${current ? styles.isCurrent : ""} ${clickable ? styles.isClickable : ""}`}
+                disabled={!clickable}
+                onClick={() => clickable && goToStep(i)}
+                aria-current={current ? "step" : undefined}
+              >
+                <span className={styles.dot}>{done ? <CheckIcon /> : i + 1}</span>
+                <span className={styles.copy}>
+                  <span className={styles.lab}>{item.label}</span>
+                  <span className={styles.sub}>{item.hint}</span>
+                </span>
+              </button>
+              {i < WIZARD_STEPS.length - 1 ? (
+                <span className={`${styles.conn} ${done ? styles.isDone : ""}`} />
+              ) : null}
+            </span>
+          );
+        })}
+      </nav>
+
+      {registeredUserId && step > 0 ? (
+        <div className={`${styles.banner} ${styles.bannerInfo}`}>
+          Account is registered. Finish location and operations to complete this shop — Cancel leaves an unfinished agent.
+        </div>
+      ) : null}
+
+      <div className={styles.card}>
+        {step === 0 && (
+          <>
+            {countriesError ? (
+              <div className={`${styles.banner} ${styles.bannerDanger}`}>
+                <span>Could not load countries.</span>
+                <Button size="sm" variant="secondary" onClick={() => refetchCountries()}>
+                  Retry
+                </Button>
+              </div>
+            ) : null}
+            {accountLocked ? (
+              <div className={`${styles.banner} ${styles.bannerSuccess}`}>
+                Owner account saved. Coverage below is locked because it was already sent to the server.
+              </div>
+            ) : null}
+
+            <Section
+              title="Owner account"
+              description="Creates the shop agent login. Required before address or business details can be saved."
+            >
+              <div className={styles.grid}>
+                <Field
+                  label={labelWithReq("First name", true)}
+                  htmlFor="add-shop-first-name"
+                  error={accountErrors.firstName}
+                >
+                  <Input
+                    id="add-shop-first-name"
+                    placeholder="First name"
+                    value={formData.firstName}
+                    onChange={handleChange("firstName")}
+                    error={Boolean(accountErrors.firstName)}
+                    disabled={accountLocked}
+                    autoComplete="given-name"
+                  />
+                </Field>
+                <Field
+                  label={labelWithReq("Last name", true)}
+                  htmlFor="add-shop-last-name"
+                  error={accountErrors.lastName}
+                >
+                  <Input
+                    id="add-shop-last-name"
+                    placeholder="Last name"
+                    value={formData.lastName}
+                    onChange={handleChange("lastName")}
+                    error={Boolean(accountErrors.lastName)}
+                    disabled={accountLocked}
+                    autoComplete="family-name"
+                  />
+                </Field>
+                <Field
+                  label={labelWithReq("Email", true)}
+                  htmlFor="add-shop-email"
+                  hint={!accountErrors.email ? "Login email for this agent" : undefined}
+                  error={accountErrors.email}
+                >
+                  <Input
+                    id="add-shop-email"
+                    type="email"
+                    placeholder="name@shop.com"
+                    value={formData.email}
+                    onChange={handleChange("email")}
+                    error={Boolean(accountErrors.email)}
+                    disabled={accountLocked}
+                    autoComplete="email"
+                  />
+                </Field>
+                <Field
+                  label={labelWithReq("Password", true)}
+                  htmlFor="add-shop-password"
+                  error={accountErrors.password}
+                >
+                  <Input
+                    id="add-shop-password"
+                    type="password"
+                    placeholder="••••••••"
+                    value={formData.password}
+                    onChange={handleChange("password")}
+                    error={Boolean(accountErrors.password)}
+                    disabled={accountLocked}
+                    autoComplete="new-password"
+                  />
+                </Field>
+                <Field
+                  label={labelWithReq("Country code", true)}
+                  htmlFor="add-shop-country-code"
+                  error={accountErrors.countryCode}
+                >
+                  <Input
+                    id="add-shop-country-code"
+                    placeholder="+44"
+                    value={formData.countryCode}
+                    onChange={handleChange("countryCode")}
+                    error={Boolean(accountErrors.countryCode)}
+                    disabled={accountLocked}
+                  />
+                </Field>
+                <Field
+                  label={labelWithReq("Phone", true)}
+                  htmlFor="add-shop-phone"
+                  error={accountErrors.phoneNum}
+                >
+                  <Input
+                    id="add-shop-phone"
+                    placeholder="7123456789"
+                    value={formData.phoneNum}
+                    onChange={handleChange("phoneNum")}
+                    error={Boolean(accountErrors.phoneNum)}
+                    disabled={accountLocked}
+                    autoComplete="tel"
+                  />
+                </Field>
+              </div>
+            </Section>
+
+            <Section
+              title="Coverage & settlement"
+              description="Country, city, and zone decide routing. Currency is inherited from the selected zone — there is no separate banking step."
+            >
+              <div className={styles.grid}>
+                <Field label={labelWithReq("Country", true)} error={accountErrors.countryId}>
+                  <Select
+                    aria-label="Country"
+                    value={formData.countryId}
+                    onChange={handleChange("countryId")}
+                    options={countryOptions}
+                    placeholder={countriesLoading ? "Loading countries…" : "Select country"}
+                    error={Boolean(accountErrors.countryId)}
+                    disabled={accountLocked || countriesLoading}
+                  />
+                </Field>
+                <Field label={labelWithReq("City", true)} error={accountErrors.cityId}>
+                  <Select
+                    aria-label="City"
+                    value={formData.cityId}
+                    onChange={handleChange("cityId")}
+                    options={cityOptions}
+                    placeholder={cityPlaceholder}
+                    error={Boolean(accountErrors.cityId)}
+                    disabled={accountLocked || !formData.countryId || citiesFetching}
+                  />
+                </Field>
+                <Field
+                  label={labelWithReq("Zone", true)}
+                  hint={!accountErrors.zone ? "Sets service area and settlement currency" : undefined}
+                  error={accountErrors.zone}
+                >
+                  <Select
+                    aria-label="Zone"
+                    value={formData.zone}
+                    onChange={handleZoneChange}
+                    options={zoneOptions}
+                    placeholder={zonePlaceholder}
+                    error={Boolean(accountErrors.zone)}
+                    disabled={accountLocked || !formData.cityId}
+                  />
+                </Field>
+                <Field
+                  label={labelWithReq("Currency", true)}
+                  error={accountErrors.currencyUnitId}
+                >
+                  <Select
+                    aria-label="Currency"
+                    value={formData.zone ? formData.currencyUnitId || "" : ""}
+                    onChange={() => {}}
+                    options={zoneCurrencyOptions}
+                    placeholder={currencyPlaceholder}
+                    error={Boolean(accountErrors.currencyUnitId)}
+                    disabled
+                  />
+                </Field>
+                <Field
+                  label={labelWithReq("No. of employees", true)}
+                  htmlFor="add-shop-employees"
+                  hint={!accountErrors.noOfEmployee ? "Staff count at this location" : undefined}
+                  error={accountErrors.noOfEmployee}
+                >
+                  <Input
+                    id="add-shop-employees"
+                    placeholder="e.g. 8"
+                    value={formData.noOfEmployee}
+                    onChange={handleChange("noOfEmployee")}
+                    error={Boolean(accountErrors.noOfEmployee)}
+                    disabled={accountLocked}
+                    inputMode="numeric"
+                  />
+                </Field>
+              </div>
+            </Section>
+          </>
+        )}
+
+        {step === 1 && (
+          <Section
+            title="Shop address"
+            description="Search with Google Places so the shop is geocoded for dispatch. Extra locality fields are optional."
           >
-            {label}
-          </p>
-        ))}
+            <div className={styles.grid}>
+              <div className={styles.spanAll}>
+                <Field
+                  label={labelWithReq("Address", true)}
+                  htmlFor="add-shop-address"
+                  hint="Start typing, then pick a result to fill coordinates"
+                  error={attempted && !isLocationComplete(formData) ? "Address is required" : undefined}
+                >
+                  {isGoogleMapsLoaded ? (
+                    <Autocomplete
+                      onLoad={(ac) => {
+                        addressAutocompleteRef.current = ac;
+                      }}
+                      onPlaceChanged={handleAddressPlaceChanged}
+                    >
+                      <input
+                        className={`jd-input${attempted && !isLocationComplete(formData) ? " is-error" : ""}`}
+                        id="add-shop-address"
+                        placeholder="Start typing to search address…"
+                        value={formData.streetAddress}
+                        onChange={(e) => {
+                          setAddressSaved(false);
+                          setFormData((s) => ({ ...s, streetAddress: e.target.value }));
+                        }}
+                        autoComplete="off"
+                      />
+                    </Autocomplete>
+                  ) : (
+                    <Input
+                      id="add-shop-address"
+                      placeholder={
+                        mapsError
+                          ? "Type address (Google Maps unavailable)"
+                          : "Loading address search…"
+                      }
+                      value={formData.streetAddress}
+                      onChange={(e) =>
+                        setFormData((s) => ({ ...s, streetAddress: e.target.value }))
+                      }
+                      disabled={!mapsError && !isGoogleMapsLoaded}
+                    />
+                  )}
+                </Field>
+              </div>
+              <Field label="District" htmlFor="add-shop-district">
+                <Input
+                  id="add-shop-district"
+                  placeholder="District"
+                  value={formData.district}
+                  onChange={(e) => {
+                    setAddressSaved(false);
+                    handleChange("district")(e);
+                  }}
+                />
+              </Field>
+              <Field label="Province" htmlFor="add-shop-province">
+                <Input
+                  id="add-shop-province"
+                  placeholder="Province"
+                  value={formData.province}
+                  onChange={(e) => {
+                    setAddressSaved(false);
+                    handleChange("province")(e);
+                  }}
+                />
+              </Field>
+              <Field label="Postal code" htmlFor="add-shop-postal">
+                <Input
+                  id="add-shop-postal"
+                  placeholder="Postal code"
+                  value={formData.postalcode}
+                  onChange={(e) => {
+                    setAddressSaved(false);
+                    handleChange("postalcode")(e);
+                  }}
+                />
+              </Field>
+              {formData.lat && formData.lng ? (
+                <div className={styles.spanAll}>
+                  <div className={styles.pin}>
+                    <div className={styles.pinMark} aria-hidden>
+                      ⌖
+                    </div>
+                    <div>
+                      <p className={styles.pinTitle}>Pinned from address search</p>
+                      <p className={styles.pinMeta}>
+                        {formData.lat}, {formData.lng}
+                      </p>
+                    </div>
+                    <Badge tone="success">Geocoded</Badge>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          </Section>
+        )}
+
+        {step === 2 && (
+          <>
+            <Section
+              title="Business profile"
+              description="Shown on the shop record. Shop name can be added later if you do not have it yet."
+            >
+              <div className={styles.grid}>
+                <Field label="Shop name (business name)" htmlFor="add-shop-name">
+                  <Input
+                    id="add-shop-name"
+                    placeholder="Shop name"
+                    value={formData.shopName}
+                    onChange={handleChange("shopName")}
+                  />
+                </Field>
+                <Field
+                  label="Match profile options"
+                  htmlFor="add-shop-profile"
+                  hint="e.g. Laundry Shop"
+                >
+                  <Input
+                    id="add-shop-profile"
+                    placeholder="e.g. Laundry Shop"
+                    value={formData.matchProfileOptions}
+                    onChange={handleChange("matchProfileOptions")}
+                  />
+                </Field>
+                <div className={styles.spanAll}>
+                  <Field label="Other text (optional)" htmlFor="add-shop-other">
+                    <Textarea
+                      id="add-shop-other"
+                      rows={3}
+                      value={formData.otherText}
+                      onChange={handleChange("otherText")}
+                    />
+                  </Field>
+                </div>
+              </div>
+            </Section>
+
+            <Section
+              title="Services"
+              description="Select the services this shop will fulfil. Turnaround hours appear only for selected services."
+            >
+              {servicesError ? (
+                <div className={`${styles.banner} ${styles.bannerDanger}`}>
+                  <span>Could not load services.</span>
+                  <Button size="sm" variant="secondary" onClick={() => refetchServices()}>
+                    Retry
+                  </Button>
+                </div>
+              ) : null}
+              {servicesLoading ? (
+                <p className={styles.empty}>Loading services…</p>
+              ) : serviceOptions.length === 0 ? (
+                <p className={styles.empty}>No services available. Configure services first.</p>
+              ) : (
+                <div className={styles.chips}>
+                  {serviceOptions.map((opt) => {
+                    const checked = formData.services.some(
+                      (value) => String(value) === String(opt.value)
+                    );
+                    return (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        className={`${styles.chip} ${checked ? styles.chipOn : ""}`}
+                        aria-pressed={checked}
+                        onClick={() => toggleService(opt.value)}
+                      >
+                        {opt.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              {formData.services?.length > 0 ? (
+                <div className={styles.grid} style={{ marginTop: 16 }}>
+                  {formData.services.map((serviceId) => {
+                    const label =
+                      serviceOptions.find((o) => String(o.value) === String(serviceId))?.label ??
+                      `Service ${serviceId}`;
+                    return (
+                      <Field
+                        key={serviceId}
+                        label={`${label} · hours required`}
+                        htmlFor={`service-time-${serviceId}`}
+                      >
+                        <Input
+                          id={`service-time-${serviceId}`}
+                          type="number"
+                          min={0}
+                          placeholder="e.g. 24"
+                          value={formData.serviceTimes?.[serviceId] ?? ""}
+                          onChange={(e) => setServiceTimeRequired(serviceId, e.target.value)}
+                        />
+                      </Field>
+                    );
+                  })}
+                </div>
+              ) : null}
+            </Section>
+
+            <Section
+              title="Opening hours"
+              description="Closed days send null open/close times. Default is 09:00–18:00, Sunday closed."
+            >
+              <div className={styles.hours}>
+                <div className={styles.hourHead}>
+                  <span>Day</span>
+                  <span>Status</span>
+                  <span>Opens</span>
+                  <span>Closes</span>
+                </div>
+                {(formData.bussinessWorkingDays || []).map((day, index) => (
+                  <div key={day.dayOfWeek} className={styles.hourRow}>
+                    <span className={styles.hourDay}>{day.dayOfWeek}</span>
+                    <Button
+                      size="sm"
+                      variant={day.status ? "primary" : "secondary"}
+                      onClick={() => setWorkingDay(index, "status", !day.status)}
+                      aria-pressed={day.status}
+                    >
+                      {day.status ? "Open" : "Closed"}
+                    </Button>
+                    <Input
+                      id={`open-${day.dayOfWeek}`}
+                      type="time"
+                      aria-label={`${day.dayOfWeek} opens`}
+                      disabled={!day.status}
+                      value={day.openTime ? day.openTime.slice(0, 5) : ""}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setWorkingDay(index, "openTime", v ? `${v}:00` : null);
+                      }}
+                    />
+                    <Input
+                      id={`close-${day.dayOfWeek}`}
+                      type="time"
+                      aria-label={`${day.dayOfWeek} closes`}
+                      disabled={!day.status}
+                      value={day.closeTime ? day.closeTime.slice(0, 5) : ""}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setWorkingDay(index, "closeTime", v ? `${v}:00` : null);
+                      }}
+                    />
+                  </div>
+                ))}
+              </div>
+            </Section>
+
+            <Section
+              title="Machinery"
+              description="Counts are stored as 0 / 2 / 5 / 6 for the 0, 1–2, 3–5, and 5+ options."
+            >
+              {machinesError ? (
+                <div className={`${styles.banner} ${styles.bannerDanger}`}>
+                  <span>Could not load machine types.</span>
+                  <Button size="sm" variant="secondary" onClick={() => refetchMachines()}>
+                    Retry
+                  </Button>
+                </div>
+              ) : null}
+              {machinesLoading ? (
+                <p className={styles.empty}>Loading machine types…</p>
+              ) : !machines || machines.length === 0 ? (
+                <p className={styles.empty}>No machine types available. Configure machines first.</p>
+              ) : (
+                <div className={styles.machineList}>
+                  {machines.map((machine) => {
+                    const machineId = machine.id ?? machine.machineId ?? machine._id;
+                    const name = machine.name ?? machine.machineName ?? `Machine ${machineId}`;
+                    const value = formData.machineryCount[machineId] ?? "";
+                    return (
+                      <div key={machineId} className={styles.machine}>
+                        <p className={styles.machineTitle}>{name}</p>
+                        <div className={styles.chips}>
+                          {MACHINERY_COUNT_OPTIONS.map((opt) => (
+                            <button
+                              key={opt}
+                              type="button"
+                              className={`${styles.chip} ${value === opt ? styles.chipOn : ""}`}
+                              aria-pressed={value === opt}
+                              onClick={() => setMachineryCount(machineId, opt)}
+                            >
+                              {opt}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </Section>
+          </>
+        )}
+
+        {step === 3 && (
+          <div className={styles.reviewGrid}>
+            <section>
+              <div className={styles.reviewHead}>
+                <div>
+                  <h3 className={styles.sectionTitle}>Account</h3>
+                  <p className={styles.sectionDesc}>Owner and coverage already saved.</p>
+                </div>
+                <Button size="sm" variant="ghost" onClick={() => goToStep(0)}>
+                  View
+                </Button>
+              </div>
+              <dl className={styles.kv}>
+                <dt>Owner</dt>
+                <dd>
+                  {formData.firstName} {formData.lastName}
+                </dd>
+                <dt>Email</dt>
+                <dd>{formData.email || "—"}</dd>
+                <dt>Phone</dt>
+                <dd>
+                  {formData.countryCode} {formData.phoneNum}
+                </dd>
+                <dt>Coverage</dt>
+                <dd>
+                  {optionLabel(countryOptions, formData.countryId)} · {optionLabel(cityOptions, formData.cityId)}
+                </dd>
+                <dt>Zone</dt>
+                <dd>{optionLabel(zoneOptions, formData.zone)}</dd>
+                <dt>Currency</dt>
+                <dd>{optionLabel(zoneCurrencyOptions, formData.currencyUnitId)}</dd>
+                <dt>Employees</dt>
+                <dd>{formData.noOfEmployee || "—"}</dd>
+              </dl>
+            </section>
+
+            <section>
+              <div className={styles.reviewHead}>
+                <div>
+                  <h3 className={styles.sectionTitle}>Location</h3>
+                  <p className={styles.sectionDesc}>Address already saved.</p>
+                </div>
+                <Button size="sm" variant="ghost" onClick={() => goToStep(1)}>
+                  Edit
+                </Button>
+              </div>
+              <dl className={styles.kv}>
+                <dt>Address</dt>
+                <dd>{formData.streetAddress || "—"}</dd>
+                <dt>District</dt>
+                <dd>{formData.district || "—"}</dd>
+                <dt>Province</dt>
+                <dd>{formData.province || "—"}</dd>
+                <dt>Postal code</dt>
+                <dd>{formData.postalcode || "—"}</dd>
+                <dt>Coordinates</dt>
+                <dd>{formData.coordinates || (formData.lat && formData.lng ? `${formData.lat},${formData.lng}` : "—")}</dd>
+              </dl>
+            </section>
+
+            <section>
+              <div className={styles.reviewHead}>
+                <div>
+                  <h3 className={styles.sectionTitle}>Operations</h3>
+                  <p className={styles.sectionDesc}>Saved when you create the shop.</p>
+                </div>
+                <Button size="sm" variant="ghost" onClick={() => goToStep(2)}>
+                  Edit
+                </Button>
+              </div>
+              <dl className={styles.kv}>
+                <dt>Shop name</dt>
+                <dd>{formData.shopName || "—"}</dd>
+                <dt>Profile</dt>
+                <dd>{formData.matchProfileOptions || "—"}</dd>
+                <dt>Services</dt>
+                <dd>
+                  {formData.services.length
+                    ? formData.services
+                        .map(
+                          (id) =>
+                            serviceOptions.find((o) => String(o.value) === String(id))?.label ?? id
+                        )
+                        .join(", ")
+                    : "None selected"}
+                </dd>
+                <dt>Hours</dt>
+                <dd>{formatHoursSummary(formData.bussinessWorkingDays).join(" · ")}</dd>
+                <dt>Machinery</dt>
+                <dd>
+                  {Object.keys(formData.machineryCount).length
+                    ? Object.entries(formData.machineryCount)
+                        .map(([id, count]) => {
+                          const machine = (machines || []).find(
+                            (m) => String(m.id ?? m.machineId ?? m._id) === String(id)
+                          );
+                          const name =
+                            machine?.name ?? machine?.machineName ?? `Machine ${id}`;
+                          return `${name} ${count}`;
+                        })
+                        .join(", ")
+                    : "Not set"}
+                </dd>
+              </dl>
+            </section>
+          </div>
+        )}
       </div>
 
-      {step === 0 && (
-        <div className="w-full bg-white rounded-lg !py-6 !px-4 sm:!px-12 grid sm:grid-cols-2 gap-6">
-          <InputFieldBordered
-            title="First Name"
-            placeholder="First Name"
-            value={formData.firstName}
-            onChange={handleChange("firstName")}
-          />
-          <InputFieldBordered
-            title="Last Name"
-            placeholder="Last Name"
-            value={formData.lastName}
-            onChange={handleChange("lastName")}
-          />
-          <InputFieldBordered
-            type="email"
-            title="Email"
-            placeholder="@gmail.com"
-            value={formData.email}
-            onChange={handleChange("email")}
-          />
-          <InputFieldBordered
-            type="password"
-            title="Password"
-            placeholder="••••••••"
-            value={formData.password}
-            onChange={handleChange("password")}
-          />
-          <InputFieldBordered
-            title="Phone"
-            placeholder="7123456789"
-            value={formData.phoneNum}
-            onChange={handleChange("phoneNum")}
-          />
-          <InputFieldBordered
-            title="Country Code"
-            placeholder="+44"
-            value={formData.countryCode}
-            onChange={handleChange("countryCode")}
-          />
-          <SelectField
-            title="Country"
-            placeholder="select country"
-            value={formData.countryId}
-            onChange={handleChange("countryId")}
-            options={countryOptions}
-            bgcolor="none"
-            border="1px solid #00000033"
-            labelColor="black"
-          />
-          <SelectField
-            title="City"
-            placeholder={formData.countryId ? "select city" : "select country first"}
-            value={formData.cityId}
-            onChange={handleChange("cityId")}
-            options={cityOptions}
-            bgcolor="none"
-            border="1px solid #00000033"
-            labelColor="black"
-            disabled={!formData.countryId}
-          />
-          <InputFieldBordered
-            title="No. of Employee"
-            placeholder="05"
-            value={formData.noOfEmployee}
-            onChange={handleChange("noOfEmployee")}
-          />
-          <SelectField
-            title="Zone"
-            placeholder={formData.cityId ? "Select zone" : "Select city first"}
-            value={formData.zone}
-            onChange={handleZoneChange}
-            options={zoneOptions}
-            bgcolor="none"
-            border="1px solid #00000033"
-            labelColor="black"
-            disabled={!formData.cityId}
-          />
-          <SelectField
-            title="Currency"
-            placeholder={
-              !formData.zone
-                ? "Select zone first"
-                : zoneCurrencyOptions.length === 0
-                  ? "No currency on this zone"
-                  : "Currency"
-            }
-            value={formData.zone ? formData.currencyUnitId || "" : ""}
-            onChange={() => {}}
-            options={zoneCurrencyOptions}
-            bgcolor="none"
-            border="1px solid #00000033"
-            labelColor="black"
-            disabled
-          />
-          <div className="sm:col-span-2 flex justify-end pt-4">
-            <button
-              type="button"
-              disabled={!isStep1Complete() || isRegistering}
-              onClick={handleStep1Next}
-              className={`rounded-lg font-medium text-white !px-12 !py-3 ${
-                isStep1Complete() && !isRegistering
-                  ? "bg-blue200 hover:opacity-90 cursor-pointer"
-                  : "bg-gray-300 cursor-not-allowed"
-              }`}
-            >
-              {isRegistering ? "Registering..." : "Next"}
-            </button>
+      <div className={styles.footer}>
+        <div className={styles.footerBar}>
+          <span className={styles.footerMeta}>
+            Step {step + 1} of {WIZARD_STEPS.length} · {WIZARD_STEPS[step].hint}
+          </span>
+          <div className={styles.footerActions}>
+            <Button variant="ghost" onClick={() => navigate("/shop-management/shops")} disabled={busy}>
+              Cancel
+            </Button>
+            {step > 0 ? (
+              <Button variant="secondary" onClick={() => goToStep(step - 1)} disabled={busy}>
+                Back
+              </Button>
+            ) : null}
+            <Button disabled={primaryDisabled} onClick={primaryAction}>
+              {primaryLabel}
+            </Button>
           </div>
         </div>
-      )}
-
-      {step === 1 && (
-        <div className="w-full bg-white rounded-lg !py-6 !px-4 sm:!px-12 grid sm:grid-cols-2 gap-6">
-          <div className="sm:col-span-2">
-            <Typography variant="body2" sx={{ mb: "8px", color: "black", fontFamily: "Switzer" }}>
-              Address
-            </Typography>
-            <div className="relative w-full">
-              {isGoogleMapsLoaded ? (
-                <Autocomplete onLoad={(ac) => (addressAutocompleteRef.current = ac)} onPlaceChanged={handleAddressPlaceChanged}>
-                  <input
-                    placeholder="Start typing to search address..."
-                    value={formData.streetAddress}
-                    onChange={(e) => setFormData((s) => ({ ...s, streetAddress: e.target.value }))}
-                    className="w-full h-[52px] outline-none bg-none border border-[#00000033] rounded-lg !px-4 font-[Switzer] !font-normal !text-base pr-10"
-                  />
-                </Autocomplete>
-              ) : (
-                <input
-                  placeholder="Loading address search..."
-                  value={formData.streetAddress}
-                  onChange={(e) => setFormData((s) => ({ ...s, streetAddress: e.target.value }))}
-                  className="w-full h-[52px] outline-none bg-none border border-[#00000033] rounded-lg !px-4 font-[Switzer] !font-normal !text-base pr-10"
-                  disabled
-                />
-              )}
-            </div>
-          </div>
-          <InputFieldBordered
-            title="District"
-            placeholder="District"
-            value={formData.district}
-            onChange={handleChange("district")}
-          />
-          <InputFieldBordered
-            title="Province"
-            placeholder="Province"
-            value={formData.province}
-            onChange={handleChange("province")}
-          />
-          <InputFieldBordered
-            title="Postal Code"
-            placeholder="Postal code"
-            value={formData.postalcode}
-            onChange={handleChange("postalcode")}
-          />
-          <div className="sm:col-span-2 flex justify-end pt-4">
-            <button
-              type="button"
-              disabled={!isStep2Complete() || isAddingAddress}
-              onClick={handleStep2Next}
-              className={`rounded-lg font-medium text-white !px-12 !py-3 ${
-                isStep2Complete() && !isAddingAddress
-                  ? "bg-blue200 hover:opacity-90 cursor-pointer"
-                  : "bg-gray-300 cursor-not-allowed"
-              }`}
-            >
-              {isAddingAddress ? "Saving..." : "Next"}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {step === 2 && (
-        <div className="w-full bg-white rounded-lg !py-6 !px-4 sm:!px-12 grid sm:grid-cols-2 gap-6">
-          <InputFieldBordered
-            title="Shop Name (Business Name)"
-            placeholder="Shop Name"
-            value={formData.shopName}
-            onChange={handleChange("shopName")}
-          />
-          <InputFieldBordered
-            title="Match profile options"
-            placeholder="e.g. Laundry Shop"
-            value={formData.matchProfileOptions}
-            onChange={handleChange("matchProfileOptions")}
-          />
-          <div className="sm:col-span-2">
-            <InputFieldBordered
-              title="Other text (optional)"
-              placeholder=""
-              value={formData.otherText}
-              onChange={handleChange("otherText")}
-            />
-          </div>
-
-          <FormControl fullWidth className="sm:col-span-2">
-            <Typography variant="body2" sx={{ mb: "8px", color: "black" }}>
-              Services
-            </Typography>
-            <Select
-              multiple
-              value={formData.services}
-              onChange={handleServicesChange}
-              displayEmpty
-              sx={{
-                height: "52px",
-                fontFamily: "Switzer",
-                fontWeight: 400,
-                borderRadius: "8px",
-                border: "1px solid #00000033",
-                bgcolor: "none",
-                "& fieldset": { border: "1px solid #00000033" },
-                "& .MuiSelect-select": { px: "16px", fontWeight: 400 },
-              }}
-              renderValue={(selected) =>
-                selected.length === 0
-                  ? "Select services"
-                  : selected
-                      .map((id) => serviceOptions.find((o) => o.value === id)?.label)
-                      .filter(Boolean)
-                      .join(", ")
-              }
-            >
-              {serviceOptions.map((opt) => (
-                <MenuItem key={opt.value} value={opt.value}>
-                  <Checkbox checked={formData.services.indexOf(opt.value) > -1} />
-                  <ListItemText primary={opt.label} />
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-
-          {(formData.services?.length > 0) && (
-            <div className="sm:col-span-2">
-              <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
-                Service times (hours required per service)
-              </Typography>
-              <div className="grid sm:grid-cols-2 gap-4">
-                {formData.services.map((serviceId) => {
-                  const label = serviceOptions.find((o) => o.value === serviceId)?.label ?? `Service ${serviceId}`;
-                  return (
-                    <InputFieldBordered
-                      key={serviceId}
-                      title={label}
-                      type="number"
-                      placeholder="e.g. 24"
-                      min={0}
-                      value={formData.serviceTimes?.[serviceId] ?? ""}
-                      onChange={(e) => setServiceTimeRequired(serviceId, e.target.value)}
-                    />
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          <div className="sm:col-span-2">
-            <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 2 }}>
-              Business working days
-            </Typography>
-            <div className="border border-[#00000033] rounded-lg overflow-hidden">
-              <table className="w-full text-left font-[Switzer] text-sm">
-                <thead>
-                  <tr className="bg-gray-100">
-                    <th className="px-4 py-2 font-medium">Day</th>
-                    <th className="px-4 py-2 font-medium">Open</th>
-                    <th className="px-4 py-2 font-medium">Close</th>
-                    <th className="px-4 py-2 font-medium">Open</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(formData.bussinessWorkingDays || []).map((day, index) => (
-                    <tr key={day.dayOfWeek} className="border-t border-[#00000033]">
-                      <td className="px-4 py-2">{day.dayOfWeek}</td>
-                      <td className="px-4 py-2">
-                        <input
-                          type="time"
-                          disabled={!day.status}
-                          value={day.openTime ? day.openTime.slice(0, 5) : ""}
-                          onChange={(e) => {
-                            const v = e.target.value;
-                            setWorkingDay(index, "openTime", v ? `${v}:00` : null);
-                          }}
-                          className="h-9 px-2 border border-[#00000033] rounded outline-none disabled:bg-gray-100 disabled:opacity-70"
-                        />
-                      </td>
-                      <td className="px-4 py-2">
-                        <input
-                          type="time"
-                          disabled={!day.status}
-                          value={day.closeTime ? day.closeTime.slice(0, 5) : ""}
-                          onChange={(e) => {
-                            const v = e.target.value;
-                            setWorkingDay(index, "closeTime", v ? `${v}:00` : null);
-                          }}
-                          className="h-9 px-2 border border-[#00000033] rounded outline-none disabled:bg-gray-100 disabled:opacity-70"
-                        />
-                      </td>
-                      <td className="px-4 py-2">
-                        <input
-                          type="checkbox"
-                          checked={!!day.status}
-                          onChange={(e) => setWorkingDay(index, "status", e.target.checked)}
-                          className="rounded"
-                        />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <div className="sm:col-span-2">
-            <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 2 }}>
-              What is your count of machinery?
-            </Typography>
-            <div className="space-y-6">
-              {(machines?.length ? machines : []).map((machine) => {
-                const machineId = machine.id ?? machine.machineId ?? machine._id;
-                const name = machine.name ?? machine.machineName ?? `Machine ${machineId}`;
-                const value = formData.machineryCount[machineId] ?? "";
-                return (
-                  <FormControl key={machineId} component="fieldset" fullWidth>
-                    <FormLabel component="legend" sx={{ color: "black", mb: 1 }}>
-                      {name}
-                    </FormLabel>
-                    <RadioGroup
-                      row
-                      value={value}
-                      onChange={(e) => setMachineryCount(machineId, e.target.value)}
-                    >
-                      {MACHINERY_COUNT_OPTIONS.map((opt) => (
-                        <FormControlLabel
-                          key={opt}
-                          value={opt}
-                          control={<Radio size="small" />}
-                          label={opt}
-                          sx={{ mr: 2 }}
-                        />
-                      ))}
-                    </RadioGroup>
-                  </FormControl>
-                );
-              })}
-              {(!machines || machines.length === 0) && (
-                <Typography color="textSecondary">No machine types available. Configure machines first.</Typography>
-              )}
-            </div>
-          </div>
-
-          <div className="sm:col-span-2 flex items-center justify-between pt-4">
-            <button
-              type="button"
-              onClick={() => setStep(1)}
-              className="bg-gray-100 rounded-lg font-medium text-black !px-12 !py-3 cursor-pointer"
-            >
-              Previous
-            </button>
-            <button
-              type="button"
-              disabled={isAddingBusiness}
-              onClick={handleStep3Save}
-              className="rounded-lg font-medium text-white !px-12 !py-3 bg-blue200 hover:opacity-90 cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed"
-            >
-              {isAddingBusiness ? "Saving..." : "Save"}
-            </button>
-          </div>
-        </div>
-      )}
+      </div>
     </div>
   );
 }

@@ -1,5 +1,4 @@
-import { Box, Typography } from "@mui/material";
-import ModalComponent from "../../../components/shared/Modal";
+import { Modal } from "../../../design-system";
 import {
   useDeleteAdminEmployeeMutation,
   useDeleteAgentEmployeeMutation,
@@ -18,10 +17,6 @@ export default function DeleteEmployeeModal({
   const isLoading = isDeletingAdmin || isDeletingAgent;
   const { success, error } = useToaster();
 
-  const handleClose = () => {
-    onClose();
-  };
-
   const handleDelete = async () => {
     const resolvedId =
       typeof employeeId === "object"
@@ -37,7 +32,7 @@ export default function DeleteEmployeeModal({
     const res = await deleteFn(resolvedId);
 
     if (res?.data?.status === "1") {
-      handleClose();
+      onClose();
       success(res?.data?.message ?? "Employee deleted successfully.");
       onSuccess?.();
     } else {
@@ -46,28 +41,15 @@ export default function DeleteEmployeeModal({
   };
 
   return (
-    <ModalComponent
+    <Modal
       open={open}
-      title="Delete Employee"
-      onClose={handleClose}
-      secondaryAction={{
-        label: "Cancel",
-        onClick: handleClose,
-      }}
-      primaryAction={{
-        label: "Delete",
-        onClick: handleDelete,
-        isLoading,
-      }}
-    >
-      <Box className="!space-y-4">
-        <Typography variant="h6" fontFamily={"Switzer"}>
-          Are you sure you want to delete this employee?
-        </Typography>
-        <Typography variant="h6" fontFamily={"Switzer"} color="grey.80">
-          This will permanently remove the employee. This action can&apos;t be undone.
-        </Typography>
-      </Box>
-    </ModalComponent>
+      title="Delete employee"
+      description="This will permanently remove the employee. This action can't be undone."
+      onClose={onClose}
+      onPrimary={handleDelete}
+      primaryLabel={isLoading ? "Deleting…" : "Delete"}
+      secondaryLabel="Cancel"
+      danger
+    />
   );
 }

@@ -1,19 +1,5 @@
-import {
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  Button,
-  Typography,
-  Chip,
-  CircularProgress,
-  Box,
-  Alert,
-  Stack,
-  Radio,
-} from "@mui/material";
 import { useEffect, useMemo, useState } from "react";
-import dayjs from "dayjs";
+import { Badge, Input, Modal } from "../../../design-system";
 import {
   useGetBookingAssignableShopsQuery,
   useAssignBookingToShopMutation,
@@ -21,12 +7,12 @@ import {
   useGetZoneByIdQuery,
 } from "../../../store/services/api";
 import useToaster from "../../../components/ui/Toaster";
-import Search from "../../../components/ui/Search";
 import { isReassignBooking } from "../../../shared/adminAssignGate";
 import {
   zonesArrayFromGetZonesResponse,
   unwrapZoneFromApiResponse,
 } from "../../../utilities/zonesList";
+import { formatDate } from "../../../utilities/formatters";
 
 function formatTimeHm(value) {
   if (!value) return null;
@@ -58,14 +44,15 @@ function formatPickupLabel(payload, bookingSnapshot) {
   const timeTo =
     payload?.collectionTimeTo || bookingSnapshot?.collectionTimeTo;
 
-  const datePart = dayjs(collectionDate).isValid()
-    ? dayjs(collectionDate).format("ddd D MMM")
+  const datePart = collectionDate
+    ? formatDate(collectionDate, "ddd D MMM")
     : null;
+  const dateLabel = datePart && datePart !== "—" ? datePart : null;
   const from = formatTimeHm(timeFrom);
   const to = formatTimeHm(timeTo);
 
-  if (datePart && from && to) return `${datePart}, ${from} – ${to}`;
-  if (datePart && from) return `${datePart}, ${from}`;
+  if (dateLabel && from && to) return `${dateLabel}, ${from} – ${to}`;
+  if (dateLabel && from) return `${dateLabel}, ${from}`;
   if (from && to) return `${from} – ${to}`;
   return null;
 }
@@ -218,213 +205,205 @@ export default function AssignOrderModal({
   const selectedShop = shops.find((s) => s.laundryShopId === selectedShopId);
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle sx={{ pb: 1 }}>
-        {isReassign ? "Reassign shop" : "Assign shop"}
-      </DialogTitle>
-      <DialogContent sx={{ pt: 1 }}>
-        {isLoading && !hasShopList && (
-          <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
-            <CircularProgress size={32} />
-          </Box>
-        )}
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={isReassign ? "Reassign shop" : "Assign shop"}
+      size="md"
+      secondaryLabel="Cancel"
+      secondaryDisabled={isAssigning}
+      primaryLabel={
+        isAssigning
+          ? isReassign
+            ? "Reassigning…"
+            : "Assigning…"
+          : isReassign
+            ? "Reassign shop"
+            : "Assign shop"
+      }
+      onPrimary={handleAssign}
+      primaryDisabled={
+        isAssigning || !selectedShopId || (isLoading && !hasShopList)
+      }
+    >
+      {isLoading && !hasShopList ? (
+        <p style={{ margin: 0, textAlign: "center", color: "var(--muted)", padding: "28px 0" }}>
+          Loading shops…
+        </p>
+      ) : null}
 
-        {blockingError && (
-          <Typography color="error" sx={{ py: 2 }}>
-            {errorMessage}
-          </Typography>
-        )}
+      {blockingError ? (
+        <p style={{ margin: 0, color: "var(--danger)", padding: "12px 0" }}>
+          {errorMessage}
+        </p>
+      ) : null}
 
-        {refreshWarning && (
-          <Alert severity="warning" sx={{ mb: 2, fontSize: 13 }}>
-            {refreshWarning}
-          </Alert>
-        )}
+      {refreshWarning ? (
+        <div
+          style={{
+            marginBottom: 12,
+            padding: "10px 12px",
+            borderRadius: "var(--r-md)",
+            background: "var(--warning-bg)",
+            color: "var(--warning-700)",
+            fontSize: 13,
+          }}
+        >
+          {refreshWarning}
+        </div>
+      ) : null}
 
-        {(!isLoading || hasShopList) && !blockingError && (
-          <Stack spacing={2}>
-            {isReassign && (
-              <Alert severity="warning" sx={{ fontSize: 13 }}>
-                Reassign only before the driver goes out for pickup. Card
-                payments already collected stay on the order.
-              </Alert>
-            )}
-
-            {/* Order + zone context — once, not repeated per shop */}
-            <Box
-              sx={{
-                p: 1.5,
-                borderRadius: 1.5,
-                bgcolor: "#F8FAFC",
-                border: "1px solid #E2E8F0",
+      {(!isLoading || hasShopList) && !blockingError ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          {isReassign ? (
+            <div
+              style={{
+                padding: "10px 12px",
+                borderRadius: "var(--r-md)",
+                background: "var(--warning-bg)",
+                color: "var(--warning-700)",
+                fontSize: 13,
               }}
             >
-              <Stack
-                direction={{ xs: "column", sm: "row" }}
-                spacing={1.5}
-                justifyContent="space-between"
-              >
-                <Box>
-                  <Typography
-                    sx={{ fontSize: 11, color: "#64748B", fontWeight: 600, letterSpacing: 0.4 }}
+              Reassign only before the driver goes out for pickup. Card
+              payments already collected stay on the order.
+            </div>
+          ) : null}
+
+          <div
+            style={{
+              padding: 14,
+              borderRadius: "var(--r-lg)",
+              background: "var(--canvas)",
+              border: "1px solid var(--line)",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                gap: 16,
+                flexWrap: "wrap",
+              }}
+            >
+              <div>
+                <div style={{ fontSize: 11, color: "var(--muted)", fontWeight: 600, letterSpacing: 0.4 }}>
+                  ORDER
+                </div>
+                <div style={{ fontSize: 15, fontWeight: 700 }}>#{orderRef}</div>
+                {pickupLabel ? (
+                  <div style={{ fontSize: 13, color: "var(--ink-2)", marginTop: 2 }}>
+                    Pickup {pickupLabel}
+                  </div>
+                ) : null}
+              </div>
+              <div>
+                <div style={{ fontSize: 11, color: "var(--muted)", fontWeight: 600, letterSpacing: 0.4 }}>
+                  ZONE
+                </div>
+                <div style={{ fontSize: 15, fontWeight: 700 }}>{zoneDisplay}</div>
+                <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 2 }}>
+                  {shops.length} shop{shops.length === 1 ? "" : "s"} in this zone
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {payload?.currentLaundryShopId ? (
+            <p style={{ margin: 0, fontSize: 13, color: "var(--ink-2)" }}>
+              Currently assigned to shop #{payload.currentLaundryShopId}. Pick
+              a different shop to reassign.
+            </p>
+          ) : null}
+
+          {hasShopList ? (
+            <Input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search shop name…"
+              aria-label="Search shop name"
+            />
+          ) : null}
+
+          {shops.length === 0 ? (
+            <div
+              style={{
+                padding: "10px 12px",
+                borderRadius: "var(--r-md)",
+                background: "var(--info-bg)",
+                color: "var(--info-600)",
+                fontSize: 13,
+              }}
+            >
+              No active shops in this zone.
+            </div>
+          ) : filteredShops.length === 0 ? (
+            <p style={{ margin: 0, color: "var(--muted)" }}>
+              No shops match “{searchQuery.trim()}”.
+            </p>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 380, overflowY: "auto" }}>
+              {filteredShops.map((shop) => {
+                const selected = selectedShopId === shop.laundryShopId;
+                const disabled = shop.isCurrentShop;
+                return (
+                  <button
+                    key={shop.laundryShopId}
+                    type="button"
+                    disabled={disabled}
+                    onClick={() =>
+                      !disabled && setSelectedShopId(shop.laundryShopId)
+                    }
+                    style={{
+                      display: "flex",
+                      alignItems: "flex-start",
+                      gap: 10,
+                      padding: 12,
+                      borderRadius: "var(--r-lg)",
+                      border: selected
+                        ? "2px solid var(--accent)"
+                        : "1px solid var(--line)",
+                      background: selected ? "var(--accent-tint)" : "var(--surface)",
+                      cursor: disabled ? "not-allowed" : "pointer",
+                      opacity: disabled ? 0.55 : 1,
+                      textAlign: "left",
+                    }}
                   >
-                    ORDER
-                  </Typography>
-                  <Typography sx={{ fontSize: 15, fontWeight: 700, color: "#0F172A" }}>
-                    #{orderRef}
-                  </Typography>
-                  {pickupLabel && (
-                    <Typography sx={{ fontSize: 13, color: "#475569", mt: 0.25 }}>
-                      Pickup {pickupLabel}
-                    </Typography>
-                  )}
-                </Box>
-                <Box sx={{ textAlign: { sm: "right" } }}>
-                  <Typography
-                    sx={{ fontSize: 11, color: "#64748B", fontWeight: 600, letterSpacing: 0.4 }}
-                  >
-                    ZONE
-                  </Typography>
-                  <Typography sx={{ fontSize: 15, fontWeight: 700, color: "#0F172A" }}>
-                    {zoneDisplay}
-                  </Typography>
-                  <Typography sx={{ fontSize: 12, color: "#64748B", mt: 0.25 }}>
-                    {shops.length} shop{shops.length === 1 ? "" : "s"} in this zone
-                  </Typography>
-                </Box>
-              </Stack>
-            </Box>
+                    <input
+                      type="radio"
+                      checked={selected}
+                      disabled={disabled}
+                      readOnly
+                      tabIndex={-1}
+                      style={{ marginTop: 3 }}
+                    />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                        <div style={{ fontSize: 15, fontWeight: 700, lineHeight: 1.3 }}>
+                          {shop.shopName || `Shop #${shop.laundryShopId}`}
+                          {shop.isCurrentShop ? " (current)" : ""}
+                        </div>
+                        <Badge tone={shop.isOpenNow ? "success" : "neutral"}>
+                          {shop.isOpenNow ? "Open" : "Closed"}
+                        </Badge>
+                      </div>
+                      <div style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 4 }}>
+                        {shopHoursLabel(shop)}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
 
-            {payload?.currentLaundryShopId && (
-              <Typography sx={{ fontSize: 13, color: "#475569" }}>
-                Currently assigned to shop #{payload.currentLaundryShopId}. Pick
-                a different shop to reassign.
-              </Typography>
-            )}
-
-            {hasShopList && (
-              <Search
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search shop name…"
-              />
-            )}
-
-            {shops.length === 0 ? (
-              <Alert severity="info">No active shops in this zone.</Alert>
-            ) : filteredShops.length === 0 ? (
-              <Typography sx={{ color: "#64748B", py: 1 }}>
-                No shops match “{searchQuery.trim()}”.
-              </Typography>
-            ) : (
-              <Stack
-                spacing={1}
-                sx={{ maxHeight: 380, overflowY: "auto", pr: 0.5 }}
-              >
-                {filteredShops.map((shop) => {
-                  const selected = selectedShopId === shop.laundryShopId;
-                  const disabled = shop.isCurrentShop;
-                  return (
-                    <Box
-                      key={shop.laundryShopId}
-                      onClick={() =>
-                        !disabled && setSelectedShopId(shop.laundryShopId)
-                      }
-                      sx={{
-                        display: "flex",
-                        alignItems: "flex-start",
-                        gap: 1,
-                        p: 1.5,
-                        borderRadius: 1.5,
-                        border: selected
-                          ? "2px solid #000099"
-                          : "1px solid #E2E8F0",
-                        bgcolor: selected
-                          ? "rgba(0, 0, 153, 0.04)"
-                          : "#fff",
-                        cursor: disabled ? "not-allowed" : "pointer",
-                        opacity: disabled ? 0.55 : 1,
-                        transition: "border-color 0.15s, background 0.15s",
-                        "&:hover": disabled
-                          ? undefined
-                          : {
-                              borderColor: selected ? "#000099" : "#94A3B8",
-                            },
-                      }}
-                    >
-                      <Radio
-                        checked={selected}
-                        disabled={disabled}
-                        size="small"
-                        sx={{ mt: -0.25, p: 0.5 }}
-                        tabIndex={-1}
-                      />
-                      <Box sx={{ flex: 1, minWidth: 0 }}>
-                        <Stack
-                          direction="row"
-                          spacing={1}
-                          alignItems="center"
-                          justifyContent="space-between"
-                        >
-                          <Typography
-                            sx={{
-                              fontSize: 15,
-                              fontWeight: 700,
-                              color: "#0F172A",
-                              lineHeight: 1.3,
-                            }}
-                          >
-                            {shop.shopName || `Shop #${shop.laundryShopId}`}
-                            {shop.isCurrentShop ? " (current)" : ""}
-                          </Typography>
-                          <Chip
-                            size="small"
-                            label={shop.isOpenNow ? "Open" : "Closed"}
-                            color={shop.isOpenNow ? "success" : "default"}
-                            sx={{ height: 22, fontSize: 11, flexShrink: 0 }}
-                          />
-                        </Stack>
-                        <Typography
-                          sx={{ fontSize: 12.5, color: "#64748B", mt: 0.5 }}
-                        >
-                          {shopHoursLabel(shop)}
-                        </Typography>
-                      </Box>
-                    </Box>
-                  );
-                })}
-              </Stack>
-            )}
-
-            {selectedShop && (
-              <Typography sx={{ fontSize: 13, color: "#334155" }}>
-                Selected: <strong>{selectedShop.shopName}</strong>
-              </Typography>
-            )}
-          </Stack>
-        )}
-      </DialogContent>
-      <DialogActions sx={{ px: 3, pb: 2 }}>
-        <Button onClick={onClose} disabled={isAssigning} sx={{ textTransform: "none" }}>
-          Cancel
-        </Button>
-        <Button
-          variant="contained"
-          onClick={handleAssign}
-          disabled={
-            isAssigning || !selectedShopId || (isLoading && !hasShopList)
-          }
-          sx={{ bgcolor: "#000099", textTransform: "none", minWidth: 120 }}
-        >
-          {isAssigning
-            ? isReassign
-              ? "Reassigning…"
-              : "Assigning…"
-            : isReassign
-              ? "Reassign shop"
-              : "Assign shop"}
-        </Button>
-      </DialogActions>
-    </Dialog>
+          {selectedShop ? (
+            <p style={{ margin: 0, fontSize: 13, color: "var(--ink-2)" }}>
+              Selected: <strong>{selectedShop.shopName}</strong>
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+    </Modal>
   );
 }

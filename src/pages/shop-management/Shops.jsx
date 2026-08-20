@@ -1,10 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { Delay } from "../../components/shared/Loaders";
 import { useMemo, useState, useCallback } from "react";
-import InputFieldBordered from "../../components/ui/InputFieldBordered";
-import { Typography } from "@mui/material";
-import ModalComponent from "../../components/shared/Modal";
-import StatCard from "../../components/ui/StatCard";
+import { Button, Field, Input, Modal, Table } from "../../design-system";
 import {
   useGetShopsDataQuery,
   useEditShopMutation,
@@ -12,19 +9,29 @@ import {
 import useToaster from "../../components/ui/Toaster";
 import DeleteShopModal from "./DeleteShopModal";
 import { useShopListTableFilters } from "./useShopListTableFilters";
-import ShopListDataTable from "./ShopListDataTable";
+import ShopDirectoryToolbar from "./ShopDirectoryToolbar";
+import ListPagination from "../order-management/ListPagination";
 import { useOrderListPageData } from "../order-management/useOrderListPageData";
 import { buildShopListColumns, mapShopToRow } from "./shopListTable";
 import {
-  SHOP_TABLE_STICKY_LEFT_FIELDS,
-  SHOP_TABLE_STICKY_RIGHT_FIELDS,
-} from "../../shared/constants";
+  DirectoryTableWrap,
+  DirectoryViewModal,
+} from "../directory-table/directoryTable";
+import { formatMoney, resolveCurrencySymbol } from "../../utilities/formatters";
+import styles from "./ShopDirectory.module.css";
+
+const FORM_GRID = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
+  gap: 16,
+};
 
 export default function Shops() {
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editData, setEditData] = useState(null);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [shopToDelete, setShopToDelete] = useState(null);
+  const [viewRow, setViewRow] = useState(null);
   const navigate = useNavigate();
   const { success, error } = useToaster();
 
@@ -38,6 +45,7 @@ export default function Shops() {
     isTableLoading,
     isLoading,
     refetch,
+    isError,
   } = useOrderListPageData(listQuery, {
     pickRows,
     totalCountField: "total",
@@ -45,7 +53,6 @@ export default function Shops() {
     isSearchPending: tableFilters.isSearchPending,
   });
 
-  // Prefer API total; if meta is missing/0 but rows exist, estimate from page + row count
   const totalRows = useMemo(() => {
     if (backendTotalRows > 0) return backendTotalRows;
     if (shops.length === 0) return 0;
@@ -60,7 +67,7 @@ export default function Shops() {
   const topPerformingShops = useMemo(() => {
     const body = listQuery.currentData ?? listQuery.data;
     const list = body?.data?.topPerformingShops;
-    return Array.isArray(list) ? list : [];
+    return Array.isArray(list) ? list.slice(0, 4) : [];
   }, [listQuery.currentData, listQuery.data]);
 
   const [editShop, { isLoading: isEditing }] = useEditShopMutation();
@@ -89,6 +96,11 @@ export default function Shops() {
     ]
   );
 
+  const closeEditModal = () => {
+    setEditModalOpen(false);
+    setEditData(null);
+  };
+
   const handleSaveEdit = async () => {
     if (!editData?.id) return;
     try {
@@ -104,8 +116,7 @@ export default function Shops() {
 
       if (res?.status === "1") {
         success(res?.message ?? "Shop updated successfully");
-        setEditModalOpen(false);
-        setEditData(null);
+        closeEditModal();
         refetch();
       } else {
         error(res?.message ?? "Failed to update shop");
@@ -123,6 +134,10 @@ export default function Shops() {
   const handleDeleteClick = useCallback((row) => {
     setShopToDelete(row);
     setDeleteModalOpen(true);
+  }, []);
+
+  const handleViewClick = useCallback((row) => {
+    setViewRow(row);
   }, []);
 
   const handleEditClick = useCallback((row) => {
@@ -146,126 +161,183 @@ export default function Shops() {
     () =>
       buildShopListColumns({
         navigate,
+        onView: handleViewClick,
         onEdit: handleEditClick,
         onDelete: handleDeleteClick,
       }),
-    [navigate, handleEditClick, handleDeleteClick]
+    [navigate, handleViewClick, handleEditClick, handleDeleteClick]
   );
+
+  const emptyMessage = useMemo(() => {
+    if (isTableLoading && !shopsData.length) return "Loading shops…";
+    if (tableFilters.zoneId != null && String(tableFilters.zoneId).trim() !== "") {
+      return "No shops found for this zone";
+    }
+    if (tableFilters.hasActiveFilters) return "No shops match these filters";
+    return "No shops found";
+  }, [
+    isTableLoading,
+    shopsData.length,
+    tableFilters.zoneId,
+    tableFilters.hasActiveFilters,
+  ]);
+
+  if (isError && shops.length === 0 && !tableFilters.hasActiveFilters) {
+    return (
+      <div style={{ textAlign: "center", padding: 28 }}>
+        <p className="jd-lead" style={{ margin: "0 0 12px" }}>
+          Could not load shops.
+        </p>
+        <Button variant="secondary" onClick={() => refetch()}>
+          Retry
+        </Button>
+      </div>
+    );
+  }
 
   if (isLoading && shops.length === 0 && !tableFilters.hasActiveFilters) {
     return <Delay />;
   }
 
-  const statCardColors = [
-    "bg-purple50",
-    "bg-red50",
-    "bg-green50",
-    "bg-green200",
-    "bg-yellow50",
-  ];
-
   return (
-    <div className="w-full !space-y-11 !mt-0">
-      <div className="grid sm:grid-cols-2 md:grid-cols-4 gap-7 font-Inter">
-        {topPerformingShops.slice(0, 4).map((shop, index) => (
-          <StatCard
-            key={shop?.id ?? index}
-            title={shop?.shopName ?? "—"}
-            value={`${shop?.orderCount ?? 0} orders`}
-            bgColor={statCardColors[index % statCardColors.length]}
+    <div className={styles.page}>
+      {topPerformingShops.length ? (
+        <div className={styles.spotlight} aria-label="Top performing shops">
+          {topPerformingShops.map((shop, index) => {
+            const shopId = shop?.id ?? shop?.laundryShopId;
+            return (
+              <button
+                key={shopId ?? index}
+                type="button"
+                className={styles.spot}
+                disabled={!shopId}
+                onClick={() =>
+                  shopId && navigate(`/shop-management/details/${shopId}`)
+                }
+              >
+                <span className={styles.spotKicker}>Top {index + 1}</span>
+                <span className={styles.spotName}>{shop?.shopName ?? "—"}</span>
+                <span className={styles.spotMeta}>
+                  {shop?.orderCount ?? 0} orders
+                  {shop?.totalRevenue != null
+                    ? ` · ${formatMoney(shop.totalRevenue, resolveCurrencySymbol(shop))}`
+                    : ""}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+
+      <DirectoryTableWrap
+        key={tableFilterKey}
+        toolbar={
+          <ShopDirectoryToolbar
+            searchInput={tableFilters.searchInput}
+            onSearchInputChange={tableFilters.setSearchInput}
+            zoneId={tableFilters.zoneId}
+            onZoneIdChange={tableFilters.setZoneId}
+            statusId={tableFilters.statusId}
+            onStatusIdChange={tableFilters.setStatusId}
+            dateRange={tableFilters.dateRange}
+            onDateRangeChange={tableFilters.setDateRange}
+            onClearFilters={tableFilters.clearFilters}
+            hasActiveFilters={tableFilters.hasActiveFilters}
+            isRefreshing={Boolean(isTableLoading && shopsData.length)}
           />
-        ))}
-      </div>
-
-      <Typography
-        variant="body2"
-        sx={{ fontSize: 13, color: "text.secondary", mt: -4 }}
+        }
+        footer={
+          <ListPagination
+            page={tableFilters.page}
+            pageSize={tableFilters.pageSize}
+            totalRows={totalRows}
+            onPageChange={tableFilters.setPage}
+            onPageSizeChange={tableFilters.setPageSize}
+          />
+        }
       >
-        Cards and table use the same zone, registration date, status, and search
-        filters{tableFilters.zoneId ? " (including zone)" : ""}. The table is
-        paginated — use the footer to see more rows. Shop and actions stay
-        pinned while scrolling.
-      </Typography>
-
-      <div className="w-full min-w-0">
-        <ShopListDataTable
-          key={tableFilterKey}
-          data={shopsData}
+        <Table
           columns={customerColumns}
-          totalRows={totalRows}
-          page={tableFilters.page}
-          pageSize={tableFilters.pageSize}
-          onPageChange={tableFilters.setPage}
-          onPageSizeChange={tableFilters.setPageSize}
-          zoneId={tableFilters.zoneId}
-          onZoneIdChange={tableFilters.setZoneId}
-          statusId={tableFilters.statusId}
-          onStatusIdChange={tableFilters.setStatusId}
-          dateRange={tableFilters.dateRange}
-          onDateRangeChange={tableFilters.setDateRange}
-          onClearFilters={tableFilters.clearFilters}
-          hasActiveFilters={tableFilters.hasActiveFilters}
-          searchInput={tableFilters.searchInput}
-          onSearchInputChange={tableFilters.setSearchInput}
-          isTableLoading={isTableLoading}
-          stickyLeftFields={SHOP_TABLE_STICKY_LEFT_FIELDS}
-          stickyRightFields={SHOP_TABLE_STICKY_RIGHT_FIELDS}
+          rows={shopsData}
+          rowKey={(row) => row.id}
+          empty={emptyMessage}
         />
-      </div>
+      </DirectoryTableWrap>
 
-      <ModalComponent
+      <DirectoryViewModal
+        open={Boolean(viewRow)}
+        title={viewRow?.name || "Shop"}
+        onClose={() => setViewRow(null)}
+        primaryLabel="Open details"
+        onPrimary={() => {
+          if (!viewRow?.id) return;
+          navigate(`/shop-management/details/${viewRow.id}`);
+        }}
+        fields={[
+          { label: "Shop ID", value: viewRow?.customerId },
+          { label: "Email", value: viewRow?.email },
+          { label: "Phone", value: viewRow?.phoneNumber },
+          { label: "Address", value: viewRow?.address },
+          { label: "Location", value: viewRow?.locationLine },
+          { label: "Orders", value: viewRow?.totalOrders },
+          { label: "Pending orders", value: viewRow?.pendingOrders },
+          { label: "Revenue", value: formatMoney(viewRow?.amountSpent, viewRow?.currencySymbol) },
+          { label: "Employees", value: viewRow?.employees ?? "—" },
+          { label: "Status", value: viewRow?.status ? "Active" : "Inactive" },
+        ]}
+      />
+
+      <Modal
         open={editModalOpen}
         title={editData ? "Edit Shop" : "Edit"}
-        onClose={() => {
-          setEditModalOpen(false);
-          setEditData(null);
-        }}
-        secondaryAction={{
-          label: "Cancel",
-          onClick: () => {
-            setEditModalOpen(false);
-            setEditData(null);
-          },
-        }}
-        primaryAction={{
-          label: "Save",
-          onClick: handleSaveEdit,
-          isLoading: isEditing,
-        }}
+        onClose={closeEditModal}
+        onPrimary={handleSaveEdit}
+        primaryLabel={isEditing ? "Saving…" : "Save"}
+        primaryDisabled={isEditing || !editData?.id}
+        secondaryLabel="Cancel"
       >
-        {editData && (
-          <div className="grid grid-cols-2 gap-4">
-            <InputFieldBordered
-              title="Shop Name"
-              value={editData.name}
-              onChange={(e) =>
-                setEditData((d) => ({ ...d, name: e.target.value }))
-              }
-            />
-            <InputFieldBordered
-              title="Email"
-              value={editData.email}
-              onChange={(e) =>
-                setEditData((d) => ({ ...d, email: e.target.value }))
-              }
-            />
-            <InputFieldBordered
-              title="Phone"
-              value={editData.phone}
-              onChange={(e) =>
-                setEditData((d) => ({ ...d, phone: e.target.value }))
-              }
-            />
-            <InputFieldBordered
-              title="Address"
-              value={editData.address}
-              onChange={(e) =>
-                setEditData((d) => ({ ...d, address: e.target.value }))
-              }
-            />
+        {editData ? (
+          <div style={FORM_GRID}>
+            <Field label="Shop name" htmlFor="edit-shop-name">
+              <Input
+                id="edit-shop-name"
+                value={editData.name}
+                onChange={(e) =>
+                  setEditData((d) => ({ ...d, name: e.target.value }))
+                }
+              />
+            </Field>
+            <Field label="Email" htmlFor="edit-shop-email">
+              <Input
+                id="edit-shop-email"
+                type="email"
+                value={editData.email}
+                onChange={(e) =>
+                  setEditData((d) => ({ ...d, email: e.target.value }))
+                }
+              />
+            </Field>
+            <Field label="Phone" htmlFor="edit-shop-phone">
+              <Input
+                id="edit-shop-phone"
+                value={editData.phone}
+                onChange={(e) =>
+                  setEditData((d) => ({ ...d, phone: e.target.value }))
+                }
+              />
+            </Field>
+            <Field label="Address" htmlFor="edit-shop-address">
+              <Input
+                id="edit-shop-address"
+                value={editData.address}
+                onChange={(e) =>
+                  setEditData((d) => ({ ...d, address: e.target.value }))
+                }
+              />
+            </Field>
           </div>
-        )}
-      </ModalComponent>
+        ) : null}
+      </Modal>
 
       <DeleteShopModal
         open={deleteModalOpen}

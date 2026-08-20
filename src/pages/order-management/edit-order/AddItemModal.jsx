@@ -1,24 +1,14 @@
 import { useState, useEffect, useRef, useMemo } from "react";
-import {
-  Box,
-  Typography,
-} from "@mui/material";
-import ModalComponent from "../../../components/shared/Modal";
+import { Button, Field, Modal, Select, Textarea } from "../../../design-system";
 import {
   useGetServiceWitPreferencesQuery,
   useGetSubCategoriesQuery,
   useGetAllServicesQuery,
-  useGetCategoriesQuery,
   useGetPreferencesQuery,
 } from "../../../store/services/api";
 import { Delay } from "../../../components/shared/Loaders";
-import SelectField from "../../../components/ui/SelectField";
-import TextareaField from "../../../components/ui/TextArea";
-import ButtonBlue from "../../../components/ui/ButtonBlue";
-import ButtonWhite from "../../../components/ui/ButtonWhite";
-import { useSelector } from "react-redux";
 
-export default function AddItemModal({ open, onClose, onAddItems, orderData }) {
+export default function AddItemModal({ open, onClose, onAddItems, orderData: _orderData }) {
   const [selectedServiceId, setSelectedServiceId] = useState("");
   
   const { data: serviceData, isFetching: isFetchingService } =
@@ -28,7 +18,6 @@ export default function AddItemModal({ open, onClose, onAddItems, orderData }) {
   const { data: subCategoriesResponse, isLoading: isLoadingSubCategories } =
     useGetSubCategoriesQuery();
   const { data: servicesResponse } = useGetAllServicesQuery();
-  const { data: categoriesResponse } = useGetCategoriesQuery();
   const { data: preferencesResponse, isLoading: isLoadingPreferences } = useGetPreferencesQuery(
     undefined,
     {
@@ -36,12 +25,26 @@ export default function AddItemModal({ open, onClose, onAddItems, orderData }) {
     }
   );
 
-  const allServices = servicesResponse?.data?.services || [];
-  const allCategories = categoriesResponse?.data || [];
-  const allSubCategories = subCategoriesResponse?.data || [];
-  const serviceCategories = serviceData?.data?.serviceCategoriesData || [];
-  const servicePreferences = serviceData?.data?.preferencesData || [];
-  const allPreferences = preferencesResponse?.data || [];
+  const allServices = useMemo(
+    () => servicesResponse?.data?.services || [],
+    [servicesResponse?.data?.services]
+  );
+  const allSubCategories = useMemo(
+    () => subCategoriesResponse?.data || [],
+    [subCategoriesResponse?.data]
+  );
+  const serviceCategories = useMemo(
+    () => serviceData?.data?.serviceCategoriesData || [],
+    [serviceData?.data?.serviceCategoriesData]
+  );
+  const servicePreferences = useMemo(
+    () => serviceData?.data?.preferencesData || [],
+    [serviceData?.data?.preferencesData]
+  );
+  const allPreferences = useMemo(
+    () => preferencesResponse?.data || [],
+    [preferencesResponse?.data]
+  );
 
   /** Service config API returns `id`; older payloads used `preferenceTypeId`. */
   const preferenceTypeIdFromServicePref = (sp) =>
@@ -54,18 +57,6 @@ export default function AddItemModal({ open, onClose, onAddItems, orderData }) {
     return true;
   };
   
-  // Log API responses for debugging
-  useEffect(() => {
-    console.log('📡 AddItemModal: API Data loaded:');
-    console.log('📡 AddItemModal: allServices:', allServices);
-    console.log('📡 AddItemModal: allCategories:', allCategories);
-    console.log('📡 AddItemModal: allSubCategories:', allSubCategories);
-    console.log('📡 AddItemModal: serviceCategories:', serviceCategories);
-    console.log('📡 AddItemModal: servicePreferences:', servicePreferences);
-    console.log('📡 AddItemModal: allPreferences:', allPreferences);
-    console.log('📡 AddItemModal: allPreferences count:', allPreferences.length);
-  }, [allServices, allCategories, allSubCategories, serviceCategories, servicePreferences, allPreferences]);
-
   const [formData, setFormData] = useState({
     serviceType: "",
     categoryName: "",
@@ -311,16 +302,10 @@ export default function AddItemModal({ open, onClose, onAddItems, orderData }) {
     );
 
     if (!selectedSubCategory || !formData.serviceType) {
-      console.log('❌ AddItemModal: Cannot save - missing subCategory or serviceType', {
-        selectedSubCategory,
-        serviceType: formData.serviceType
-      });
       return;
     }
 
     handleSaveRef.current = true;
-
-    console.log('📝 AddItemModal: Starting to build preferences from formData:', formData);
 
     // Build preferences with IDs
     const preferences = {
@@ -333,43 +318,28 @@ export default function AddItemModal({ open, onClose, onAddItems, orderData }) {
       // Store IDs for API
       preferenceIds: [],
     };
-    
-    console.log('📝 AddItemModal: Initial preferences object:', preferences);
-
     // Find and store preference IDs for all preferences
     if (formData.detergent) {
-      console.log('🔍 AddItemModal: Looking for detergent preference:', formData.detergent);
       const ids = findPreferenceIds("detergent", formData.detergent);
-      console.log('🔍 AddItemModal: Detergent preference IDs found:', ids);
       if (ids.preferenceTypeId && ids.preferenceValueId) {
         preferences.preferenceIds.push({
           preferenceTypeId: ids.preferenceTypeId,
           preferenceValueId: ids.preferenceValueId,
         });
-        console.log('✅ AddItemModal: Added detergent preference ID');
-      } else {
-        console.warn('⚠️ AddItemModal: Detergent preference IDs not found');
       }
     }
 
     if (formData.temperature) {
       // Remove °C for matching - API stores just the number
       const tempValue = formData.temperature.replace("°C", "").replace("°", "").trim();
-      console.log('🔍 AddItemModal: Looking for temperature preference:', tempValue);
-      console.log('🔍 AddItemModal: Original temperature value:', formData.temperature);
-      
       // Try multiple approaches to find temperature preference
-      let ids = null;
-      
-      // First try with cleaned value (just number)
-      ids = findPreferenceIds("tempreture", tempValue);
+      let ids = findPreferenceIds("tempreture", tempValue);
       if (!ids.preferenceTypeId || !ids.preferenceValueId) {
         ids = findPreferenceIds("temperature", tempValue);
       }
       
       // If not found, try with original value (with °C)
       if (!ids.preferenceTypeId || !ids.preferenceValueId) {
-        console.log('🔍 AddItemModal: Trying with original temperature value:', formData.temperature);
         ids = findPreferenceIds("tempreture", formData.temperature);
         if (!ids.preferenceTypeId || !ids.preferenceValueId) {
           ids = findPreferenceIds("temperature", formData.temperature);
@@ -378,89 +348,50 @@ export default function AddItemModal({ open, onClose, onAddItems, orderData }) {
       
       // If still not found, try with just the number as string
       if (!ids.preferenceTypeId || !ids.preferenceValueId && !isNaN(tempValue)) {
-        console.log('🔍 AddItemModal: Trying with numeric value:', tempValue);
         ids = findPreferenceIds("tempreture", String(parseInt(tempValue)));
         if (!ids.preferenceTypeId || !ids.preferenceValueId) {
           ids = findPreferenceIds("temperature", String(parseInt(tempValue)));
         }
       }
       
-      console.log('🔍 AddItemModal: Temperature preference IDs found:', ids);
       if (ids.preferenceTypeId && ids.preferenceValueId) {
         preferences.preferenceIds.push({
           preferenceTypeId: ids.preferenceTypeId,
           preferenceValueId: ids.preferenceValueId,
         });
-        console.log('✅ AddItemModal: Added temperature preference ID');
-      } else {
-        console.warn('⚠️ AddItemModal: Temperature preference IDs not found after all attempts');
-        console.warn('⚠️ AddItemModal: Tried values:', [tempValue, formData.temperature, String(parseInt(tempValue))]);
       }
     }
 
     if (formData.washService) {
-      console.log('🔍 AddItemModal: Looking for washService preference:', formData.washService);
       // Try "Sorting" preference for wash service
       const ids = findPreferenceIds("Sorting", formData.washService);
-      console.log('🔍 AddItemModal: WashService preference IDs found:', ids);
       if (ids.preferenceTypeId && ids.preferenceValueId) {
         preferences.preferenceIds.push({
           preferenceTypeId: ids.preferenceTypeId,
           preferenceValueId: ids.preferenceValueId,
         });
-        console.log('✅ AddItemModal: Added washService preference ID');
-      } else {
-        console.warn('⚠️ AddItemModal: WashService preference IDs not found');
       }
     }
 
     // Add other preferences if they exist in the API
     if (formData.fabricSoftener) {
-      console.log('🔍 AddItemModal: Looking for fabricSoftener preference:', formData.fabricSoftener);
       const ids = findPreferenceIds("Fabric Softener", formData.fabricSoftener);
-      console.log('🔍 AddItemModal: FabricSoftener preference IDs found:', ids);
       if (ids.preferenceTypeId && ids.preferenceValueId) {
         preferences.preferenceIds.push({
           preferenceTypeId: ids.preferenceTypeId,
           preferenceValueId: ids.preferenceValueId,
         });
-        console.log('✅ AddItemModal: Added fabricSoftener preference ID');
-      } else {
-        console.warn('⚠️ AddItemModal: FabricSoftener preference IDs not found');
       }
     }
 
     if (formData.oxiClean) {
-      console.log('🔍 AddItemModal: Looking for oxiClean preference:', formData.oxiClean);
       const ids = findPreferenceIds("Oxi Clean", formData.oxiClean);
-      console.log('🔍 AddItemModal: OxiClean preference IDs found:', ids);
       if (ids.preferenceTypeId && ids.preferenceValueId) {
         preferences.preferenceIds.push({
           preferenceTypeId: ids.preferenceTypeId,
           preferenceValueId: ids.preferenceValueId,
         });
-        console.log('✅ AddItemModal: Added oxiClean preference ID');
-      } else {
-        console.warn('⚠️ AddItemModal: OxiClean preference IDs not found');
       }
-    }
-    
-    console.log('📦 AddItemModal: Final preferences object with preferenceIds:', preferences);
-    console.log('📦 AddItemModal: Number of preferenceIds:', preferences.preferenceIds.length);
-    
-    // CRITICAL: Validate that we have at least some preferenceIds before sending
-    if (preferences.preferenceIds.length === 0) {
-      console.error('❌ AddItemModal: WARNING - No preferenceIds found! Preferences will be empty!');
-      console.error('❌ AddItemModal: FormData preferences:', {
-        detergent: formData.detergent,
-        fabricSoftener: formData.fabricSoftener,
-        oxiClean: formData.oxiClean,
-        washService: formData.washService,
-        temperature: formData.temperature,
-      });
-      console.error('❌ AddItemModal: allPreferences available:', allPreferences.map(p => ({ name: p.name, id: p.id })));
-    } else {
-      console.log('✅ AddItemModal: Successfully found', preferences.preferenceIds.length, 'preference IDs');
     }
 
     const item = {
@@ -475,11 +406,6 @@ export default function AddItemModal({ open, onClose, onAddItems, orderData }) {
       subCategoryId: selectedSubCategory.value,
       preferences: preferences,
     };
-
-    console.log('📤 AddItemModal: Sending item to parent component:', item);
-    console.log('📤 AddItemModal: Item preferences structure:', item.preferences);
-    console.log('📤 AddItemModal: Item preferenceIds count:', item.preferences.preferenceIds.length);
-    console.log('📤 AddItemModal: Item preferenceIds details:', item.preferences.preferenceIds);
 
     onAddItems(item);
     
@@ -513,77 +439,48 @@ export default function AddItemModal({ open, onClose, onAddItems, orderData }) {
     label: service.name,
   }));
 
-  // Option button component
-  const OptionButton = ({ label, value, selected, onClick }) => (
-    <Box
-      component="button"
+  const OptionButton = ({ label, selected, onClick }) => (
+    <Button
       type="button"
+      size="sm"
+      variant={selected ? "primary" : "secondary"}
       onClick={onClick}
-      sx={{
-        px: 2,
-        py: 1.5,
-        borderRadius: "8px",
-        border: "none",
-        bgcolor: selected ? "#55ACEE" : "#F3F4F6",
-        color: selected ? "#FFFFFF" : "#000000",
-        fontFamily: "Switzer",
-        fontSize: "14px",
-        fontWeight: selected ? 600 : 400,
-        cursor: "pointer",
-        transition: "all 0.2s",
-        "&:hover": {
-          bgcolor: selected ? "#3B82F6" : "#E5E7EB",
-        },
-      }}
     >
       {label}
-    </Box>
+    </Button>
   );
 
   return (
-    <ModalComponent
+    <Modal
       open={open}
       title="Add Item"
       onClose={handleClose}
-      width={600}
-      hideActions={true}
+      size="md"
+      secondaryLabel="Cancel"
+      primaryLabel="Save"
+      onPrimary={handleSave}
+      primaryDisabled={!formData.subCategory || !formData.serviceType}
     >
       {/* Do not gate on service-with-preferences fetch: selecting service type refetches and would hide the whole modal behind Delay. */}
       {isLoadingSubCategories || isLoadingPreferences ? (
-        <Box display="flex" justifyContent="center" alignItems="center" minHeight="300px">
+        <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: 300 }}>
           <Delay />
-        </Box>
+        </div>
       ) : (
-        <Box sx={{ p: 0 }}>
-          {/* Service Type */}
-          <Box sx={{ mb: 3 }}>
-            <Typography
-              variant="body2"
-              fontFamily="Switzer"
-              sx={{ mb: 1, fontSize: "14px", color: "#374151", fontWeight: 500 }}
-            >
-              Service Type
-            </Typography>
-            <SelectField
+        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+          <Field label="Service Type">
+            <Select
               value={formData.serviceType}
-              onChange={(e) => handleInputChange("serviceType", e.target.value)}
+              onChange={(value) => handleInputChange("serviceType", value)}
               options={serviceOptions}
               placeholder="Select Service Type"
             />
-          </Box>
+          </Field>
 
-          {/* Category Name */}
-          <Box sx={{ mb: 3 }}>
-            <Typography
-              variant="body2"
-              fontFamily="Switzer"
-              sx={{ mb: 1, fontSize: "14px", color: "#374151", fontWeight: 500 }}
-            >
-              Category Name
-            </Typography>
-            <SelectField
+          <Field label="Category Name">
+            <Select
               value={formData.categoryName}
-              onChange={(e) => handleInputChange("categoryName", e.target.value)}
+              onChange={(value) => handleInputChange("categoryName", value)}
               options={availableCategories}
               placeholder={
                 formData.serviceType && isFetchingService
@@ -592,190 +489,98 @@ export default function AddItemModal({ open, onClose, onAddItems, orderData }) {
               }
               disabled={!formData.serviceType || isFetchingService}
             />
-          </Box>
+          </Field>
 
-          {/* Sub-category */}
-          <Box sx={{ mb: 3 }}>
-            <Typography
-              variant="body2"
-              fontFamily="Switzer"
-              sx={{ mb: 1, fontSize: "14px", color: "#374151", fontWeight: 500 }}
-            >
-              Sub-category
-            </Typography>
-            <SelectField
+          <Field label="Sub-category">
+            <Select
               value={formData.subCategory}
-              onChange={(e) => handleInputChange("subCategory", e.target.value)}
+              onChange={(value) => handleInputChange("subCategory", value)}
               options={availableSubCategories}
               placeholder="Select Sub-category"
               disabled={!formData.categoryName}
             />
-          </Box>
+          </Field>
 
-          {/* Detergent */}
-          <Box sx={{ mb: 3 }}>
-            <Typography
-              variant="body2"
-              fontFamily="Switzer"
-              sx={{ mb: 1.5, fontSize: "14px", color: "#374151", fontWeight: 500 }}
-            >
-              Detergent:
-            </Typography>
-            <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap" }}>
+          <Field label="Detergent">
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               {getDetergentOptions().map((option) => (
                 <OptionButton
                   key={option}
                   label={option}
-                  value={option}
                   selected={formData.detergent === option}
                   onClick={() => handleInputChange("detergent", option)}
                 />
               ))}
-            </Box>
-          </Box>
+            </div>
+          </Field>
 
-          {/* Fabric Softener */}
-          <Box sx={{ mb: 3 }}>
-            <Typography
-              variant="body2"
-              fontFamily="Switzer"
-              sx={{ mb: 1.5, fontSize: "14px", color: "#374151", fontWeight: 500 }}
-            >
-              Fabric Softener:
-            </Typography>
-            <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap" }}>
+          <Field label="Fabric Softener">
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               {getFabricSoftenerOptions().map((option) => (
                 <OptionButton
                   key={option}
                   label={option}
-                  value={option}
                   selected={formData.fabricSoftener === option}
                   onClick={() => handleInputChange("fabricSoftener", option)}
                 />
               ))}
-            </Box>
-          </Box>
+            </div>
+          </Field>
 
-          {/* Oxi Clean */}
-          <Box sx={{ mb: 3 }}>
-            <Typography
-              variant="body2"
-              fontFamily="Switzer"
-              sx={{ mb: 1.5, fontSize: "14px", color: "#374151", fontWeight: 500 }}
-            >
-              Oxi Clean
-            </Typography>
-            <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap" }}>
+          <Field label="Oxi Clean">
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               {getOxiCleanOptions().map((option) => (
                 <OptionButton
                   key={option}
                   label={option}
-                  value={option}
                   selected={formData.oxiClean === option}
                   onClick={() => handleInputChange("oxiClean", option)}
                 />
               ))}
-            </Box>
-          </Box>
+            </div>
+          </Field>
 
-          {/* Wash Service */}
-          <Box sx={{ mb: 3 }}>
-            <Typography
-              variant="body2"
-              fontFamily="Switzer"
-              sx={{ mb: 1.5, fontSize: "14px", color: "#374151", fontWeight: 500 }}
-            >
-              Wash Service:
-            </Typography>
-            <Box
-              sx={{
-                display: "grid",
-                gridTemplateColumns: "repeat(2, 1fr)",
-                gap: 2,
-              }}
-            >
+          <Field label="Wash Service">
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 8 }}>
               {getWashServiceOptions().map((option) => (
                 <OptionButton
                   key={option}
                   label={option}
-                  value={option}
                   selected={formData.washService === option}
                   onClick={() => handleInputChange("washService", option)}
                 />
               ))}
-            </Box>
-          </Box>
+            </div>
+          </Field>
 
-          {/* Choose Temperature */}
-          <Box sx={{ mb: 3 }}>
-            <Typography
-              variant="body2"
-              fontFamily="Switzer"
-              sx={{ mb: 1.5, fontSize: "14px", color: "#374151", fontWeight: 500 }}
-            >
-              Choose Temperature:
-            </Typography>
-            <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap" }}>
+          <Field label="Choose Temperature">
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               {getTemperatureOptions().map((option) => (
                 <OptionButton
                   key={option}
                   label={option}
-                  value={option}
                   selected={formData.temperature === option}
                   onClick={() => handleInputChange("temperature", option)}
                 />
               ))}
-            </Box>
-          </Box>
+            </div>
+          </Field>
 
-          {/* Additional Service instructions */}
-          <Box sx={{ mb: 3 }}>
-            <Typography
-              variant="body2"
-              fontFamily="Switzer"
-              sx={{ mb: 1, fontSize: "14px", color: "#374151", fontWeight: 500 }}
-            >
-              Additional Service instructions
-            </Typography>
-            <TextareaField
+          <Field label="Additional Service instructions">
+            <Textarea
               placeholder="Type here..."
               value={formData.additionalInstructions}
               onChange={(e) => handleInputChange("additionalInstructions", e.target.value)}
               rows={4}
             />
-          </Box>
+          </Field>
 
-          {/* Disclaimer */}
-          <Typography
-            variant="caption"
-            fontFamily="Switzer"
-            sx={{
-              fontSize: "12px",
-              color: "#6B7280",
-              mb: 3,
-              display: "block",
-              lineHeight: 1.5,
-            }}
-          >
+          <p style={{ margin: 0, fontSize: 12, color: "var(--muted)", lineHeight: 1.5 }}>
             Disclaimer: Please note that the prices mentioned above are estimated and may vary
             based on the actual condition of the items and additional services requested.
-          </Typography>
-
-          {/* Action Buttons */}
-          <Box
-            sx={{
-              display: "flex",
-              justifyContent: "flex-end",
-              gap: 2,
-            }}
-          >
-            <ButtonWhite onClick={handleClose}>Cancel</ButtonWhite>
-            <ButtonBlue onClick={handleSave} disabled={!formData.subCategory || !formData.serviceType}>
-              Save
-            </ButtonBlue>
-          </Box>
-        </Box>
+          </p>
+        </div>
       )}
-    </ModalComponent>
+    </Modal>
   );
 }

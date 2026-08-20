@@ -1,9 +1,14 @@
-import { Box, keyframes } from "@mui/material";
+import "./FigureShimmer.css";
 
-const shimmerMove = keyframes`
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
-`;
+function sxToStyle(sx) {
+  if (!sx || typeof sx !== "object") return undefined;
+  const style = { ...sx };
+  if (sx.mb != null) {
+    style.marginBottom = typeof sx.mb === "number" ? sx.mb * 8 : sx.mb;
+    delete style.mb;
+  }
+  return style;
+}
 
 /** Inline figure placeholder — keeps layout stable while data loads */
 export default function FigureShimmer({
@@ -13,18 +18,18 @@ export default function FigureShimmer({
   sx,
 }) {
   return (
-    <Box
+    <div
       aria-hidden
-      sx={{
+      className="jd-figure-shimmer shrink-0"
+      style={{
         width,
         height,
         borderRadius: `${radius}px`,
         background:
           "linear-gradient(90deg, #E8EEF7 0%, #F4F7FF 40%, #E8EEF7 80%)",
         backgroundSize: "200% 100%",
-        animation: `${shimmerMove} 1.1s ease-in-out infinite`,
-        flexShrink: 0,
-        ...sx,
+        animation: "jd-figure-shimmer 1.1s ease-in-out infinite",
+        ...sxToStyle(sx),
       }}
     />
   );

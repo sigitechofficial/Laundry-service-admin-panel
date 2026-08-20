@@ -1,27 +1,13 @@
-import { useEffect, useState } from "react";
-import dayjs from "dayjs";
-import {
-  Box,
-  Typography,
-  Paper,
-  Switch,
-  Skeleton,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
-} from "@mui/material";
-import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
-import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
-import { TimePicker } from "@mui/x-date-pickers/TimePicker";
-import ButtonBlue from "../../components/ui/ButtonBlue";
+import { useEffect, useMemo, useState } from "react";
+import { Button, Field, Input, PageHeader, Select } from "../../design-system";
+import { Toggle } from "../misc-kit";
+import { DirectoryFormCard } from "../directory-table/directoryTable";
 import useToaster from "../../components/ui/Toaster";
 import {
   useGetPlatformOperationalHoursQuery,
   useUpdatePlatformOperationalHoursMutation,
   useGetAllCountriesQuery,
 } from "../../store/services/api";
-import { TbCalendar } from "../../shared/icons/index";
 
 const DAY_ORDER = [
   "Monday",
@@ -39,23 +25,8 @@ const toHourMinute = (value, fallback = "07:00") => {
   return `${hh.padStart(2, "0")}:${mm.padStart(2, "0")}`;
 };
 
-const timeStringToDayjs = (value) => {
-  const normalized = toHourMinute(value, "");
-  if (!normalized) return null;
-  const [hh, mm] = normalized.split(":").map(Number);
-  if (!Number.isFinite(hh) || !Number.isFinite(mm)) return null;
-  return dayjs().hour(hh).minute(mm).second(0).millisecond(0);
-};
-
-const dayjsToTimeString = (value) => {
-  if (!value || !value.isValid?.()) return "";
-  return value.format("HH:mm");
-};
-
 const buildRowsFromApi = (days = []) => {
-  const byDay = new Map(
-    (Array.isArray(days) ? days : []).map((d) => [d.dayOfWeek, d])
-  );
+  const byDay = new Map((Array.isArray(days) ? days : []).map((d) => [d.dayOfWeek, d]));
   return DAY_ORDER.map((day) => {
     const hit = byDay.get(day);
     return {
@@ -80,11 +51,15 @@ const toApiPayload = (rows) =>
 export default function PlatformOperationalHours() {
   const toast = useToaster();
   const { data: countriesRes } = useGetAllCountriesQuery();
-  const countries = Array.isArray(countriesRes?.data)
-    ? countriesRes.data
-    : Array.isArray(countriesRes)
-      ? countriesRes
-      : [];
+  const countries = useMemo(
+    () =>
+      Array.isArray(countriesRes?.data)
+        ? countriesRes.data
+        : Array.isArray(countriesRes)
+          ? countriesRes
+          : [],
+    [countriesRes]
+  );
 
   const [countryId, setCountryId] = useState("");
 
@@ -94,30 +69,24 @@ export default function PlatformOperationalHours() {
     }
   }, [countries, countryId]);
 
-  const { data, isLoading, refetch, isFetching } =
-    useGetPlatformOperationalHoursQuery(countryId, {
-      skip: !countryId,
-    });
-  const [updateHours, { isLoading: isSaving }] =
-    useUpdatePlatformOperationalHoursMutation();
+  const { data, isLoading, refetch, isFetching } = useGetPlatformOperationalHoursQuery(countryId, {
+    skip: !countryId,
+  });
+  const [updateHours, { isLoading: isSaving }] = useUpdatePlatformOperationalHoursMutation();
 
   const apiPayload = data?.data ?? data ?? {};
-  const apiDays = apiPayload?.days ?? [];
+  const apiDays = useMemo(() => apiPayload?.days ?? [], [apiPayload?.days]);
   const ianaTimeZone = apiPayload?.ianaTimeZone;
   const countryName = apiPayload?.countryName;
 
   const [rows, setRows] = useState(buildRowsFromApi());
 
   useEffect(() => {
-    if (apiDays.length) {
-      setRows(buildRowsFromApi(apiDays));
-    }
-  }, [data]);
+    setRows(buildRowsFromApi(apiDays));
+  }, [apiDays]);
 
   const handleChange = (index, field, value) => {
-    setRows((prev) =>
-      prev.map((row, i) => (i === index ? { ...row, [field]: value } : row))
-    );
+    setRows((prev) => prev.map((row, i) => (i === index ? { ...row, [field]: value } : row)));
   };
 
   const handleSave = async () => {
@@ -139,169 +108,111 @@ export default function PlatformOperationalHours() {
       toast.success("Platform operational hours saved.");
       refetch();
     } catch (err) {
-      toast.error(
-        err?.data?.message || "Failed to update platform operational hours."
-      );
+      toast.error(err?.data?.message || "Failed to update platform operational hours.");
     }
   };
 
-  const selectedCountry =
-    countries.find((c) => String(c.id) === String(countryId)) || null;
+  const selectedCountry = countries.find((c) => String(c.id) === String(countryId)) || null;
 
   return (
-    <Box className="w-full">
-      <Box
-        sx={{
-          background: "linear-gradient(135deg, #000099 0%, #1a1aff 100%)",
-          borderRadius: "20px",
-          mb: 3,
-          px: { xs: 3, sm: 5 },
-          py: { xs: 3, sm: 4 },
-        }}
-      >
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
-          <TbCalendar size={28} color="#fff" />
-          <Box>
-            <Typography sx={{ color: "#fff", fontWeight: 700, fontSize: 22 }}>
-              Platform Operational Hours
-            </Typography>
-            <Typography sx={{ color: "rgba(255,255,255,0.85)", fontSize: 14, mt: 0.5 }}>
-              Set hours per country. Shops in that country can only open inside
-              these times (local wall clock).
-            </Typography>
-          </Box>
-        </Box>
-      </Box>
+    <div style={{ display: "grid", gap: 20 }}>
+      <PageHeader
+        title="Platform Operational Hours"
+        description="Set hours per country. Shops in that country can only open inside these times (local wall clock)."
+      />
 
-      <Paper sx={{ borderRadius: "16px", border: "1px solid #E2E8F0", overflow: "hidden", mb: 2 }}>
-        <Box sx={{ px: 2.5, py: 2, display: "flex", flexWrap: "wrap", gap: 2, alignItems: "center" }}>
-          <FormControl size="small" sx={{ minWidth: 220 }}>
-            <InputLabel id="platform-hours-country-label">Country</InputLabel>
+      <DirectoryFormCard title="Country" hint="Hours apply to shops in the selected country (local wall clock).">
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 16, alignItems: "center" }}>
+        <Field label="Country">
+          <div style={{ minWidth: 220 }}>
             <Select
-              labelId="platform-hours-country-label"
-              label="Country"
+              aria-label="Country"
               value={countryId}
-              onChange={(e) => setCountryId(e.target.value)}
-            >
-              {countries.map((c) => (
-                <MenuItem key={c.id} value={String(c.id)}>
-                  {c.name}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-          {(ianaTimeZone || selectedCountry) && (
-            <Typography sx={{ fontSize: 13, color: "#64748B" }}>
-              Timezone: {ianaTimeZone || "—"}
-              {countryName ? ` · ${countryName}` : ""}
-            </Typography>
-          )}
-        </Box>
-      </Paper>
+              onChange={setCountryId}
+              options={countries.map((c) => ({ value: String(c.id), label: c.name }))}
+              placeholder="Select country"
+            />
+          </div>
+        </Field>
+        {(ianaTimeZone || selectedCountry) && (
+          <span className="jd-field__hint">
+            Timezone: {ianaTimeZone || "—"}
+            {countryName ? ` · ${countryName}` : ""}
+          </span>
+        )}
+        </div>
+      </DirectoryFormCard>
 
-      <Paper sx={{ borderRadius: "16px", border: "1px solid #E2E8F0", overflow: "hidden" }}>
-        <Box sx={{ px: 2.5, py: 2, borderBottom: "1px solid #F1F5F9" }}>
-          <Typography sx={{ fontSize: 14, fontWeight: 600, color: "#0F172A" }}>
-            Weekly schedule
-          </Typography>
-        </Box>
-        <Box sx={{ p: 2.5, display: "flex", flexDirection: "column", gap: 1.5 }}>
-          <LocalizationProvider dateAdapter={AdapterDayjs}>
-          {isLoading || isFetching
-            ? DAY_ORDER.map((day) => (
-                <Skeleton key={day} height={48} sx={{ borderRadius: 2 }} />
-              ))
-            : rows.map((row, index) => (
-                <Box
-                  key={row.dayOfWeek}
-                  sx={{
-                    display: "grid",
-                    gridTemplateColumns: { xs: "1fr", sm: "140px 1fr" },
-                    gap: 2,
-                    alignItems: "center",
-                    py: 1,
-                    borderBottom:
-                      index < rows.length - 1 ? "1px solid #F1F5F9" : "none",
-                  }}
-                >
-                  <Typography sx={{ fontWeight: 600, color: "#334155" }}>
-                    {row.dayOfWeek}
-                  </Typography>
-                  <Box
-                    sx={{
-                      display: "grid",
-                      gridTemplateColumns: "auto 1fr",
-                      gap: 2,
-                      alignItems: "center",
-                    }}
-                  >
-                    <Switch
-                      checked={row.enabled}
-                      onChange={(e) =>
-                        handleChange(index, "enabled", e.target.checked)
-                      }
-                    />
-                    {row.enabled ? (
-                      <Box
-                        sx={{
-                          display: "grid",
-                          gridTemplateColumns: "1fr 24px 1fr",
-                          gap: 1,
-                          alignItems: "center",
-                        }}
-                      >
-                        <TimePicker
-                          ampm={false}
-                          format="HH:mm"
-                          value={timeStringToDayjs(row.start)}
-                          onChange={(value) =>
-                            handleChange(index, "start", dayjsToTimeString(value))
-                          }
-                          slotProps={{
-                            textField: {
-                              size: "small",
-                              placeholder: "HH:mm",
-                            },
-                          }}
-                        />
-                        <Typography
-                          sx={{ textAlign: "center", color: "#94A3B8", fontSize: 12 }}
-                        >
-                          to
-                        </Typography>
-                        <TimePicker
-                          ampm={false}
-                          format="HH:mm"
-                          value={timeStringToDayjs(row.end)}
-                          onChange={(value) =>
-                            handleChange(index, "end", dayjsToTimeString(value))
-                          }
-                          slotProps={{
-                            textField: {
-                              size: "small",
-                              placeholder: "HH:mm",
-                            },
-                          }}
-                        />
-                      </Box>
-                    ) : (
-                      <Typography sx={{ fontSize: 13, color: "#EF4444" }}>
-                        Closed (platform off)
-                      </Typography>
-                    )}
-                  </Box>
-                </Box>
-              ))}
-          </LocalizationProvider>
-        </Box>
-        <Box sx={{ px: 2.5, py: 2, borderTop: "1px solid #F1F5F9", display: "flex", justifyContent: "flex-end" }}>
-          <ButtonBlue
-            text={isSaving ? "Saving…" : "Save hours"}
-            onClick={handleSave}
-            disabled={!countryId || isLoading || isSaving}
-          />
-        </Box>
-      </Paper>
-    </Box>
+      <DirectoryFormCard title="Weekly schedule">
+        {isLoading || isFetching ? (
+          <p className="jd-field__hint">Loading hours…</p>
+        ) : (
+          <div style={{ display: "grid", gap: 12 }}>
+            {rows.map((row) => (
+              <div
+                key={row.dayOfWeek}
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "140px 1fr",
+                  gap: 16,
+                  alignItems: "center",
+                  paddingBottom: 12,
+                  borderBottom: "1px solid var(--line)",
+                }}
+              >
+                <strong>{row.dayOfWeek}</strong>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center" }}>
+                  <Toggle
+                    checked={row.enabled}
+                    onChange={(e) =>
+                      handleChange(
+                        rows.findIndex((r) => r.dayOfWeek === row.dayOfWeek),
+                        "enabled",
+                        e.target.checked
+                      )
+                    }
+                    label={row.enabled ? "Open" : "Closed"}
+                  />
+                  {row.enabled ? (
+                    <>
+                      <Input
+                        type="time"
+                        value={row.start}
+                        onChange={(e) =>
+                          handleChange(
+                            rows.findIndex((r) => r.dayOfWeek === row.dayOfWeek),
+                            "start",
+                            e.target.value || "07:00"
+                          )
+                        }
+                      />
+                      <span className="jd-field__hint">to</span>
+                      <Input
+                        type="time"
+                        value={row.end}
+                        onChange={(e) =>
+                          handleChange(
+                            rows.findIndex((r) => r.dayOfWeek === row.dayOfWeek),
+                            "end",
+                            e.target.value || "20:00"
+                          )
+                        }
+                      />
+                    </>
+                  ) : (
+                    <span style={{ color: "var(--danger)" }}>Closed (platform off)</span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 16 }}>
+          <Button onClick={handleSave} disabled={!countryId || isLoading || isSaving}>
+            {isSaving ? "Saving…" : "Save hours"}
+          </Button>
+        </div>
+      </DirectoryFormCard>
+    </div>
   );
 }

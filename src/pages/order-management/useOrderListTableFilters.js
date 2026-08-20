@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   buildOrderListApiParams,
+  DEFAULT_ORDER_LIST_SORT_BY,
+  DEFAULT_ORDER_LIST_SORT_DIR,
+  normalizeOrderListSortBy,
+  normalizeOrderListSortDir,
   orderListHasActiveFilters,
 } from "./orderListQuery";
 
@@ -14,6 +18,8 @@ export function useOrderListTableFilters(initialPageSize = 25) {
   const [dateRange, setDateRangeState] = useState(null);
   const [searchInput, setSearchInputState] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [sortBy, setSortByState] = useState(DEFAULT_ORDER_LIST_SORT_BY);
+  const [sortDir, setSortDirState] = useState(DEFAULT_ORDER_LIST_SORT_DIR);
 
   useEffect(() => {
     const handle = window.setTimeout(() => {
@@ -61,6 +67,16 @@ export function useOrderListTableFilters(initialPageSize = 25) {
     setPage(1);
   }, []);
 
+  const setSortBy = useCallback((value) => {
+    setSortByState(normalizeOrderListSortBy(value));
+    setPage(1);
+  }, []);
+
+  const setSortDir = useCallback((value) => {
+    setSortDirState(normalizeOrderListSortDir(value));
+    setPage(1);
+  }, []);
+
   const clearFilters = useCallback(() => {
     setZoneIdState("");
     setStatusIdState("");
@@ -79,8 +95,10 @@ export function useOrderListTableFilters(initialPageSize = 25) {
         statusId,
         dateRange,
         search: debouncedSearch,
+        sortBy,
+        sortDir,
       }),
-    [page, pageSize, zoneId, statusId, dateRange, debouncedSearch]
+    [page, pageSize, zoneId, statusId, dateRange, debouncedSearch, sortBy, sortDir]
   );
 
   const hasActiveFilters = useMemo(
@@ -110,6 +128,10 @@ export function useOrderListTableFilters(initialPageSize = 25) {
     setDateRange,
     searchInput,
     setSearchInput,
+    sortBy,
+    setSortBy,
+    sortDir,
+    setSortDir,
     debouncedSearch,
     isSearchPending,
     apiParams,

@@ -1,44 +1,47 @@
-import React from "react";
-import { Box, Typography } from "@mui/material";
+import { useEffect, useMemo } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
-import ModalComponent from "../../components/shared/Modal";
-import InputFieldModal from "../../components/ui/InputFieldModal";
-import SelectField from "../../components/ui/SelectField";
-import PhoneNumberInput from "../../components/ui/PhoneNumberInput";
+import { Field, Input, Modal, Select } from "../../design-system";
 import useToaster from "../../components/ui/Toaster";
-import { useGetShopsDataQuery, useAddDriverByLaundryShopMutation, useUpdateDriverMutation } from "../../store/services/api";
-import { useSelector } from "react-redux";
+import {
+  useGetShopsDataQuery,
+  useAddDriverByLaundryShopMutation,
+  useUpdateDriverMutation,
+} from "../../store/services/api";
 
-// Validation schema - password is optional in edit mode
-const createDriverSchema = (isEditMode = false) => yup.object().shape({
-  laundaryShopId: isEditMode ? yup.string() : yup.string().required("Shop is required"),
-  firstName: yup
-    .string()
-    .required("First name is required")
-    .min(2, "First name must be at least 2 characters"),
-  lastName: yup
-    .string()
-    .required("Last name is required")
-    .min(2, "Last name must be at least 2 characters"),
-  email: yup
-    .string()
-    .required("Email is required")
-    .email("Please enter a valid email address"),
-  password: isEditMode 
-    ? yup.string().min(6, "Password must be at least 6 characters")
-    : yup.string().required("Password is required").min(6, "Password must be at least 6 characters"),
-  confirmPassword: isEditMode
-    ? yup.string().when("password", {
-        is: (val) => val && val.length > 0,
-        then: (schema) => schema.required("Confirm password is required").oneOf([yup.ref("password"), null], "Passwords must match"),
-        otherwise: (schema) => schema,
-      })
-    : yup.string().required("Confirm password is required").oneOf([yup.ref("password"), null], "Passwords must match"),
-  phoneNumber: yup.string().required("Phone number is required"),
-  countryCode: yup.string().required("Country code is required"),
-});
+const COUNTRY_OPTIONS = [
+  { value: "+44", label: "+44" },
+  { value: "+1", label: "+1" },
+  { value: "+91", label: "+91" },
+  { value: "+92", label: "+92" },
+  { value: "+966", label: "+966" },
+  { value: "+971", label: "+971" },
+];
+
+const createDriverSchema = (isEditMode = false) =>
+  yup.object().shape({
+    laundaryShopId: isEditMode ? yup.string() : yup.string().required("Shop is required"),
+    firstName: yup.string().required("First name is required").min(2, "First name must be at least 2 characters"),
+    lastName: yup.string().required("Last name is required").min(2, "Last name must be at least 2 characters"),
+    email: yup.string().required("Email is required").email("Please enter a valid email address"),
+    password: isEditMode
+      ? yup.string().min(6, "Password must be at least 6 characters")
+      : yup.string().required("Password is required").min(6, "Password must be at least 6 characters"),
+    confirmPassword: isEditMode
+      ? yup.string().when("password", {
+          is: (val) => val && val.length > 0,
+          then: (schema) =>
+            schema.required("Confirm password is required").oneOf([yup.ref("password"), null], "Passwords must match"),
+          otherwise: (schema) => schema,
+        })
+      : yup
+          .string()
+          .required("Confirm password is required")
+          .oneOf([yup.ref("password"), null], "Passwords must match"),
+    phoneNumber: yup.string().required("Phone number is required"),
+    countryCode: yup.string().required("Country code is required"),
+  });
 
 const defaultValues = {
   laundaryShopId: "",
@@ -54,25 +57,21 @@ const defaultValues = {
 export default function NewDriverModal({ open, onClose, onDriverAdded, driverData = null }) {
   const { success, error } = useToaster();
   const isEditMode = !!driverData;
-  
-  // Fetch shops data directly from API
-  const { data: shopsResponse, isLoading: shopsLoading, error: shopsError } = useGetShopsDataQuery();
-  
-  // Extract shops from API response - based on actual API structure: data.AllShopsData
-  const shops = shopsResponse?.data?.AllShopsData || [];
 
-  // Transform shops to options format - use shop ID as value and shopName as label
-  const shopOptions = React.useMemo(() => {
-    if (!Array.isArray(shops) || shops.length === 0) {
-      return [];
-    }
-    
-    return shops.map((shop) => {
-      return {
-        value: String(shop.id), // Use id as value
-        label: shop.shopName || "Unknown Shop", // Use shopName as label
-      };
-    }).filter(shop => shop.value && shop.value !== "undefined");
+  const { data: shopsResponse, isLoading: shopsLoading } = useGetShopsDataQuery();
+  const shops = useMemo(
+    () => shopsResponse?.data?.AllShopsData || [],
+    [shopsResponse?.data?.AllShopsData]
+  );
+
+  const shopOptions = useMemo(() => {
+    if (!Array.isArray(shops) || shops.length === 0) return [];
+    return shops
+      .map((shop) => ({
+        value: String(shop.id),
+        label: shop.shopName || "Unknown Shop",
+      }))
+      .filter((shop) => shop.value && shop.value !== "undefined");
   }, [shops]);
 
   const [addDriver, { isLoading: isAddingDriver }] = useAddDriverByLaundryShopMutation();
@@ -83,38 +82,30 @@ export default function NewDriverModal({ open, onClose, onDriverAdded, driverDat
     handleSubmit,
     reset,
     formState: { errors },
-    watch,
   } = useForm({
     resolver: yupResolver(createDriverSchema(isEditMode)),
-    defaultValues: defaultValues,
+    defaultValues,
     mode: "onChange",
   });
 
-  const countryCode = watch("countryCode");
-
-  // Pre-fill form when in edit mode
-  React.useEffect(() => {
+  useEffect(() => {
     if (driverData && open && isEditMode) {
-      console.log("Pre-filling driver data:", driverData);
-      
-      // Parse phone number if it includes country code
-      // Note: phoneNum might not be in mini details, so we'll leave it empty if not available
       let phone = driverData.phone || driverData.phoneNum || "";
-      let code = "+44"; // default UK
+      let code = driverData.countryCode || "+44";
 
-      // Try to extract country code from phone number
       if (phone) {
-        const matchedCode = ["+971", "+966", "+44", "+92", "+91", "+1"].find(
-          (c) => phone.startsWith(c)
-        );
+        const matchedCode = ["+971", "+966", "+44", "+92", "+91", "+1"].find((c) => phone.startsWith(c));
         if (matchedCode) {
           code = matchedCode;
           phone = phone.replace(matchedCode, "").trim();
         }
       }
 
-      const formData = {
-        laundaryShopId: driverData.laundaryShopId || driverData.shopId || (driverData.classifiedAsId ? String(driverData.classifiedAsId) : ""),
+      reset({
+        laundaryShopId:
+          driverData.laundaryShopId ||
+          driverData.shopId ||
+          (driverData.classifiedAsId ? String(driverData.classifiedAsId) : ""),
         firstName: driverData.firstName || "",
         lastName: driverData.lastName || "",
         email: driverData.email || "",
@@ -122,12 +113,8 @@ export default function NewDriverModal({ open, onClose, onDriverAdded, driverDat
         confirmPassword: "",
         countryCode: code,
         phoneNumber: phone,
-      };
-
-      console.log("Form data to reset:", formData);
-      reset(formData);
+      });
     } else if (!driverData && open) {
-      // Reset to defaults for add mode
       reset(defaultValues);
     }
   }, [driverData, open, isEditMode, reset]);
@@ -148,20 +135,17 @@ export default function NewDriverModal({ open, onClose, onDriverAdded, driverDat
         laundaryShopId: data.laundaryShopId,
       };
 
-      // Only include password if provided (for edit mode, password is optional)
       if (data.password && data.password.trim() !== "") {
         body.password = data.password;
       }
 
       let res;
       if (isEditMode) {
-        // Update driver
         res = await updateDriver({
           id: driverData.id,
           body,
         }).unwrap();
       } else {
-        // Add driver - password is required
         if (!data.password || data.password.trim() === "") {
           error("Password is required");
           return;
@@ -169,220 +153,139 @@ export default function NewDriverModal({ open, onClose, onDriverAdded, driverDat
         body.password = data.password;
         res = await addDriver(body).unwrap();
       }
-      
+
       if (res?.status === "1") {
         success(res?.message || (isEditMode ? "Driver updated successfully!" : "Driver added successfully!"));
         handleClose();
-        // Call the callback to refetch drivers list
-        if (onDriverAdded) {
-          onDriverAdded();
-        }
+        onDriverAdded?.();
       } else {
         error(res?.message || "Something went wrong");
       }
     } catch (err) {
-      console.error(isEditMode ? "Update driver error:" : "Add driver error:", err);
-      const errorMessage =
+      error(
         err?.data?.message ||
-        err?.data?.error ||
-        err?.message ||
-        (isEditMode ? "Failed to update driver" : "Failed to add driver");
-      error(errorMessage);
+          err?.data?.error ||
+          err?.message ||
+          (isEditMode ? "Failed to update driver" : "Failed to add driver")
+      );
     }
   };
 
   return (
-    <ModalComponent
+    <Modal
       open={open}
-      title={isEditMode ? "UPDATE DRIVER" : "+ NEW DRIVER"}
+      title={isEditMode ? "Update driver" : "New driver"}
       onClose={handleClose}
-      secondaryAction={{
-        label: "Cancel",
-        onClick: handleClose,
-      }}
-      primaryAction={{
-        label: isEditMode ? "Save" : "Add",
-        onClick: handleSubmit(onSubmit),
-        isLoading: isAddingDriver || isUpdatingDriver,
+      secondaryLabel="Cancel"
+      primaryLabel={isAddingDriver || isUpdatingDriver ? (isEditMode ? "Saving…" : "Adding…") : isEditMode ? "Save" : "Add"}
+      onPrimary={() => {
+        if (isAddingDriver || isUpdatingDriver) return;
+        handleSubmit(onSubmit)();
       }}
     >
-      <Box className="flex flex-col gap-5">
+      <div style={{ display: "grid", gap: 16 }}>
         <Controller
           name="laundaryShopId"
           control={control}
-          render={({ field: { onChange, value } }) => (
-            <Box>
-              <SelectField
-                title="Shop Name"
-                value={value}
-                onChange={(e) => onChange(e.target.value)}
+          render={({ field }) => (
+            <Field label="Shop name" error={errors.laundaryShopId?.message}>
+              <Select
+                aria-label="Shop name"
+                value={field.value}
+                onChange={field.onChange}
                 options={shopOptions}
                 placeholder="Select shop"
-                fullWidth
-                bgcolor="#F4F7FF"
                 disabled={shopsLoading}
               />
-              {errors.laundaryShopId && (
-                <Typography
-                  variant="caption"
-                  sx={{ color: "error.main", mt: 1, display: "block" }}
-                >
-                  {errors.laundaryShopId.message}
-                </Typography>
-              )}
-            </Box>
+            </Field>
           )}
         />
-
         <Controller
           name="firstName"
           control={control}
-          render={({ field: { onChange, value } }) => (
-            <Box>
-              <InputFieldModal
-                title="First Name"
-                placeholder="Enter first name"
-                name="firstName"
-                value={value}
-                onChange={(e) => onChange(e.target.value)}
-              />
-              {errors.firstName && (
-                <Typography
-                  variant="caption"
-                  sx={{ color: "error.main", mt: 1, display: "block" }}
-                >
-                  {errors.firstName.message}
-                </Typography>
-              )}
-            </Box>
+          render={({ field }) => (
+            <Field label="First name" error={errors.firstName?.message} htmlFor="driver-first-name">
+              <Input id="driver-first-name" {...field} placeholder="Enter first name" error={!!errors.firstName} />
+            </Field>
           )}
         />
-
         <Controller
           name="lastName"
           control={control}
-          render={({ field: { onChange, value } }) => (
-            <Box>
-              <InputFieldModal
-                title="Last Name"
-                placeholder="Enter last name"
-                name="lastName"
-                value={value}
-                onChange={(e) => onChange(e.target.value)}
-              />
-              {errors.lastName && (
-                <Typography
-                  variant="caption"
-                  sx={{ color: "error.main", mt: 1, display: "block" }}
-                >
-                  {errors.lastName.message}
-                </Typography>
-              )}
-            </Box>
+          render={({ field }) => (
+            <Field label="Last name" error={errors.lastName?.message} htmlFor="driver-last-name">
+              <Input id="driver-last-name" {...field} placeholder="Enter last name" error={!!errors.lastName} />
+            </Field>
           )}
         />
-
         <Controller
           name="email"
           control={control}
-          render={({ field: { onChange, value } }) => (
-            <Box>
-              <InputFieldModal
-                title="Email"
-                placeholder="Enter email address"
-                name="email"
-                type="email"
-                value={value}
-                onChange={(e) => onChange(e.target.value)}
-              />
-              {errors.email && (
-                <Typography
-                  variant="caption"
-                  sx={{ color: "error.main", mt: 1, display: "block" }}
-                >
-                  {errors.email.message}
-                </Typography>
-              )}
-            </Box>
+          render={({ field }) => (
+            <Field label="Email" error={errors.email?.message} htmlFor="driver-email">
+              <Input id="driver-email" type="email" {...field} placeholder="Enter email address" error={!!errors.email} />
+            </Field>
           )}
         />
-
         <Controller
           name="password"
           control={control}
-          render={({ field: { onChange, value } }) => (
-            <Box>
-              <InputFieldModal
-                title={isEditMode ? "Password (leave blank to keep current)" : "Password"}
-                placeholder={isEditMode ? "Enter new password (optional)" : "Enter password"}
-                name="password"
+          render={({ field }) => (
+            <Field
+              label={isEditMode ? "Password (leave blank to keep current)" : "Password"}
+              error={errors.password?.message}
+              htmlFor="driver-password"
+            >
+              <Input
+                id="driver-password"
                 type="password"
-                value={value}
-                onChange={(e) => onChange(e.target.value)}
+                {...field}
+                placeholder={isEditMode ? "Enter new password (optional)" : "Enter password"}
+                error={!!errors.password}
               />
-              {errors.password && (
-                <Typography
-                  variant="caption"
-                  sx={{ color: "error.main", mt: 1, display: "block" }}
-                >
-                  {errors.password.message}
-                </Typography>
-              )}
-            </Box>
+            </Field>
           )}
         />
-
         <Controller
           name="confirmPassword"
           control={control}
-          render={({ field: { onChange, value } }) => (
-            <Box>
-              <InputFieldModal
-                title={isEditMode ? "Confirm password (if changing)" : "Confirm password"}
-                placeholder={isEditMode ? "Confirm new password (optional)" : "Confirm password"}
-                name="confirmPassword"
+          render={({ field }) => (
+            <Field
+              label={isEditMode ? "Confirm password (if changing)" : "Confirm password"}
+              error={errors.confirmPassword?.message}
+              htmlFor="driver-confirm-password"
+            >
+              <Input
+                id="driver-confirm-password"
                 type="password"
-                value={value}
-                onChange={(e) => onChange(e.target.value)}
+                {...field}
+                placeholder={isEditMode ? "Confirm new password (optional)" : "Confirm password"}
+                error={!!errors.confirmPassword}
               />
-              {errors.confirmPassword && (
-                <Typography
-                  variant="caption"
-                  sx={{ color: "error.main", mt: 1, display: "block" }}
-                >
-                  {errors.confirmPassword.message}
-                </Typography>
-              )}
-            </Box>
+            </Field>
           )}
         />
-
-        <Box>
+        <div style={{ display: "grid", gridTemplateColumns: "120px 1fr", gap: 12 }}>
           <Controller
             name="countryCode"
             control={control}
-            render={({ field: { onChange: onChangeCode, value: codeValue } }) => (
-              <Controller
-                name="phoneNumber"
-                control={control}
-                render={({ field: { onChange: onChangePhone, value: phoneValue } }) => (
-                  <PhoneNumberInput
-                    title="Phone No."
-                    countryCode={codeValue}
-                    phoneNumber={phoneValue}
-                    onCountryCodeChange={(code) => {
-                      onChangeCode(code);
-                    }}
-                    onPhoneNumberChange={onChangePhone}
-                    errors={errors}
-                  />
-                )}
-              />
+            render={({ field }) => (
+              <Field label="Code" error={errors.countryCode?.message}>
+                <Select aria-label="Country code" value={field.value} onChange={field.onChange} options={COUNTRY_OPTIONS} />
+              </Field>
             )}
           />
-        </Box>
-      </Box>
-    </ModalComponent>
+          <Controller
+            name="phoneNumber"
+            control={control}
+            render={({ field }) => (
+              <Field label="Phone number" error={errors.phoneNumber?.message} htmlFor="driver-phone">
+                <Input id="driver-phone" {...field} placeholder="Phone number" error={!!errors.phoneNumber} />
+              </Field>
+            )}
+          />
+        </div>
+      </div>
+    </Modal>
   );
 }
-

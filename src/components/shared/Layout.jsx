@@ -1,16 +1,5 @@
-import React from "react";
-import Header from "./Header";
-import Sidebar from "./Sidebar";
-import Main from "./Main";
+import DsShell from "../../design-system/layout/DsShell";
 
 export default function Layout({ content }) {
-  return (
-    <div>
-      <Header />
-      <div className="flex">
-        <Sidebar />
-        <Main content={content} />
-      </div>
-    </div>
-  );
+  return <DsShell>{content}</DsShell>;
 }

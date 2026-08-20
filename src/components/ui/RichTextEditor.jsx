@@ -3,24 +3,20 @@ import StarterKit from "@tiptap/starter-kit";
 import Image from "@tiptap/extension-image";
 import Link from "@tiptap/extension-link";
 import Placeholder from "@tiptap/extension-placeholder";
-import { Box, Typography, IconButton, Tooltip } from "@mui/material";
 import { MdFormatBold, MdFormatItalic, MdLink, MdImage } from "react-icons/md";
 import { useCallback, useEffect, useRef } from "react";
 
 const MenuButton = ({ onClick, active, children, title }) => (
-  <Tooltip title={title}>
-    <IconButton
-      size="small"
-      onClick={onClick}
-      sx={{
-        p: 0.5,
-        color: active ? "primary.main" : "text.secondary",
-        "&:hover": { color: "primary.main", bgcolor: "action.hover" },
-      }}
-    >
-      {children}
-    </IconButton>
-  </Tooltip>
+  <button
+    type="button"
+    title={title}
+    onClick={onClick}
+    className={`rounded p-1 transition-colors hover:bg-black/5 hover:text-[#1F69FF] ${
+      active ? "text-[#1F69FF]" : "text-[#667085]"
+    }`}
+  >
+    {children}
+  </button>
 );
 
 export default function RichTextEditor({
@@ -44,8 +40,7 @@ export default function RichTextEditor({
     content: value || "",
     editorProps: {
       attributes: {
-        class:
-          "prose prose-sm max-w-none focus:outline-none min-h-[80px]",
+        class: "prose prose-sm max-w-none focus:outline-none min-h-[80px]",
       },
     },
   });
@@ -75,6 +70,8 @@ export default function RichTextEditor({
     return () => editor.off("update", handleUpdate);
   }, [editor, handleUpdate]);
 
+  const imageInputRef = useRef(null);
+
   if (!editor) return null;
 
   const addLink = () => {
@@ -85,8 +82,6 @@ export default function RichTextEditor({
       if (url) editor.chain().focus().setLink({ href: url }).run();
     }
   };
-
-  const imageInputRef = useRef(null);
 
   const addImage = () => {
     const url = window.prompt("Enter image URL (or leave empty & OK to upload from device):", "https://");
@@ -111,30 +106,10 @@ export default function RichTextEditor({
   return (
     <div className="w-full">
       {title && (
-        <Typography variant="body2" sx={{ mb: "8px", color: "#374151" }}>
-          {title}
-        </Typography>
+        <p className="mb-2 text-sm text-[#374151]">{title}</p>
       )}
-      <Box
-        sx={{
-          width: "100%",
-          border: "1px solid #D1D5DB",
-          borderRadius: "8px",
-          backgroundColor: "#F4F7FF",
-          overflow: "hidden",
-        }}
-      >
-        <Box
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            gap: 0.5,
-            px: 1,
-            py: 0.5,
-            borderBottom: "1px solid #E5E7EB",
-            backgroundColor: "#fff",
-          }}
-        >
+      <div className="w-full overflow-hidden rounded-lg border border-[#D1D5DB] bg-[#F4F7FF]">
+        <div className="flex items-center gap-1 border-b border-[#E5E7EB] bg-white px-2 py-1">
           <MenuButton
             onClick={() => editor.chain().focus().toggleBold().run()}
             active={editor.isActive("bold")}
@@ -163,14 +138,14 @@ export default function RichTextEditor({
             ref={imageInputRef}
             type="file"
             accept="image/*"
-            style={{ display: "none" }}
+            className="hidden"
             onChange={handleImageFile}
           />
-        </Box>
-        <Box sx={{ minHeight: `${minHeight}px`, maxHeight: 300, overflowY: "auto" }}>
+        </div>
+        <div className="overflow-y-auto" style={{ minHeight: `${minHeight}px`, maxHeight: 300 }}>
           <EditorContent editor={editor} />
-        </Box>
-      </Box>
+        </div>
+      </div>
       <style>{`
         .ProseMirror {
           min-height: ${minHeight - 40}px;

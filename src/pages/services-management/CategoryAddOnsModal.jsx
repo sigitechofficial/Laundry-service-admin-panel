@@ -1,13 +1,7 @@
+import { Badge, Modal } from "../../design-system";
+import { formatMoney } from "../../utilities/formatters";
 import {
-  Box,
-  Typography,
-  Chip,
-  Divider,
-} from "@mui/material";
-import ModalComponent from "../../components/shared/Modal";
-import { formatGbp } from "../../utils/formatGbp";
-import {
-  getAddOnsForSubCategory,
+  getAddOnsForCategoryItems,
   groupAddOnsByCategory,
 } from "./serviceAddOnsUtils";
 
@@ -17,131 +11,110 @@ export default function CategoryAddOnsModal({
   categoryName,
   subCategories = [],
   addOnsList = [],
-  subCategoriesByServiceId,
 }) {
-  const hasSubs = subCategories.length > 0;
+  const addOns = getAddOnsForCategoryItems(subCategories, addOnsList);
+  const grouped = groupAddOnsByCategory(addOns);
 
   return (
-    <ModalComponent
+    <Modal
       open={open}
       title={`Add-ons — ${categoryName || "Category"}`}
+      description="Add-ons customers and agents can pick for items in this category. Linked via each add-on’s item ids."
       onClose={onClose}
-      secondaryAction={{ label: "Close", onClick: onClose }}
-      width={720}
+      secondaryLabel="Close"
+      primaryLabel="Done"
+      onPrimary={onClose}
     >
-      <Typography
-        variant="body2"
-        sx={{ color: "text.secondary", mb: 2, fontSize: 13 }}
-      >
-        Same add-ons customers and agents see when selecting items in this
-        category (linked via sub-category → add-on category).
-      </Typography>
-
-      {!hasSubs ? (
-        <Typography variant="body2" color="text.secondary">
-          No sub-categories in this category.
-        </Typography>
+      {addOns.length === 0 ? (
+        <p style={{ color: "var(--muted)", margin: 0 }}>
+          No add-ons linked to items in this category.
+        </p>
       ) : (
-        <Box sx={{ display: "flex", flexDirection: "column", gap: 2.5 }}>
-          {subCategories.map((sub) => {
-            const addOns = getAddOnsForSubCategory(
-              sub.id,
-              addOnsList,
-              subCategoriesByServiceId
-            );
-            const grouped = groupAddOnsByCategory(addOns);
+        <div
+          className="jd-catalog-scroll"
+          tabIndex={0}
+          role="region"
+          aria-label={`${addOns.length} add-ons${categoryName ? ` for ${categoryName}` : ""}`}
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 16,
+            minHeight: 0,
+            maxHeight: "min(56vh, calc(100vh - 260px))",
+            overflowX: "hidden",
+            overflowY: "auto",
+            overscrollBehavior: "contain",
+            paddingRight: 4,
+          }}
+        >
+          <p style={{ margin: 0, fontSize: 13, color: "var(--muted)" }}>
+            {addOns.length} {addOns.length === 1 ? "add-on" : "add-ons"} linked
+            {categoryName ? ` to ${categoryName}` : ""}
+          </p>
 
-            return (
-              <Box
-                key={sub.id}
-                sx={{
-                  border: "1px solid #E2E8F0",
-                  borderRadius: 2,
-                  overflow: "hidden",
+          {[...grouped.entries()].map(([groupName, services]) => (
+            <div
+              key={groupName}
+              style={{
+                border: "1px solid var(--line)",
+                borderRadius: "var(--r-lg)",
+                overflow: "hidden",
+              }}
+            >
+              <div
+                style={{
+                  padding: "10px 16px",
+                  background: "var(--canvas)",
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: "var(--accent-ink)",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.04em",
                 }}
               >
-                <Box
-                  sx={{
-                    px: 2,
-                    py: 1.25,
-                    bgcolor: "#F1F5F9",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    gap: 2,
-                    flexWrap: "wrap",
+                {groupName}
+                <span
+                  style={{
+                    marginLeft: 8,
+                    fontWeight: 500,
+                    color: "var(--muted)",
+                    letterSpacing: 0,
+                    textTransform: "none",
                   }}
                 >
-                  <Typography sx={{ fontWeight: 600, fontSize: 14 }}>
-                    {sub.name ?? "Sub-category"}
-                  </Typography>
-                  <Typography sx={{ fontSize: 13, color: "#64748B" }}>
-                    Item price: {formatGbp(sub.price)}
-                  </Typography>
-                </Box>
-
-                <Box sx={{ px: 2, py: 1.5 }}>
-                  {addOns.length === 0 ? (
-                    <Typography variant="body2" sx={{ color: "#94A3B8", fontSize: 13 }}>
-                      No add-ons linked to this item.
-                    </Typography>
-                  ) : (
-                    [...grouped.entries()].map(([groupName, services], gi) => (
-                      <Box key={groupName} sx={{ mb: gi < grouped.size - 1 ? 2 : 0 }}>
-                        <Typography
-                          sx={{
-                            fontSize: 12,
-                            fontWeight: 600,
-                            color: "#000099",
-                            textTransform: "uppercase",
-                            letterSpacing: "0.04em",
-                            mb: 1,
-                          }}
-                        >
-                          {groupName}
-                        </Typography>
-                        <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
-                          {services.map((svc) => (
-                            <Box
-                              key={svc.id}
-                              sx={{
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "space-between",
-                                gap: 2,
-                                py: 0.75,
-                                px: 1,
-                                borderRadius: 1,
-                                bgcolor: "#FAFAFA",
-                              }}
-                            >
-                              <Typography sx={{ fontSize: 14, fontWeight: 500 }}>
-                                {svc.name}
-                              </Typography>
-                              <Chip
-                                label={formatGbp(svc.price)}
-                                size="small"
-                                sx={{
-                                  fontWeight: 600,
-                                  bgcolor: "#E6F0FF",
-                                  color: "#000099",
-                                }}
-                              />
-                            </Box>
-                          ))}
-                        </Box>
-                        {gi < grouped.size - 1 ? (
-                          <Divider sx={{ mt: 1.5 }} />
-                        ) : null}
-                      </Box>
-                    ))
-                  )}
-                </Box>
-              </Box>
-            );
-          })}
-        </Box>
+                  {services.length} {services.length === 1 ? "add-on" : "add-ons"}
+                </span>
+              </div>
+              <div
+                style={{
+                  padding: "12px 16px",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 8,
+                }}
+              >
+                {services.map((svc) => (
+                  <div
+                    key={svc.id}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: 16,
+                      padding: "8px 10px",
+                      borderRadius: "var(--r-sm)",
+                      background: "var(--canvas)",
+                    }}
+                  >
+                    <span style={{ fontWeight: 500 }}>{svc.name}</span>
+                    <Badge tone="brand">{formatMoney(svc.price, "£")}</Badge>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
       )}
-    </ModalComponent>
+    </Modal>
   );
 }

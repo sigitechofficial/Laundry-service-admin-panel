@@ -1,17 +1,8 @@
 import { useEffect } from "react";
-import {
-  Box,
-  Typography,
-  FormControlLabel,
-  Checkbox,
-  MenuItem,
-  TextField,
-} from "@mui/material";
 import { useForm, Controller } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
-import ModalComponent from "../../components/shared/Modal";
-import InputFieldModal from "../../components/ui/InputFieldModal";
+import { Modal, Field, Input, Select } from "../../design-system";
 
 const schema = yup.object().shape({
   code: yup
@@ -46,6 +37,11 @@ const defaultValues = {
   status: true,
   isOther: false,
 };
+
+const SENTIMENT_OPTIONS = [
+  { value: "positive", label: "Positive" },
+  { value: "negative", label: "Negative" },
+];
 
 export default function AddReviewReasonCodeModal({
   open,
@@ -87,6 +83,7 @@ export default function AddReviewReasonCodeModal({
   };
 
   const onSubmit = async (values) => {
+    if (isLoading) return;
     try {
       const body = {
         label: values.label.trim(),
@@ -106,44 +103,43 @@ export default function AddReviewReasonCodeModal({
   };
 
   return (
-    <ModalComponent
+    <Modal
       open={open}
       title={isEdit ? "Edit review reason" : "Add review reason"}
+      description="Shown to customers when rating a laundry shop. Codes are stable for reporting and must stay unique."
       onClose={handleClose}
-      primaryAction={{
-        label: isEdit ? "Save" : "Add",
-        onClick: handleSubmit(onSubmit),
-        isLoading,
-      }}
-      secondaryAction={{
-        label: "Cancel",
-        onClick: handleClose,
-      }}
+      onPrimary={handleSubmit(onSubmit)}
+      primaryLabel={isLoading ? (isEdit ? "Saving…" : "Adding…") : isEdit ? "Save" : "Add"}
+      secondaryLabel="Cancel"
     >
-      <Box className="space-y-4">
-        <Typography variant="body2" sx={{ color: "grey.70", fontFamily: "Switzer" }}>
-          Shown to customers when rating a laundry shop. Codes are stable for
-          reporting and must stay unique.
-        </Typography>
-
+      <div style={{ display: "grid", gap: 16 }}>
         <Controller
           name="code"
           control={control}
           render={({ field }) => (
-            <InputFieldModal
-              {...field}
+            <Field
               label="Reason code"
-              placeholder="e.g. POS_QUALITY"
-              disabled={isEdit}
-              error={!!errors.code}
-              helperText={
-                errors.code?.message ||
-                (isEdit ? "Code cannot be changed after create" : "Immutable after create")
+              hint={
+                errors.code
+                  ? undefined
+                  : isEdit
+                    ? "Code cannot be changed after create"
+                    : "Immutable after create"
               }
-              onChange={(e) =>
-                field.onChange(String(e.target.value || "").toUpperCase())
-              }
-            />
+              error={errors.code?.message}
+              htmlFor="review-reason-code"
+            >
+              <Input
+                id="review-reason-code"
+                {...field}
+                placeholder="e.g. POS_QUALITY"
+                disabled={isEdit}
+                error={!!errors.code}
+                onChange={(e) =>
+                  field.onChange(String(e.target.value || "").toUpperCase())
+                }
+              />
+            </Field>
           )}
         />
 
@@ -151,13 +147,18 @@ export default function AddReviewReasonCodeModal({
           name="label"
           control={control}
           render={({ field }) => (
-            <InputFieldModal
-              {...field}
+            <Field
               label="Customer-facing label"
-              placeholder="e.g. Excellent cleaning quality"
-              error={!!errors.label}
-              helperText={errors.label?.message}
-            />
+              error={errors.label?.message}
+              htmlFor="review-reason-label"
+            >
+              <Input
+                id="review-reason-label"
+                {...field}
+                placeholder="e.g. Excellent cleaning quality"
+                error={!!errors.label}
+              />
+            </Field>
           )}
         />
 
@@ -165,18 +166,16 @@ export default function AddReviewReasonCodeModal({
           name="sentiment"
           control={control}
           render={({ field }) => (
-            <TextField
-              {...field}
-              select
-              fullWidth
-              label="Sentiment"
-              error={!!errors.sentiment}
-              helperText={errors.sentiment?.message}
-              disabled={isEdit}
-            >
-              <MenuItem value="positive">Positive</MenuItem>
-              <MenuItem value="negative">Negative</MenuItem>
-            </TextField>
+            <Field label="Sentiment" error={errors.sentiment?.message}>
+              <Select
+                aria-label="Sentiment"
+                value={field.value}
+                onChange={field.onChange}
+                options={SENTIMENT_OPTIONS}
+                disabled={isEdit}
+                error={!!errors.sentiment}
+              />
+            </Field>
           )}
         />
 
@@ -184,15 +183,22 @@ export default function AddReviewReasonCodeModal({
           name="sortOrder"
           control={control}
           render={({ field }) => (
-            <InputFieldModal
-              {...field}
-              type="number"
+            <Field
               label="Sort order"
-              placeholder="0"
-              error={!!errors.sortOrder}
-              helperText={errors.sortOrder?.message || "Lower numbers appear first"}
-              onChange={(e) => field.onChange(Number(e.target.value))}
-            />
+              hint={errors.sortOrder ? undefined : "Lower numbers appear first"}
+              error={errors.sortOrder?.message}
+              htmlFor="review-reason-sort"
+            >
+              <Input
+                id="review-reason-sort"
+                {...field}
+                type="number"
+                min={0}
+                placeholder="0"
+                error={!!errors.sortOrder}
+                onChange={(e) => field.onChange(Number(e.target.value))}
+              />
+            </Field>
           )}
         />
 
@@ -200,15 +206,14 @@ export default function AddReviewReasonCodeModal({
           name="status"
           control={control}
           render={({ field }) => (
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={field.value}
-                  onChange={(e) => field.onChange(e.target.checked)}
-                />
-              }
-              label="Active (visible to customers)"
-            />
+            <label style={checkStyle}>
+              <input
+                type="checkbox"
+                checked={field.value}
+                onChange={(e) => field.onChange(e.target.checked)}
+              />
+              Active (visible to customers)
+            </label>
           )}
         />
 
@@ -216,18 +221,27 @@ export default function AddReviewReasonCodeModal({
           name="isOther"
           control={control}
           render={({ field }) => (
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={field.value}
-                  onChange={(e) => field.onChange(e.target.checked)}
-                />
-              }
-              label={`"Other" option (shows extra text field — one per sentiment)`}
-            />
+            <label style={checkStyle}>
+              <input
+                type="checkbox"
+                checked={field.value}
+                onChange={(e) => field.onChange(e.target.checked)}
+              />
+              &quot;Other&quot; option (shows extra text field — one per sentiment)
+            </label>
           )}
         />
-      </Box>
-    </ModalComponent>
+      </div>
+    </Modal>
   );
 }
+
+const checkStyle = {
+  display: "flex",
+  alignItems: "flex-start",
+  gap: 8,
+  fontSize: 14,
+  color: "var(--ink-2)",
+  cursor: "pointer",
+  lineHeight: 1.4,
+};

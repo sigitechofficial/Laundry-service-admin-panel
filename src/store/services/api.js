@@ -4,9 +4,36 @@ import baseQueryWithReauth from "./baseQueryWithReauth";
 export const api = createApi({
   reducerPath: "api",
   baseQuery: baseQueryWithReauth,
-  tagTypes: ["ServiceConfig", "SupportContact", "PlatformOperationalHours", "RuntimeSettings", "Orders", "Coupons", "Banners", "AccountDeletionReasons", "ReviewReasonCodes", "ShopReviews", "ShopRatingsReport", "PendingAgents", "RejectedAgents", "AgentSettlement", "NotifyLogs", "PaymentFailures", "AdminNotificationPreferences", "ActionRequiredOrders", "RepairGarments", "RepairOptions", "Zones", "FailAttemptInstructions", "FailAttemptReasons"],
+  // setupListeners(store.dispatch) + window "online" → refetch subscribed queries.
+  refetchOnReconnect: true,
+  tagTypes: ["ServiceConfig", "SupportContact", "PlatformOperationalHours", "RuntimeSettings", "Orders", "Coupons", "Banners", "AccountDeletionReasons", "ReviewReasonCodes", "ShopReviews", "ShopRatingsReport", "PendingAgents", "RejectedAgents", "AgentSettlement", "NotifyLogs", "PaymentFailures", "AdminNotificationPreferences", "ActionRequiredOrders", "RepairGarments", "RepairOptions", "Zones", "FailAttemptInstructions", "FailAttemptReasons", "Shops", "ComplianceReport", "ComplianceEvents"],
 
   endpoints: (builder) => {
+    const reportQueryString = (params = {}) => {
+      const q = new URLSearchParams();
+      if (params.period) q.append("period", params.period);
+      if (params.period === "custom" && params.startDate) q.append("startDate", params.startDate);
+      if (params.period === "custom" && params.endDate) q.append("endDate", params.endDate);
+      if (params.zoneId) q.append("zoneId", params.zoneId);
+      if (params.shopId) q.append("shopId", params.shopId);
+      if (params.search) q.append("search", params.search);
+      if (params.page) q.append("page", params.page);
+      if (params.limit) q.append("limit", params.limit);
+      if (params.minReviews) q.append("minReviews", params.minReviews);
+      if (params.sort) q.append("sort", params.sort);
+      if (params.sentiment) q.append("sentiment", params.sentiment);
+      if (params.reasonCode) q.append("reasonCode", params.reasonCode);
+      return q.toString();
+    };
+
+    const reportQuery = (path, params = {}) => {
+      const queryString = reportQueryString(params);
+      return {
+        url: queryString ? `${path}?${queryString}` : path,
+        method: "GET",
+      };
+    };
+
     const normalizeServiceId = (id) => {
       if (id == null || id === "") return undefined;
       const numericId = Number(id);
@@ -23,6 +50,8 @@ export const api = createApi({
         endDate,
         search,
         includeCounts,
+        sortBy,
+        sortDir,
       } = params;
       const q = { page, limit };
       if (zoneId != null && String(zoneId).trim() !== "") q.zoneId = zoneId;
@@ -33,6 +62,10 @@ export const api = createApi({
       if (includeCounts === true || includeCounts === 1 || includeCounts === "1") {
         q.includeCounts = 1;
       }
+      if (sortBy != null && String(sortBy).trim() !== "") q.sortBy = String(sortBy).trim();
+      if (sortDir != null && String(sortDir).trim() !== "") {
+        q.sortDir = String(sortDir).trim().toLowerCase();
+      }
       return q;
     };
 
@@ -42,12 +75,18 @@ export const api = createApi({
     // period=today|this_week|this_month|all|custom
     // startDate/endDate when period=custom
     // zoneId, search, page, limit
-    // eslint-disable-next-line no-unused-vars
     adminLogin: builder.mutation({
       query: (body) => ({
         url: "admin/adminSignIn",
         method: "POST",
         body,
+      }),
+    }),
+
+    adminLogout: builder.mutation({
+      query: () => ({
+        url: "admin/signOut",
+        method: "POST",
       }),
     }),
 
@@ -69,13 +108,6 @@ export const api = createApi({
     getAllAddOnServices: builder.query({
       query: () => ({
         url: "admin/getAllAddOnServices",
-        method: "GET",
-      }),
-    }),
-
-    getAddOnServiceById: builder.query({
-      query: (addOnServiceId) => ({
-        url: `admin/getAddOnServiceById/${addOnServiceId}`,
         method: "GET",
       }),
     }),
@@ -116,13 +148,6 @@ export const api = createApi({
         url: "admin/getAllAddOnCategories",
         method: "GET",
         params,
-      }),
-    }),
-
-    getAddOnCategoryById: builder.query({
-      query: (addOnCategoryId) => ({
-        url: `admin/getAddOnCategoryById/${addOnCategoryId}`,
-        method: "GET",
       }),
     }),
 
@@ -660,10 +685,21 @@ export const api = createApi({
     }),
 
     getPaymentFailures: builder.query({
-      query: () => ({
-        url: "admin/payment-failures",
-        method: "GET",
-      }),
+      query: (params = {}) => {
+        const q = {};
+        if (params.sortBy != null && String(params.sortBy).trim() !== "") {
+          q.sortBy = String(params.sortBy).trim();
+        }
+        if (params.sortDir != null && String(params.sortDir).trim() !== "") {
+          q.sortDir = String(params.sortDir).trim().toLowerCase();
+        }
+        if (params.limit != null) q.limit = params.limit;
+        return {
+          url: "admin/payment-failures",
+          method: "GET",
+          params: q,
+        };
+      },
       providesTags: ["PaymentFailures"],
     }),
 
@@ -701,20 +737,13 @@ export const api = createApi({
         method: "GET",
         params,
       }),
+      providesTags: ["Shops"],
     }),
 
     getShopDetails: builder.query({
       query: (id) => ({
         url: `admin/singleShopData/${id}`,
         method: "GET",
-      }),
-    }),
-
-    addShop: builder.mutation({
-      query: (body) => ({
-        url: "admin/addLaundryShop",
-        method: "POST",
-        body,
       }),
     }),
 
@@ -1046,23 +1075,6 @@ export const api = createApi({
       }),
     }),
 
-    getActivePolicies: builder.query({
-      query: () => ({
-        url: "admin/getActivePolicies",
-        method: "GET",
-        credentials: "include",
-      }),
-    }),
-
-    addZone: builder.mutation({
-      query: (body) => ({
-        url: "admin/addZone",
-        method: "POST",
-        body,
-      }),
-      invalidatesTags: [{ type: "Zones", id: "LIST" }],
-    }),
-
     addZoneByPostcodes: builder.mutation({
       query: (body) => ({
         url: "admin/addZoneByPostcodes",
@@ -1229,130 +1241,59 @@ export const api = createApi({
     }),
 
     reportsTopServices: builder.query({
-      query: (params = {}) => {
-        const q = new URLSearchParams();
-        if (params.period) q.append("period", params.period);
-        if (params.period === "custom" && params.startDate) q.append("startDate", params.startDate);
-        if (params.period === "custom" && params.endDate) q.append("endDate", params.endDate);
-        if (params.zoneId) q.append("zoneId", params.zoneId);
-        if (params.search) q.append("search", params.search);
-        if (params.page) q.append("page", params.page);
-        if (params.limit) q.append("limit", params.limit);
-        const queryString = q.toString();
-        return {
-          url: queryString ? `admin/reports/top-services?${queryString}` : "admin/reports/top-services",
-          method: "GET",
-        };
-      },
+      query: (params = {}) => reportQuery("admin/reports/top-services", params),
     }),
 
     reportsHourly: builder.query({
-      query: (params = {}) => {
-        const q = new URLSearchParams();
-        if (params.period) q.append("period", params.period);
-        if (params.period === "custom" && params.startDate) q.append("startDate", params.startDate);
-        if (params.period === "custom" && params.endDate) q.append("endDate", params.endDate);
-        const queryString = q.toString();
-        return {
-          url: queryString ? `admin/reports/hourly?${queryString}` : "admin/reports/hourly",
-          method: "GET",
-        };
-      },
+      query: (params = {}) => reportQuery("admin/reports/hourly", params),
     }),
 
     reportsOnHold: builder.query({
-      query: (params = {}) => {
-        const q = new URLSearchParams();
-        if (params.period) q.append("period", params.period);
-        if (params.period === "custom" && params.startDate) q.append("startDate", params.startDate);
-        if (params.period === "custom" && params.endDate) q.append("endDate", params.endDate);
-        if (params.zoneId) q.append("zoneId", params.zoneId);
-        if (params.search) q.append("search", params.search);
-        if (params.page) q.append("page", params.page);
-        if (params.limit) q.append("limit", params.limit);
-        const queryString = q.toString();
-        return {
-          url: queryString ? `admin/reports/on-hold?${queryString}` : "admin/reports/on-hold",
-          method: "GET",
-        };
-      },
+      query: (params = {}) => reportQuery("admin/reports/on-hold", params),
     }),
 
     reportsServiceDemand: builder.query({
-      query: (params = {}) => {
-        const q = new URLSearchParams();
-        if (params.period) q.append("period", params.period);
-        if (params.period === "custom" && params.startDate) q.append("startDate", params.startDate);
-        if (params.period === "custom" && params.endDate) q.append("endDate", params.endDate);
-        const queryString = q.toString();
-        return {
-          url: queryString ? `admin/reports/service-demand?${queryString}` : "admin/reports/service-demand",
-          method: "GET",
-        };
-      },
+      query: (params = {}) => reportQuery("admin/reports/service-demand", params),
     }),
 
     reportsTopShops: builder.query({
-      query: (params = {}) => {
-        const q = new URLSearchParams();
-        if (params.period) q.append("period", params.period);
-        if (params.period === "custom" && params.startDate) q.append("startDate", params.startDate);
-        if (params.period === "custom" && params.endDate) q.append("endDate", params.endDate);
-        const queryString = q.toString();
-        return {
-          url: queryString ? `admin/reports/top-shops?${queryString}` : "admin/reports/top-shops",
-          method: "GET",
-        };
-      },
+      query: (params = {}) => reportQuery("admin/reports/top-shops", params),
     }),
 
     reportsDailyEarnings: builder.query({
-      query: (params = {}) => {
-        const q = new URLSearchParams();
-        if (params.period) q.append("period", params.period);
-        if (params.period === "custom" && params.startDate) q.append("startDate", params.startDate);
-        if (params.period === "custom" && params.endDate) q.append("endDate", params.endDate);
-        if (params.zoneId) q.append("zoneId", params.zoneId);
-        const queryString = q.toString();
-        return {
-          url: queryString ? `admin/reports/daily-earnings?${queryString}` : "admin/reports/daily-earnings",
-          method: "GET",
-        };
-      },
+      query: (params = {}) => reportQuery("admin/reports/daily-earnings", params),
     }),
 
     reportsDailyEarningsByZone: builder.query({
-      query: (params = {}) => {
-        const q = new URLSearchParams();
-        if (params.period) q.append("period", params.period);
-        if (params.period === "custom" && params.startDate) q.append("startDate", params.startDate);
-        if (params.period === "custom" && params.endDate) q.append("endDate", params.endDate);
-        if (params.zoneId) q.append("zoneId", params.zoneId);
-        const queryString = q.toString();
-        return {
-          url: queryString
-            ? `admin/reports/daily-earnings/zone?${queryString}`
-            : "admin/reports/daily-earnings/zone",
-          method: "GET",
-        };
-      },
+      query: (params = {}) => reportQuery("admin/reports/daily-earnings/zone", params),
     }),
 
     reportsDailyEarningsByShop: builder.query({
-      query: (params = {}) => {
-        const q = new URLSearchParams();
-        if (params.period) q.append("period", params.period);
-        if (params.period === "custom" && params.startDate) q.append("startDate", params.startDate);
-        if (params.period === "custom" && params.endDate) q.append("endDate", params.endDate);
-        if (params.zoneId) q.append("zoneId", params.zoneId);
-        const queryString = q.toString();
-        return {
-          url: queryString
-            ? `admin/reports/daily-earnings/shop?${queryString}`
-            : "admin/reports/daily-earnings/shop",
-          method: "GET",
-        };
-      },
+      query: (params = {}) => reportQuery("admin/reports/daily-earnings/shop", params),
+    }),
+
+    reportsPayments: builder.query({
+      query: (params = {}) => reportQuery("admin/reports/payments", params),
+    }),
+
+    reportsCancellations: builder.query({
+      query: (params = {}) => reportQuery("admin/reports/cancellations", params),
+    }),
+
+    reportsCustomers: builder.query({
+      query: (params = {}) => reportQuery("admin/reports/customers", params),
+    }),
+
+    reportsDrivers: builder.query({
+      query: (params = {}) => reportQuery("admin/reports/drivers", params),
+    }),
+
+    reportsOverdue: builder.query({
+      query: (params = {}) => reportQuery("admin/reports/overdue", params),
+    }),
+
+    reportsReviewReasonShops: builder.query({
+      query: (params = {}) => reportQuery("admin/reports/review-reason-shops", params),
     }),
 
     addAdminEmployee: builder.mutation({
@@ -1389,14 +1330,6 @@ export const api = createApi({
     updateAdminEmployee: builder.mutation({
       query: (body) => ({
         url: "admin/updateEmployee",
-        method: "PATCH",
-        body,
-      }),
-    }),
-
-    updateAdminEmployeeStatus: builder.mutation({
-      query: (body) => ({
-        url: "admin/updateEmployeeStatus",
         method: "PATCH",
         body,
       }),
@@ -1699,13 +1632,6 @@ export const api = createApi({
           : "admin/getReschedulePolicies";
         return { url, method: "GET" };
       },
-    }),
-
-    getReschedulePolicyById: builder.query({
-      query: (id) => ({
-        url: `admin/getReschedulePolicy/${id}`,
-        method: "GET",
-      }),
     }),
 
     updateReschedulePolicy: builder.mutation({
@@ -2020,10 +1946,10 @@ export const api = createApi({
 
 export const {
   useAdminLoginMutation,
+  useAdminLogoutMutation,
   useZoneAdminLoginMutation,
   useGetAllServicesQuery,
   useGetAllAddOnServicesQuery,
-  useGetAddOnServiceByIdQuery,
   useGetPreferencesQuery,
   useGetCategoriesQuery,
   useGetSubCategoriesQuery,
@@ -2033,7 +1959,6 @@ export const {
   useUpdateAddOnServicesSortOrderMutation,
   useDeleteAddOnServiceMutation,
   useGetAllAddOnCategoriesQuery,
-  useGetAddOnCategoryByIdQuery,
   useCreateAddOnCategoryMutation,
   useUpdateAddOnCategoryMutation,
   useUpdateAddOnCategoriesSortOrderMutation,
@@ -2087,7 +2012,6 @@ export const {
   useGetAllOrderStatusesQuery,
   useGetShopsDataQuery,
   useGetShopDetailsQuery,
-  useAddShopMutation,
   useGetPendingAgentsQuery,
   useGetRejectedAgentsQuery,
   useUpdateAgentApprovalMutation,
@@ -2130,12 +2054,17 @@ export const {
   useReportsDailyEarningsQuery,
   useReportsDailyEarningsByZoneQuery,
   useReportsDailyEarningsByShopQuery,
+  useReportsPaymentsQuery,
+  useReportsCancellationsQuery,
+  useReportsCustomersQuery,
+  useReportsDriversQuery,
+  useReportsOverdueQuery,
+  useReportsReviewReasonShopsQuery,
   useAddAdminEmployeeMutation,
   useAddAgentEmployeeMutation,
   useUpdateAgentEmployeeMutation,
   useDeleteAgentEmployeeMutation,
   useUpdateAdminEmployeeMutation,
-  useUpdateAdminEmployeeStatusMutation,
   useDeleteAdminEmployeeMutation,
   useGetAllZonesQuery,
   useGetZoneByIdQuery,
@@ -2150,8 +2079,6 @@ export const {
   useEditCityMutation,
   useDeleteCityMutation,
   useGetUnitsDistanceAndCurrencyQuery,
-  useGetActivePoliciesQuery,
-  useAddZoneMutation,
   useAddZoneByPostcodesMutation,
   useEditZoneByPostcodesMutation,
   useDeleteZoneMutation,
@@ -2196,7 +2123,6 @@ export const {
   useAddReschedulePolicyMutation,
   useGetReschedulePoliciesQuery,
   useLazyGetReschedulePoliciesQuery,
-  useGetReschedulePolicyByIdQuery,
   useUpdateReschedulePolicyMutation,
   useDeleteReschedulePolicyMutation,
   useGetAllFAQsQuery,

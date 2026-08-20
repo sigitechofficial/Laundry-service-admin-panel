@@ -1,71 +1,34 @@
-import { Box, Typography, Divider } from "@mui/material";
-import { BsBarChartFill, BsPerson, BsPeople, BsShop } from "react-icons/bs";
-import { MdOutlineCalendarMonth } from "react-icons/md";
 import { HiArrowNarrowRight } from "react-icons/hi";
-import FigureShimmer from "../../components/ui/FigureShimmer";
+import FigureShimmer from "./FigureShimmer";
+import { formatMoney, resolveCurrencySymbol } from "../../utilities/formatters";
 
-/** JustDryCleans theme tokens (see shared/theme.js) */
-const COLORS = {
-  title: "#000099",
-  accent: "#248ECF",
-  text: "#1E293B",
-  heading: "#000000",
-  muted: "#64748B",
-  border: "#D0D5DD",
-  green: "#379465",
-  card: "#FFFFFF",
-  board: "#FAFAFA",
-  rowHover: "#F4F7FF",
-};
-
-function money(n) {
-  const v = Number(n);
-  if (!Number.isFinite(v)) return "£0.00";
-  return `£${v.toLocaleString(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`;
+function money(amount, source, fallbackSymbol, fallbackCode) {
+  const symbol = resolveCurrencySymbol(source) || fallbackSymbol;
+  const code =
+    source?.currency ??
+    source?.currencyCode ??
+    source?.currency_code ??
+    source?.feeCurrency ??
+    fallbackCode;
+  return formatMoney(amount, symbol, code);
 }
 
-function CardShell({ children, sx }) {
+function CardShell({ children }) {
   return (
-    <Box
-      sx={{
-        bgcolor: COLORS.card,
-        borderRadius: "10px",
-        boxShadow:
-          "0 1px 2px rgba(0,0,153,0.04), 0 4px 16px rgba(30,41,59,0.06)",
-        border: "1px solid #F1F5F9",
-        px: 2.5,
-        py: 2.25,
-        display: "flex",
-        flexDirection: "column",
-        minHeight: 260,
-        height: "100%",
-        ...sx,
-      }}
-    >
+    <article className="relative flex h-full min-h-[260px] flex-col overflow-hidden rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-5 py-[18px] shadow-[0_1px_2px_rgba(16,21,31,0.04)] before:absolute before:inset-y-0 before:left-0 before:w-[3px] before:bg-[var(--accent)] before:content-['']">
       {children}
-    </Box>
+    </article>
   );
 }
 
 function CardTitle({ icon: Icon, title }) {
   return (
-    <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2 }}>
-      {Icon ? <Icon size={18} color={COLORS.title} /> : null}
-      <Typography
-        sx={{
-          fontFamily: "Inter, sans-serif",
-          fontWeight: 700,
-          fontSize: 15,
-          color: COLORS.title,
-          lineHeight: 1.2,
-        }}
-      >
+    <div className="mb-4 flex items-center gap-2">
+      {Icon ? <Icon size={18} className="text-[var(--accent-ink)]" /> : null}
+      <h3 className="m-0 text-[15px] font-bold leading-tight tracking-[-0.2px] text-[var(--ink)]">
         {title}
-      </Typography>
-    </Box>
+      </h3>
+    </div>
   );
 }
 
@@ -73,32 +36,20 @@ function FooterLink({ label, onClick }) {
   if (!onClick) return null;
   return (
     <>
-      <Divider sx={{ borderColor: COLORS.border, mt: "auto", mb: 1.5 }} />
-      <Box
-        component="button"
+      <hr className="mb-3 mt-auto border-0 border-t border-[var(--line)]" />
+      <button
         type="button"
         onClick={onClick}
-        sx={{
-          all: "unset",
-          cursor: "pointer",
-          display: "inline-flex",
-          alignItems: "center",
-          gap: 0.5,
-          fontFamily: "Inter, sans-serif",
-          fontSize: 13,
-          fontWeight: 600,
-          color: COLORS.title,
-          "&:hover": { opacity: 0.75 },
-        }}
+        className="inline-flex items-center gap-1.5 self-start border-0 bg-transparent p-0 text-[13px] font-semibold text-[var(--accent)] hover:text-[var(--accent-ink)]"
       >
         {label}
         <HiArrowNarrowRight size={14} />
-      </Box>
+      </button>
     </>
   );
 }
 
-/** Reference: Month-to-Date / Last Month Sales */
+/** Month-to-date / last-month sales metric card. */
 export function SalesMetricCard({
   title,
   icon,
@@ -111,143 +62,75 @@ export function SalesMetricCard({
   statusLabel,
   onView,
   loading = false,
+  currencySource,
 }) {
   const trend = Number(trendPct);
   const up = trend >= 0;
+  const trendReady = Number.isFinite(trend);
 
   return (
     <CardShell>
       <CardTitle icon={icon} title={title} />
 
       {loading ? (
-        <FigureShimmer width={160} height={36} sx={{ mb: 0.5 }} />
+        <FigureShimmer width={160} height={36} className="mb-1" />
       ) : (
-        <Typography
-          sx={{
-            fontFamily: "Inter, sans-serif",
-            fontWeight: 800,
-            fontSize: { xs: 28, md: 32 },
-            color: COLORS.heading,
-            letterSpacing: "-0.02em",
-            lineHeight: 1.1,
-            fontVariantNumeric: "tabular-nums",
-          }}
-        >
-          {money(total)}
-        </Typography>
+        <p className="m-0 text-[32px] font-bold leading-[1.1] tracking-[-0.02em] text-[var(--ink)] [font-variant-numeric:tabular-nums]">
+          {money(total, currencySource)}
+        </p>
       )}
-      <Typography
-        sx={{
-          fontFamily: "Inter, sans-serif",
-          fontSize: 13,
-          color: COLORS.muted,
-          mt: 0.5,
-          mb: 2,
-        }}
-      >
-        {totalLabel}
-      </Typography>
+      <p className="mb-4 mt-1 text-[13px] text-[var(--muted)]">{totalLabel}</p>
 
-      <Box
-        sx={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr",
-          gap: 2,
-          mb: 1.5,
-        }}
-      >
-        <Box>
+      <div className="mb-3 grid grid-cols-2 gap-4">
+        <div>
           {loading ? (
-            <FigureShimmer width={56} height={24} sx={{ mb: 0.5 }} />
+            <FigureShimmer width={56} height={24} className="mb-1" />
           ) : (
-            <Typography
-              sx={{
-                fontFamily: "Inter, sans-serif",
-                fontWeight: 800,
-                fontSize: 20,
-                color: COLORS.heading,
-                fontVariantNumeric: "tabular-nums",
-              }}
-            >
+            <p className="m-0 text-xl font-bold text-[var(--ink)] [font-variant-numeric:tabular-nums]">
               {orders}
-            </Typography>
+            </p>
           )}
-          <Typography
-            sx={{
-              fontFamily: "Inter, sans-serif",
-              fontSize: 13,
-              color: COLORS.muted,
-            }}
-          >
-            Orders
-          </Typography>
-        </Box>
-        <Box>
+          <p className="m-0 text-[13px] text-[var(--muted)]">Orders</p>
+        </div>
+        <div>
           {loading ? (
-            <FigureShimmer width={88} height={24} sx={{ mb: 0.5 }} />
+            <FigureShimmer width={88} height={24} className="mb-1" />
           ) : (
-            <Typography
-              sx={{
-                fontFamily: "Inter, sans-serif",
-                fontWeight: 800,
-                fontSize: 20,
-                color: COLORS.heading,
-                fontVariantNumeric: "tabular-nums",
-              }}
-            >
-              {money(avgOrderValue)}
-            </Typography>
+            <p className="m-0 text-xl font-bold text-[var(--ink)] [font-variant-numeric:tabular-nums]">
+              {money(avgOrderValue, currencySource)}
+            </p>
           )}
-          <Typography
-            sx={{
-              fontFamily: "Inter, sans-serif",
-              fontSize: 13,
-              color: COLORS.muted,
-            }}
-          >
-            Avg Order Value
-          </Typography>
-        </Box>
-      </Box>
+          <p className="m-0 text-[13px] text-[var(--muted)]">Avg order value</p>
+        </div>
+      </div>
 
-      {showTrend ? (
+      {showTrend && trendReady ? (
         loading ? (
-          <FigureShimmer width={180} height={16} sx={{ mb: 0.5 }} />
+          <FigureShimmer width={180} height={16} className="mb-1" />
         ) : (
-          <Typography
-            sx={{
-              fontFamily: "Inter, sans-serif",
-              fontSize: 13,
-              fontWeight: 600,
-              color: COLORS.green,
-              mb: 0.5,
-            }}
+          <p
+            className={`mb-1 mt-0 inline-flex w-fit items-center rounded-full px-2 py-0.5 text-[11.5px] font-semibold ${
+              up
+                ? "bg-[var(--success-bg)] text-[var(--success)]"
+                : "bg-[var(--danger-bg)] text-[var(--danger)]"
+            }`}
           >
-            vs Last Month (MTD) {up ? "▲" : "▼"} {up ? "+" : ""}
-            {Number.isFinite(trend) ? trend : 0}%
-          </Typography>
+            vs last month (MTD) {up ? "▲" : "▼"} {up ? "+" : ""}
+            {trend}%
+          </p>
         )
       ) : null}
 
       {statusLabel && !loading ? (
-        <Typography
-          sx={{
-            fontFamily: "Inter, sans-serif",
-            fontSize: 13,
-            color: COLORS.muted,
-            mb: 0.5,
-          }}
-        >
-          {statusLabel}
-        </Typography>
+        <p className="mb-1 mt-0 text-[13px] text-[var(--muted)]">{statusLabel}</p>
       ) : null}
 
-      <FooterLink label="View Report" onClick={onView} />
+      <FooterLink label="View report" onClick={onView} />
     </CardShell>
   );
 }
 
-/** Reference: ranked list cards */
+/** Ranked list cards (shops / services). */
 export function SalesRankCard({
   title,
   icon,
@@ -258,170 +141,93 @@ export function SalesRankCard({
   metaKey,
   metaPrefix = "Qty:",
   emptyText = "No data yet.",
-  footerLabel = "View Report",
+  footerLabel = "View report",
   onView,
   onSubtitleClick,
   loading = false,
+  currencySource,
 }) {
   return (
     <CardShell>
       <CardTitle icon={icon} title={title} />
 
       {subtitle ? (
-        <Box
-          component={onSubtitleClick ? "button" : "p"}
-          type={onSubtitleClick ? "button" : undefined}
-          onClick={onSubtitleClick}
-          sx={{
-            all: onSubtitleClick ? "unset" : undefined,
-            cursor: onSubtitleClick ? "pointer" : "default",
-            fontFamily: "Inter, sans-serif",
-            fontSize: 12,
-            color: COLORS.muted,
-            mb: 1.5,
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 0.5,
-            "&:hover": onSubtitleClick ? { color: COLORS.title } : undefined,
-          }}
-        >
-          {subtitle}
-          {onSubtitleClick ? <HiArrowNarrowRight size={12} /> : null}
-        </Box>
+        onSubtitleClick ? (
+          <button
+            type="button"
+            onClick={onSubtitleClick}
+            className="mb-3 inline-flex items-center gap-1 self-start border-0 bg-transparent p-0 text-[12.5px] font-semibold text-[var(--accent)] hover:text-[var(--accent-ink)]"
+          >
+            {subtitle}
+            <HiArrowNarrowRight size={12} />
+          </button>
+        ) : (
+          <p className="mb-3 mt-0 text-xs text-[var(--muted)]">{subtitle}</p>
+        )
       ) : null}
 
-      <Box sx={{ flex: 1 }}>
+      <div className="flex-1">
         {loading ? (
           Array.from({ length: 5 }).map((_, idx) => (
-            <Box
+            <div
               key={idx}
-              sx={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                py: 1.25,
-                borderTop: idx === 0 ? "none" : `1px solid ${COLORS.border}`,
-              }}
+              className={`flex items-center justify-between py-2.5 ${
+                idx === 0 ? "" : "border-t border-[var(--line)]"
+              }`}
             >
-              <Box sx={{ display: "flex", flexDirection: "column", gap: 0.75 }}>
+              <div className="flex flex-col gap-1.5">
                 <FigureShimmer width={140 + (idx % 3) * 24} height={14} />
                 {metaKey ? <FigureShimmer width={72} height={10} /> : null}
-              </Box>
+              </div>
               <FigureShimmer width={72} height={14} />
-            </Box>
+            </div>
           ))
         ) : rows.length === 0 ? (
-          <Typography
-            sx={{
-              fontFamily: "Inter, sans-serif",
-              fontSize: 13,
-              color: COLORS.muted,
-              textAlign: "center",
-              py: 4,
-            }}
-          >
+          <p className="m-0 px-0 py-8 text-center text-[13px] text-[var(--muted)]">
             {emptyText}
-          </Typography>
+          </p>
         ) : (
           rows.map((row, idx) => {
             const name = row[nameKey] ?? row.shopName ?? row.name ?? "—";
-            const amount =
-              row[amountKey] ?? row.shopRevenue ?? row.revenue ?? 0;
+            const amount = row[amountKey] ?? row.shopRevenue ?? row.revenue ?? 0;
             const meta = metaKey != null ? row[metaKey] : null;
 
             return (
-              <Box
+              <div
                 key={row.shopId ?? row.serviceId ?? idx}
-                sx={{
-                  display: "flex",
-                  alignItems: "flex-start",
-                  justifyContent: "space-between",
-                  gap: 2,
-                  py: 1.25,
-                  px: 0.5,
-                  mx: -0.5,
-                  borderRadius: "6px",
-                  borderTop: idx === 0 ? "none" : `1px solid ${COLORS.border}`,
-                  "&:hover": { bgcolor: COLORS.rowHover },
-                }}
+                className={`flex items-start justify-between gap-4 py-2.5 ${
+                  idx === 0 ? "" : "border-t border-[var(--line)]"
+                }`}
               >
-                <Box sx={{ minWidth: 0, flex: 1 }}>
-                  <Typography
-                    sx={{
-                      fontFamily: "Inter, sans-serif",
-                      fontSize: 14,
-                      fontWeight: 600,
-                      color: COLORS.heading,
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
+                <div className="min-w-0 flex-1">
+                  <p className="m-0 overflow-hidden text-ellipsis whitespace-nowrap text-sm font-semibold text-[var(--ink)]">
                     {name}
-                  </Typography>
+                  </p>
                   {meta != null ? (
-                    <Typography
-                      sx={{
-                        fontFamily: "Inter, sans-serif",
-                        fontSize: 12,
-                        color: COLORS.muted,
-                        mt: 0.25,
-                      }}
-                    >
+                    <p className="mt-0.5 mb-0 text-xs text-[var(--muted)]">
                       {metaPrefix} {meta}
-                    </Typography>
+                    </p>
                   ) : null}
-                </Box>
-                <Box
-                  sx={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 0.5,
-                    flexShrink: 0,
-                  }}
-                >
-                  <Typography
-                    sx={{
-                      fontFamily: "Inter, sans-serif",
-                      fontSize: 14,
-                      fontWeight: 700,
-                      color: COLORS.heading,
-                      fontVariantNumeric: "tabular-nums",
-                    }}
-                  >
-                    {money(amount)}
-                  </Typography>
-                  <HiArrowNarrowRight size={14} color={COLORS.muted} />
-                </Box>
-              </Box>
+                </div>
+                <p className="m-0 shrink-0 text-sm font-bold text-[var(--ink)] [font-variant-numeric:tabular-nums]">
+                  {money(
+                    amount,
+                    row,
+                    resolveCurrencySymbol(currencySource),
+                    currencySource?.currency ?? currencySource?.currencyCode
+                  )}
+                </p>
+              </div>
             );
           })
         )}
-      </Box>
+      </div>
 
       <FooterLink label={footerLabel} onClick={onView} />
     </CardShell>
   );
 }
 
-export const SalesIcons = {
-  chart: BsBarChartFill,
-  person: BsPerson,
-  people: BsPeople,
-  calendar: MdOutlineCalendarMonth,
-  store: BsShop,
-};
-
 export function SalesBoard({ children }) {
-  return (
-    <Box
-      sx={{
-        bgcolor: COLORS.board,
-        borderRadius: "16px",
-        p: { xs: 2, md: 2.5 },
-      }}
-    >
-      {children}
-    </Box>
-  );
+  return <section className="flex flex-col gap-4">{children}</section>;
 }

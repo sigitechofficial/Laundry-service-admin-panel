@@ -1,11 +1,19 @@
 import { useState, useMemo } from "react";
-import { Box, Typography, Tabs, Tab, Chip } from "@mui/material";
-import { TbSparkles, TbPlus } from "../../shared/icons/index";
-import ButtonBlue from "../../components/ui/ButtonBlue";
-import DataTable from "../../components/ui/DataTable";
-import ActionButtons from "../../components/ui/ActionButtons";
-import ChangeStatus from "../../components/ui/Switch";
-import ModalComponent from "../../components/shared/Modal";
+import { PageHeader, Table, Button, Modal } from "../../design-system";
+import {
+  DirectoryActions,
+  DirectoryDotPill,
+  DirectoryIdentity,
+  DirectoryMetrics,
+  DirectoryStatusPill,
+  DirectoryTableWrap,
+  DirectoryTool,
+  DirectoryToolbar,
+  DirectoryViewFields,
+  DirectoryViewModal,
+  PageLoading,
+  StatusToggle,
+} from "../directory-table/directoryTable";
 import AddReviewReasonCodeModal from "./AddReviewReasonCodeModal";
 import {
   useGetReviewReasonCodesQuery,
@@ -13,7 +21,6 @@ import {
   useUpdateReviewReasonCodeMutation,
   useDeleteReviewReasonCodeMutation,
 } from "../../store/services/api";
-import { Delay } from "../../components/shared/Loaders";
 import useToaster from "../../components/ui/Toaster";
 
 export default function ReviewReasonCodes() {
@@ -23,8 +30,9 @@ export default function ReviewReasonCodes() {
   const [reasonToEdit, setReasonToEdit] = useState(null);
   const [reasonToDelete, setReasonToDelete] = useState(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [viewRow, setViewRow] = useState(null);
 
-  const { data, isLoading, refetch } = useGetReviewReasonCodesQuery();
+  const { data, isLoading, isError, refetch } = useGetReviewReasonCodesQuery();
   const [createReason, { isLoading: isCreating }] =
     useCreateReviewReasonCodeMutation();
   const [updateReason, { isLoading: isUpdating }] =
@@ -66,6 +74,9 @@ export default function ReviewReasonCodes() {
         body: { status: !row.status },
       }).unwrap();
       success("Status updated");
+      setViewRow((prev) =>
+        prev && prev.id === row.id ? { ...prev, status: !row.status } : prev
+      );
       refetch();
     } catch (err) {
       showError(err?.data?.message || "Failed to update status");
@@ -88,142 +99,174 @@ export default function ReviewReasonCodes() {
     }
   };
 
+  const closeDeleteModal = () => {
+    setDeleteConfirmOpen(false);
+    setReasonToDelete(null);
+  };
+
   const handleConfirmDelete = async () => {
-    if (!reasonToDelete) return;
+    if (!reasonToDelete || isDeleting) return;
     try {
       const result = await deleteReason(reasonToDelete.id).unwrap();
       success(result?.data?.message || result?.message || "Reason removed");
-      setDeleteConfirmOpen(false);
-      setReasonToDelete(null);
+      closeDeleteModal();
       refetch();
     } catch (err) {
       showError(err?.data?.message || "Failed to delete reason");
-      setDeleteConfirmOpen(false);
-      setReasonToDelete(null);
+      closeDeleteModal();
     }
   };
 
   const columns = [
-    { field: "sl", headerName: "SL", flex: 0.06, minWidth: 60 },
-    { field: "code", headerName: "CODE", flex: 0.18, minWidth: 140 },
-    { field: "label", headerName: "LABEL", flex: 0.28, minWidth: 200 },
     {
-      field: "sentiment",
-      headerName: "SENTIMENT",
-      flex: 0.12,
-      minWidth: 110,
-      renderCell: (row) => (
-        <Chip
-          size="small"
-          label={row.sentiment}
-          color={row.sentiment === "positive" ? "success" : "error"}
-          variant="outlined"
-        />
-      ),
-    },
-    { field: "sortOrder", headerName: "SORT", flex: 0.08, minWidth: 70 },
-    {
-      field: "isOther",
-      headerName: "OTHER",
-      flex: 0.08,
-      minWidth: 80,
-      renderCell: (row) => (
-        <Typography fontFamily="Switzer" fontSize={14} color="grey.70">
-          {row.isOther ? "Yes" : "No"}
-        </Typography>
+      key: "label",
+      header: "Reason",
+      render: (row) => (
+        <DirectoryIdentity name={row.label} meta={`${row.code}${row.isOther ? " · Other" : ""}`} />
       ),
     },
     {
-      field: "status",
-      headerName: "ACTIVE",
-      flex: 0.1,
-      minWidth: 100,
-      renderCell: (row) => (
-        <ChangeStatus
-          checked={Boolean(row.status)}
-          onChange={() => handleToggleStatus(row)}
-        />
+      key: "sentiment",
+      header: "Sentiment",
+      render: (row) => (
+        <DirectoryDotPill tone={row.sentiment === "positive" ? "success" : "danger"}>
+          {row.sentiment}
+        </DirectoryDotPill>
       ),
     },
     {
-      field: "actions",
-      headerName: "ACTIONS",
-      flex: 0.12,
-      minWidth: 110,
-      sortable: false,
-      renderCell: (row) => (
-        <ActionButtons
-          showView={false}
-          onEdit={() => {
-            const full = reasons.find((r) => r.id === row.id);
-            setReasonToEdit(full || row);
-            setAddModalOpen(true);
-          }}
-          onDelete={() => {
-            setReasonToDelete(row);
-            setDeleteConfirmOpen(true);
-          }}
-        />
+      key: "status",
+      header: "Status",
+      render: (row) => (
+        <DirectoryStatusPill active={row.status} />
+      ),
+    },
+    {
+      key: "actions",
+      header: "Actions",
+      render: (row) => (
+        <DirectoryActions>
+          <Button size="sm" variant="secondary" onClick={() => setViewRow(row)}>
+            View
+          </Button>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => {
+              const full = reasons.find((r) => r.id === row.id);
+              setReasonToEdit(full || row);
+              setAddModalOpen(true);
+            }}
+          >
+            Edit
+          </Button>
+          <Button
+            size="sm"
+            variant="danger"
+            onClick={() => {
+              setReasonToDelete(row);
+              setDeleteConfirmOpen(true);
+            }}
+          >
+            Delete
+          </Button>
+        </DirectoryActions>
       ),
     },
   ];
 
-  if (isLoading) return <Delay />;
+  const positiveCount = reasons.filter((r) => r.sentiment === "positive").length;
+  const negativeCount = reasons.filter((r) => r.sentiment === "negative").length;
+
+  if (isLoading) return <PageLoading label="Loading review reason codes…" />;
 
   return (
-    <div className="!space-y-8">
-      <Box className="flex items-center justify-between gap-x-5 flex-wrap">
-        <Box className="flex items-center gap-x-5">
-          <Typography color="blue.50">
-            <TbSparkles size="24px" color="blue.50" />
-          </Typography>
-          <Box>
-            <Typography variant="h4" fontFamily="Switzer" color="grey.20">
-              Review reason codes
-            </Typography>
-            <Typography variant="body2" color="grey.70" fontFamily="Switzer">
-              Positive and negative reasons customers select when rating shops
-            </Typography>
-          </Box>
-        </Box>
-        <ButtonBlue
-          size="medium"
-          startIcon={<TbPlus size={20} />}
-          onClick={() => {
-            setReasonToEdit(null);
-            setAddModalOpen(true);
-          }}
-        >
-          Add reason
-        </ButtonBlue>
-      </Box>
-
-      <Tabs
-        value={tab}
-        onChange={(_, v) => setTab(v)}
-        textColor="primary"
-        indicatorColor="primary"
-      >
-        <Tab value="all" label={`All (${reasons.length})`} />
-        <Tab
-          value="positive"
-          label={`Positive (${reasons.filter((r) => r.sentiment === "positive").length})`}
-        />
-        <Tab
-          value="negative"
-          label={`Negative (${reasons.filter((r) => r.sentiment === "negative").length})`}
-        />
-      </Tabs>
-
-      <DataTable
-        data={tableRows}
-        columns={columns}
-        searchPlaceholder="Search reason codes…"
-        showFilters={false}
-        showDateRange={false}
-        showDownload={false}
-        height={480}
+    <div>
+      <PageHeader
+        title="Review reason codes"
+        description="Positive and negative reasons customers select when rating shops"
+        actions={
+          <Button
+            onClick={() => {
+              setReasonToEdit(null);
+              setAddModalOpen(true);
+            }}
+          >
+            Add reason
+          </Button>
+        }
       />
+
+      <DirectoryMetrics
+        items={[
+          { label: "Total reasons", value: reasons.length, tone: "brand" },
+          { label: "Positive", value: positiveCount, tone: "success" },
+          { label: "Negative", value: negativeCount, tone: "danger" },
+        ]}
+      />
+
+      {isError ? (
+        <div style={{ marginBottom: 16 }}>
+          <p style={{ color: "var(--danger)", margin: "0 0 12px" }}>
+            Could not load review reason codes. Check your connection and try again.
+          </p>
+          <Button variant="secondary" size="sm" onClick={() => refetch()}>
+            Retry
+          </Button>
+        </div>
+      ) : null}
+
+      <DirectoryTableWrap
+        toolbar={
+          <DirectoryToolbar>
+            <DirectoryTool as="button" type="button" active={tab === "all"} onClick={() => setTab("all")}>
+              All ({reasons.length})
+            </DirectoryTool>
+            <DirectoryTool as="button" type="button" active={tab === "positive"} onClick={() => setTab("positive")}>
+              Positive ({positiveCount})
+            </DirectoryTool>
+            <DirectoryTool as="button" type="button" active={tab === "negative"} onClick={() => setTab("negative")}>
+              Negative ({negativeCount})
+            </DirectoryTool>
+          </DirectoryToolbar>
+        }
+      >
+        <Table
+          columns={columns}
+          rows={isError ? [] : tableRows}
+          rowKey={(row) => row.id}
+          empty={tab === "all" ? "No review reason codes yet" : `No ${tab} reason codes`}
+        />
+      </DirectoryTableWrap>
+
+      <DirectoryViewModal
+        open={Boolean(viewRow)}
+        title={viewRow?.label || "Reason"}
+        onClose={() => setViewRow(null)}
+      >
+        <div style={{ display: "grid", gap: 16 }}>
+          <DirectoryViewFields
+            fields={[
+              { label: "Code", value: viewRow?.code },
+              { label: "Label", value: viewRow?.label },
+              { label: "Sentiment", value: viewRow?.sentiment },
+              { label: "Sort", value: viewRow?.sortOrder },
+              { label: "Other", value: viewRow?.isOther ? "Yes" : "No" },
+              { label: "Status", value: viewRow?.status ? "Active" : "Inactive" },
+            ]}
+          />
+          {viewRow ? (
+            <div>
+              <p className="jd-field__hint" style={{ margin: "0 0 8px" }}>Active</p>
+              <StatusToggle
+                checked={Boolean(viewRow.status)}
+                onChange={() => handleToggleStatus(viewRow)}
+                label={`Toggle ${viewRow.code}`}
+              />
+            </div>
+          ) : null}
+        </div>
+      </DirectoryViewModal>
 
       <AddReviewReasonCodeModal
         open={addModalOpen}
@@ -236,31 +279,16 @@ export default function ReviewReasonCodes() {
         reasonToEdit={reasonToEdit}
       />
 
-      <ModalComponent
+      <Modal
         open={deleteConfirmOpen}
         title="Remove reason code"
-        onClose={() => {
-          setDeleteConfirmOpen(false);
-          setReasonToDelete(null);
-        }}
-        primaryAction={{
-          label: "Remove",
-          onClick: handleConfirmDelete,
-          isLoading: isDeleting,
-        }}
-        secondaryAction={{
-          label: "Cancel",
-          onClick: () => {
-            setDeleteConfirmOpen(false);
-            setReasonToDelete(null);
-          },
-        }}
-      >
-        <Typography variant="body1" sx={{ color: "grey.80", fontFamily: "Switzer" }}>
-          Remove &quot;{reasonToDelete?.code} — {reasonToDelete?.label}&quot;?
-          If already used in reviews, it will be deactivated instead of deleted.
-        </Typography>
-      </ModalComponent>
+        description={`Remove "${reasonToDelete?.code} — ${reasonToDelete?.label}"? If already used in reviews, it will be deactivated instead of deleted.`}
+        onClose={closeDeleteModal}
+        onPrimary={handleConfirmDelete}
+        primaryLabel={isDeleting ? "Removing…" : "Remove"}
+        secondaryLabel="Cancel"
+        danger
+      />
     </div>
   );
 }

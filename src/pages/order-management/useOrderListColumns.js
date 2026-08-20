@@ -1,0 +1,144 @@
+import { createElement as h, useMemo } from "react";
+import { LuEye, LuTrash2 } from "react-icons/lu";
+import OrderAssignActionButton from "./order-modals/OrderAssignActionButton";
+import {
+  DateTimeStack,
+  DotPill,
+  EntityNameLink,
+  ItemsBadge,
+  OrderIdLink,
+  PickupDropCell,
+  ServicePills,
+  StatusDotPill,
+} from "./orderListTable";
+import { resolveLaundryShopId, shopDetailsPath } from "./orderListUtils";
+
+export function useOrderListColumns({
+  navigate,
+  setDeleteModal,
+  setAssignModal,
+  showAssign = true,
+  extraColumns = [],
+}) {
+  return useMemo(
+    () => [
+      {
+        key: "orderId",
+        header: "Order",
+        render: (row) =>
+          h(OrderIdLink, { id: row.id, label: row.orderId, navigate }),
+      },
+      {
+        key: "orderPlacedAt",
+        header: "Order placed",
+        render: (row) =>
+          h(DateTimeStack, {
+            value: row.orderPlacedAt,
+            title: `When the order was created: ${row.orderDateTime}`,
+          }),
+      },
+      {
+        key: "shopName",
+        header: "Shop & service",
+        render: (row) =>
+          h(
+            "div",
+            { className: "min-w-0 max-w-[280px]", title: [row.shopName, row.serviceType].filter(Boolean).join("\n") },
+            row.shopName
+              ? h(
+                  EntityNameLink,
+                  {
+                    to: shopDetailsPath(
+                      row.laundryShopId ?? resolveLaundryShopId(row._booking)
+                    ),
+                  },
+                  row.shopName
+                )
+              : h("div", { className: "text-[13px] text-[#8a94a2]" }, "No shop assigned"),
+            h(ServicePills, { names: row.serviceNames || row.serviceType, shopName: row.shopName })
+          ),
+      },
+      {
+        key: "totalItems",
+        header: "Items",
+        align: "center",
+        render: (row) => h(ItemsBadge, { count: row.totalItems }),
+      },
+      {
+        key: "pickupAt",
+        header: "Pickup & delivery",
+        render: (row) =>
+          h(PickupDropCell, {
+            pickup: row._booking?.collectionDate || row.pickupDateTime,
+            pickupTime: row._booking?.collectionTimeFrom,
+            drop: row._booking?.deliveryDate || row.deliveryDateTime,
+            dropTime: row._booking?.deliveryTimeFrom,
+            title: `Pickup: ${row.pickupDateTime}\nDelivery: ${row.deliveryDateTime}`,
+          }),
+      },
+      {
+        key: "OrderStatus",
+        header: "Status",
+        render: (row) =>
+          h(StatusDotPill, {
+            title: row.OrderStatus,
+            extra: row.paymentWaitingAdmin
+              ? h(DotPill, {
+                  as: "button",
+                  tone: "danger",
+                  label: "Payment hold",
+                  onClick: () => navigate("/orders/payment-failures"),
+                })
+              : null,
+          }),
+      },
+      ...extraColumns,
+      {
+        key: "actions",
+        header: "Actions",
+        align: "right",
+        render: (row) =>
+          h(
+            "div",
+            { className: "flex min-w-max items-center justify-end gap-1.5" },
+            showAssign && setAssignModal
+              ? h(OrderAssignActionButton, {
+                  booking: row._booking,
+                  onClick: () =>
+                    setAssignModal({
+                      open: true,
+                      orderId: row.id,
+                      booking: row._booking,
+                    }),
+                })
+              : null,
+            h(
+              "button",
+              {
+                type: "button",
+                title: "View order",
+                "aria-label": `View order ${row.orderId}`,
+                className:
+                  "grid h-[34px] w-[34px] place-items-center rounded-[9px] border border-[#e6e9f0] bg-white text-[#5c6673] hover:border-[#2c3ba0] hover:bg-[#eef0fb] hover:text-[#2c3ba0]",
+                onClick: () => navigate(`/orders/details/${row.id}`),
+              },
+              h(LuEye, { size: 16 })
+            ),
+            h(
+              "button",
+              {
+                type: "button",
+                title: "Delete order",
+                "aria-label": `Delete order ${row.orderId}`,
+                className:
+                  "grid h-[34px] w-[34px] place-items-center rounded-[9px] border border-[#e6e9f0] bg-white text-[#5c6673] hover:border-[#c9403f] hover:bg-[#fdecec] hover:text-[#c9403f]",
+                onClick: () => setDeleteModal({ open: true, orderId: row.id }),
+              },
+              h(LuTrash2, { size: 16 })
+            )
+          ),
+      },
+    ],
+    [extraColumns, navigate, setAssignModal, setDeleteModal, showAssign]
+  );
+}

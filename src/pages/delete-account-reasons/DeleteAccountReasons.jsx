@@ -1,11 +1,20 @@
-import { useState, useMemo } from "react";
-import { Box, Typography } from "@mui/material";
-import { TbTrash, TbPlus } from "../../shared/icons/index";
-import ButtonBlue from "../../components/ui/ButtonBlue";
-import DataTable from "../../components/ui/DataTable";
-import ActionButtons from "../../components/ui/ActionButtons";
-import ChangeStatus from "../../components/ui/Switch";
-import ModalComponent from "../../components/shared/Modal";
+import { useState, useMemo, useEffect } from "react";
+import { PageHeader, Table, Button, Modal, Field, Select } from "../../design-system";
+import {
+  DirectoryActions,
+  DirectoryClearButton,
+  DirectoryIdentity,
+  DirectoryMetrics,
+  DirectorySearch,
+  DirectoryStatusPill,
+  DirectoryTableWrap,
+  DirectoryToolbar,
+  DirectoryToolbarEnd,
+  DirectoryViewFields,
+  DirectoryViewModal,
+  PageLoading,
+  StatusToggle,
+} from "../directory-table/directoryTable";
 import AddDeleteAccountReasonModal from "./AddDeleteAccountReasonModal";
 import {
   useGetAccountDeletionReasonsQuery,
@@ -13,8 +22,9 @@ import {
   useUpdateAccountDeletionReasonMutation,
   useDeleteAccountDeletionReasonMutation,
 } from "../../store/services/api";
-import { Delay } from "../../components/shared/Loaders";
 import useToaster from "../../components/ui/Toaster";
+
+const PAGE_SIZES = [10, 25, 50, 100].map((n) => ({ value: n, label: String(n) }));
 
 export default function DeleteAccountReasons() {
   const { success, error: showError } = useToaster();
@@ -22,8 +32,12 @@ export default function DeleteAccountReasons() {
   const [reasonToEdit, setReasonToEdit] = useState(null);
   const [reasonToDelete, setReasonToDelete] = useState(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(25);
+  const [viewRow, setViewRow] = useState(null);
 
-  const { data, isLoading, refetch } = useGetAccountDeletionReasonsQuery();
+  const { data, isLoading, isError, refetch } = useGetAccountDeletionReasonsQuery();
   const [createReason, { isLoading: isCreating }] =
     useCreateAccountDeletionReasonMutation();
   const [updateReason, { isLoading: isUpdating }] =
@@ -37,17 +51,37 @@ export default function DeleteAccountReasons() {
     return [];
   }, [data]);
 
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return reasons;
+    return reasons.filter((row) => String(row.label || "").toLowerCase().includes(q));
+  }, [reasons, search]);
+
+  const totalRows = filtered.length;
+  const totalPages = Math.max(1, Math.ceil(totalRows / limit) || 1);
+  const safePage = Math.min(page, totalPages);
+
+  useEffect(() => {
+    setPage(1);
+  }, [search, limit]);
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
+  const startIndex = totalRows === 0 ? 0 : (safePage - 1) * limit + 1;
+  const endIndex = Math.min(safePage * limit, totalRows);
+
   const tableRows = useMemo(
     () =>
-      reasons.map((row, index) => ({
+      filtered.slice((safePage - 1) * limit, safePage * limit).map((row, index) => ({
         id: row.id,
-        sl: index + 1,
+        sl: (safePage - 1) * limit + index + 1,
         label: row.label,
         sortOrder: row.sortOrder ?? 0,
         status: row.status,
         isOther: row.isOther,
       })),
-    [reasons]
+    [filtered, safePage, limit]
   );
 
   const handleToggleStatus = async (row) => {
@@ -57,6 +91,9 @@ export default function DeleteAccountReasons() {
         body: { status: !row.status },
       }).unwrap();
       success("Status updated");
+      setViewRow((prev) =>
+        prev && prev.id === row.id ? { ...prev, status: !row.status } : prev
+      );
       refetch();
     } catch (err) {
       showError(err?.data?.message || "Failed to update status");
@@ -79,110 +116,209 @@ export default function DeleteAccountReasons() {
     }
   };
 
+  const closeDeleteModal = () => {
+    setDeleteConfirmOpen(false);
+    setReasonToDelete(null);
+  };
+
   const handleConfirmDelete = async () => {
-    if (!reasonToDelete) return;
+    if (!reasonToDelete || isDeleting) return;
     try {
       await deleteReason(reasonToDelete.id).unwrap();
       success("Reason deleted successfully");
-      setDeleteConfirmOpen(false);
-      setReasonToDelete(null);
+      closeDeleteModal();
       refetch();
     } catch (err) {
       showError(err?.data?.message || "Failed to delete reason");
-      setDeleteConfirmOpen(false);
-      setReasonToDelete(null);
+      closeDeleteModal();
     }
   };
 
   const columns = [
-    { field: "sl", headerName: "SL", flex: 0.08, minWidth: 70 },
-    { field: "label", headerName: "REASON", flex: 0.4, minWidth: 220 },
-    { field: "sortOrder", headerName: "SORT", flex: 0.1, minWidth: 90 },
     {
-      field: "isOther",
-      headerName: "OTHER",
-      flex: 0.12,
-      minWidth: 100,
-      renderCell: (row) => (
-        <Typography fontFamily="Switzer" fontSize={14} color="grey.70">
-          {row.isOther ? "Yes" : "No"}
-        </Typography>
-      ),
-    },
-    {
-      field: "status",
-      headerName: "ACTIVE",
-      flex: 0.15,
-      minWidth: 120,
-      renderCell: (row) => (
-        <ChangeStatus
-          checked={Boolean(row.status)}
-          onChange={() => handleToggleStatus(row)}
+      key: "label",
+      header: "Reason",
+      render: (row) => (
+        <DirectoryIdentity
+          name={row.label}
+          meta={`Sort ${row.sortOrder}${row.isOther ? " · Other" : ""}`}
         />
       ),
     },
     {
-      field: "actions",
-      headerName: "ACTIONS",
-      flex: 0.15,
-      minWidth: 120,
-      sortable: false,
-      renderCell: (row) => (
-        <ActionButtons
-          showView={false}
-          onEdit={() => {
-            const full = reasons.find((r) => r.id === row.id);
-            setReasonToEdit(full || row);
-            setAddModalOpen(true);
-          }}
-          onDelete={() => {
-            setReasonToDelete(row);
-            setDeleteConfirmOpen(true);
-          }}
-        />
+      key: "status",
+      header: "Status",
+      render: (row) => (
+        <DirectoryStatusPill active={row.status} />
+      ),
+    },
+    {
+      key: "actions",
+      header: "Actions",
+      render: (row) => (
+        <DirectoryActions>
+          <Button size="sm" variant="secondary" onClick={() => setViewRow(row)}>
+            View
+          </Button>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => {
+              const full = reasons.find((r) => r.id === row.id);
+              setReasonToEdit(full || row);
+              setAddModalOpen(true);
+            }}
+          >
+            Edit
+          </Button>
+          <Button
+            size="sm"
+            variant="danger"
+            onClick={() => {
+              setReasonToDelete(row);
+              setDeleteConfirmOpen(true);
+            }}
+          >
+            Delete
+          </Button>
+        </DirectoryActions>
       ),
     },
   ];
 
-  if (isLoading) return <Delay />;
+  if (isLoading) return <PageLoading label="Loading delete-account reasons…" />;
 
   return (
-    <div className="!space-y-8">
-      <Box className="flex items-center justify-between gap-x-5 flex-wrap">
-        <Box className="flex items-center gap-x-5">
-          <Typography color="blue.50">
-            <TbTrash size="24px" color="blue.50" />
-          </Typography>
-          <Box>
-            <Typography variant="h4" fontFamily="Switzer" color="grey.20">
-              Delete account reasons
-            </Typography>
-            <Typography variant="body2" color="grey.70" fontFamily="Switzer">
-              Options shown when a customer deletes their account
-            </Typography>
-          </Box>
-        </Box>
-        <ButtonBlue
-          size="medium"
-          startIcon={<TbPlus size={20} />}
-          onClick={() => {
-            setReasonToEdit(null);
-            setAddModalOpen(true);
-          }}
-        >
-          Add reason
-        </ButtonBlue>
-      </Box>
-
-      <DataTable
-        data={tableRows}
-        columns={columns}
-        searchPlaceholder="Search reasons…"
-        showFilters={false}
-        showDateRange={false}
-        showDownload={false}
-        height={450}
+    <div>
+      <PageHeader
+        title="Delete account reasons"
+        description="Options shown when a customer deletes their account"
+        actions={
+          <Button
+            onClick={() => {
+              setReasonToEdit(null);
+              setAddModalOpen(true);
+            }}
+          >
+            Add reason
+          </Button>
+        }
       />
+
+      <DirectoryMetrics
+        items={[
+          { label: "Total reasons", value: reasons.length, tone: "brand" },
+          { label: "Active", value: reasons.filter((row) => row.status).length, tone: "success" },
+        ]}
+      />
+
+      {isError ? (
+        <div style={{ marginBottom: 16 }}>
+          <p style={{ color: "var(--danger)", margin: "0 0 12px" }}>
+            Could not load delete-account reasons. Check your connection and try again.
+          </p>
+          <Button variant="secondary" size="sm" onClick={() => refetch()}>
+            Retry
+          </Button>
+        </div>
+      ) : null}
+
+      <DirectoryTableWrap
+        toolbar={
+          <DirectoryToolbar>
+            <DirectorySearch
+              id="delete-reason-search"
+              value={search}
+              onChange={setSearch}
+              placeholder="Filter by reason label"
+            />
+            {search ? (
+              <DirectoryToolbarEnd>
+                <DirectoryClearButton onClick={() => setSearch("")} />
+              </DirectoryToolbarEnd>
+            ) : null}
+          </DirectoryToolbar>
+        }
+        footer={
+          <div
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              gap: 12,
+              alignItems: "center",
+              justifyContent: "space-between",
+            }}
+          >
+            <span className="jd-field__hint">
+              {startIndex} - {endIndex} of {totalRows}
+            </span>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <Button
+                size="sm"
+                variant="secondary"
+                disabled={safePage <= 1}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+              >
+                Previous
+              </Button>
+              <span className="jd-field__hint">
+                Page {safePage} of {totalPages}
+              </span>
+              <Button
+                size="sm"
+                variant="secondary"
+                disabled={safePage >= totalPages || totalRows === 0}
+                onClick={() => setPage((p) => p + 1)}
+              >
+                Next
+              </Button>
+            </div>
+            <Field label="Results per page">
+              <div style={{ minWidth: 100 }}>
+                <Select
+                  aria-label="Results per page"
+                  value={limit}
+                  onChange={(value) => setLimit(Number(value))}
+                  options={PAGE_SIZES}
+                />
+              </div>
+            </Field>
+          </div>
+        }
+      >
+        <Table
+          columns={columns}
+          rows={isError ? [] : tableRows}
+          rowKey={(row) => row.id}
+          empty={search.trim() ? "No reasons match this search" : "No delete-account reasons yet"}
+        />
+      </DirectoryTableWrap>
+
+      <DirectoryViewModal
+        open={Boolean(viewRow)}
+        title={viewRow?.label || "Reason"}
+        onClose={() => setViewRow(null)}
+      >
+        <div style={{ display: "grid", gap: 16 }}>
+          <DirectoryViewFields
+            fields={[
+              { label: "Reason", value: viewRow?.label },
+              { label: "Sort", value: viewRow?.sortOrder },
+              { label: "Other", value: viewRow?.isOther ? "Yes" : "No" },
+              { label: "Status", value: viewRow?.status ? "Active" : "Inactive" },
+            ]}
+          />
+          {viewRow ? (
+            <Field label="Active">
+              <StatusToggle
+                checked={Boolean(viewRow.status)}
+                onChange={() => handleToggleStatus(viewRow)}
+                label={`Toggle ${viewRow.label}`}
+              />
+            </Field>
+          ) : null}
+        </div>
+      </DirectoryViewModal>
 
       <AddDeleteAccountReasonModal
         open={addModalOpen}
@@ -195,31 +331,16 @@ export default function DeleteAccountReasons() {
         reasonToEdit={reasonToEdit}
       />
 
-      <ModalComponent
+      <Modal
         open={deleteConfirmOpen}
         title="Delete reason"
-        onClose={() => {
-          setDeleteConfirmOpen(false);
-          setReasonToDelete(null);
-        }}
-        primaryAction={{
-          label: "Delete",
-          onClick: handleConfirmDelete,
-          isLoading: isDeleting,
-        }}
-        secondaryAction={{
-          label: "Cancel",
-          onClick: () => {
-            setDeleteConfirmOpen(false);
-            setReasonToDelete(null);
-          },
-        }}
-      >
-        <Typography variant="body1" sx={{ color: "grey.80", fontFamily: "Switzer" }}>
-          Delete &quot;{reasonToDelete?.label}&quot;? Customers will no longer see this
-          option.
-        </Typography>
-      </ModalComponent>
+        description={`Delete "${reasonToDelete?.label}"? Customers will no longer see this option.`}
+        onClose={closeDeleteModal}
+        onPrimary={handleConfirmDelete}
+        primaryLabel={isDeleting ? "Deleting…" : "Delete"}
+        secondaryLabel="Cancel"
+        danger
+      />
     </div>
   );
 }

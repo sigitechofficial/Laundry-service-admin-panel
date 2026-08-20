@@ -1,282 +1,319 @@
-import { useState } from "react";
-import { Box, Typography } from "@mui/material";
-import { BsCardList } from "../../shared/icons/index";
-import DataTable from "../../components/ui/DataTable";
-import StatCard from "../../components/ui/StatCard";
-import DateRangeSelector from "../../components/ui/DateRangeSelector";
-import SelectField from "../../components/ui/SelectField";
+import { useMemo, useState } from "react";
+import { Button, Modal, PageHeader, Select, Table } from "../../design-system";
 import { useSelector } from "react-redux";
-import { useGetAllZonesQuery } from "../../store/services/api";
+import {
+  useGetAllCitiesQuery,
+  useGetAllCountriesQuery,
+  useGetAllZonesQuery,
+  useGetUnitsDistanceAndCurrencyQuery,
+} from "../../store/services/api";
 import { Delay } from "../../components/shared/Loaders";
+import {
+  mergedZonesList,
+  zonesArrayFromGetZonesResponse,
+  currencyCodeFromZone,
+  buildCurrencyUnitsList,
+} from "../../utilities/zonesList";
+import {
+  PolicyDetailRow,
+  PolicyDetailSection,
+  PolicyDetailStack,
+  PolicyIdentity,
+  PolicyMeta,
+  PolicyMoney,
+} from "./policy-ui";
+import {
+  formatPolicyDate,
+  formatPolicyMoney,
+  resolvePolicyCurrencySymbol,
+} from "./policyUtils";
+import {
+  DirectoryClearButton,
+  DirectoryMetrics,
+  DirectorySearch,
+  DirectoryStatusPill,
+  DirectoryTableWrap,
+  DirectoryToolSelect,
+  DirectoryToolbar,
+  DirectoryToolbarEnd,
+} from "../directory-table/directoryTable";
 
-export default function OverallPolicies() {
-  const [dateRange, setDateRange] = useState(null);
-  const [selectedZone, setSelectedZone] = useState("");
-  const [selectedCity, setSelectedCity] = useState("");
-  const [selectedCountry, setSelectedCountry] = useState("");
-
-  // Get data from Redux
-  const zones = useSelector((state) => state?.apiData?.zones?.zones || []);
-  const countries = useSelector((state) => state?.apiData?.countries || []);
-  const cities = useSelector((state) => state?.apiData?.cities || []);
-
-  const { isLoading } = useGetAllZonesQuery();
-
-  // Prepare zones data for table
-  const policiesData = zones?.map((zone, index) => {
-    return {
-      id: zone.id,
-      sl: index + 1,
-      zoneId: `#${zone.id}`,
-      zoneName: zone.name || "N/A",
-      deliveryFee: `$${zone.serviceCharge || 0}`,
-      refundMethod: "Refund to source", // This would come from API
-      services: "washing, iron", // This would come from API
-      totalEarnings: `$${(Math.random() * 2000 + 1000).toFixed(2)}`, // Mock data
-    };
-  }) || [];
-
-  // Table columns
-  const columns = [
-    {
-      field: "sl",
-      headerName: "SL",
-      flex: 0.1,
-      minWidth: 80,
-      sortable: true,
-    },
-    {
-      field: "zoneId",
-      headerName: "ZONE ID",
-      flex: 0.15,
-      minWidth: 120,
-      sortable: true,
-    },
-    {
-      field: "zoneName",
-      headerName: "ZONE NAME",
-      flex: 0.15,
-      minWidth: 120,
-      sortable: true,
-    },
-    {
-      field: "deliveryFee",
-      headerName: "DELIVERY FEE",
-      flex: 0.15,
-      minWidth: 120,
-      sortable: true,
-    },
-    {
-      field: "refundMethod",
-      headerName: "REFUND METHOD",
-      flex: 0.2,
-      minWidth: 150,
-      sortable: true,
-    },
-    {
-      field: "services",
-      headerName: "Services",
-      flex: 0.15,
-      minWidth: 120,
-      sortable: false,
-    },
-    {
-      field: "totalEarnings",
-      headerName: "Total earnings",
-      flex: 0.15,
-      minWidth: 120,
-      sortable: true,
-    },
-  ];
-
-  // Fee summary data (mock data - would come from API)
-  const feeSummary = {
-    averageDeliveryFee: 5,
-    refundFee: 20,
-    platformFee: 5,
-    noShowFee: null,
-    cancellationFee: null,
-  };
-
-  const handleDateChange = (selectedRange) => {
-    setDateRange(selectedRange);
-    console.log("Selected Date Range:", selectedRange);
-  };
-
-  const handleFilter = () => {
-    console.log("Filter button clicked");
-  };
-
-  const handleDownload = () => {
-    console.log("Download policies data");
-  };
-
-  const handleEdit = (row) => {
-    console.log("Edit policy:", row);
-    // Open edit modal
-  };
-
-  const handleDelete = (row) => {
-    console.log("Delete policy:", row);
-    // Open delete confirmation modal
-  };
-
-  const handleRowAction = (actionType, rowData) => {
-    switch (actionType) {
-      case "edit":
-        handleEdit(rowData);
-        break;
-      case "delete":
-        handleDelete(rowData);
-        break;
-      default:
-        break;
-    }
-  };
-
-  // Filter options
-  const zoneOptions = zones?.map((zone) => ({
-    value: zone.id,
-    label: zone.name,
-  })) || [];
-
-  const countryOptions = countries?.map((country) => ({
-    value: country.id,
-    label: country.name,
-  })) || [];
-
-  const cityOptions = cities?.map((city) => ({
-    value: city.id,
-    label: city.name,
-  })) || [];
-
-  if (isLoading) return <Delay />;
-
+function cityLabel(zone, cities) {
   return (
-    <Box>
-            {/* Header Section with Global Filters */}
-            <Box className="flex items-center gap-x-5 justify-between" sx={{ mb: "44px", flexWrap: "wrap", gap: 2 }}>
-              <Box className="flex items-center gap-x-5">
-                <Typography color="blue.50">
-                  <BsCardList size="24px" color="blue.50" />
-                </Typography>
-                <Typography variant="h4" fontFamily={"Switzer"} color="grey.20">
-                  Overall Policies
-                </Typography>
-              </Box>
-
-              {/* Global Filters */}
-              <Box
-                className="flex items-center gap-x-3"
-                sx={{
-                  flexWrap: "wrap",
-                  gap: 2,
-                }}
-              >
-                <Box sx={{ minWidth: "150px" }}>
-                  <SelectField
-                    title=""
-                    value={selectedZone}
-                    onChange={(e) => setSelectedZone(e.target.value)}
-                    options={zoneOptions}
-                    placeholder="Zone"
-                    fullWidth
-                    bgcolor="white"
-                  />
-                </Box>
-                <Box sx={{ minWidth: "150px" }}>
-                  <SelectField
-                    title=""
-                    value={selectedCity}
-                    onChange={(e) => setSelectedCity(e.target.value)}
-                    options={cityOptions}
-                    placeholder="City"
-                    fullWidth
-                    bgcolor="white"
-                  />
-                </Box>
-                <Box sx={{ minWidth: "150px" }}>
-                  <SelectField
-                    title=""
-                    value={selectedCountry}
-                    onChange={(e) => setSelectedCountry(e.target.value)}
-                    options={countryOptions}
-                    placeholder="Country"
-                    fullWidth
-                    bgcolor="white"
-                  />
-                </Box>
-                <Box sx={{ minWidth: "200px" }}>
-                  <DateRangeSelector
-                    value={dateRange}
-                    onChange={handleDateChange}
-                    placeholder="All Time"
-                  />
-                </Box>
-              </Box>
-            </Box>
-
-            {/* Fee Summary Cards */}
-            <Box
-              sx={{
-                display: "grid",
-                gridTemplateColumns: {
-                  xs: "1fr",
-                  sm: "repeat(2, 1fr)",
-                  md: "repeat(3, 1fr)",
-                  lg: "repeat(5, 1fr)",
-                },
-                gap: 3,
-                mb: 4,
-              }}
-            >
-              <StatCard
-                title="AVERAGE DELIVERY FEE"
-                value={feeSummary.averageDeliveryFee ? `$${feeSummary.averageDeliveryFee}` : "-"}
-                bgColor="bg-purple-100"
-                titleColor="#9333EA"
-              />
-              <StatCard
-                title="REFUND FEE"
-                value={feeSummary.refundFee ? `$${feeSummary.refundFee}` : "-"}
-                bgColor="bg-red-100"
-                titleColor="#DC2626"
-              />
-              <StatCard
-                title="PLATFORM FEE"
-                value={feeSummary.platformFee ? `$${feeSummary.platformFee}` : "-"}
-                bgColor="bg-cyan-100"
-                titleColor="#0891B2"
-              />
-              <StatCard
-                title="NO-SHOW FEE"
-                value={feeSummary.noShowFee ? `$${feeSummary.noShowFee}` : "-"}
-                bgColor="bg-purple-100"
-                titleColor="#9333EA"
-              />
-              <StatCard
-                title="CANCELLATION FEE"
-                value={feeSummary.cancellationFee ? `$${feeSummary.cancellationFee}` : "-"}
-                bgColor="bg-purple-100"
-                titleColor="#9333EA"
-              />
-            </Box>
-
-            {/* Data Table */}
-            <Box sx={{ width: "100%", overflow: "auto" }}>
-              <DataTable
-                data={policiesData}
-                columns={columns}
-                searchPlaceholder="Search by ID, product, or others..."
-                onFiltersClick={handleFilter}
-                onDateRangeChange={handleDateChange}
-                onDownload={handleDownload}
-                onRowAction={handleRowAction}
-                height={600}
-                stickyLeftFields={["sl", "zoneName"]}
-              />
-            </Box>
-          </Box>
+    zone.city?.name ||
+    cities.find((c) => String(c.id) === String(zone.cityId || zone.city?.id))?.name ||
+    ""
   );
 }
 
+function countryLabel(zone, countries) {
+  return (
+    zone.country?.name ||
+    countries.find((c) => String(c.id) === String(zone.countryId || zone.country?.id || zone.city?.countryId))?.name ||
+    ""
+  );
+}
+
+export default function OverallPolicies() {
+  const [search, setSearch] = useState("");
+  const [selectedZone, setSelectedZone] = useState("");
+  const [selectedCity, setSelectedCity] = useState("");
+  const [selectedCountry, setSelectedCountry] = useState("");
+  const [viewingZone, setViewingZone] = useState(null);
+
+  const { data: zonesQueryData, isLoading, isError } = useGetAllZonesQuery();
+  const { data: countriesQueryData } = useGetAllCountriesQuery();
+  const { data: citiesQueryData } = useGetAllCitiesQuery();
+  const { data: currencyUnitsPayload } = useGetUnitsDistanceAndCurrencyQuery("currency");
+  const zonesReduxNode = useSelector((state) => state?.apiData?.zones);
+  const countriesRedux = useSelector((state) => state?.apiData?.countries || []);
+  const citiesRedux = useSelector((state) => state?.apiData?.cities || []);
+  const currencyUnitsRedux = useSelector((state) => state?.apiData?.units?.currency);
+
+  const zones = useMemo(
+    () => mergedZonesList(zonesQueryData, zonesReduxNode),
+    [zonesQueryData, zonesReduxNode]
+  );
+  const countries = useMemo(() => {
+    const fromQuery = zonesArrayFromGetZonesResponse(countriesQueryData);
+    return fromQuery.length ? fromQuery : Array.isArray(countriesRedux) ? countriesRedux : [];
+  }, [countriesQueryData, countriesRedux]);
+  const cities = useMemo(() => {
+    const raw = citiesQueryData?.data ?? citiesQueryData;
+    const fromQuery = Array.isArray(raw) ? raw : raw?.cities || [];
+    return fromQuery.length ? fromQuery : Array.isArray(citiesRedux) ? citiesRedux : [];
+  }, [citiesQueryData, citiesRedux]);
+  const currencyUnitsList = useMemo(
+    () => buildCurrencyUnitsList(currencyUnitsPayload, currencyUnitsRedux),
+    [currencyUnitsPayload, currencyUnitsRedux]
+  );
+
+  const policiesData = useMemo(() => {
+    return (zones || [])
+      .filter((zone) => {
+        if (selectedZone && String(zone.id) !== String(selectedZone)) return false;
+        if (selectedCity && String(zone.cityId || zone.city?.id) !== String(selectedCity)) return false;
+        if (selectedCountry && String(zone.countryId || zone.country?.id || zone.city?.countryId) !== String(selectedCountry)) {
+          return false;
+        }
+        if (!search) return true;
+        const hay = `${zone.id} ${zone.name}`.toLowerCase();
+        return hay.includes(search.toLowerCase());
+      })
+      .map((zone) => {
+        const code = currencyCodeFromZone(zone, currencyUnitsList);
+        const symbol = resolvePolicyCurrencySymbol({ zone, code, currencyUnits: currencyUnitsList });
+        const place = [cityLabel(zone, cities), countryLabel(zone, countries)].filter(Boolean).join(" · ");
+        const active =
+          zone.status === true ||
+          zone.status === 1 ||
+          zone.isActive === true ||
+          zone.isActive === 1 ||
+          String(zone.status || "").toLowerCase() === "active";
+        const inactive =
+          zone.status === false ||
+          zone.status === 0 ||
+          zone.isActive === false ||
+          zone.isActive === 0 ||
+          String(zone.status || "").toLowerCase() === "inactive";
+        return {
+          id: zone.id,
+          zoneId: zone.id,
+          zoneName: zone.name || "—",
+          place: place || "—",
+          deliveryFee: zone.serviceCharge,
+          feeLabel: formatPolicyMoney(zone.serviceCharge, symbol, code),
+          currencyCode: code || "",
+          currencySymbol: symbol,
+          statusKnown: active || inactive,
+          isActive: active,
+          updatedAt: zone.updatedAt || zone.updated_at || zone.createdAt || zone.created_at,
+          _rawZone: zone,
+        };
+      });
+  }, [zones, selectedZone, selectedCity, selectedCountry, search, cities, countries, currencyUnitsList]);
+
+  const averageDeliveryFee = useMemo(() => {
+    const fees = (zones || [])
+      .map((z) => Number(z.serviceCharge))
+      .filter((n) => Number.isFinite(n));
+    if (!fees.length) return "—";
+    const first = zones.find((z) => Number.isFinite(Number(z.serviceCharge)));
+    const code = currencyCodeFromZone(first, currencyUnitsList);
+    const symbol = resolvePolicyCurrencySymbol({
+      zone: first,
+      code,
+      currencyUnits: currencyUnitsList,
+    });
+    return formatPolicyMoney(fees.reduce((a, b) => a + b, 0) / fees.length, symbol, code);
+  }, [zones, currencyUnitsList]);
+
+  const columns = [
+    {
+      key: "zone",
+      header: "Zone",
+      render: (row) => (
+        <PolicyIdentity primary={row.zoneName} secondary={`#${row.zoneId}${row.place !== "—" ? ` · ${row.place}` : ""}`} />
+      ),
+    },
+    {
+      key: "status",
+      header: "Status",
+      render: (row) =>
+        row.statusKnown ? (
+          <DirectoryStatusPill active={row.isActive} />
+        ) : (
+          <PolicyMeta>—</PolicyMeta>
+        ),
+    },
+    {
+      key: "deliveryFee",
+      header: "Fee",
+      render: (row) => <PolicyMoney>{row.feeLabel}</PolicyMoney>,
+    },
+    {
+      key: "updatedAt",
+      header: "Updated",
+      render: (row) => <PolicyMeta>{formatPolicyDate(row.updatedAt)}</PolicyMeta>,
+    },
+    {
+      key: "actions",
+      header: "Actions",
+      render: (row) => (
+        <Button size="sm" variant="secondary" onClick={() => setViewingZone(row._rawZone)}>
+          View
+        </Button>
+      ),
+    },
+  ];
+
+  const viewing = viewingZone;
+  const viewingCode = viewing ? currencyCodeFromZone(viewing, currencyUnitsList) : "";
+  const viewingSymbol = viewing
+    ? resolvePolicyCurrencySymbol({ zone: viewing, code: viewingCode, currencyUnits: currencyUnitsList })
+    : "";
+
+  if (isLoading) return <Delay />;
+  if (isError) return <p style={{ color: "var(--danger)", margin: 0 }}>Could not load zones.</p>;
+
+  return (
+    <div style={{ display: "grid", gap: 20 }}>
+      <PageHeader title="Overall Policies" description="Zone-level fee snapshot from live zone records." />
+      <DirectoryMetrics
+        items={[
+          { label: "Average delivery fee", value: averageDeliveryFee, tone: "brand" },
+          { label: "Zones", value: policiesData.length, tone: "navy" },
+        ]}
+      />
+      <DirectoryTableWrap
+        toolbar={
+          <DirectoryToolbar>
+            <DirectorySearch
+              id="overall-search"
+              value={search}
+              onChange={setSearch}
+              placeholder="Search by zone…"
+            />
+            <DirectoryToolSelect>
+              <Select
+                aria-label="Zone"
+                value={selectedZone}
+                onChange={setSelectedZone}
+                options={(zones || []).map((z) => ({ value: String(z.id), label: z.name }))}
+                placeholder="All zones"
+              />
+            </DirectoryToolSelect>
+            <DirectoryToolSelect>
+              <Select
+                aria-label="City"
+                value={selectedCity}
+                onChange={setSelectedCity}
+                options={(cities || []).map((c) => ({ value: String(c.id), label: c.name }))}
+                placeholder="All cities"
+              />
+            </DirectoryToolSelect>
+            <DirectoryToolSelect>
+              <Select
+                aria-label="Country"
+                value={selectedCountry}
+                onChange={setSelectedCountry}
+                options={(countries || []).map((c) => ({ value: String(c.id), label: c.name }))}
+                placeholder="All countries"
+              />
+            </DirectoryToolSelect>
+            {search || selectedZone || selectedCity || selectedCountry ? (
+              <DirectoryToolbarEnd>
+                <DirectoryClearButton
+                  onClick={() => {
+                    setSearch("");
+                    setSelectedZone("");
+                    setSelectedCity("");
+                    setSelectedCountry("");
+                  }}
+                />
+              </DirectoryToolbarEnd>
+            ) : null}
+          </DirectoryToolbar>
+        }
+      >
+        <Table columns={columns} rows={policiesData} rowKey={(row) => row.id} empty="No zones match these filters." />
+      </DirectoryTableWrap>
+
+      <Modal
+        open={Boolean(viewing)}
+        title="Zone policy"
+        onClose={() => setViewingZone(null)}
+        primaryLabel="Close"
+        secondaryLabel="Close"
+        onPrimary={() => setViewingZone(null)}
+        size="lg"
+      >
+        {viewing ? (
+          <PolicyDetailStack>
+            <PolicyDetailSection title="Identity">
+              <PolicyDetailRow label="Zone" value={viewing.name} />
+              <PolicyDetailRow label="Zone ID" value={viewing.id} />
+              <PolicyDetailRow label="City" value={cityLabel(viewing, cities) || "—"} />
+              <PolicyDetailRow label="Country" value={countryLabel(viewing, countries) || "—"} />
+              <PolicyDetailRow
+                label="Status"
+                value={
+                  viewing.status == null && viewing.isActive == null
+                    ? "—"
+                    : viewing.status === false || viewing.isActive === false || viewing.status === 0
+                      ? "Inactive"
+                      : "Active"
+                }
+              />
+            </PolicyDetailSection>
+            <PolicyDetailSection title="Fees & currency">
+              <PolicyDetailRow
+                label="Delivery fee"
+                value={formatPolicyMoney(viewing.serviceCharge, viewingSymbol, viewingCode)}
+              />
+              <PolicyDetailRow label="Currency" value={viewingSymbol ? `${viewingCode || ""} (${viewingSymbol})`.trim() : viewingCode || "—"} />
+              <PolicyDetailRow
+                label="Currency unit ID"
+                value={viewing.currencyUnitId ?? viewing.currencyUnitZ?.id ?? viewing.currencyUnit?.id ?? "—"}
+              />
+              <PolicyDetailRow
+                label="Minimum order"
+                value={
+                  viewing.minOrderValue != null || viewing.minimumOrder != null
+                    ? formatPolicyMoney(viewing.minOrderValue ?? viewing.minimumOrder, viewingSymbol, viewingCode)
+                    : "—"
+                }
+              />
+            </PolicyDetailSection>
+            <PolicyDetailSection title="Record">
+              <PolicyDetailRow label="Created" value={formatPolicyDate(viewing.createdAt || viewing.created_at)} />
+              <PolicyDetailRow label="Updated" value={formatPolicyDate(viewing.updatedAt || viewing.updated_at)} />
+              <PolicyDetailRow label="City ID" value={viewing.cityId ?? viewing.city?.id ?? "—"} />
+              <PolicyDetailRow label="Country ID" value={viewing.countryId ?? viewing.country?.id ?? viewing.city?.countryId ?? "—"} />
+            </PolicyDetailSection>
+          </PolicyDetailStack>
+        ) : null}
+      </Modal>
+    </div>
+  );
+}

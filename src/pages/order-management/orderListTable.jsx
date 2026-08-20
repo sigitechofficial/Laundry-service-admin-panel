@@ -1,571 +1,313 @@
-import { Box, Chip, Typography } from "@mui/material";
-import dayjs from "dayjs";
-import ActionButtons from "../../components/ui/ActionButtons";
-import OrderAssignActionButton from "./order-modals/OrderAssignActionButton";
-import { dateTimeFormat } from "../../shared/constants";
-import { canAdminAssignOrReassignFromBooking } from "../../shared/adminAssignGate";
-import {
-  canEditOrderFromBooking,
-  resolveOrderStatusTitle,
-} from "../../shared/orderEditStatusGate";
+import { Link } from "react-router-dom";
+import { formatDate } from "../../utilities/formatters";
+import styles from "./orderList.module.css";
 
-const cellSx = { py: 0.5, lineHeight: 1.35, maxWidth: 280 };
+/** Shared blue link used by order id, shop name, and customer name. */
+export const ORDER_LIST_LINK_CLASS =
+  "whitespace-nowrap border-0 bg-transparent p-0 font-mono text-[13px] font-semibold text-[#2c3ba0] hover:underline";
 
-function formatDriverName(user, { shopOwnerUserId = null, assigneeId = null } = {}) {
-  if (assigneeId == null && !user) return null;
-  const ownerId =
-    shopOwnerUserId != null ? Number(shopOwnerUserId) : null;
-  const id =
-    assigneeId != null
-      ? Number(assigneeId)
-      : user?.id != null
-        ? Number(user.id)
-        : null;
-  if (id == null && !user) return null;
-  if (ownerId != null && (id == null || id === ownerId)) {
-    return "Shop owner";
+const PLACEHOLDER_NAMES = new Set(["—", "No shop assigned"]);
+
+export function EntityNameLink({ to, children, className = ORDER_LIST_LINK_CLASS }) {
+  if (!to) {
+    return (
+      <div className="truncate text-[13px] font-semibold text-[#0e131c]">
+        {children}
+      </div>
+    );
   }
-  if (!user) return null;
-  const name = [user.firstName, user.lastName].filter(Boolean).join(" ").trim();
-  return name || null;
-}
 
-export function formatOrderMoney(amount) {
-  if (amount == null || amount === "") return "—";
-  const n = Number(amount);
-  if (Number.isNaN(n)) return String(amount);
-  return `£${n.toFixed(2)}`;
-}
-
-function normalizeStatusKey(value) {
-  return String(value ?? "")
-    .toLowerCase()
-    .replace(/[_-]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-/** Facility finished — next leg is delivery (highlight delivery row). */
-function isDeliveryPrepPhase(id, title) {
-  if (id === 12) return true;
-  if (
-    title.includes("completed at facility") ||
-    title.includes("completed (at facility)") ||
-    title.includes("processing is done") ||
-    title.includes("processing done") ||
-    title.includes("ready for delivery")
-  ) {
-    return true;
-  }
-  return false;
-}
-
-/** Which leg of the journey is active — drives highlight on schedule & driver cells. */
-export function resolveOrderSchedulePhase(booking, statusTitle) {
-  const id = Number(booking?.bookingStatusId);
-  const title = normalizeStatusKey(
-    statusTitle || resolveOrderStatusTitle(booking)
+  return (
+    <Link
+      to={to}
+      className={`${className} block max-w-full truncate`}
+      onClick={(event) => event.stopPropagation()}
+    >
+      {children}
+    </Link>
   );
-
-  if ([17, 19, 20, 21, 23].includes(id)) return "neutral";
-  if ([18, 24].includes(id)) return "neutral";
-
-  if (id >= 13 && id <= 16) return "delivery";
-  if (isDeliveryPrepPhase(id, title)) return "delivery";
-  if (id >= 8 && id <= 11) return "neutral";
-  if (id >= 1 && id <= 7) return "pickup";
-
-  if (
-    title.includes("out for delivery") ||
-    title.includes("delivery failed")
-  ) {
-    return "delivery";
-  }
-  if (
-    title.includes("driver reached") &&
-    !title.includes("pickup") &&
-    !title.includes("pick up")
-  ) {
-    return "delivery";
-  }
-  if (
-    title.includes("delivered") &&
-    !title.includes("shop") &&
-    !title.includes("laundry to shop")
-  ) {
-    return "delivery";
-  }
-
-  if (
-    title.includes("pickup") ||
-    title.includes("pick up") ||
-    title.includes("collection") ||
-    title.includes("awaiting collection")
-  ) {
-    return "pickup";
-  }
-  if (title.includes("transit to facility") || title === "in transit") {
-    return "pickup";
-  }
-  if (
-    title.includes("confirmed") ||
-    title.includes("order created") ||
-    title === "pending" ||
-    title === "new"
-  ) {
-    return "pickup";
-  }
-
-  if (title.includes("processing is done") || title.includes("processing done")) {
-    return "delivery";
-  }
-
-  if (
-    title.includes("processing") ||
-    title.includes("invoice") ||
-    title.includes("at facility")
-  ) {
-    return "neutral";
-  }
-
-  if (title.includes("completed") && title.includes("facility")) {
-    return "delivery";
-  }
-
-  return "neutral";
 }
 
-export function LabelValue({ label, value, muted = false, active = false, tone = "pickup" }) {
+export function LabelValue({
+  label,
+  value,
+  muted = false,
+  active = false,
+  tone = "pickup",
+}) {
   if (!value || value === "—") {
     return (
-      <Typography variant="body2" sx={{ fontSize: 13, color: "text.disabled" }}>
+      <div className="text-xs leading-5 text-[#8a94a2]">
         {label}: —
-      </Typography>
+      </div>
     );
   }
 
   const accent =
     tone === "delivery"
-      ? { color: "#2E7D32", bg: "rgba(46, 125, 50, 0.12)", border: "#A5D6A7" }
-      : { color: "#1565C0", bg: "rgba(25, 118, 210, 0.1)", border: "#90CAF9" };
+      ? { color: "#5f47c4", bg: "#efeafe" }
+      : { color: "#2a63d6", bg: "#e8effe" };
 
   return (
-    <Typography
-      variant="body2"
-      component="div"
-      sx={{
-        fontSize: 13,
-        lineHeight: 1.45,
-        color: active ? accent.color : muted ? "text.secondary" : "text.primary",
-        fontWeight: active ? 600 : 400,
-        opacity: muted && !active ? 0.72 : 1,
-        ...(active && {
-          bgcolor: accent.bg,
-          border: `1px solid ${accent.border}`,
-          borderRadius: "6px",
-          px: 0.75,
-          py: 0.35,
-          mt: label === "Delivery" ? 0.35 : 0,
-        }),
-      }}
+    <div
+      className={`text-xs leading-5 ${muted && !active ? "text-[#8a94a2]" : "text-[#38424f]"} ${
+        active ? "mt-1 rounded-md px-1.5 py-0.5 font-semibold" : ""
+      }`}
+      style={active ? { color: accent.color, background: accent.bg } : undefined}
     >
-      <Box
-        component="span"
-        sx={{
-          color: active ? accent.color : "text.secondary",
-          fontWeight: 600,
-          fontSize: 12,
-          textTransform: "uppercase",
-          letterSpacing: "0.02em",
-        }}
-      >
+      <span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: active ? accent.color : undefined }}>
         {label}
-      </Box>
-      <Box component="span" sx={{ color: "text.secondary", mx: 0.5 }}>
-        ·
-      </Box>
+      </span>
+      <span className="mx-1 text-[#8a94a2]">·</span>
       {value}
-    </Typography>
+    </div>
   );
 }
 
-function StackedCell({ primary, secondary, title, emptySecondary = "No services listed" }) {
-  return (
-    <Box sx={cellSx} title={title}>
-      {primary ? (
-        <Typography
-          variant="body2"
-          sx={{ fontSize: 13, fontWeight: 600, color: "text.primary" }}
-        >
-          {primary}
-        </Typography>
-      ) : (
-        <Typography variant="body2" sx={{ fontSize: 13, color: "text.disabled" }}>
-          No shop assigned
-        </Typography>
-      )}
-      {secondary ? (
-        <Typography
-          variant="body2"
-          sx={{
-            fontSize: 12,
-            color: "text.secondary",
-            mt: primary ? 0.25 : 0,
-            display: "-webkit-box",
-            WebkitLineClamp: 2,
-            WebkitBoxOrient: "vertical",
-            overflow: "hidden",
-            whiteSpace: "normal",
-          }}
-        >
-          {secondary}
-        </Typography>
-      ) : (
-        <Typography
-          variant="body2"
-          sx={{ fontSize: 12, color: "text.disabled", mt: primary ? 0.25 : 0 }}
-        >
-          {emptySecondary}
-        </Typography>
-      )}
-    </Box>
-  );
-}
-
-function resolveShopName(booking) {
-  const shop = booking?.laundryShop;
-  if (!shop) return null;
-  return (
-    shop.name ||
-    shop.bussinessInformation?.shopName ||
-    shop.bussinessInformations?.[0]?.shopName ||
-    null
-  );
-}
-
-function uniqueOrderedStrings(values) {
-  const seen = new Set();
-  const out = [];
-  for (const v of values) {
-    const label = String(v ?? "").trim();
-    if (!label || seen.has(label)) continue;
-    seen.add(label);
-    out.push(label);
-  }
-  return out;
-}
-
-/** Flat row for table, search, and download — all original fields preserved on `_export`. */
-export function mapBookingToOrderListRow(booking) {
-  const createdRaw = booking?.createdAt || booking?.created_at;
-  const services = uniqueOrderedStrings(
-    (booking?.customerSelectedServices ?? []).map((s) => s?.service?.name)
-  );
-  const serviceType = services.join(", ");
-  const shopOwnerUserId =
-    booking?.laundryShop?.userId ?? booking?.shopOwnerUserId ?? null;
-  const pickupDriver =
-    formatDriverName(booking?.driver, {
-      shopOwnerUserId,
-      assigneeId: booking?.driverId,
-    }) || "—";
-  const deliveryDriver =
-    formatDriverName(booking?.deliveryDriver, {
-      shopOwnerUserId,
-      assigneeId: booking?.deliveryDriverId,
-    }) || "—";
-  const orderDisplayId = booking?.orderTrackId || booking?.id;
-  const onHoldCount = booking?.OnHoldConfirmations?.length ?? 0;
-  const costAmount =
-    booking?.orderAmount != null ? Number(booking.orderAmount) : null;
-  const shopLabel = resolveShopName(booking);
-
-  const pickupDateTime = booking?.collectionDate
-    ? dayjs(booking.collectionDate).format(dateTimeFormat)
-    : "—";
-  const deliveryDateTime = booking?.deliveryDate
-    ? dayjs(booking.deliveryDate).format(dateTimeFormat)
-    : "—";
-  const statusTitle = resolveOrderStatusTitle(booking);
-  const schedulePhase = resolveOrderSchedulePhase(booking, statusTitle);
-  const paymentDeliveryGate = booking?.paymentDeliveryGate || null;
-  const paymentWaitingAdmin = paymentDeliveryGate === "waiting_admin";
-
-  return {
-    id: booking?.id,
-    orderId: orderDisplayId,
-    orderPlacedAt: createdRaw ? dayjs(createdRaw).valueOf() : 0,
-    orderDateTime: createdRaw
-      ? dayjs(createdRaw).format(dateTimeFormat)
-      : "—",
-    serviceType: serviceType || null,
-    shopName: shopLabel,
-    totalItems: booking?.totalItems ?? null,
-    pickupAt: booking?.collectionDate
-      ? dayjs(booking.collectionDate).valueOf()
-      : 0,
-    pickupDateTime,
-    deliveryDateTime,
-    onHoldCount,
-    pickupDriver: pickupDriver || "—",
-    deliveryDriver: deliveryDriver || "—",
-    schedulePhase,
-    costAmount,
-    OrderStatus: statusTitle,
-    paymentWaitingAdmin,
-    paymentDeliveryGate,
-    zoneId: booking?.zoneId ?? null,
-    _booking: booking,
-    canAdminAssign: canAdminAssignOrReassignFromBooking(booking),
-    actions: "actions",
-    _export: {
-      orderId: orderDisplayId,
-      orderDateTime: createdRaw
-        ? dayjs(createdRaw).format(dateTimeFormat)
-        : "",
-      serviceType,
-      totalItems: booking?.totalItems,
-      pickupDateTime,
-      deliveryDateTime,
-      onHoldCount,
-      pickupDriver: pickupDriver || "",
-      deliveryDriver: deliveryDriver || "",
-      shopName: shopLabel || "",
-      cost: formatOrderMoney(costAmount),
-      status: resolveOrderStatusTitle(booking),
-      paymentHold: paymentWaitingAdmin ? "Payment hold — admin" : "",
-    },
-  };
-}
-
-export function buildOrderListColumns({
-  navigate,
-  orderStatuses,
-  setDeleteModal,
-  setAssignModal,
-  showAssign = true,
+export function StackedCell({
+  primary,
+  secondary,
+  title,
+  emptySecondary = "No services listed",
+  tags = false,
+  mono = false,
 }) {
-  return [
-    {
-      field: "orderId",
-      headerName: "Order",
-      minWidth: 118,
-      renderCell: (row) => (
-        <Typography
-          component="button"
-          type="button"
-          onClick={() => navigate(`/orders/details/${row.id}`)}
-          sx={{
-            fontSize: 13,
-            fontWeight: 600,
-            color: "primary.main",
-            background: "none",
-            border: "none",
-            p: 0,
-            cursor: "pointer",
-            fontFamily: "inherit",
-            "&:hover": { textDecoration: "underline" },
-          }}
-        >
-          #{row.orderId}
-        </Typography>
-      ),
-    },
-    {
-      field: "orderPlacedAt",
-      headerName: "Order placed",
-      minWidth: 132,
-      renderCell: (row) => {
-        if (!row.orderPlacedAt) return "—";
-        const d = dayjs(row.orderPlacedAt);
-        return (
-          <StackedCell
-            primary={d.format("DD MMM YYYY")}
-            secondary={d.format("hh:mm A")}
-            title={`When the order was created: ${row.orderDateTime}`}
-          />
-        );
-      },
-    },
-    {
-      field: "shopName",
-      headerName: "Shop & service",
-      minWidth: 200,
-      renderCell: (row) => (
-        <StackedCell
-          primary={row.shopName}
-          secondary={row.serviceType}
-          title={[row.shopName, row.serviceType].filter(Boolean).join("\n")}
-        />
-      ),
-    },
-    {
-      field: "totalItems",
-      headerName: "Items",
-      minWidth: 72,
-      align: "center",
-    },
-    {
-      field: "pickupAt",
-      headerName: "Pickup & delivery",
-      minWidth: 200,
-      wrap: true,
-      renderCell: (row) => (
-        <Box
-          sx={{ ...cellSx, whiteSpace: "normal" }}
-          title={`Pickup: ${row.pickupDateTime}\nDelivery: ${row.deliveryDateTime}\nStatus: ${row.OrderStatus}`}
-        >
-          <LabelValue
-            label="Pickup"
-            value={row.pickupDateTime}
-            tone="pickup"
-            active={row.schedulePhase === "pickup"}
-            muted={row.schedulePhase === "delivery"}
-          />
-          <LabelValue
-            label="Delivery"
-            value={row.deliveryDateTime}
-            tone="delivery"
-            active={row.schedulePhase === "delivery"}
-            muted={row.schedulePhase === "pickup"}
-          />
-        </Box>
-      ),
-    },
-    {
-      field: "onHoldCount",
-      headerName: "On-hold",
-      minWidth: 88,
-      align: "center",
-      renderCell: (row) =>
-        row.onHoldCount > 0 ? (
-          <Chip
-            size="small"
-            label={row.onHoldCount}
-            sx={{
-              height: 24,
-              fontSize: 12,
-              fontWeight: 600,
-              bgcolor: "#FFF7E6",
-              color: "#D46B08",
-              border: "1px solid #FFD591",
-            }}
-          />
-        ) : (
-          <Typography
-            variant="body2"
-            sx={{ fontSize: 12, color: "text.disabled" }}
-            title="No on-hold items on this order"
-          >
-            None
-          </Typography>
-        ),
-    },
-    {
-      field: "pickupDriver",
-      headerName: "Drivers",
-      minWidth: 168,
-      wrap: true,
-      sortable: false,
-      renderCell: (row) => (
-        <Box
-          sx={{ ...cellSx, whiteSpace: "normal" }}
-          title={`Pickup: ${row.pickupDriver}\nDelivery: ${row.deliveryDriver}`}
-        >
-          <LabelValue
-            label="Pickup"
-            value={row.pickupDriver}
-            tone="pickup"
-            active={row.schedulePhase === "pickup"}
-            muted={row.schedulePhase === "delivery"}
-          />
-          <LabelValue
-            label="Delivery"
-            value={row.deliveryDriver}
-            tone="delivery"
-            active={row.schedulePhase === "delivery"}
-            muted={row.schedulePhase === "pickup"}
-          />
-        </Box>
-      ),
-    },
-    {
-      field: "costAmount",
-      headerName: "Total",
-      minWidth: 96,
-      align: "right",
-      renderCell: (row) => (
-        <Typography variant="body2" sx={{ fontSize: 13, fontWeight: 600 }}>
-          {formatOrderMoney(row.costAmount)}
-        </Typography>
-      ),
-    },
-    {
-      field: "OrderStatus",
-      headerName: "Status",
-      minWidth: 160,
-      renderCell: (row) => (
-        <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
-          <Chip
-            size="small"
-            label={row.OrderStatus || "—"}
-            sx={{
-              height: 26,
-              maxWidth: 160,
-              fontSize: 11,
-              fontWeight: 600,
-              "& .MuiChip-label": {
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-              },
-            }}
-          />
-          {row.paymentWaitingAdmin ? (
-            <Chip
-              size="small"
-              color="error"
-              variant="outlined"
-              label="Payment hold"
-              onClick={() => navigate("/orders/payment-failures")}
-              sx={{
-                height: 22,
-                maxWidth: 140,
-                fontSize: 10,
-                fontWeight: 700,
-                cursor: "pointer",
-              }}
-            />
-          ) : null}
-        </Box>
-      ),
-    },
-    {
-      field: "actions",
-      headerName: "Actions",
-      minWidth: showAssign ? 280 : 200,
-      sortable: false,
-      renderCell: (row) => (
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-          {showAssign && setAssignModal ? (
-            <OrderAssignActionButton
-              booking={row._booking}
-              onClick={() =>
-                setAssignModal({
-                  open: true,
-                  orderId: row.id,
-                  booking: row._booking,
-                })
-              }
-            />
-          ) : null}
-          <ActionButtons
-            showEdit={canEditOrderFromBooking(row._booking, orderStatuses)}
-            onView={() => navigate(`/orders/details/${row.id}`)}
-            onEdit={() => navigate(`/orders/edit/${row.id}`)}
-            onDelete={() => setDeleteModal({ open: true, orderId: row.id })}
-          />
-        </Box>
-      ),
-    },
-  ];
+  return (
+    <div className="min-w-0 max-w-[280px] leading-snug" title={title}>
+      {primary ? (
+        <div className={`text-[13px] font-semibold text-[#0e131c] ${mono ? "font-mono tabular-nums" : ""}`}>
+          {primary}
+        </div>
+      ) : (
+        <div className="text-[13px] text-[#8a94a2]">No shop assigned</div>
+      )}
+      {secondary && tags ? (
+        <div className="mt-1.5 flex max-w-[280px] flex-wrap gap-[5px]">
+          {String(secondary)
+            .split(/[,|]/)
+            .map((item) => item.trim())
+            .filter(Boolean)
+            .map((item) => (
+              <span
+                key={item}
+                className="whitespace-nowrap rounded-md border border-[#e6e9f0] bg-[#f4f5f8] px-2 py-px text-[11px] font-medium text-[#38424f]"
+              >
+                {item}
+              </span>
+            ))}
+        </div>
+      ) : secondary ? (
+        <div className="mt-0.5 line-clamp-2 text-[12.5px] text-[#5c6673]">{secondary}</div>
+      ) : (
+        <div className="mt-0.5 text-xs text-[#8a94a2]">{emptySecondary}</div>
+      )}
+    </div>
+  );
 }
+
+export function OrderIdLink({ id, label, navigate }) {
+  return (
+    <button
+      type="button"
+      onClick={() => navigate(`/orders/details/${id}`)}
+      className={ORDER_LIST_LINK_CLASS}
+    >
+      #{label}
+    </button>
+  );
+}
+
+export function DateTimeStack({ value, title }) {
+  if (!value) return "—";
+  return (
+    <div title={title}>
+      <div className="font-mono text-[13px] font-semibold tabular-nums text-[#0e131c]">
+        {formatDate(value, "DD MMM YYYY")}
+      </div>
+      <div className="mt-0.5 text-[12.5px] text-[#5c6673]">{formatDate(value, "hh:mm A")}</div>
+    </div>
+  );
+}
+
+/** Name (primary) + phone muted underneath — same stack as Order placed. */
+export function CustomerNamePhone({ name, phone, title, nameTo }) {
+  const displayName = name || "—";
+  const displayPhone = phone || "—";
+  const hover =
+    title ||
+    [displayName, displayPhone].filter((value) => value && value !== "—").join("\n") ||
+    undefined;
+  const linkTo =
+    nameTo && displayName && !PLACEHOLDER_NAMES.has(displayName) ? nameTo : null;
+
+  return (
+    <div className="min-w-0 max-w-[200px] leading-snug" title={hover}>
+      <EntityNameLink to={linkTo}>{displayName}</EntityNameLink>
+      <div className="mt-0.5 truncate text-[14px] text-[var(--ink-2)]">{displayPhone}</div>
+    </div>
+  );
+}
+
+const PILL_TONE_CLS = {
+  success: styles.dotPillSuccess,
+  created: styles.dotPillCreated,
+  danger: styles.dotPillDanger,
+  warning: styles.dotPillWarning,
+  info: styles.dotPillInfo,
+  teal: styles.dotPillTeal,
+  neutral: styles.dotPill,
+};
+
+const REASON_PILL_TONE = {
+  payment_failed: "danger",
+  on_hold: "danger",
+  needs_assignment: "warning",
+  overdue_pickup: "warning",
+  pickup_reschedule: "info",
+  overdue_delivery: "warning",
+  delivery_failed: "danger",
+};
+
+/** Shared status / hold / why-needed pill: leading dot, 13px, rounded-full. */
+export function DotPill({
+  label,
+  tone = "neutral",
+  title,
+  as: Tag = "span",
+  onClick,
+  className = "",
+}) {
+  const toneCls = tone !== "neutral" ? PILL_TONE_CLS[tone] : "";
+
+  return (
+    <Tag
+      type={Tag === "button" ? "button" : undefined}
+      onClick={onClick}
+      title={title}
+      className={`${styles.dotPill} ${toneCls || ""} ${className}`.trim()}
+    >
+      <span className={styles.dotPillDot} aria-hidden />
+      <span className={styles.dotPillLabel}>{label || "—"}</span>
+    </Tag>
+  );
+}
+
+/** Cap at 2 + “+N”; stacked so each reason gets a full line. */
+export function ReasonPills({ keys = [], labels = [] }) {
+  const items = (keys || []).map((key, index) => ({
+    key: String(key),
+    label: labels[index] || key,
+  }));
+  const visible = items.slice(0, 2);
+  const extra = items.length - visible.length;
+  const full = items.map((item) => item.label).join(", ");
+
+  if (!items.length) {
+    return <span className="text-[13px] text-[#8a94a2]">—</span>;
+  }
+
+  return (
+    <div className={styles.dotPills} title={full}>
+      {visible.map((item) => (
+        <DotPill
+          key={item.key}
+          label={item.label}
+          tone={REASON_PILL_TONE[item.key] || "neutral"}
+          title={item.label}
+        />
+      ))}
+      {extra > 0 ? <DotPill label={`+${extra}`} tone="neutral" /> : null}
+    </div>
+  );
+}
+
+export function ServicePills({ names = [], shopName }) {
+  const list = (Array.isArray(names) ? names : String(names || "").split(/[,|]/))
+    .map((item) => String(item || "").trim())
+    .filter(Boolean);
+  const visible = list.slice(0, 2);
+  const extra = list.length - visible.length;
+  const full = [shopName, list.join(", ")].filter(Boolean).join("\n");
+
+  if (!list.length) {
+    return <div className="mt-0.5 text-xs text-[#8a94a2]">No services listed</div>;
+  }
+
+  return (
+    <div className="mt-1.5 flex flex-nowrap items-center gap-1 overflow-hidden" title={full}>
+      {visible.map((item) => (
+        <span
+          key={item}
+          className="max-w-[132px] truncate whitespace-nowrap rounded-md border border-[#e6e9f0] bg-[#f4f5f8] px-2 py-px text-[11px] font-medium text-[#38424f]"
+        >
+          {item}
+        </span>
+      ))}
+      {extra > 0 ? (
+        <span className="shrink-0 whitespace-nowrap rounded-md border border-[#e6e9f0] bg-[#eef1f6] px-2 py-px text-[11px] font-semibold text-[#5c6673]">
+          +{extra}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+export function ItemsBadge({ count }) {
+  return (
+    <span className="inline-grid h-[26px] min-w-[30px] place-items-center rounded-lg bg-[#eef1f6] px-2 text-[12.5px] font-semibold tabular-nums text-[#38424f]">
+      {count ?? "—"}
+    </span>
+  );
+}
+
+function compactSlot(raw, timeFrom) {
+  if (raw == null || raw === "" || raw === "—") return "—";
+  const datePart = formatDate(raw, "DD MMM");
+  if (datePart === "—") return String(raw);
+  if (timeFrom) {
+    const hm = String(timeFrom).trim().slice(0, 5);
+    const stamp = `${formatDate(raw, "YYYY-MM-DD")} ${hm}`;
+    const withTime = formatDate(stamp, "h:mm A");
+    return withTime === "—" ? `${datePart} · ${hm}` : `${datePart} · ${withTime}`;
+  }
+  return formatDate(raw, "DD MMM · h:mm A");
+}
+
+export function PickupDropCell({ pickup, drop, pickupTime, dropTime, title }) {
+  return (
+    <div className="flex flex-col gap-2" title={title}>
+      <div className="flex items-center gap-2 whitespace-nowrap text-[12.5px] text-[#38424f]">
+        <span className="rounded-[5px] bg-[#e8effe] px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.05em] text-[#2a63d6]">
+          Pick
+        </span>
+        <span className="font-mono">{compactSlot(pickup, pickupTime)}</span>
+      </div>
+      <div className="flex items-center gap-2 whitespace-nowrap text-[12.5px] text-[#38424f]">
+        <span className="rounded-[5px] bg-[#efeafe] px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.05em] text-[#5f47c4]">
+          Drop
+        </span>
+        <span className="font-mono">{compactSlot(drop, dropTime)}</span>
+      </div>
+    </div>
+  );
+}
+
+const STATUS_PILLS = [
+  { test: /deliver/, tone: "teal" },
+  { test: /complete/, tone: "success" },
+  { test: /cancel|fail|hold/, tone: "danger" },
+  { test: /process|pending|waiting|invoice|facility/, tone: "warning" },
+  { test: /new|created|confirm/, tone: "created" },
+];
+
+export function StatusDotPill({ title, extra }) {
+  const value = String(title || "").toLowerCase();
+  const match = STATUS_PILLS.find((item) => item.test.test(value));
+  return (
+    <div className={styles.dotPillStack}>
+      <DotPill label={title || "—"} tone={match?.tone || "neutral"} title={title} />
+      {extra}
+    </div>
+  );
+}
+

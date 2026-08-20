@@ -1,11 +1,8 @@
-import { Box } from "@mui/material";
 import { useForm, Controller } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
 import { useMemo, useEffect } from "react";
-import ModalComponent from "../../../components/shared/Modal";
-import FormInputField from "../../../components/ui/FormInputField";
-import SelectField from "../../../components/ui/SelectField";
+import { Field, Input, Modal, Select } from "../../../design-system";
 import useToaster from "../../../components/ui/Toaster";
 import {
   useAddAdminEmployeeMutation,
@@ -220,10 +217,12 @@ export default function AddEmployeeModal({
   const { data: zonesRes } = useGetAllZonesQuery(undefined, {
     skip: !open || forShopEmployees || !showZoneForRole,
   });
-  const zonesRaw = Array.isArray(zonesRes?.data)
-    ? zonesRes.data
-    : zonesRes?.data?.zones ?? zonesRes?.zones ?? [];
-  const zones = Array.isArray(zonesRaw) ? zonesRaw : [];
+  const zones = useMemo(() => {
+    const zonesRaw = Array.isArray(zonesRes?.data)
+      ? zonesRes.data
+      : zonesRes?.data?.zones ?? zonesRes?.zones ?? [];
+    return Array.isArray(zonesRaw) ? zonesRaw : [];
+  }, [zonesRes]);
   const zoneOptions = useMemo(
     () =>
       zones
@@ -327,103 +326,68 @@ export default function AddEmployeeModal({
   };
 
   return (
-    <ModalComponent
+    <Modal
       open={open}
-      title={isEdit ? "Edit Employee" : "Add Employee"}
+      title={isEdit ? "Edit employee" : "Add employee"}
       onClose={handleClose}
-      width={560}
-      primaryAction={{
-        label: isEdit ? "Update" : "Add Employee",
-        onClick: handleSubmit(onSubmit),
-        isLoading,
-      }}
-      secondaryAction={{
-        label: "Cancel",
-        onClick: handleClose,
+      primaryLabel={isLoading ? (isEdit ? "Updating…" : "Adding…") : isEdit ? "Update" : "Add employee"}
+      secondaryLabel="Cancel"
+      onPrimary={() => {
+        if (isLoading) return;
+        handleSubmit(onSubmit)();
       }}
     >
-      <Box className="flex flex-col gap-5">
-        <Box className="grid grid-cols-2 gap-4">
-          <FormInputField
-            title="First Name"
-            label="First Name"
-            placeholder="First Name"
-            name="firstName"
-            register={register}
-            error={errors.firstName}
-          />
-          <FormInputField
-            title="Last Name"
-            label="Last Name"
-            placeholder="Last Name"
-            name="lastName"
-            register={register}
-            error={errors.lastName}
-          />
-        </Box>
-        <FormInputField
-          title="Email"
-          label="Email"
-          placeholder="email@example.com"
-          name="email"
-          type="email"
-          register={register}
-          error={errors.email}
-        />
+      <div style={{ display: "grid", gap: 16 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          <Field label="First name" error={errors.firstName?.message} htmlFor="emp-first-name">
+            <Input id="emp-first-name" placeholder="First name" {...register("firstName")} error={!!errors.firstName} />
+          </Field>
+          <Field label="Last name" error={errors.lastName?.message} htmlFor="emp-last-name">
+            <Input id="emp-last-name" placeholder="Last name" {...register("lastName")} error={!!errors.lastName} />
+          </Field>
+        </div>
+        <Field label="Email" error={errors.email?.message} htmlFor="emp-email">
+          <Input id="emp-email" type="email" placeholder="email@example.com" {...register("email")} error={!!errors.email} />
+        </Field>
         {!isEdit && (
-          <FormInputField
-            title="Password"
-            label="Password"
-            placeholder="••••••••"
-            name="password"
-            type="password"
-            register={register}
-            error={errors.password}
-          />
+          <Field label="Password" error={errors.password?.message} htmlFor="emp-password">
+            <Input id="emp-password" type="password" placeholder="••••••••" {...register("password")} error={!!errors.password} />
+          </Field>
         )}
-        <FormInputField
-          title="Phone Number"
-          label="Phone"
-          placeholder="Phone number"
-          name="phoneNum"
-          register={register}
-          error={errors.phoneNum}
-        />
+        <Field label="Phone" error={errors.phoneNum?.message} htmlFor="emp-phone">
+          <Input id="emp-phone" placeholder="Phone number" {...register("phoneNum")} error={!!errors.phoneNum} />
+        </Field>
         <Controller
           name="roleId"
           control={control}
           render={({ field }) => (
-            <SelectField
-              title="Role"
-              value={field.value}
-              onChange={field.onChange}
-              options={roleOptions}
-              placeholder="Select role"
-            />
+            <Field label="Role" error={errors.roleId?.message}>
+              <Select
+                aria-label="Role"
+                value={field.value}
+                onChange={field.onChange}
+                options={roleOptions}
+                placeholder="Select role"
+              />
+            </Field>
           )}
         />
-        {errors.roleId && (
-          <p className="text-red-500 text-sm mt-0.5">{errors.roleId.message}</p>
-        )}
         {forShopEmployees && (
-          <>
-            <Controller
-              name="agentId"
-              control={control}
-              render={({ field }) => (
-                <SelectField
-                  title="Shop"
+          <Controller
+            name="agentId"
+            control={control}
+            render={({ field }) => (
+              <Field label="Shop" error={errors.agentId?.message}>
+                <Select
+                  aria-label="Shop"
                   value={field.value}
                   onChange={field.onChange}
                   options={shopOptions}
                   placeholder="Select shop"
                 />
-              )}
-            />
-            {errors.agentId && (
-              <p className="text-red-500 text-sm mt-0.5">{errors.agentId.message}</p>
+              </Field>
             )}
-          </>
+          />
         )}
         {!forShopEmployees && (
           <>
@@ -431,61 +395,56 @@ export default function AddEmployeeModal({
               name="countryId"
               control={control}
               render={({ field }) => (
-                <SelectField
-                  title="Country"
-                  value={field.value}
-                  onChange={(e) => {
-                    field.onChange(e.target.value);
-                    reset({ ...watch(), cityId: "" });
-                  }}
-                  options={countryOptions}
-                  placeholder="Select country"
-                />
+                <Field label="Country" error={errors.countryId?.message}>
+                  <Select
+                    aria-label="Country"
+                    value={field.value}
+                    onChange={(value) => {
+                      field.onChange(value);
+                      setValue("cityId", "");
+                    }}
+                    options={countryOptions}
+                    placeholder="Select country"
+                  />
+                </Field>
               )}
             />
-            {errors.countryId && (
-              <p className="text-red-500 text-sm mt-0.5">{errors.countryId.message}</p>
-            )}
             <Controller
               name="cityId"
               control={control}
               render={({ field }) => (
-                <SelectField
-                  title="City"
-                  value={field.value}
-                  onChange={field.onChange}
-                  options={cityOptions}
-                  placeholder="Select city"
-                  disabled={!countryId}
-                />
+                <Field label="City" error={errors.cityId?.message}>
+                  <Select
+                    aria-label="City"
+                    value={field.value}
+                    onChange={field.onChange}
+                    options={cityOptions}
+                    placeholder="Select city"
+                    disabled={!countryId}
+                  />
+                </Field>
               )}
             />
-            {errors.cityId && (
-              <p className="text-red-500 text-sm mt-0.5">{errors.cityId.message}</p>
-            )}
             {showZoneForRole && (
-              <>
-                <Controller
-                  name="zoneId"
-                  control={control}
-                  render={({ field }) => (
-                    <SelectField
-                      title="Zone"
+              <Controller
+                name="zoneId"
+                control={control}
+                render={({ field }) => (
+                  <Field label="Zone" error={errors.zoneId?.message}>
+                    <Select
+                      aria-label="Zone"
                       value={field.value}
                       onChange={field.onChange}
                       options={zoneOptions}
                       placeholder="Select zone"
                     />
-                  )}
-                />
-                {errors.zoneId && (
-                  <p className="text-red-500 text-sm mt-0.5">{errors.zoneId.message}</p>
+                  </Field>
                 )}
-              </>
+              />
             )}
           </>
         )}
-      </Box>
-    </ModalComponent>
+      </div>
+    </Modal>
   );
 }

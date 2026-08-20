@@ -10,20 +10,19 @@ import { resolveOrderListResponse } from "./useOrderListPageData";
  */
 export function useOrderListStatsQuery(statsQueryParams, embeddedCounts) {
   const hasEmbedded = embeddedCounts != null && typeof embeddedCounts === "object";
-  const query = useGetOrdersCountQuery(statsQueryParams, {
+  const {
+    data,
+    currentData,
+    isFetching,
+    refetch,
+  } = useGetOrdersCountQuery(statsQueryParams, {
     skip: hasEmbedded,
   });
 
   const effectiveResponse = useMemo(() => {
     if (hasEmbedded) return { data: embeddedCounts };
-    return resolveOrderListResponse(query);
-  }, [
-    hasEmbedded,
-    embeddedCounts,
-    query.data,
-    query.currentData,
-    query.isFetching,
-  ]);
+    return resolveOrderListResponse({ data, currentData, isFetching });
+  }, [currentData, data, embeddedCounts, hasEmbedded, isFetching]);
 
   const dashboardStats = useMemo(
     () => getOrderDashboardStats(effectiveResponse),
@@ -32,16 +31,16 @@ export function useOrderListStatsQuery(statsQueryParams, embeddedCounts) {
 
   const refetchCounts = useCallback(() => {
     if (hasEmbedded) return Promise.resolve();
-    return query.refetch();
-  }, [hasEmbedded, query]);
+    return refetch();
+  }, [hasEmbedded, refetch]);
 
   return {
     dashboardStats,
     refetchCounts,
     isStatsLoading:
       !hasEmbedded &&
-      query.isFetching &&
+      isFetching &&
       effectiveResponse == null &&
-      query.data !== undefined,
+      data !== undefined,
   };
 }

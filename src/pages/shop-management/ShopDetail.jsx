@@ -1,34 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  Box,
-  Typography,
-  Paper,
+  Badge,
   Button,
-  Tabs,
-  Tab,
-  Chip,
-  Switch,
+  Field,
+  Input,
+  PageHeader,
+  Select,
   Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  TextField,
-  MenuItem,
-  Rating,
-  LinearProgress,
-  Stack,
-} from "@mui/material";
+  Textarea,
+} from "../../design-system";
 import {
   MdOutlineLocationOn,
   MdOutlinePhone,
   MdMailOutline,
-  IoChevronBackOutline,
-  TbSparkles,
-  BsCardList,
-  AiFillFileText,
-  TbCirclePlus,
 } from "../../shared/icons/index";
 import { useNavigate, useParams } from "react-router-dom";
 import {
@@ -38,14 +22,39 @@ import {
   useGetShopReviewsQuery,
 } from "../../store/services/api";
 import { Delay } from "../../components/shared/Loaders";
+import useToaster from "../../components/ui/Toaster";
+import DeleteShopModal from "./DeleteShopModal";
 import dayjs from "dayjs";
+import { DATE_TIME_FORMAT, formatDate, formatMoney, resolveCurrencySymbol } from "../../utilities/formatters";
+import {
+  DirectoryDotPill,
+  DirectoryIdentity,
+  DirectoryMetrics,
+  DirectoryMoney,
+  DirectoryStatusPill,
+  DirectoryTableWrap,
+} from "../directory-table/directoryTable";
+import { directoryStatusTone, joinMeta } from "../directory-table/directoryTableUtils";
 
-const CARD_SX = {
-  borderRadius: "16px",
-  border: "1px solid #E2E8F0",
-  boxShadow: "0 1px 3px 0 rgb(0 0 0 / 0.06), 0 1px 2px -1px rgb(0 0 0 / 0.04)",
-  overflow: "hidden",
-  bgcolor: "#fff",
+const CARD = {
+  padding: 16,
+  border: "1px solid #e6e9f0",
+  borderRadius: 16,
+  background: "#fff",
+  boxShadow: "0 1px 2px rgba(16, 21, 31, 0.04)",
+};
+
+const TAB_ROW = {
+  display: "flex",
+  flexWrap: "wrap",
+  gap: 8,
+  marginBottom: 22,
+};
+
+const FORM_GRID = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
+  gap: 16,
 };
 
 const DAY_ORDER = [
@@ -56,6 +65,39 @@ const DAY_ORDER = [
   "Friday",
   "Saturday",
   "Sunday",
+];
+
+const STATUS_OPTIONS = [
+  { value: "active", label: "Active" },
+  { value: "inactive", label: "Inactive" },
+];
+
+const PAYOUT_OPTIONS = [
+  { value: "weekly", label: "Weekly" },
+  { value: "biweekly", label: "Biweekly" },
+  { value: "monthly", label: "Monthly" },
+];
+
+const COLLECTION_OPTIONS = [
+  { value: "Driver Pickup", label: "Driver Pickup" },
+  { value: "Customer Drop-off", label: "Customer Drop-off" },
+  { value: "Both", label: "Both" },
+];
+
+const DELIVERY_OPTIONS = [
+  { value: "Driver Delivery", label: "Driver Delivery" },
+  { value: "Customer Collect", label: "Customer Collect" },
+  { value: "Both", label: "Both" },
+];
+
+const TABS = [
+  { value: "overview", label: "Overview" },
+  { value: "orders", label: "Orders" },
+  { value: "reviews", label: "Reviews" },
+  { value: "staff", label: "Staff" },
+  { value: "documents", label: "Documents" },
+  { value: "settings", label: "Settings" },
+  { value: "services", label: "Services" },
 ];
 
 const toHourMinute = (value, fallback) => {
@@ -83,20 +125,22 @@ const buildOpeningHours = (workingHours = []) => {
   });
 };
 
-const Label = ({ children }) => (
-  <Typography
-    sx={{
-      fontSize: 10,
-      fontWeight: 700,
-      color: "#94A3B8",
-      textTransform: "uppercase",
-      letterSpacing: "0.09em",
-      mb: 0.7,
-    }}
-  >
-    {children}
-  </Typography>
-);
+function Label({ children }) {
+  return (
+    <div
+      style={{
+        fontSize: 12,
+        fontWeight: 700,
+        letterSpacing: "0.05em",
+        textTransform: "uppercase",
+        color: "var(--muted)",
+        marginBottom: 6,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
 
 export default function ShopDetails() {
   const navigate = useNavigate();
@@ -107,8 +151,8 @@ export default function ShopDetails() {
     visible: true,
     acceptsOrders: true,
     featured: false,
-    sameDay: true,
-    emailNotifications: true,
+    sameDay: false,
+    emailNotifications: false,
     smsAlerts: false,
   });
   const [settingsForm, setSettingsForm] = useState({
@@ -131,15 +175,14 @@ export default function ShopDetails() {
     leadTimeHours: 24,
     maxActiveOrders: 50,
   });
-  const [adminNotes, setAdminNotes] = useState(
-    "Long-standing partner. Environmental health cert follow-up required."
-  );
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [adminNotes, setAdminNotes] = useState("");
   const [openingHours, setOpeningHours] = useState(buildOpeningHours());
   const [financeSettings, setFinanceSettings] = useState({
-    commissionRate: "12",
+    commissionRate: "",
     payoutSchedule: "weekly",
-    minOrderValue: "15.00",
-    cancellationFee: "3.00",
+    minOrderValue: "",
+    cancellationFee: "",
   });
   const [isSavePanelFixed, setIsSavePanelFixed] = useState(false);
   const [savePanelMetrics, setSavePanelMetrics] = useState({
@@ -150,7 +193,8 @@ export default function ShopDetails() {
   const savePanelSlotRef = useRef(null);
   const savePanelRef = useRef(null);
 
-  const { data: shopResponse, isLoading, refetch } = useGetShopDetailsQuery(id, {
+  const { success, error } = useToaster();
+  const { data: shopResponse, isLoading, isError, refetch } = useGetShopDetailsQuery(id, {
     skip: !id,
   });
   const { data: employeesResponse } = useGetAllEmployeesWithShopInfoQuery();
@@ -163,12 +207,10 @@ export default function ShopDetails() {
     { businessInfoId, limit: 20, page: 1 },
     { skip: !businessInfoId }
   );
-  // Admin list endpoint returns { reviews, pagination }; public shop endpoint returns summary+reviews.
-  // Prefer filtered admin inbox shape; fall back if backend adds summary later.
-  const shopReviewsPayload = shopReviewsResponse?.data || {};
-  const shopReviewRows = Array.isArray(shopReviewsPayload.reviews)
-    ? shopReviewsPayload.reviews
-    : [];
+  const shopReviewRows = useMemo(() => {
+    const reviews = shopReviewsResponse?.data?.reviews;
+    return Array.isArray(reviews) ? reviews : [];
+  }, [shopReviewsResponse?.data?.reviews]);
   const shopRatingSummary = useMemo(() => {
     if (!shopReviewRows.length) {
       return { avg: 0, count: 0, histogram: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 } };
@@ -192,10 +234,27 @@ export default function ShopDetails() {
     };
   }, [shopReviewRows]);
   const addr = shop?.addressDb;
-  const orders = shop?.orders ?? shop?.bookingDetails ?? [];
-  const allEmployees = employeesResponse?.data?.employees ?? [];
+  const orders = useMemo(
+    () => shop?.orders ?? shop?.bookingDetails ?? [],
+    [shop?.bookingDetails, shop?.orders]
+  );
+  const shopCurrencySymbol = (() => {
+    const fromShop = resolveCurrencySymbol(addr?.zone ?? shop?.zone ?? shop);
+    if (fromShop) return fromShop;
+    for (const order of orders) {
+      const symbol = resolveCurrencySymbol(
+        order?.billingDetail ?? order?.paymentSummary ?? order?.zone ?? order
+      );
+      if (symbol) return symbol;
+    }
+    return "";
+  })();
+  const allEmployees = useMemo(
+    () => employeesResponse?.data?.employees ?? [],
+    [employeesResponse?.data?.employees]
+  );
 
-  const shopName = shop?.shopName || "Laundry Shop";
+  const shopName = shop?.shopName || shop?.name || "Shop";
   const shopInitials = useMemo(() => {
     const parts = String(shopName || "")
       .split(" ")
@@ -226,17 +285,12 @@ export default function ShopDetails() {
     ? Math.round((completedOrders / orders.length) * 100)
     : 0;
 
-  const kpi = [
-    { label: "Avg Rating", value: "4.8", delta: "+0.2", icon: <TbSparkles size={16} color="#1D4ED8" /> },
-    { label: "Total Orders", value: orders.length.toLocaleString(), delta: "+12%", icon: <BsCardList size={16} color="#1D4ED8" /> },
-    { label: "Revenue", value: `£${(totalRevenue / 1000).toFixed(1)}k`, delta: "+8%", icon: <AiFillFileText size={16} color="#1D4ED8" /> },
-    { label: "Completion", value: `${completionRate}%`, delta: "+1%", icon: <TbCirclePlus size={16} color="#1D4ED8" /> },
-  ];
-
   const recentOrders = [...orders]
     .sort((a, b) => dayjs(b?.createdAt).valueOf() - dayjs(a?.createdAt).valueOf())
     .slice(0, 4);
-  const allOrders = [...orders].sort((a, b) => dayjs(b?.createdAt).valueOf() - dayjs(a?.createdAt).valueOf());
+  const allOrders = [...orders].sort(
+    (a, b) => dayjs(b?.createdAt).valueOf() - dayjs(a?.createdAt).valueOf()
+  );
 
   const shopServices = useMemo(() => {
     const rows = Array.isArray(biz?.agentServices) ? biz.agentServices : [];
@@ -301,7 +355,11 @@ export default function ShopDetails() {
       const end = start.endOf("month");
       const count = orders.filter((o) => {
         const d = dayjs(o?.createdAt);
-        return d.isValid() && d.isAfter(start.subtract(1, "millisecond")) && d.isBefore(end.add(1, "millisecond"));
+        return (
+          d.isValid() &&
+          d.isAfter(start.subtract(1, "millisecond")) &&
+          d.isBefore(end.add(1, "millisecond"))
+        );
       }).length;
       months.push({
         label: start.format("MMM"),
@@ -337,22 +395,48 @@ export default function ShopDetails() {
       maxActiveOrders: Number(shop?.maxActiveOrders ?? prev.maxActiveOrders),
     }));
     setOpeningHours(buildOpeningHours(biz?.bussinessWorkingHours));
-    setAdminNotes(
-      shop?.adminNotes ||
-        "Long-standing partner. Environmental health cert follow-up required."
-    );
-    setFinanceSettings((prev) => ({
-      ...prev,
-      minOrderValue: String(shop?.minOrderValue ?? prev.minOrderValue),
-      commissionRate: String(shop?.commissionRate ?? prev.commissionRate),
-    }));
-  }, [addr?.city?.name, addr?.country?.name, addr?.district, addr?.postalCode, addr?.streetAddress, biz?.bussinessWorkingHours, biz?.email, biz?.phoneNum, biz?.website, shop]);
+    setAdminNotes(shop?.adminNotes || "");
+    setControls({
+      visible: shop?.visible ?? true,
+      acceptsOrders: shop?.acceptsOrders ?? true,
+      featured: Boolean(shop?.featured),
+      sameDay: Boolean(shop?.sameDay),
+      emailNotifications: Boolean(shop?.emailNotifications),
+      smsAlerts: Boolean(shop?.smsAlerts),
+    });
+    setFinanceSettings({
+      commissionRate:
+        shop?.commissionRate != null && shop?.commissionRate !== ""
+          ? String(shop.commissionRate)
+          : "",
+      payoutSchedule: shop?.payoutSchedule || "weekly",
+      minOrderValue:
+        shop?.minOrderValue != null && shop?.minOrderValue !== ""
+          ? String(shop.minOrderValue)
+          : "",
+      cancellationFee:
+        shop?.cancellationFee != null && shop?.cancellationFee !== ""
+          ? String(shop.cancellationFee)
+          : "",
+    });
+  }, [
+    addr?.city?.name,
+    addr?.country?.name,
+    addr?.district,
+    addr?.postalCode,
+    addr?.streetAddress,
+    biz?.bussinessWorkingHours,
+    biz?.email,
+    biz?.phoneNum,
+    biz?.website,
+    shop,
+  ]);
 
   const handleSettingsChange = (key) => (event) => {
-    setSettingsForm((prev) => ({ ...prev, [key]: event.target.value }));
+    setSettingsForm((prev) => ({ ...prev, [key]: event?.target?.value ?? event }));
   };
   const handleDeliverySettingsChange = (key) => (event) => {
-    setDeliverySettings((prev) => ({ ...prev, [key]: event.target.value }));
+    setDeliverySettings((prev) => ({ ...prev, [key]: event?.target?.value ?? event }));
   };
   const handleOpeningHourChange = (index, key, value) => {
     setOpeningHours((prev) =>
@@ -360,13 +444,13 @@ export default function ShopDetails() {
     );
   };
   const handleFinanceSettingsChange = (key) => (event) => {
-    setFinanceSettings((prev) => ({ ...prev, [key]: event.target.value }));
+    setFinanceSettings((prev) => ({ ...prev, [key]: event?.target?.value ?? event }));
   };
 
   const handleSaveSettings = async () => {
     if (!shop?.id) return;
     try {
-      await editShop({
+      const res = await editShop({
         id: shop.id,
         body: {
           shopName: settingsForm.shopName,
@@ -390,9 +474,19 @@ export default function ShopDetails() {
           maxActiveOrders: Number(deliverySettings.maxActiveOrders) || 0,
         },
       }).unwrap();
-      refetch();
-    } catch (e) {
-      // Keep page interactive when API responds with validation errors.
+      if (res?.status === "1" || res?.status === 1) {
+        success(res?.message ?? "Shop updated successfully");
+        refetch();
+      } else {
+        error(res?.message ?? "Failed to update shop");
+      }
+    } catch (err) {
+      error(
+        err?.data?.message ??
+          err?.data?.error ??
+          err?.message ??
+          "Failed to update shop"
+      );
     }
   };
 
@@ -419,24 +513,30 @@ export default function ShopDetails() {
       maxActiveOrders: Number(shop?.maxActiveOrders ?? 50),
     });
     setControls({
-      visible: true,
-      acceptsOrders: true,
-      featured: false,
-      sameDay: true,
-      emailNotifications: true,
-      smsAlerts: false,
+      visible: shop?.visible ?? true,
+      acceptsOrders: shop?.acceptsOrders ?? true,
+      featured: Boolean(shop?.featured),
+      sameDay: Boolean(shop?.sameDay),
+      emailNotifications: Boolean(shop?.emailNotifications),
+      smsAlerts: Boolean(shop?.smsAlerts),
     });
     setOpeningHours(buildOpeningHours(biz?.bussinessWorkingHours));
     setFinanceSettings({
-      commissionRate: String(shop?.commissionRate ?? 12),
-      payoutSchedule: "weekly",
-      minOrderValue: String(shop?.minOrderValue ?? "15.00"),
-      cancellationFee: "3.00",
+      commissionRate:
+        shop?.commissionRate != null && shop?.commissionRate !== ""
+          ? String(shop.commissionRate)
+          : "",
+      payoutSchedule: shop?.payoutSchedule || "weekly",
+      minOrderValue:
+        shop?.minOrderValue != null && shop?.minOrderValue !== ""
+          ? String(shop.minOrderValue)
+          : "",
+      cancellationFee:
+        shop?.cancellationFee != null && shop?.cancellationFee !== ""
+          ? String(shop.cancellationFee)
+          : "",
     });
-    setAdminNotes(
-      shop?.adminNotes ||
-        "Long-standing partner. Environmental health cert follow-up required."
-    );
+    setAdminNotes(shop?.adminNotes || "");
   };
 
   useEffect(() => {
@@ -498,1067 +598,890 @@ export default function ShopDetails() {
     };
   }, [activeTab]);
 
+  const orderColumns = [
+    {
+      key: "orderId",
+      header: "Order",
+      render: (row) => (
+        <DirectoryIdentity
+          name={`#${row.orderTrackId || row.id}`}
+          meta={
+            `${row?.customer?.firstName || ""} ${row?.customer?.lastName || ""}`.trim() || "—"
+          }
+          id={row.id}
+        />
+      ),
+    },
+    {
+      key: "date",
+      header: "When",
+      render: (row) => (
+        <DirectoryIdentity
+          name={formatDate(row?.createdAt)}
+          meta={`${row?.totalItems || 0} items`}
+        />
+      ),
+    },
+    {
+      key: "total",
+      header: "Total",
+      render: (row) => (
+        <DirectoryMoney>
+          {formatMoney(
+            row?.orderAmount,
+            resolveCurrencySymbol(row?.billingDetail ?? row?.paymentSummary ?? row) ||
+              shopCurrencySymbol
+          )}
+        </DirectoryMoney>
+      ),
+    },
+    {
+      key: "status",
+      header: "Status",
+      render: (row) => {
+        const status = String(row?.bookingStatus?.title || "Pending");
+        return <DirectoryDotPill tone={directoryStatusTone(status)}>{status}</DirectoryDotPill>;
+      },
+    },
+  ];
+
+  const ownerName =
+    [biz?.firstName, biz?.lastName].filter(Boolean).join(" ") || "—";
+  const rawShopStatus = addr?.status ?? shop?.status;
+  const hasShopStatus = rawShopStatus != null;
+  const shopStatusActive = Boolean(rawShopStatus);
+  const shopDocuments = Array.isArray(shop?.documents) ? shop.documents : [];
+  const todayName = dayjs().format("dddd");
+  const profileLine = [
+    biz?.matchProfileOptions || shop?.matchProfileOptions,
+    shop?.createdAt ? `Est. ${formatDate(shop.createdAt, "MMMM YYYY")}` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
   if (isLoading) return <Delay />;
 
+  if (isError || !shop) {
+    return (
+      <div>
+        <PageHeader
+          title="Shop details"
+          description="Shop profile, orders, staff, reviews, and settings"
+        />
+        <div style={{ textAlign: "center", padding: 28 }}>
+          <p className="jd-lead" style={{ margin: "0 0 12px" }}>
+            {isError ? "Could not load this shop." : "Shop not found."}
+          </p>
+          <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
+            <Button variant="secondary" onClick={() => navigate("/shop-management/shops")}>
+              Back to shops
+            </Button>
+            {isError ? (
+              <Button variant="secondary" onClick={() => refetch()}>
+                Retry
+              </Button>
+            ) : null}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <Box sx={{ width: "100%", bgcolor: "#F8FAFC", borderRadius: "12px", overflow: "hidden" }}>
-      <Paper
-        square
-        sx={{
-          borderBottom: "1px solid #E2E8F0",
-          px: 3,
-          py: 1.2,
+    <div>
+      <PageHeader
+        title={shopName}
+        description="Shop profile, orders, staff, reviews, and settings"
+        actions={
+          <>
+            <Button
+              variant="secondary"
+              onClick={() => navigate("/shop-management/shops")}
+            >
+              Back to shops
+            </Button>
+            <Button onClick={() => setActiveTab("settings")}>Edit Shop</Button>
+          </>
+        }
+      />
+
+      <div
+        style={{
+          ...CARD,
           display: "flex",
+          flexWrap: "wrap",
+          gap: 16,
           alignItems: "center",
-          justifyContent: "space-between",
+          marginBottom: 22,
         }}
       >
-        <Box className="flex items-center gap-3">
-          <Button
-                  onClick={() => navigate("/shop-management")}
-            startIcon={<IoChevronBackOutline size={14} />}
-            sx={{ textTransform: "none", color: "#64748B", fontSize: 13, minWidth: "auto", px: 0 }}
-          >
-            Shops
-          </Button>
-          <Typography sx={{ fontSize: 13, color: "#CBD5E1" }}>/</Typography>
-          <Typography sx={{ fontSize: 13, fontWeight: 500, color: "#334155" }}>{shopName}</Typography>
-        </Box>
-        <Box className="flex items-center gap-2">
-          <Button
-            variant="outlined"
-            size="small"
-            sx={{ textTransform: "none", bgcolor: "#F1F5F9", borderColor: "#E2E8F0", color: "#475569" }}
-          >
-            Export
-          </Button>
-          <Button
-            variant="contained"
-            size="small"
-            sx={{ textTransform: "none", bgcolor: "#00028B", "&:hover": { bgcolor: "#00016F" } }}
-          >
-            Edit Shop
-          </Button>
-        </Box>
-      </Paper>
-
-      <Box
-        sx={{
-          px: 3,
-          py: 3,
-          color: "#0F172A",
-          bgcolor: "#FFFFFF",
-          borderBottom: "1px solid #E2E8F0",
-        }}
-      >
-        <Box className="flex flex-col xl:flex-row xl:items-end gap-5">
-          <Box sx={{ width: 84, height: 84, borderRadius: "16px", bgcolor: "#E0E7FF", color: "#00028B", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 32, fontWeight: 700 }}>
-            {shopInitials}
-          </Box>
-          <Box sx={{ flex: 1 }}>
-            <Box className="flex items-center gap-2 flex-wrap">
-              <Typography sx={{ fontSize: 36, fontWeight: 700, lineHeight: 1 }}>{shopName}</Typography>
-              <Chip size="small" label="Active" sx={{ bgcolor: "#E0E7FF", color: "#00028B", fontWeight: 600 }} />
-              <Chip size="small" label="Pro Plan" sx={{ bgcolor: "#FBBF24", color: "#78350F", fontWeight: 700 }} />
-            </Box>
-            <Typography sx={{ fontSize: 13, color: "#64748B", mt: 0.6 }}>Premium laundry & dry cleaning · Est. January 2021</Typography>
-            <Box className="flex items-center gap-4 flex-wrap mt-2">
-              <Typography sx={{ fontSize: 13, color: "#334155", display: "flex", alignItems: "center", gap: 0.8 }}>
-                <MdOutlineLocationOn size={14} /> {fullAddress || "Address not available"}
-              </Typography>
-              <Typography sx={{ fontSize: 13, color: "#334155", display: "flex", alignItems: "center", gap: 0.8 }}>
-                <MdOutlinePhone size={14} /> {biz?.phoneNum || "—"}
-                </Typography>
-              <Typography sx={{ fontSize: 13, color: "#334155", display: "flex", alignItems: "center", gap: 0.8 }}>
-                <MdMailOutline size={14} /> {biz?.email || "—"}
-                </Typography>
-            </Box>
-          </Box>
-          <Box className="flex gap-2.5 flex-wrap">
-            <Box sx={{ px: 2.4, py: 1.6, borderRadius: "12px", border: "1px solid #E2E8F0", bgcolor: "#F8FAFC" }}>
-              <Typography sx={{ fontSize: 31, fontWeight: 700, lineHeight: 1, color: "#0F172A" }}>
-                {shopRatingSummary.count > 0 ? shopRatingSummary.avg.toFixed(1) : "—"}
-              </Typography>
-              <Typography sx={{ fontSize: 11, color: "#64748B", mt: 0.4 }}>
-                Rating{shopRatingSummary.count > 0 ? ` (${shopRatingSummary.count})` : ""}
-              </Typography>
-            </Box>
-            <Box sx={{ px: 2.4, py: 1.6, borderRadius: "12px", border: "1px solid #E2E8F0", bgcolor: "#F8FAFC" }}>
-              <Typography sx={{ fontSize: 31, fontWeight: 700, lineHeight: 1, color: "#0F172A" }}>{orders.length}</Typography>
-              <Typography sx={{ fontSize: 11, color: "#64748B", mt: 0.4 }}>Orders</Typography>
-            </Box>
-            <Box sx={{ px: 2.4, py: 1.6, borderRadius: "12px", border: "1px solid #E2E8F0", bgcolor: "#F8FAFC" }}>
-              <Typography sx={{ fontSize: 31, fontWeight: 700, lineHeight: 1, color: "#0F172A" }}>£{(totalRevenue / 1000).toFixed(1)}k</Typography>
-              <Typography sx={{ fontSize: 11, color: "#64748B", mt: 0.4 }}>Revenue</Typography>
-            </Box>
-            <Box sx={{ px: 2.4, py: 1.6, borderRadius: "12px", border: "1px solid #E2E8F0", bgcolor: "#F8FAFC" }}>
-              <Typography sx={{ fontSize: 31, fontWeight: 700, lineHeight: 1, color: "#0F172A" }}>{completionRate}%</Typography>
-              <Typography sx={{ fontSize: 11, color: "#64748B", mt: 0.4 }}>Completion</Typography>
-            </Box>
-          </Box>
-        </Box>
-      </Box>
-
-      <Paper square elevation={0} sx={{ borderBottom: "1px solid #E2E8F0", boxShadow: "none" }}>
-        <Tabs
-          value={activeTab}
-          onChange={(_, v) => setActiveTab(v)}
-          sx={{ px: 2, minHeight: 44, "& .MuiTab-root": { minHeight: 44, textTransform: "none", fontSize: 13, fontWeight: 500 } }}
+        <div
+          style={{
+            width: 72,
+            height: 72,
+            borderRadius: 16,
+            background: "var(--n-100, #EEF2FF)",
+            color: "var(--brand, #00028B)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: 28,
+            fontWeight: 800,
+          }}
         >
-          <Tab value="overview" label="Overview" />
-          <Tab value="orders" label="Orders" />
-          <Tab value="reviews" label={`Reviews (${shopRatingSummary.count})`} />
-          <Tab value="staff" label="Staff" />
-          <Tab value="documents" label="Documents" />
-          <Tab value="settings" label="Settings" />
-          <Tab value="services" label="Services" />
-        </Tabs>
-      </Paper>
+          {shopInitials}
+        </div>
+        <div style={{ flex: 1, minWidth: 240 }}>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+            {hasShopStatus ? (
+              <Badge tone={shopStatusActive ? "success" : "danger"}>
+                {shopStatusActive ? "Active" : "Inactive"}
+              </Badge>
+            ) : null}
+            <Badge tone="neutral">{`ID: ${shop?.id ?? "—"}`}</Badge>
+          </div>
+          {profileLine ? (
+            <p className="jd-lead" style={{ margin: "8px 0 0" }}>
+              {profileLine}
+            </p>
+          ) : null}
+          <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginTop: 8 }}>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+              <MdOutlineLocationOn size={14} /> {fullAddress || "Address not available"}
+            </span>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+              <MdOutlinePhone size={14} /> {biz?.phoneNum || "—"}
+            </span>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+              <MdMailOutline size={14} /> {biz?.email || "—"}
+            </span>
+          </div>
+        </div>
+      </div>
 
-      <Box sx={{ py: 3, px: 0 }}>
-        {activeTab === "reviews" && (
-          <Paper sx={{ ...CARD_SX, p: 2.5 }}>
-            <Box className="flex items-center justify-between flex-wrap gap-3" sx={{ mb: 2 }}>
-              <Box>
-                <Typography sx={{ fontSize: 18, fontWeight: 700 }}>Customer reviews</Typography>
-                <Typography sx={{ fontSize: 13, color: "#64748B" }}>
-                  Per-order feedback for this shop
-                </Typography>
-              </Box>
-              <Box className="flex items-center gap-2">
-                <Rating value={shopRatingSummary.avg || 0} precision={0.1} readOnly />
-                <Typography sx={{ fontSize: 14, color: "#334155" }}>
-                  {shopRatingSummary.count > 0
-                    ? `${shopRatingSummary.avg.toFixed(1)} · ${shopRatingSummary.count} reviews`
-                    : "No reviews yet"}
-                </Typography>
-              </Box>
-            </Box>
+      <DirectoryMetrics
+        items={[
+          {
+            label: "Rating",
+            value: shopRatingSummary.count > 0 ? shopRatingSummary.avg.toFixed(1) : "—",
+            tone: "warning",
+            hint: shopRatingSummary.count ? `${shopRatingSummary.count} reviews` : undefined,
+          },
+          { label: "Orders", value: orders.length, tone: "brand" },
+          { label: "Revenue", value: formatMoney(totalRevenue, shopCurrencySymbol), tone: "navy" },
+          { label: "Completion", value: `${completionRate}%`, tone: "success" },
+        ]}
+      />
 
-            {shopRatingSummary.count > 0 && (
-              <Box sx={{ mb: 2.5, maxWidth: 420 }}>
-                {[5, 4, 3, 2, 1].map((star) => {
-                  const n = shopRatingSummary.histogram[star] || 0;
-                  const pct = shopRatingSummary.count
-                    ? Math.round((n / shopRatingSummary.count) * 100)
-                    : 0;
+      <div style={TAB_ROW}>
+        {TABS.map((tab) => (
+          <Button
+            key={tab.value}
+            size="sm"
+            variant={activeTab === tab.value ? "primary" : "secondary"}
+            onClick={() => setActiveTab(tab.value)}
+          >
+            {tab.value === "reviews"
+              ? `Reviews (${shopRatingSummary.count})`
+              : tab.label}
+          </Button>
+        ))}
+      </div>
+
+      {activeTab === "overview" && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 16 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <div style={CARD}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
+                <strong>Shop information</strong>
+              </div>
+              <div style={FORM_GRID}>
+                <div><Label>Owner</Label><div>{ownerName}</div></div>
+                <div><Label>Primary email</Label><div>{biz?.email || "—"}</div></div>
+                <div><Label>Phone</Label><div>{biz?.phoneNum || "—"}</div></div>
+                <div><Label>WhatsApp</Label><div>{biz?.phoneNum || "—"}</div></div>
+                <div><Label>Address</Label><div>{fullAddress || "—"}</div></div>
+                <div><Label>Website</Label><div>{biz?.website || shop?.website || "—"}</div></div>
+                <div><Label>Service radius</Label><div>{shop?.serviceRadius || "—"}</div></div>
+                <div><Label>Turnaround time</Label><div>{shop?.turnAroundTime || "—"}</div></div>
+                <div>
+                  <Label>Min order value</Label>
+                  <div>
+                    {shop?.minOrderValue != null && shop?.minOrderValue !== ""
+                      ? formatMoney(shop.minOrderValue, shopCurrencySymbol)
+                      : "—"}
+                  </div>
+                </div>
+                <div style={{ gridColumn: "1 / -1" }}>
+                  <Label>Description</Label>
+                  <p className="jd-lead" style={{ margin: 0 }}>
+                    {shop?.description || "—"}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div style={CARD}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
+                <div>
+                  <strong>Monthly orders</strong>
+                  <p className="jd-lead" style={{ margin: "4px 0 0" }}>Last 7 months</p>
+                </div>
+              </div>
+              <div style={{ display: "flex", alignItems: "flex-end", gap: 12, height: 150 }}>
+                {monthlyData.map((m, idx) => (
+                  <div key={`${m.label}-${idx}`} style={{ flex: 1, textAlign: "center" }}>
+                    <div className="jd-lead">{m.count}</div>
+                    <div
+                      style={{
+                        height: `${Math.max((m.count / maxMonth) * 100, 12)}%`,
+                        minHeight: 12,
+                        background: idx === monthlyData.length - 1 ? "var(--brand, #00028B)" : "var(--n-300, #A5B4FC)",
+                        borderRadius: "10px 10px 0 0",
+                        margin: "6px 0",
+                      }}
+                    />
+                    <div>{m.label}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
+                <strong>Recent orders</strong>
+                <Button size="sm" variant="ghost" onClick={() => setActiveTab("orders")}>
+                  View all
+                </Button>
+              </div>
+              <DirectoryTableWrap>
+                <Table
+                  columns={orderColumns}
+                  rows={recentOrders}
+                  rowKey={(row) => row.id}
+                  empty="No orders found for this shop."
+                />
+              </DirectoryTableWrap>
+            </div>
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <div style={CARD}>
+              <strong>Opening hours</strong>
+              <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 8 }}>
+                {openingHours.map((row) => {
+                  const time = row.enabled ? `${row.start} - ${row.end}` : "Closed";
                   return (
-                    <Box key={star} className="flex items-center gap-2" sx={{ mb: 0.8 }}>
-                      <Typography sx={{ width: 14, fontSize: 12 }}>{star}</Typography>
-                      <LinearProgress
-                        variant="determinate"
-                        value={pct}
-                        sx={{ flex: 1, height: 6, borderRadius: 4 }}
-                      />
-                      <Typography sx={{ width: 28, fontSize: 12, color: "#64748B" }}>{n}</Typography>
-                    </Box>
+                    <div
+                      key={row.day}
+                      style={{ display: "flex", justifyContent: "space-between", gap: 12 }}
+                    >
+                      <span>
+                        {row.day === todayName ? `${row.day.slice(0, 3)} Today` : row.day}
+                      </span>
+                      <span style={{ color: time === "Closed" ? "var(--danger)" : "inherit" }}>
+                        {time}
+                      </span>
+                    </div>
                   );
                 })}
-              </Box>
-            )}
+              </div>
+            </div>
 
-            {shopReviewRows.length === 0 ? (
-              <Typography sx={{ color: "#64748B", fontSize: 14 }}>
-                No customer reviews for this shop yet.
-              </Typography>
-            ) : (
-              <Stack spacing={1.5}>
-                {shopReviewRows.map((r) => (
-                  <Box
-                    key={r.id}
-                    sx={{
-                      p: 1.75,
-                      border: "1px solid #E2E8F0",
-                      borderRadius: "12px",
-                      bgcolor: "#F8FAFC",
-                    }}
-                  >
-                    <Box className="flex items-center justify-between gap-2 flex-wrap">
-                      <Typography sx={{ fontSize: 13, fontWeight: 600 }}>
-                        Order {r.orderTrackId || r.bookingId}
-                      </Typography>
-                      <Rating value={Number(r.rating) || 0} size="small" readOnly />
-                    </Box>
-                    <Typography sx={{ fontSize: 12, color: "#64748B", mt: 0.5 }}>
-                      {r.customer?.name || r.customerName || "Customer"}
-                      {r.submittedAt
-                        ? ` · ${dayjs(r.submittedAt).format("DD MMM YYYY")}`
-                        : ""}
-                    </Typography>
-                    <Stack direction="row" gap={0.5} flexWrap="wrap" sx={{ mt: 1 }}>
-                      {(r.reasons || []).map((reason) => (
-                        <Chip
-                          key={`${r.id}-${reason.code}`}
-                          size="small"
-                          variant="outlined"
-                          color={reason.sentiment === "positive" ? "success" : "error"}
-                          label={reason.label || reason.code}
-                        />
-                      ))}
-                    </Stack>
-                    {r.comment ? (
-                      <Typography sx={{ fontSize: 13, color: "#334155", mt: 1 }}>
-                        {r.comment}
-                      </Typography>
-                    ) : null}
-                  </Box>
-                ))}
-              </Stack>
-            )}
-          </Paper>
-        )}
-
-        {activeTab === "overview" && (
-          <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", xl: "2fr 1fr" }, gap: 2.5 }}>
-            <Box sx={{ display: "flex", flexDirection: "column", rowGap: 2.5 }}>
-              <Box sx={{ display: "grid", gridTemplateColumns: { xs: "repeat(2,1fr)", md: "repeat(4,1fr)" }, gap: 1.5 }}>
-                {kpi.map((item) => (
-                  <Paper key={item.label} sx={{ ...CARD_SX, p: 1.9 }}>
-                    <Box className="flex items-center justify-between mb-2">
-                      <Box
-                        sx={{
-                          width: 34,
-                          height: 34,
-                          borderRadius: "10px",
-                          bgcolor: "#E0E7FF",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                        }}
-                      >
-                        {item.icon}
-                      </Box>
-                      <Chip size="small" label={item.delta} sx={{ fontSize: 10, bgcolor: "#E0E7FF", color: "#00028B" }} />
-                    </Box>
-                    <Typography sx={{ fontSize: 30, fontWeight: 700, color: "#0F172A", lineHeight: 1 }}>{item.value}</Typography>
-                    <Typography sx={{ fontSize: 11, color: "#64748B", mt: 0.5 }}>{item.label}</Typography>
-                  </Paper>
-                ))}
-              </Box>
-
-              <Paper sx={CARD_SX}>
-                <Box sx={{ px: 2.5, py: 1.8, borderBottom: "1px solid #F1F5F9", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                  <Typography sx={{ fontSize: 14, fontWeight: 600, color: "#0F172A" }}>Shop Information</Typography>
-                  <Chip size="small" label={`ID: SH-${String(shop?.id || "00000").padStart(5, "0")}`} sx={{ bgcolor: "#F1F5F9", color: "#64748B", fontSize: 10 }} />
-                </Box>
-                <Box sx={{ p: 2.5, display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(2,1fr)" }, gap: 2.2 }}>
-                  <Box><Label>Owner</Label><Typography sx={{ fontSize: 14, color: "#1E293B", fontWeight: 500 }}>{shopName}</Typography></Box>
-                  <Box><Label>Primary Email</Label><Typography sx={{ fontSize: 14, color: "#334155" }}>{biz?.email || "—"}</Typography></Box>
-                  <Box><Label>Phone</Label><Typography sx={{ fontSize: 14, color: "#334155" }}>{biz?.phoneNum || "—"}</Typography></Box>
-                  <Box><Label>WhatsApp</Label><Typography sx={{ fontSize: 14, color: "#334155" }}>{biz?.phoneNum || "—"}</Typography></Box>
-                  <Box><Label>Address</Label><Typography sx={{ fontSize: 14, color: "#334155" }}>{fullAddress || "—"}</Typography></Box>
-                  <Box><Label>Website</Label><Typography sx={{ fontSize: 14, color: "#00028B" }}>{biz?.website || "pristinelaundry.co.uk"}</Typography></Box>
-                  <Box><Label>Service Radius</Label><Typography sx={{ fontSize: 14, color: "#334155" }}>{shop?.serviceRadius || "8 km"}</Typography></Box>
-                  <Box><Label>Turnaround Time</Label><Typography sx={{ fontSize: 14, color: "#334155" }}>{shop?.turnAroundTime || "24–48 hours"}</Typography></Box>
-                  <Box><Label>Min Order Value</Label><Typography sx={{ fontSize: 14, color: "#334155" }}>£{shop?.minOrderValue || "15.00"}</Typography></Box>
-                  <Box>
-                    <Label>Payment Methods</Label>
-                    <Box className="flex gap-1.5 flex-wrap">
-                      {["Card", "Apple Pay", "Cash"].map((p) => (
-                        <Chip key={p} size="small" label={p} sx={{ bgcolor: "#F1F5F9", color: "#64748B", fontSize: 11 }} />
-                      ))}
-                    </Box>
-                  </Box>
-                  <Box>
-                    <Label>Description</Label>
-                    <Typography sx={{ fontSize: 14, color: "#475569", lineHeight: 1.45 }}>
-                      {shop?.description ||
-                        "Professional laundry, dry cleaning and ironing service serving Central London with same-day express options available."}
-                    </Typography>
-                  </Box>
-                  <Box>
-                    <Label>Tags</Label>
-                    <Box className="flex gap-1.5 flex-wrap">
-                      {["Dry Clean", "Express", "Premium"].map((t) => (
-                        <Chip
-                          key={t}
-                          size="small"
-                          label={t}
-                          sx={{ bgcolor: "#E0E7FF", color: "#00028B", border: "1px solid #C7D2FE", fontSize: 11 }}
-                        />
-                      ))}
-                    </Box>
-                  </Box>
-                </Box>
-              </Paper>
-
-              <Paper sx={CARD_SX}>
-                <Box sx={{ px: 2.5, py: 1.8, borderBottom: "1px solid #F1F5F9", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                  <Box>
-                    <Typography sx={{ fontSize: 14, fontWeight: 600, color: "#0F172A" }}>Monthly Orders</Typography>
-                    <Typography sx={{ fontSize: 11, color: "#94A3B8" }}>Last 7 months</Typography>
-                  </Box>
-                  <Chip size="small" label="↑ 12% this month" sx={{ fontSize: 10, bgcolor: "#E0E7FF", color: "#00028B" }} />
-                </Box>
-                <Box sx={{ p: 2.5 }}>
-                  <Box className="flex items-end gap-3" sx={{ height: 150 }}>
-                    {monthlyData.map((m, idx) => (
-                      <Box key={`${m.label}-${idx}`} className="flex flex-col items-center gap-1 flex-1">
-                        <Typography sx={{ fontSize: 10, color: "#94A3B8" }}>{m.count}</Typography>
-                        <Box
-                          sx={{
-                            width: "100%",
-                            height: `${Math.max((m.count / maxMonth) * 100, 12)}%`,
-                            borderRadius: "10px 10px 0 0",
-                            bgcolor: idx === monthlyData.length - 1 ? "#00028B" : "#A5B4FC",
-                          }}
-                        />
-                        <Typography sx={{ fontSize: 11, color: idx === monthlyData.length - 1 ? "#00028B" : "#64748B", fontWeight: idx === monthlyData.length - 1 ? 700 : 400 }}>{m.label}</Typography>
-                      </Box>
-                    ))}
-                  </Box>
-                </Box>
-              </Paper>
-
-              <Paper sx={CARD_SX}>
-                <Box sx={{ px: 2.5, py: 1.8, borderBottom: "1px solid #F1F5F9", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <Typography sx={{ fontSize: 14, fontWeight: 600, color: "#0F172A" }}>Recent Orders</Typography>
-                  <Button size="small" onClick={() => setActiveTab("orders")} sx={{ textTransform: "none", fontSize: 12, color: "#00028B", fontWeight: 700 }}>
-                    View All →
-                  </Button>
-              </Box>
-                <TableContainer>
-                  <Table size="small">
-                    <TableHead>
-                      <TableRow sx={{ bgcolor: "#F8FAFC" }}>
-                        {["Order ID", "Customer", "Date", "Items", "Total", "Status"].map((h) => (
-                          <TableCell key={h} sx={{ fontSize: 11, fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.06em", borderBottom: "1px solid #F1F5F9" }}>
-                            {h}
-                          </TableCell>
-                        ))}
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {recentOrders.map((order) => {
-                        const status = String(order?.bookingStatus?.title || "Pending");
-                        const completed = status.toLowerCase().includes("complete");
-                        const cancelled = status.toLowerCase().includes("cancel");
-                        return (
-                          <TableRow key={order?.id} hover>
-                            <TableCell sx={{ fontSize: 12, fontWeight: 700, color: "#00028B" }}>#{order?.orderTrackId || order?.id}</TableCell>
-                            <TableCell sx={{ fontSize: 13, color: "#334155" }}>
-                              {`${order?.customer?.firstName || ""} ${order?.customer?.lastName || ""}`.trim() || "—"}
-                            </TableCell>
-                            <TableCell sx={{ fontSize: 12, color: "#94A3B8" }}>{order?.createdAt ? dayjs(order.createdAt).format("D MMM YYYY") : "—"}</TableCell>
-                            <TableCell sx={{ fontSize: 13, color: "#475569" }}>{order?.totalItems || 0} items</TableCell>
-                            <TableCell sx={{ fontSize: 13, fontWeight: 600, color: "#0F172A" }}>£{Number(order?.orderAmount || 0).toFixed(2)}</TableCell>
-                            <TableCell>
-                              <Chip
-                                size="small"
-                                label={status}
-                                sx={{
-                                  fontSize: 11,
-                                  fontWeight: 700,
-                                  bgcolor: completed ? "#E0E7FF" : cancelled ? "#FEE2E2" : "#FEF9C3",
-                                  color: completed ? "#00028B" : cancelled ? "#B91C1C" : "#92400E",
-                                }}
-                              />
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              </Paper>
-            </Box>
-
-            <Box sx={{ display: "flex", flexDirection: "column", rowGap: 2 }}>
-              <Paper sx={CARD_SX}>
-                <Box sx={{ px: 2.5, py: 1.8, borderBottom: "1px solid #F1F5F9" }}>
-                  <Typography sx={{ fontSize: 14, fontWeight: 600, color: "#0F172A" }}>Opening Hours</Typography>
-                </Box>
-                <Box sx={{ p: 2 }}>
-                  {openingHours.map((row, index) => {
-                    const time = row.enabled ? `${row.start} - ${row.end}` : "Closed";
-                    const highlight = index === 0;
-                    const dayLabel = index === 0 ? `${row.day.slice(0, 3)} Today` : row.day;
+            <div style={CARD}>
+              <strong>Activity feed</strong>
+              <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 12 }}>
+                {recentOrders.length ? (
+                  recentOrders.map((order) => {
+                    const status = order?.bookingStatus?.title || "Updated";
+                    const title = `#${order.orderTrackId || order.id} ${status}`;
+                    const when = formatDate(order?.createdAt, DATE_TIME_FORMAT);
                     return (
-                    <Box
-                      key={row.day}
-                      className="flex items-center justify-between"
-                      sx={{
-                        px: 1.4,
-                        py: 0.9,
-                        borderRadius: "10px",
-                        bgcolor: highlight ? "#EEF2FF" : "transparent",
-                        border: highlight ? "1px solid #C7D2FE" : "none",
+                      <div key={order.id || title}>
+                        <div>{title}</div>
+                        <p className="jd-lead" style={{ margin: "2px 0 0" }}>{when}</p>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <p className="jd-lead" style={{ margin: 0 }}>
+                    No recent order activity for this shop.
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div style={CARD}>
+              <strong>Quick actions</strong>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 12 }}>
+                <Button variant="secondary" onClick={() => setActiveTab("settings")}>
+                  Edit shop details
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === "orders" && (
+        <div>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
+            <strong>Orders</strong>
+            <Badge tone="neutral">{`${allOrders.length} total`}</Badge>
+          </div>
+          <DirectoryTableWrap>
+            <Table
+              columns={orderColumns}
+              rows={allOrders}
+              rowKey={(row) => row.id}
+              empty="No orders found for this shop."
+            />
+          </DirectoryTableWrap>
+        </div>
+      )}
+
+      {activeTab === "reviews" && (
+        <div style={CARD}>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
+            <div>
+              <strong>Customer reviews</strong>
+              <p className="jd-lead" style={{ margin: "4px 0 0" }}>
+                Per-order feedback for this shop
+              </p>
+            </div>
+            <div>
+              {shopRatingSummary.count > 0
+                ? `${shopRatingSummary.avg.toFixed(1)} · ${shopRatingSummary.count} reviews`
+                : "No reviews yet"}
+            </div>
+          </div>
+
+          {shopRatingSummary.count > 0 ? (
+            <div style={{ maxWidth: 420, marginBottom: 20 }}>
+              {[5, 4, 3, 2, 1].map((star) => {
+                const n = shopRatingSummary.histogram[star] || 0;
+                const pct = shopRatingSummary.count
+                  ? Math.round((n / shopRatingSummary.count) * 100)
+                  : 0;
+                return (
+                  <div key={star} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                    <span style={{ width: 14 }}>{star}</span>
+                    <div
+                      style={{
+                        flex: 1,
+                        height: 6,
+                        borderRadius: 999,
+                        background: "var(--n-100)",
+                        overflow: "hidden",
                       }}
                     >
-                      <Typography sx={{ fontSize: 13, color: highlight ? "#00028B" : "#475569", fontWeight: highlight ? 600 : 400 }}>{dayLabel}</Typography>
-                      <Typography sx={{ fontSize: 13, color: time === "Closed" ? "#EF4444" : highlight ? "#00028B" : "#475569", fontWeight: time === "Closed" ? 600 : 500 }}>
-                        {time}
-                      </Typography>
-                    </Box>
-                  );
-                  })}
-                </Box>
-              </Paper>
-
-              <Paper sx={CARD_SX}>
-                <Box sx={{ px: 2.5, py: 1.8, borderBottom: "1px solid #F1F5F9" }}>
-                  <Typography sx={{ fontSize: 14, fontWeight: 600, color: "#0F172A" }}>Activity Feed</Typography>
-                </Box>
-                <Box sx={{ p: 2.5, display: "flex", flexDirection: "column", rowGap: 2 }}>
-                  {[
-                    ["#201-169595 completed", "Today, 11:32 AM", "#00028B"],
-                    ["New 5-star review posted", "Yesterday, 3:14 PM", "#60A5FA"],
-                    ["Business licence expiring in 14 days", "3 Mar, 9:00 AM", "#FBBF24"],
-                    ["Upgraded to Pro Plan", "1 Mar, 10:00 AM", "#CBD5E1"],
-                  ].map((a, idx) => (
-                    <Box key={`${a[0]}-${idx}`} className="flex gap-2.5">
-                      <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", pt: 0.7 }}>
-                        <Box sx={{ width: 9, height: 9, borderRadius: "50%", bgcolor: a[2], boxShadow: `0 0 0 4px ${a[2]}22` }} />
-                        {idx < 3 && <Box sx={{ width: 1, height: 26, bgcolor: "#E2E8F0", mt: 1 }} />}
-                      </Box>
-                      <Box>
-                        <Typography sx={{ fontSize: 13, color: "#334155" }}>{a[0]}</Typography>
-                        <Typography sx={{ fontSize: 11, color: "#94A3B8", mt: 0.2 }}>{a[1]}</Typography>
-                      </Box>
-                    </Box>
-                  ))}
-                </Box>
-              </Paper>
-
-              <Paper sx={{ ...CARD_SX, p: 2.5 }}>
-                <Typography sx={{ fontSize: 14, fontWeight: 600, color: "#0F172A", mb: 1.5 }}>
-                  Quick Actions
-                </Typography>
-                <Box sx={{ display: "flex", flexDirection: "column", rowGap: 1 }}>
-                  <Button sx={{ justifyContent: "flex-start", textTransform: "none", bgcolor: "#F8FAFC", color: "#475569", borderRadius: "12px", px: 1.6, py: 1.1 }}>
-                    Edit Shop Details
-                  </Button>
-                  <Button sx={{ justifyContent: "flex-start", textTransform: "none", bgcolor: "#F8FAFC", color: "#475569", borderRadius: "12px", px: 1.6, py: 1.1 }}>
-                    Message Owner
-                  </Button>
-                  <Button sx={{ justifyContent: "flex-start", textTransform: "none", bgcolor: "#FEF2F2", color: "#DC2626", borderRadius: "12px", px: 1.6, py: 1.1 }}>
-                    Suspend Shop
-                  </Button>
-                </Box>
-              </Paper>
-            </Box>
-          </Box>
-        )}
-
-        {activeTab === "orders" && (
-          <Paper sx={CARD_SX}>
-            <Box
-              sx={{
-                px: 2.5,
-                py: 1.8,
-                borderBottom: "1px solid #F1F5F9",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-              }}
-            >
-              <Typography sx={{ fontSize: 14, fontWeight: 600, color: "#0F172A" }}>
-                Orders
-              </Typography>
-              <Chip
-                size="small"
-                label={`${allOrders.length} total`}
-                sx={{ bgcolor: "#F1F5F9", color: "#475569", fontSize: 10 }}
-              />
-            </Box>
-            <TableContainer>
-              <Table size="small">
-                <TableHead>
-                  <TableRow sx={{ bgcolor: "#F8FAFC" }}>
-                    {["Order ID", "Customer", "Date", "Items", "Total", "Status"].map((h) => (
-                      <TableCell
-                        key={h}
-                        sx={{
-                          fontSize: 11,
-                          fontWeight: 700,
-                          color: "#94A3B8",
-                          textTransform: "uppercase",
-                          letterSpacing: "0.06em",
-                          borderBottom: "1px solid #F1F5F9",
-                        }}
-                      >
-                        {h}
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {allOrders.length ? (
-                    allOrders.map((order) => {
-                      const status = String(order?.bookingStatus?.title || "Pending");
-                      const completed = status.toLowerCase().includes("complete");
-                      const cancelled = status.toLowerCase().includes("cancel");
-                      return (
-                        <TableRow key={order?.id} hover>
-                          <TableCell sx={{ fontSize: 12, fontWeight: 700, color: "#00028B" }}>
-                            #{order?.orderTrackId || order?.id}
-                          </TableCell>
-                          <TableCell sx={{ fontSize: 13, color: "#334155" }}>
-                            {`${order?.customer?.firstName || ""} ${order?.customer?.lastName || ""}`.trim() || "—"}
-                          </TableCell>
-                          <TableCell sx={{ fontSize: 12, color: "#94A3B8" }}>
-                            {order?.createdAt ? dayjs(order.createdAt).format("D MMM YYYY") : "—"}
-                          </TableCell>
-                          <TableCell sx={{ fontSize: 13, color: "#475569" }}>{order?.totalItems || 0} items</TableCell>
-                          <TableCell sx={{ fontSize: 13, fontWeight: 600, color: "#0F172A" }}>
-                            £{Number(order?.orderAmount || 0).toFixed(2)}
-                          </TableCell>
-                          <TableCell>
-                            <Chip
-                              size="small"
-                              label={status}
-                              sx={{
-                                fontSize: 11,
-                                fontWeight: 700,
-                                bgcolor: completed ? "#E0E7FF" : cancelled ? "#FEE2E2" : "#FEF9C3",
-                                color: completed ? "#00028B" : cancelled ? "#B91C1C" : "#92400E",
-                              }}
-                            />
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })
-                  ) : (
-                    <TableRow>
-                      <TableCell colSpan={6} sx={{ fontSize: 13, color: "#94A3B8", py: 5, textAlign: "center" }}>
-                        No orders found for this shop.
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </Paper>
-        )}
-
-        {activeTab === "staff" && (
-          <Paper sx={CARD_SX}>
-            <Box
-              sx={{
-                px: 2.5,
-                py: 1.8,
-                borderBottom: "1px solid #F1F5F9",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-              }}
-            >
-              <Typography sx={{ fontSize: 14, fontWeight: 600, color: "#0F172A" }}>
-                Staff
-              </Typography>
-              <Chip
-                size="small"
-                label={`${shopStaff.length} total`}
-                sx={{ bgcolor: "#F1F5F9", color: "#475569", fontSize: 10 }}
-              />
-            </Box>
-            <TableContainer>
-              <Table size="small">
-                <TableHead>
-                  <TableRow sx={{ bgcolor: "#F8FAFC" }}>
-                    {["Name", "Email", "Phone", "Role", "Status"].map((h) => (
-                      <TableCell
-                        key={h}
-                        sx={{
-                          fontSize: 11,
-                          fontWeight: 700,
-                          color: "#94A3B8",
-                          textTransform: "uppercase",
-                          letterSpacing: "0.06em",
-                          borderBottom: "1px solid #F1F5F9",
-                        }}
-                      >
-                        {h}
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {shopStaff.length ? (
-                    shopStaff.map((staff, idx) => (
-                      <TableRow key={`${staff.id || staff.email}-${idx}`} hover>
-                        <TableCell sx={{ fontSize: 13, fontWeight: 600, color: "#0F172A" }}>
-                          {staff.name}
-                        </TableCell>
-                        <TableCell sx={{ fontSize: 13, color: "#334155" }}>{staff.email}</TableCell>
-                        <TableCell sx={{ fontSize: 13, color: "#475569" }}>{staff.phone}</TableCell>
-                        <TableCell sx={{ fontSize: 13, color: "#334155" }}>{staff.role}</TableCell>
-                        <TableCell>
-                          <Chip
-                            size="small"
-                            label={staff.status ? "Active" : "Inactive"}
-                            sx={{
-                              fontSize: 11,
-                              fontWeight: 700,
-                              bgcolor: staff.status ? "#E0E7FF" : "#F1F5F9",
-                              color: staff.status ? "#00028B" : "#64748B",
-                            }}
-                          />
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  ) : (
-                    <TableRow>
-                      <TableCell colSpan={5} sx={{ fontSize: 13, color: "#94A3B8", py: 5, textAlign: "center" }}>
-                        No staff found for this shop.
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </Paper>
-        )}
-
-        {activeTab === "settings" && (
-          <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", lg: "1fr 320px" }, gap: 2.5 }}>
-            <Box sx={{ display: "flex", flexDirection: "column", rowGap: 2 }}>
-              <Paper sx={CARD_SX}>
-                <Box sx={{ px: 2.5, py: 1.8, borderBottom: "1px solid #F1F5F9" }}>
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                    <Box sx={{ width: 8, height: 8, borderRadius: "50%", bgcolor: "#00028B" }} />
-                    <Typography sx={{ fontSize: 12, fontWeight: 700, color: "#64748B", textTransform: "uppercase", letterSpacing: "0.08em" }}>
-                      Profile
-                    </Typography>
-                  </Box>
-                </Box>
-                <Box sx={{ p: 2.5, display: "grid", gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" }, gap: 2 }}>
-                  <TextField label="Shop Name *" value={settingsForm.shopName} onChange={handleSettingsChange("shopName")} fullWidth size="small" />
-                  <TextField select label="Status" value={settingsForm.status} onChange={handleSettingsChange("status")} fullWidth size="small">
-                    <MenuItem value="active">Active</MenuItem>
-                    <MenuItem value="inactive">Inactive</MenuItem>
-                  </TextField>
-                  <TextField label="Website" value={settingsForm.website} onChange={handleSettingsChange("website")} fullWidth size="small" sx={{ gridColumn: { xs: "span 1", md: "span 2" } }} />
-                  <TextField label="Description" value={settingsForm.description} onChange={handleSettingsChange("description")} fullWidth multiline minRows={3} sx={{ gridColumn: { xs: "span 1", md: "span 2" } }} />
-                </Box>
-              </Paper>
-
-              <Paper sx={CARD_SX}>
-                <Box sx={{ px: 2.5, py: 1.8, borderBottom: "1px solid #F1F5F9" }}>
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                    <Box sx={{ width: 8, height: 8, borderRadius: "50%", bgcolor: "#60A5FA" }} />
-                    <Typography sx={{ fontSize: 12, fontWeight: 700, color: "#64748B", textTransform: "uppercase", letterSpacing: "0.08em" }}>
-                      Contact Information
-                    </Typography>
-                  </Box>
-                </Box>
-                <Box sx={{ p: 2.5, display: "grid", gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" }, gap: 2 }}>
-                  <TextField label="Email Address *" value={settingsForm.email} onChange={handleSettingsChange("email")} fullWidth size="small" />
-                  <TextField label="Phone Number *" value={settingsForm.phone} onChange={handleSettingsChange("phone")} fullWidth size="small" />
-                  <TextField label="WhatsApp" value={settingsForm.whatsapp} onChange={handleSettingsChange("whatsapp")} fullWidth size="small" sx={{ gridColumn: { xs: "span 1", md: "span 2" } }} />
-                </Box>
-              </Paper>
-
-              <Paper sx={CARD_SX}>
-                <Box sx={{ px: 2.5, py: 1.8, borderBottom: "1px solid #F1F5F9" }}>
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                    <Box sx={{ width: 8, height: 8, borderRadius: "50%", bgcolor: "#00028B" }} />
-                    <Typography sx={{ fontSize: 12, fontWeight: 700, color: "#64748B", textTransform: "uppercase", letterSpacing: "0.08em" }}>
-                      Address & Location
-                    </Typography>
-                  </Box>
-                </Box>
-                <Box sx={{ p: 2.5, display: "grid", gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" }, gap: 2 }}>
-                  <TextField label="Address Line 1 *" value={settingsForm.addressLine1} onChange={handleSettingsChange("addressLine1")} fullWidth size="small" sx={{ gridColumn: { xs: "span 1", md: "span 2" } }} />
-                  <TextField label="Address Line 2" value={settingsForm.addressLine2} onChange={handleSettingsChange("addressLine2")} fullWidth size="small" sx={{ gridColumn: { xs: "span 1", md: "span 2" } }} />
-                  <TextField label="City" value={settingsForm.city} onChange={handleSettingsChange("city")} fullWidth size="small" />
-                  <TextField label="Country" value={settingsForm.country} onChange={handleSettingsChange("country")} fullWidth size="small" />
-                  <TextField label="Postcode" value={settingsForm.postcode} onChange={handleSettingsChange("postcode")} fullWidth size="small" />
-                </Box>
-              </Paper>
-
-              <Paper sx={CARD_SX}>
-                <Box sx={{ px: 2.5, py: 1.8, borderBottom: "1px solid #F1F5F9" }}>
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                    <Box sx={{ width: 8, height: 8, borderRadius: "50%", bgcolor: "#F59E0B" }} />
-                    <Typography sx={{ fontSize: 12, fontWeight: 700, color: "#64748B", textTransform: "uppercase", letterSpacing: "0.08em" }}>
-                      Opening Hours
-                    </Typography>
-                  </Box>
-                </Box>
-                <Box sx={{ p: 2.5, display: "flex", flexDirection: "column", rowGap: 1.3 }}>
-                  {openingHours.map((row, index) => (
-                    <Box key={row.day} sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "140px 70px 1fr" }, gap: 1.5, alignItems: "center" }}>
-                      <Typography sx={{ fontSize: 12, color: "#475569" }}>{row.day}</Typography>
-                      <Switch
-                        checked={row.enabled}
-                        onChange={(e) => handleOpeningHourChange(index, "enabled", e.target.checked)}
-                        sx={{
-                          width: 44,
-                          height: 24,
-                          p: 0,
-                          "& .MuiSwitch-switchBase": {
-                            p: 0.4,
-                            transitionDuration: "220ms",
-                          },
-                          "& .MuiSwitch-switchBase.Mui-checked": {
-                            transform: "translateX(20px)",
-                            color: "#FFFFFF",
-                          },
-                          "& .MuiSwitch-thumb": {
-                            boxShadow: "0 1px 2px rgba(15,23,42,0.35)",
-                            width: 18,
-                            height: 18,
-                          },
-                          "& .MuiSwitch-track": {
-                            borderRadius: "999px",
-                            backgroundColor: "#CBD5E1",
-                            opacity: 1,
-                            transition: "background-color 220ms ease",
-                          },
-                          "& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track": {
-                            backgroundColor: "#00028B",
-                            opacity: 1,
-                          },
+                      <div
+                        style={{
+                          width: `${pct}%`,
+                          height: "100%",
+                          background: "var(--warning, #F59E0B)",
                         }}
                       />
-                      {row.enabled ? (
-                        <Box sx={{ display: "grid", gridTemplateColumns: "1fr 24px 1fr", gap: 1, alignItems: "center" }}>
-                          <TextField type="time" size="small" value={row.start} onChange={(e) => handleOpeningHourChange(index, "start", e.target.value)} />
-                          <Typography sx={{ textAlign: "center", color: "#94A3B8", fontSize: 12 }}>to</Typography>
-                          <TextField type="time" size="small" value={row.end} onChange={(e) => handleOpeningHourChange(index, "end", e.target.value)} />
-                        </Box>
-                      ) : (
-                        <Typography sx={{ fontSize: 12, color: "#EF4444" }}>Closed</Typography>
-                      )}
-                    </Box>
-                  ))}
-                </Box>
-              </Paper>
+                    </div>
+                    <span style={{ width: 28, color: "var(--muted)" }}>{n}</span>
+                  </div>
+                );
+              })}
+            </div>
+          ) : null}
 
-              <Paper sx={CARD_SX}>
-                <Box sx={{ px: 2.5, py: 1.8, borderBottom: "1px solid #F1F5F9" }}>
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                    <Box sx={{ width: 8, height: 8, borderRadius: "50%", bgcolor: "#A78BFA" }} />
-                    <Typography sx={{ fontSize: 12, fontWeight: 700, color: "#64748B", textTransform: "uppercase", letterSpacing: "0.08em" }}>
-                      Finance & Commission
-                    </Typography>
-                  </Box>
-                </Box>
-                <Box sx={{ p: 2.5, display: "grid", gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" }, gap: 2 }}>
-                  <TextField size="small" label="Commission Rate (%)" value={financeSettings.commissionRate} onChange={handleFinanceSettingsChange("commissionRate")} />
-                  <TextField select size="small" label="Payout Schedule" value={financeSettings.payoutSchedule} onChange={handleFinanceSettingsChange("payoutSchedule")}>
-                    <MenuItem value="weekly">Weekly</MenuItem>
-                    <MenuItem value="biweekly">Biweekly</MenuItem>
-                    <MenuItem value="monthly">Monthly</MenuItem>
-                  </TextField>
-                  <TextField size="small" label="Minimum Order Value" value={financeSettings.minOrderValue} onChange={handleFinanceSettingsChange("minOrderValue")} />
-                  <TextField size="small" label="Cancellation Fee" value={financeSettings.cancellationFee} onChange={handleFinanceSettingsChange("cancellationFee")} />
-                </Box>
-              </Paper>
+          {shopReviewRows.length === 0 ? (
+            <p className="jd-lead" style={{ margin: 0 }}>
+              No customer reviews for this shop yet.
+            </p>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {shopReviewRows.map((r) => (
+                <div key={r.id} style={{ ...CARD, boxShadow: "none" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                    <strong>Order {r.orderTrackId || r.bookingId}</strong>
+                    <Badge tone="warning">{`${Number(r.rating) || 0} stars`}</Badge>
+                  </div>
+                  <p className="jd-lead" style={{ margin: "6px 0 0" }}>
+                    {r.customer?.name || r.customerName || "Customer"}
+                    {r.submittedAt ? ` · ${formatDate(r.submittedAt)}` : ""}
+                  </p>
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
+                    {(r.reasons || []).map((reason) => (
+                      <Badge
+                        key={`${r.id}-${reason.code}`}
+                        tone={reason.sentiment === "positive" ? "success" : "danger"}
+                      >
+                        {reason.label || reason.code}
+                      </Badge>
+                    ))}
+                  </div>
+                  {r.comment ? <p style={{ margin: "8px 0 0" }}>{r.comment}</p> : null}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
-              <Paper sx={CARD_SX}>
-                <Box sx={{ px: 2.5, py: 1.8, borderBottom: "1px solid #F1F5F9" }}>
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                    <Box sx={{ width: 8, height: 8, borderRadius: "50%", bgcolor: "#94A3B8" }} />
-                    <Typography sx={{ fontSize: 12, fontWeight: 700, color: "#64748B", textTransform: "uppercase", letterSpacing: "0.08em" }}>
-                      Media Assets
-                    </Typography>
-                  </Box>
-                </Box>
-                <Box sx={{ p: 2.5, display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(3,1fr)" }, gap: 1.2 }}>
-                  {["Shopfront", "Interior", "Equipment"].map((label) => (
-                    <Box key={label} sx={{ border: "1px dashed #CBD5E1", borderRadius: "10px", py: 2.4, px: 1.2, textAlign: "center", bgcolor: "#F8FAFC" }}>
-                      <Typography sx={{ fontSize: 12, color: "#475569", mb: 0.4 }}>{label}</Typography>
-                      <Typography sx={{ fontSize: 11, color: "#94A3B8" }}>Add Photo</Typography>
-                    </Box>
-                  ))}
-                </Box>
-              </Paper>
+      {activeTab === "staff" && (
+        <div>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
+            <strong>Staff</strong>
+            <Badge tone="neutral">{`${shopStaff.length} total`}</Badge>
+          </div>
+          <DirectoryTableWrap>
+            <Table
+              columns={[
+                {
+                  key: "name",
+                  header: "Staff",
+                  render: (row) => (
+                    <DirectoryIdentity
+                      name={row.name}
+                      meta={joinMeta(row.email, row.phone)}
+                      id={row.id}
+                    />
+                  ),
+                },
+                { key: "role", header: "Role" },
+                {
+                  key: "status",
+                  header: "Status",
+                  render: (row) => <DirectoryStatusPill active={row.status} />,
+                },
+              ]}
+              rows={shopStaff}
+              rowKey={(row, i) => row.id || `${row.email}-${i}`}
+              empty="No staff found for this shop."
+            />
+          </DirectoryTableWrap>
+        </div>
+      )}
 
-              <Paper sx={{ ...CARD_SX, borderColor: "#FECACA" }}>
-                <Box sx={{ px: 2.5, py: 1.8, borderBottom: "1px solid #FEE2E2" }}>
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                    <Box sx={{ width: 8, height: 8, borderRadius: "50%", bgcolor: "#DC2626" }} />
-                    <Typography sx={{ fontSize: 12, fontWeight: 700, color: "#B91C1C", textTransform: "uppercase", letterSpacing: "0.08em" }}>
-                      Danger Zone
-                    </Typography>
-                  </Box>
-                </Box>
-                <Box sx={{ p: 2.5, display: "flex", flexDirection: "column", rowGap: 1.2 }}>
-                  <Box sx={{ p: 1.5, border: "1px solid #FECACA", bgcolor: "#FEF2F2", borderRadius: "10px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 1.2 }}>
-                    <Box>
-                      <Typography sx={{ fontSize: 12, fontWeight: 600, color: "#991B1B" }}>Suspend Shop</Typography>
-                      <Typography sx={{ fontSize: 11, color: "#B91C1C" }}>Temporarily disables new orders.</Typography>
-                    </Box>
-                    <Button variant="outlined" size="small" sx={{ textTransform: "none", color: "#B91C1C", borderColor: "#FCA5A5" }}>Suspend</Button>
-                  </Box>
-                  <Box sx={{ p: 1.5, border: "1px solid #FECACA", bgcolor: "#FEF2F2", borderRadius: "10px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 1.2 }}>
-                    <Box>
-                      <Typography sx={{ fontSize: 12, fontWeight: 600, color: "#991B1B" }}>Delete Shop</Typography>
-                      <Typography sx={{ fontSize: 11, color: "#B91C1C" }}>Permanently removes this shop.</Typography>
-                    </Box>
-                    <Button variant="outlined" size="small" sx={{ textTransform: "none", color: "#B91C1C", borderColor: "#FCA5A5" }}>Delete</Button>
-                  </Box>
-                </Box>
-              </Paper>
-            </Box>
+      {activeTab === "services" && (
+        <div>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
+            <strong>Services offered by this shop</strong>
+            <Badge tone="neutral">
+              {`${shopServices.length} service${shopServices.length === 1 ? "" : "s"}`}
+            </Badge>
+          </div>
+          <DirectoryTableWrap>
+            <Table
+              columns={[
+                {
+                  key: "name",
+                  header: "Service",
+                  render: (row) => (
+                    <DirectoryIdentity
+                      name={row.name}
+                      meta={row.description}
+                      id={row.serviceId}
+                    />
+                  ),
+                },
+                { key: "turnaround", header: "Turnaround" },
+                {
+                  key: "status",
+                  header: "Status",
+                  render: (row) => <DirectoryStatusPill active={row.active} />,
+                },
+              ]}
+              rows={shopServices}
+              rowKey={(row) => row.junctionId ?? row.serviceId}
+              empty="No services assigned to this shop yet."
+            />
+          </DirectoryTableWrap>
+        </div>
+      )}
 
-            <Box sx={{ display: "flex", flexDirection: "column", rowGap: 2 }}>
-              <Paper sx={CARD_SX}>
-                <Box sx={{ px: 2.5, py: 1.8, borderBottom: "1px solid #F1F5F9" }}>
-                  <Typography sx={{ fontSize: 14, fontWeight: 600, color: "#0F172A" }}>Settings</Typography>
-                </Box>
-                <Box sx={{ p: 2 }}>
-                  {[
-                    { key: "visible", title: "Shop Visible", sub: "Shown on customer app" },
-                    { key: "acceptsOrders", title: "Accepting Orders", sub: "Allow new bookings" },
-                    { key: "featured", title: "Featured Shop", sub: "Highlighted in search" },
-                    { key: "sameDay", title: "Same-Day Available", sub: "Show same-day badge" },
-                    { key: "emailNotifications", title: "Email Notifications", sub: "Send order updates" },
-                    { key: "smsAlerts", title: "SMS Alerts", sub: "Text message updates" },
-                  ].map((item) => (
-                    <Box key={item.key} sx={{ py: 1.2, display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid #F1F5F9" }}>
-                      <Box>
-                        <Typography sx={{ fontSize: 13, color: "#334155", fontWeight: 500 }}>{item.title}</Typography>
-                        <Typography sx={{ fontSize: 11, color: "#94A3B8" }}>{item.sub}</Typography>
-                      </Box>
-                      <Switch
-                        checked={Boolean(controls[item.key])}
-                        onChange={(e) => setControls((prev) => ({ ...prev, [item.key]: e.target.checked }))}
-                        sx={{
-                          "& .MuiSwitch-switchBase.Mui-checked": { color: "#1D4ED8" },
-                          "& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track": { backgroundColor: "#1D4ED8" },
-                        }}
-                      />
-                    </Box>
-                  ))}
-                </Box>
-              </Paper>
+      {activeTab === "documents" && (
+        <div>
+          <strong style={{ display: "block", marginBottom: 16 }}>Documents</strong>
+          {shopDocuments.length ? (
+            <DirectoryTableWrap>
+              <Table
+                columns={[
+                  {
+                    key: "name",
+                    header: "Document",
+                    render: (row) => (
+                      <DirectoryIdentity name={row.name || "—"} meta={row.type} id={row.id} />
+                    ),
+                  },
+                  {
+                    key: "status",
+                    header: "Status",
+                    render: (row) => (
+                      <DirectoryDotPill>{row.status || "—"}</DirectoryDotPill>
+                    ),
+                  },
+                ]}
+                rows={shopDocuments}
+                rowKey={(row, i) => row.id || `${row.name}-${i}`}
+                empty="No documents are on file for this shop."
+              />
+            </DirectoryTableWrap>
+          ) : (
+            <p className="jd-lead" style={{ margin: 0 }}>
+              No documents are on file for this shop.
+            </p>
+          )}
+        </div>
+      )}
 
-              <Paper sx={CARD_SX}>
-                <Box sx={{ px: 2.5, py: 1.8, borderBottom: "1px solid #F1F5F9" }}>
-                  <Typography sx={{ fontSize: 14, fontWeight: 600, color: "#0F172A" }}>Collection & Delivery</Typography>
-                </Box>
-                <Box sx={{ p: 2, display: "flex", flexDirection: "column", rowGap: 1.5 }}>
-                  <TextField
-                    select
-                    size="small"
-                    label="Collection Method"
+      {activeTab === "settings" && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 16 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <div style={CARD}>
+              <strong>Profile</strong>
+              <div style={{ ...FORM_GRID, marginTop: 16 }}>
+                <Field label="Shop name" htmlFor="detail-shop-name">
+                  <Input
+                    id="detail-shop-name"
+                    value={settingsForm.shopName}
+                    onChange={handleSettingsChange("shopName")}
+                  />
+                </Field>
+                <Field label="Status">
+                  <Select
+                    aria-label="Status"
+                    value={settingsForm.status}
+                    onChange={handleSettingsChange("status")}
+                    options={STATUS_OPTIONS}
+                  />
+                </Field>
+                <div style={{ gridColumn: "1 / -1" }}>
+                  <Field label="Website" htmlFor="detail-website">
+                    <Input
+                      id="detail-website"
+                      value={settingsForm.website}
+                      onChange={handleSettingsChange("website")}
+                    />
+                  </Field>
+                </div>
+                <div style={{ gridColumn: "1 / -1" }}>
+                  <Field label="Description" htmlFor="detail-description">
+                    <Textarea
+                      id="detail-description"
+                      rows={3}
+                      value={settingsForm.description}
+                      onChange={handleSettingsChange("description")}
+                    />
+                  </Field>
+                </div>
+              </div>
+            </div>
+
+            <div style={CARD}>
+              <strong>Contact information</strong>
+              <div style={{ ...FORM_GRID, marginTop: 16 }}>
+                <Field label="Email address" htmlFor="detail-email">
+                  <Input
+                    id="detail-email"
+                    value={settingsForm.email}
+                    onChange={handleSettingsChange("email")}
+                  />
+                </Field>
+                <Field label="Phone number" htmlFor="detail-phone">
+                  <Input
+                    id="detail-phone"
+                    value={settingsForm.phone}
+                    onChange={handleSettingsChange("phone")}
+                  />
+                </Field>
+                <div style={{ gridColumn: "1 / -1" }}>
+                  <Field label="WhatsApp" htmlFor="detail-whatsapp">
+                    <Input
+                      id="detail-whatsapp"
+                      value={settingsForm.whatsapp}
+                      onChange={handleSettingsChange("whatsapp")}
+                    />
+                  </Field>
+                </div>
+              </div>
+            </div>
+
+            <div style={CARD}>
+              <strong>Address & location</strong>
+              <div style={{ ...FORM_GRID, marginTop: 16 }}>
+                <div style={{ gridColumn: "1 / -1" }}>
+                  <Field label="Address line 1" htmlFor="detail-address-1">
+                    <Input
+                      id="detail-address-1"
+                      value={settingsForm.addressLine1}
+                      onChange={handleSettingsChange("addressLine1")}
+                    />
+                  </Field>
+                </div>
+                <div style={{ gridColumn: "1 / -1" }}>
+                  <Field label="Address line 2" htmlFor="detail-address-2">
+                    <Input
+                      id="detail-address-2"
+                      value={settingsForm.addressLine2}
+                      onChange={handleSettingsChange("addressLine2")}
+                    />
+                  </Field>
+                </div>
+                <Field label="City" htmlFor="detail-city">
+                  <Input id="detail-city" value={settingsForm.city} onChange={handleSettingsChange("city")} />
+                </Field>
+                <Field label="Country" htmlFor="detail-country">
+                  <Input
+                    id="detail-country"
+                    value={settingsForm.country}
+                    onChange={handleSettingsChange("country")}
+                  />
+                </Field>
+                <Field label="Postcode" htmlFor="detail-postcode">
+                  <Input
+                    id="detail-postcode"
+                    value={settingsForm.postcode}
+                    onChange={handleSettingsChange("postcode")}
+                  />
+                </Field>
+              </div>
+            </div>
+
+            <div style={CARD}>
+              <strong>Opening hours</strong>
+              <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 12 }}>
+                {openingHours.map((row, index) => (
+                  <div
+                    key={row.day}
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "140px 70px 1fr",
+                      gap: 12,
+                      alignItems: "center",
+                    }}
+                  >
+                    <span>{row.day}</span>
+                    <input
+                      type="checkbox"
+                      checked={row.enabled}
+                      onChange={(e) =>
+                        handleOpeningHourChange(index, "enabled", e.target.checked)
+                      }
+                      aria-label={`${row.day} open`}
+                    />
+                    {row.enabled ? (
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", gap: 8 }}>
+                        <Input
+                          type="time"
+                          value={row.start}
+                          onChange={(e) =>
+                            handleOpeningHourChange(index, "start", e.target.value)
+                          }
+                        />
+                        <span style={{ color: "var(--muted)", alignSelf: "center" }}>to</span>
+                        <Input
+                          type="time"
+                          value={row.end}
+                          onChange={(e) =>
+                            handleOpeningHourChange(index, "end", e.target.value)
+                          }
+                        />
+                      </div>
+                    ) : (
+                      <span style={{ color: "var(--danger)" }}>Closed</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div style={CARD}>
+              <strong>Finance & commission</strong>
+              <div style={{ ...FORM_GRID, marginTop: 16 }}>
+                <Field label="Commission rate (%)" htmlFor="detail-commission">
+                  <Input
+                    id="detail-commission"
+                    value={financeSettings.commissionRate}
+                    onChange={handleFinanceSettingsChange("commissionRate")}
+                  />
+                </Field>
+                <Field label="Payout schedule">
+                  <Select
+                    aria-label="Payout schedule"
+                    value={financeSettings.payoutSchedule}
+                    onChange={handleFinanceSettingsChange("payoutSchedule")}
+                    options={PAYOUT_OPTIONS}
+                  />
+                </Field>
+                <Field label="Minimum order value" htmlFor="detail-min-order">
+                  <Input
+                    id="detail-min-order"
+                    value={financeSettings.minOrderValue}
+                    onChange={handleFinanceSettingsChange("minOrderValue")}
+                  />
+                </Field>
+                <Field label="Cancellation fee" htmlFor="detail-cancel-fee">
+                  <Input
+                    id="detail-cancel-fee"
+                    value={financeSettings.cancellationFee}
+                    onChange={handleFinanceSettingsChange("cancellationFee")}
+                  />
+                </Field>
+              </div>
+            </div>
+
+            <div style={{ ...CARD, borderColor: "var(--danger)" }}>
+              <strong style={{ color: "var(--danger)" }}>Danger zone</strong>
+              <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 12 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+                  <div>
+                    <div>Delete shop</div>
+                    <p className="jd-lead" style={{ margin: "4px 0 0" }}>
+                      Permanently removes this shop.
+                    </p>
+                  </div>
+                  <Button
+                    variant="danger"
+                    size="sm"
+                    onClick={() => setDeleteModalOpen(true)}
+                  >
+                    Delete
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <div style={CARD}>
+              <strong>Settings</strong>
+              <div style={{ marginTop: 12 }}>
+                {[
+                  { key: "visible", title: "Shop visible", sub: "Shown on customer app" },
+                  { key: "acceptsOrders", title: "Accepting orders", sub: "Allow new bookings" },
+                  { key: "featured", title: "Featured shop", sub: "Highlighted in search" },
+                  { key: "sameDay", title: "Same-day available", sub: "Show same-day badge" },
+                  { key: "emailNotifications", title: "Email notifications", sub: "Send order updates" },
+                  { key: "smsAlerts", title: "SMS alerts", sub: "Text message updates" },
+                ].map((item) => (
+                  <div
+                    key={item.key}
+                    style={{
+                      padding: "10px 0",
+                      display: "flex",
+                      justifyContent: "space-between",
+                      gap: 12,
+                      borderBottom: "1px solid var(--line)",
+                    }}
+                  >
+                    <div>
+                      <div>{item.title}</div>
+                      <p className="jd-lead" style={{ margin: "2px 0 0" }}>{item.sub}</p>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={Boolean(controls[item.key])}
+                      onChange={(e) =>
+                        setControls((prev) => ({ ...prev, [item.key]: e.target.checked }))
+                      }
+                      aria-label={item.title}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div style={CARD}>
+              <strong>Collection & delivery</strong>
+              <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 12 }}>
+                <Field label="Collection method">
+                  <Select
+                    aria-label="Collection method"
                     value={deliverySettings.collectionMethod}
                     onChange={handleDeliverySettingsChange("collectionMethod")}
-                  >
-                    <MenuItem value="Driver Pickup">Driver Pickup</MenuItem>
-                    <MenuItem value="Customer Drop-off">Customer Drop-off</MenuItem>
-                    <MenuItem value="Both">Both</MenuItem>
-                  </TextField>
-                  <TextField
-                    select
-                    size="small"
-                    label="Delivery Method"
+                    options={COLLECTION_OPTIONS}
+                  />
+                </Field>
+                <Field label="Delivery method">
+                  <Select
+                    aria-label="Delivery method"
                     value={deliverySettings.deliveryMethod}
                     onChange={handleDeliverySettingsChange("deliveryMethod")}
-                  >
-                    <MenuItem value="Driver Delivery">Driver Delivery</MenuItem>
-                    <MenuItem value="Customer Collect">Customer Collect</MenuItem>
-                    <MenuItem value="Both">Both</MenuItem>
-                  </TextField>
-                  <TextField
-                    size="small"
+                    options={DELIVERY_OPTIONS}
+                  />
+                </Field>
+                <Field label="Default lead time (hours)" htmlFor="detail-lead-time">
+                  <Input
+                    id="detail-lead-time"
                     type="number"
-                    label="Default Lead Time (hours)"
                     value={deliverySettings.leadTimeHours}
                     onChange={handleDeliverySettingsChange("leadTimeHours")}
                   />
-                  <TextField
-                    size="small"
+                </Field>
+                <Field label="Max active orders" htmlFor="detail-max-orders">
+                  <Input
+                    id="detail-max-orders"
                     type="number"
-                    label="Max Active Orders"
                     value={deliverySettings.maxActiveOrders}
                     onChange={handleDeliverySettingsChange("maxActiveOrders")}
                   />
-                </Box>
-              </Paper>
+                </Field>
+              </div>
+            </div>
 
-              <Paper sx={CARD_SX}>
-                <Box sx={{ px: 2.5, py: 1.8, borderBottom: "1px solid #F1F5F9" }}>
-                  <Typography sx={{ fontSize: 14, fontWeight: 600, color: "#0F172A" }}>Admin Notes</Typography>
-                </Box>
-                <Box sx={{ p: 2 }}>
-                  <TextField
-                    value={adminNotes}
-                    onChange={(e) => setAdminNotes(e.target.value)}
-                    multiline
-                    minRows={4}
-                    fullWidth
-                    size="small"
-                  />
-                </Box>
-              </Paper>
+            <div style={CARD}>
+              <strong>Admin notes</strong>
+              <div style={{ marginTop: 16 }}>
+                <Textarea
+                  rows={4}
+                  value={adminNotes}
+                  onChange={(e) => setAdminNotes(e.target.value)}
+                />
+              </div>
+            </div>
 
-              <Paper sx={CARD_SX}>
-                <Box sx={{ px: 2.5, py: 1.8, borderBottom: "1px solid #F1F5F9" }}>
-                  <Typography sx={{ fontSize: 14, fontWeight: 600, color: "#0F172A" }}>Change Log</Typography>
-                </Box>
-                <Box sx={{ p: 2, display: "flex", flexDirection: "column", rowGap: 1.4 }}>
-                  {[
-                    ["Commission updated to 12%", "Admin · 01 Mar 2025", "#00028B"],
-                    ["Plan upgraded to Pro Partner", "Admin · 15 Jan 2025", "#60A5FA"],
-                    ["Opening hours modified", "Shop Owner · 10 Nov 2024", "#F59E0B"],
-                    ["Shop profile created", "Admin · 12 Jan 2023", "#94A3B8"],
-                  ].map(([title, sub, color], idx) => (
-                    <Box key={`${title}-${idx}`} sx={{ display: "flex", gap: 1.2 }}>
-                      <Box sx={{ width: 8, height: 8, borderRadius: "50%", bgcolor: color, mt: "6px", flexShrink: 0 }} />
-                      <Box>
-                        <Typography sx={{ fontSize: 12, color: "#334155" }}>{title}</Typography>
-                        <Typography sx={{ fontSize: 11, color: "#94A3B8" }}>{sub}</Typography>
-                      </Box>
-                    </Box>
-                  ))}
-                </Box>
-              </Paper>
+            <div style={CARD}>
+              <strong>Change log</strong>
+              <p className="jd-lead" style={{ margin: "12px 0 0" }}>
+                No change history is available for this shop.
+              </p>
+            </div>
 
-              <Box ref={savePanelSlotRef}>
-                {isSavePanelFixed && savePanelMetrics.height > 0 && (
-                  <Box sx={{ height: `${savePanelMetrics.height}px` }} />
-                )}
-                <Paper
-                  ref={savePanelRef}
-                  sx={{
-                    ...CARD_SX,
-                    borderColor: "#C7D2FE",
-                    position: isSavePanelFixed ? "fixed" : "static",
-                    left: isSavePanelFixed ? `${savePanelMetrics.left}px` : "auto",
-                    bottom: isSavePanelFixed ? 24 : "auto",
-                    width: isSavePanelFixed ? `${savePanelMetrics.width}px` : "100%",
-                    zIndex: isSavePanelFixed ? 1200 : 1,
-                  }}
-                >
-                  <Box sx={{ p: 2, display: "flex", flexDirection: "column", rowGap: 1 }}>
-                    <Typography sx={{ fontSize: 11, color: "#64748B" }}>Ready to save your changes?</Typography>
-                    <Button
-                      variant="contained"
-                      size="small"
-                      onClick={handleSaveSettings}
-                      disabled={isSavingSettings}
-                      sx={{ textTransform: "none", bgcolor: "#00028B", "&:hover": { bgcolor: "#00016F" } }}
-                    >
-                      {isSavingSettings ? "Saving..." : "Save All Changes"}
-                    </Button>
-                    <Button
-                      variant="outlined"
-                      size="small"
-                      onClick={handleDiscardSettings}
-                      sx={{ textTransform: "none", borderColor: "#E2E8F0", color: "#475569" }}
-                    >
-                      Discard
-                    </Button>
-                  </Box>
-                </Paper>
-              </Box>
-            </Box>
-          </Box>
-        )}
+            <div ref={savePanelSlotRef}>
+              {isSavePanelFixed && savePanelMetrics.height > 0 ? (
+                <div style={{ height: `${savePanelMetrics.height}px` }} />
+              ) : null}
+              <div
+                ref={savePanelRef}
+                style={{
+                  ...CARD,
+                  position: isSavePanelFixed ? "fixed" : "static",
+                  left: isSavePanelFixed ? `${savePanelMetrics.left}px` : "auto",
+                  bottom: isSavePanelFixed ? 24 : "auto",
+                  width: isSavePanelFixed ? `${savePanelMetrics.width}px` : "100%",
+                  zIndex: isSavePanelFixed ? 1200 : 1,
+                }}
+              >
+                <p className="jd-lead" style={{ margin: "0 0 8px" }}>
+                  Ready to save your changes?
+                </p>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  <Button onClick={handleSaveSettings} disabled={isSavingSettings}>
+                    {isSavingSettings ? "Saving..." : "Save all changes"}
+                  </Button>
+                  <Button variant="secondary" onClick={handleDiscardSettings}>
+                    Discard
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
-        {activeTab === "services" && (
-          <Paper sx={CARD_SX}>
-            <Box
-              sx={{
-                px: 2.5,
-                py: 1.8,
-                borderBottom: "1px solid #F1F5F9",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-              }}
-            >
-              <Typography sx={{ fontSize: 14, fontWeight: 600, color: "#0F172A" }}>
-                Services offered by this shop
-              </Typography>
-              <Chip
-                size="small"
-                label={`${shopServices.length} service${shopServices.length === 1 ? "" : "s"}`}
-                sx={{ bgcolor: "#F1F5F9", color: "#475569", fontSize: 10 }}
-              />
-            </Box>
-            <TableContainer>
-              <Table size="small">
-                <TableHead>
-                  <TableRow sx={{ bgcolor: "#F8FAFC" }}>
-                    {["#", "Service", "Service ID", "Turnaround", "Status"].map((h) => (
-                      <TableCell
-                        key={h}
-                        sx={{
-                          fontSize: 11,
-                          fontWeight: 700,
-                          color: "#94A3B8",
-                          textTransform: "uppercase",
-                          letterSpacing: "0.06em",
-                          borderBottom: "1px solid #F1F5F9",
-                        }}
-                      >
-                        {h}
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {shopServices.length ? (
-                    shopServices.map((row) => (
-                      <TableRow key={row.junctionId ?? row.serviceId} hover>
-                        <TableCell sx={{ fontSize: 12, color: "#64748B" }}>{row.sl}</TableCell>
-                        <TableCell>
-                          <Typography sx={{ fontSize: 13, fontWeight: 600, color: "#0F172A" }}>
-                            {row.name}
-                          </Typography>
-                          {row.description ? (
-                            <Typography
-                              className="line-clamp-2"
-                              sx={{ fontSize: 11, color: "#94A3B8", mt: 0.3 }}
-                            >
-                              {row.description}
-                            </Typography>
-                          ) : null}
-                        </TableCell>
-                        <TableCell sx={{ fontSize: 12, fontWeight: 600, color: "#00028B" }}>
-                          {row.serviceId ?? "—"}
-                        </TableCell>
-                        <TableCell sx={{ fontSize: 13, color: "#475569" }}>{row.turnaround}</TableCell>
-                        <TableCell>
-                          <Chip
-                            size="small"
-                            label={row.active ? "Active" : "Inactive"}
-                            sx={{
-                              fontSize: 11,
-                              fontWeight: 700,
-                              bgcolor: row.active ? "#E0E7FF" : "#F1F5F9",
-                              color: row.active ? "#00028B" : "#64748B",
-                            }}
-                          />
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  ) : (
-                    <TableRow>
-                      <TableCell
-                        colSpan={5}
-                        sx={{ fontSize: 13, color: "#94A3B8", py: 5, textAlign: "center" }}
-                      >
-                        No services assigned to this shop yet.
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </Paper>
-        )}
-
-        {activeTab !== "overview" &&
-          activeTab !== "orders" &&
-          activeTab !== "staff" &&
-          activeTab !== "settings" &&
-          activeTab !== "services" && (
-          <Paper sx={{ ...CARD_SX, p: 3 }}>
-            <Typography sx={{ fontSize: 16, fontWeight: 600, color: "#0F172A" }}>
-              {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} section
-            </Typography>
-            <Typography sx={{ fontSize: 13, color: "#64748B", mt: 0.6 }}>
-              The structure is aligned to the provided mock. This tab can be expanded with exact per-row data when needed.
-            </Typography>
-          </Paper>
-        )}
-      </Box>
-    </Box>
+      <DeleteShopModal
+        open={deleteModalOpen}
+        shopData={{ id: shop?.id, name: shopName }}
+        onClose={() => setDeleteModalOpen(false)}
+        onShopDeleted={() => navigate("/shop-management/shops")}
+      />
+    </div>
   );
 }

@@ -1,0 +1,137 @@
+/* Just Dry design tokens — source of truth. Scoped to .jd-ds via DsShell / DsScope.
+   Do not put these on :root. New UI uses these variables, not a parallel palette. */
+
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap");
+
+.jd-ds {
+  --brand-50: #eef0fb;
+  --brand-100: #dce1f6;
+  --brand-200: #bcc6ee;
+  --brand-300: #93a3e2;
+  --brand-400: #6478d1;
+  --brand-500: #3f52bf;
+  --brand-600: #2c3ba0;
+  --brand-700: #232e82;
+  --brand-800: #1c2668;
+  --brand-900: #161d4f;
+
+  --n-0: #ffffff;
+  --n-25: #fafbfc;
+  --n-50: #f4f5f8;
+  --n-100: #eceff3;
+  --n-200: #e0e4ea;
+  --n-300: #cdd3dc;
+  --n-400: #9aa3b0;
+  --n-500: #6b7482;
+  --n-600: #4c5563;
+  --n-700: #38424f;
+  --n-800: #232a34;
+  --n-900: #0e131c;
+
+  --success-50: #e2f3ea;
+  --success-100: #c6e8d4;
+  --success-600: #0b8a5e;
+  --success-700: #076c4a;
+  --warning-50: #fbefd6;
+  --warning-600: #b57200;
+  --warning-700: #8a5700;
+  --danger-50: #fdecec;
+  --danger-600: #c9403f;
+  --danger-700: #a42f2e;
+  --info-50: #e8effe;
+  --info-600: #2a63d6;
+
+  --success: var(--success-600);
+  --success-bg: var(--success-50);
+  --warning: var(--warning-600);
+  --warning-bg: var(--warning-50);
+  --danger: var(--danger-600);
+  --danger-bg: var(--danger-50);
+  --info: var(--info-600);
+  --info-bg: var(--info-50);
+
+  --accent: var(--brand-600);
+  --accent-ink: var(--brand-700);
+  --accent-tint: var(--brand-50);
+  --ink: var(--n-900);
+  --ink-2: rgba(14, 19, 28, 0.72);
+  --muted: rgba(14, 19, 28, 0.56);
+  --faint: rgba(14, 19, 28, 0.36);
+  --line: var(--n-200);
+  --line-2: var(--n-300);
+  --canvas: var(--n-50);
+  --surface: var(--n-0);
+  --on-accent: #ffffff;
+  --text-helper: var(--muted);
+
+  --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+  --text-display: 40px;
+  --text-h1: 30px;
+  --text-h2: 22px;
+  --text-h3: 18px;
+  --text-lg: 16px;
+  --text-body: 15.5px;
+  --text-sm: 14.5px;
+  --text-xs: 13.5px;
+
+  --r-xs: 6px;
+  --r-sm: 8px;
+  --r-md: 10px;
+  --r-lg: 12px;
+  --r-xl: 16px;
+  --r-2xl: 20px;
+  --r-full: 999px;
+
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-8: 32px;
+
+  --ctrl-h: 40px;
+  --ctrl-h-sm: 32px;
+  --row-h: 44px;
+
+  --e-1: 0 1px 2px rgba(16, 21, 31, 0.06);
+  --e-2: 0 2px 6px -1px rgba(16, 21, 31, 0.1), 0 1px 2px rgba(16, 21, 31, 0.06);
+  --e-3: 0 8px 20px -6px rgba(16, 21, 31, 0.16);
+  --e-4: 0 18px 40px -14px rgba(16, 21, 31, 0.28);
+
+  --focus-ring: 2px solid var(--brand-500);
+  --focus-offset: 2px;
+  --scrim: rgba(14, 19, 28, 0.48);
+  --z-dropdown: 40;
+  --z-modal: 200;
+
+  --ease: cubic-bezier(0.2, 0.7, 0.3, 1);
+  --dur: 0.18s;
+
+  box-sizing: border-box;
+  font-family: var(--font-sans);
+  font-size: var(--text-body);
+  line-height: 1.55;
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+  isolation: isolate;
+}
+
+.jd-ds *,
+.jd-ds *::before,
+.jd-ds *::after {
+  box-sizing: border-box;
+}
+
+.jd-ds button,
+.jd-ds input,
+.jd-ds select,
+.jd-ds textarea {
+  font: inherit;
+}
+
+.jd-ds :focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
+}

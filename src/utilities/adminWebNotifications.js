@@ -3,6 +3,11 @@ import { getMessagingInstance } from "./firebase";
 import { requestDeviceToken, getCachedDeviceToken } from "./requestFCMToken";
 import { BASE_URL } from "./URL";
 import { LS_ACCESS_TOKEN } from "./authStorage";
+import {
+  fetchWithTimeout,
+  getHttpResponseErrorMessage,
+} from "../store/services/fetchWithTimeout";
+import { getApiErrorMessage } from "../store/services/apiErrors";
 
 let foregroundStarted = false;
 let registerInFlight = null;
@@ -37,7 +42,6 @@ export async function startAdminForegroundNotifications({ onNotify } = {}) {
 
   onMessage(messaging, (payload) => {
     const { title, body } = extractTitleBody(payload);
-    console.log("[FCM] foreground message", { title, body, data: payload.data });
 
     if (typeof onNotify === "function") {
       try {
@@ -72,7 +76,6 @@ export async function startAdminForegroundNotifications({ onNotify } = {}) {
   });
 
   foregroundStarted = true;
-  console.log("[FCM] foreground listener ready");
   return true;
 }
 
@@ -105,7 +108,7 @@ export async function ensureAdminFcmRegistered() {
         };
       }
 
-      const res = await fetch(`${apiRoot()}/admin/notification-preferences/register-fcm`, {
+      const res = await fetchWithTimeout(`${apiRoot()}/admin/notification-preferences/register-fcm`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -119,12 +122,20 @@ export async function ensureAdminFcmRegistered() {
         return {
           ok: false,
           reason: "REGISTER_FAILED",
-          message: json?.message || res.statusText,
+          message: getHttpResponseErrorMessage(
+            res,
+            json,
+            json?.message || res.statusText
+          ),
         };
       }
       return { ok: true, tokenPreview: json?.data?.tokenPreview };
     } catch (err) {
-      return { ok: false, reason: "ERROR", message: err?.message };
+      return {
+        ok: false,
+        reason: "ERROR",
+        message: getApiErrorMessage(err, err?.message),
+      };
     } finally {
       registerInFlight = null;
     }

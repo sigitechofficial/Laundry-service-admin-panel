@@ -1,23 +1,5 @@
-import React, { useState, useEffect, useMemo } from "react";
-import {
-  Box,
-  Typography,
-  IconButton,
-  List,
-  ListItem,
-  Collapse,
-  Menu,
-  MenuItem,
-} from "@mui/material";
-import {
-  TbPlus,
-  TbChevronDown,
-  RiDeleteBin6Line,
-  TbDotsVertical,
-  TbPencil,
-} from "../../shared/icons/index";
-import Search from "../../components/ui/Search";
-import FiltersButton from "../../components/ui/FiltersButton";
+import { useState, useEffect, useMemo } from "react";
+import { TbChevronDown, RiDeleteBin6Line, TbPencil } from "../../shared/icons/index";
 import {
   useDeleteCategoryMutation,
   useDeleteSubCategoryMutation,
@@ -25,20 +7,37 @@ import {
   useGetSubCategoriesQuery,
   useGetAllServicesQuery,
 } from "../../store/services/api";
-import { MiniLoader } from "../../components/shared/Loaders";
 import { useSelector } from "react-redux";
+import { Button, Select } from "../../design-system";
 import CategoryModal from "./categories-modal/CategoryModal";
 import SubCategoryModal from "./categories-modal/SubCategoryModal";
+import ConfirmDeleteModal from "./ConfirmDeleteModal";
 import useToaster from "../../components/ui/Toaster";
-import { formatGbp } from "../../utils/formatGbp";
+import { formatMoney } from "../../utilities/formatters";
+import { getApiErrorMessage } from "../../store/services/apiErrors";
+import { EmptyHint, QueryState } from "./QueryState";
+import {
+  DirectoryActions,
+  DirectoryListRow,
+  DirectoryMetrics,
+  DirectoryMoney,
+  DirectorySearch,
+  DirectoryTableWrap,
+  DirectoryToolbar,
+  DirectoryToolSelect,
+} from "../directory-table/directoryTable";
 
 export default function ItemCategoriesCard({ triggerAdd }) {
   const categoryData = useSelector((state) => state?.apiData);
   const { success, error } = useToaster();
-  const { isLoading } = useGetCategoriesQuery();
+  const { isLoading, isError, error: categoriesQueryError, refetch } = useGetCategoriesQuery();
+  const [categoryToDelete, setCategoryToDelete] = useState(null);
   useGetSubCategoriesQuery();
   const { data: servicesResponse } = useGetAllServicesQuery();
-  const services = servicesResponse?.data?.services || [];
+  const services = useMemo(
+    () => servicesResponse?.data?.services || [],
+    [servicesResponse?.data?.services]
+  );
   const servicesMap = useMemo(() => {
     const map = {};
     services.forEach((svc) => {
@@ -52,8 +51,7 @@ export default function ItemCategoriesCard({ triggerAdd }) {
   const [expandedCategories, setExpandedCategories] = useState({});
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedServiceId, setSelectedServiceId] = useState("");
-  const [filterAnchorEl, setFilterAnchorEl] = useState(null);
-  const [anchorEl, setAnchorEl] = useState(null);
+  const [subToDelete, setSubToDelete] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState({
     isOpen: false,
     isSubModalOpen: "",
@@ -63,17 +61,12 @@ export default function ItemCategoriesCard({ triggerAdd }) {
     type: "",
   });
 
-  // Handle external trigger to open add modal
   useEffect(() => {
     if (triggerAdd && triggerAdd > 0 && !isModalOpen.isOpen) {
       setIsModalOpen((prev) => ({ ...prev, isOpen: true }));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [triggerAdd]);
-
-  const handleToggle = () => {
-    setIsModalOpen((prev) => ({ ...prev, isOpen: !prev.isOpen }));
-  };
 
   const handleCloseModal = () => {
     setIsModalOpen({
@@ -93,45 +86,38 @@ export default function ItemCategoriesCard({ triggerAdd }) {
     }));
   };
 
-  const handleMenuClick = (event) => {
-    setAnchorEl(event.currentTarget);
-  };
-
-  const handleMenuClose = () => {
-    setAnchorEl(null);
-  };
-
-  const handleFilterClick = (event) => {
-    setFilterAnchorEl(event.currentTarget);
-  };
-
-  const handleFilterClose = () => {
-    setFilterAnchorEl(null);
-  };
-
-  const handleServiceFilterSelect = (serviceId) => {
-    setSelectedServiceId(serviceId);
-    handleFilterClose();
-  };
-
   const getCategoryServiceId = (category) =>
     category?.serviceId ?? category?.service?.id ?? null;
 
-  const handleDeleteCategory = async (categoryId) => {
-    let res = await deleteCategory(categoryId).unwrap();
-    if (res.status === "1") {
-      success("Category deleted successfully");
-    } else {
-      error(res.message);
+  const handleDeleteCategory = async () => {
+    if (!categoryToDelete?.id) return;
+    try {
+      const res = await deleteCategory(categoryToDelete.id).unwrap();
+      if (res.status === "1") {
+        success("Category deleted successfully");
+        setCategoryToDelete(null);
+        void refetch();
+      } else {
+        error(res.message);
+      }
+    } catch (err) {
+      error(getApiErrorMessage(err, "Could not delete category."));
     }
   };
 
-  const handleDelteSubCategory = async () => {
-    let res = await deleteSubCategory(isModalOpen?.subCatId).unwrap();
-    if (res.status === "1") {
-      success("Sub Category deleted successfully");
-    } else {
-      error(res?.message || "Something went wrong");
+  const handleDeleteSubCategory = async () => {
+    if (!subToDelete) return;
+    try {
+      let res = await deleteSubCategory(subToDelete).unwrap();
+      if (res.status === "1") {
+        success("Sub Category deleted successfully");
+      } else {
+        error(res?.message || "Something went wrong");
+      }
+    } catch (err) {
+      error(getApiErrorMessage(err, "Could not delete sub-category."));
+    } finally {
+      setSubToDelete(null);
     }
   };
 
@@ -156,303 +142,250 @@ export default function ItemCategoriesCard({ triggerAdd }) {
     });
   }, [categoryData?.categories, categoryData?.subCategories, searchTerm, selectedServiceId]);
 
-  return isLoading ? (
-    <MiniLoader />
-  ) : (
-    <Box
-      sx={{
-        bgcolor: "white",
-        borderRadius: "12px",
-        border: "1px solid #E4E7EC",
-        overflow: "hidden",
-      }}
-    >
-      {/* Header */}
-      <Box
-        sx={{
-          borderBottom: "1px solid #E4E7EC",
-        }}
-        className="flex items-start md:items-center justify-between gap-4 !px-4 !py-5 bg-blue10"
-      >
-        <Typography
-          variant="subtitle1"
-          sx={{
-            fontWeight: 700,
-            fontSize: "18px",
-            color: "#101828",
-            fontFamily: "Inter, sans-serif",
-          }}
-        >
-          Item Categories & Sub Categories
-        </Typography>
+  const groupedCategories = useMemo(() => {
+    const groups = new Map();
+    (filteredCategories || []).forEach((category) => {
+      const serviceId = getCategoryServiceId(category);
+      const key = serviceId == null ? "unassigned" : String(serviceId);
+      if (!groups.has(key)) {
+        groups.set(key, {
+          serviceId,
+          name:
+            category?.service?.name ||
+            servicesMap[serviceId] ||
+            "Not assigned to a service",
+          items: [],
+        });
+      }
+      groups.get(key).items.push(category);
+    });
+    return [...groups.values()];
+  }, [filteredCategories, servicesMap]);
 
-        <Box className="flex items-center gap-3 flex-wrap justify-end ml-auto">
-          <Box className="!w-full sm:!w-[320px] h-11">
-            <Search
-              value={searchTerm}
-              onChange={(e) => {
-                setSearchTerm(e.target.value);
-              }}
-            />
-          </Box>
-          <FiltersButton
-            text={
-              selectedServiceId
-                ? servicesMap[selectedServiceId] || "Service"
-                : "Filter by Service"
-            }
-            onClick={handleFilterClick}
-            border={selectedServiceId ? "1px solid #000099" : "1px solid #D0D5DD"}
-            bgColor={selectedServiceId ? "#F4F7FF" : "white"}
+  const serviceFilterOptions = [
+    { value: "", label: "All Services" },
+    ...services.map((service) => ({
+      value: String(service.id),
+      label: service.name,
+    })),
+  ];
+
+  const totalCategories = categoryData?.categories?.length ?? 0;
+  const totalSubCategories = categoryData?.subCategories?.length ?? 0;
+  const unassigned = (categoryData?.categories || []).filter(
+    (category) => !getCategoryServiceId(category)
+  ).length;
+
+  if (isLoading || isError) {
+    return (
+      <QueryState
+        loading={isLoading}
+        error={categoriesQueryError || isError}
+        onRetry={refetch}
+        errorLabel="Could not load categories. Please try again."
+      />
+    );
+  }
+
+  return (
+    <div>
+      <DirectoryMetrics
+        items={[
+          { label: "Categories", value: totalCategories, tone: "brand" },
+          { label: "Sub-categories", value: totalSubCategories, tone: "navy" },
+          { label: "Unassigned service", value: unassigned, tone: "warning" },
+          { label: "Showing", value: filteredCategories?.length ?? 0, tone: "success" },
+        ]}
+      />
+    <DirectoryTableWrap
+      toolbar={
+        <DirectoryToolbar>
+          <DirectorySearch
+            id="category-search"
+            value={searchTerm}
+            onChange={setSearchTerm}
+            placeholder="Search categories"
           />
-        </Box>
-      </Box>
-
-      <Menu
-        anchorEl={filterAnchorEl}
-        open={Boolean(filterAnchorEl)}
-        onClose={handleFilterClose}
-        anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
-        transformOrigin={{ vertical: "top", horizontal: "left" }}
-        sx={{
-          "& .MuiPaper-root": {
-            borderRadius: "8px",
-            border: "1px solid #E4E7EC",
-            boxShadow: "0px 4px 16px rgba(0, 0, 0, 0.1)",
-            minWidth: 200,
-          },
-        }}
-      >
-        <MenuItem
-          selected={!selectedServiceId}
-          onClick={() => handleServiceFilterSelect("")}
-          sx={{ fontFamily: "Inter", fontSize: "14px" }}
-        >
-          All Services
-        </MenuItem>
-        {services.map((service) => (
-          <MenuItem
-            key={service.id}
-            selected={String(selectedServiceId) === String(service.id)}
-            onClick={() => handleServiceFilterSelect(String(service.id))}
-            sx={{ fontFamily: "Inter", fontSize: "14px" }}
-          >
-            {service.name}
-          </MenuItem>
-        ))}
-      </Menu>
-
-      <Collapse in={true}>
-        <Box sx={{ p: "16px" }}>
-          <List sx={{ p: "0 8px" }}>
-            {filteredCategories?.length
-              ? filteredCategories?.map((category) => (
-                  <Box key={category?.id}>
-                    <ListItem
-                      onClick={() => {
-                        handleCategoryToggle(category?.id);
+          <DirectoryToolSelect>
+            <Select
+              value={selectedServiceId}
+              onChange={(v) => setSelectedServiceId(v == null ? "" : String(v))}
+              options={serviceFilterOptions}
+              placeholder="Filter by Service"
+            />
+          </DirectoryToolSelect>
+        </DirectoryToolbar>
+      }
+    >
+        {filteredCategories?.length ? (
+          groupedCategories.map((group) => (
+            <div key={group.serviceId ?? "unassigned"} style={{ marginBottom: 20 }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "baseline",
+                  justifyContent: "space-between",
+                  gap: 12,
+                  padding: "4px 4px 10px",
+                  borderBottom: "1px solid var(--line)",
+                  marginBottom: 8,
+                }}
+              >
+                <div style={{ fontWeight: 700, color: "var(--ink)" }}>{group.name}</div>
+                <div style={{ fontSize: 12, color: "var(--muted)" }}>
+                  {group.items.length}{" "}
+                  {group.items.length === 1 ? "category" : "categories"} ·{" "}
+                  {(categoryData?.subCategories || []).filter((item) =>
+                    group.items.some((category) => category.id === item.categoryId)
+                  ).length}{" "}
+                  items
+                </div>
+              </div>
+          {group.items.map((category) => (
+            <div key={category?.id}>
+              <DirectoryListRow
+                onClick={() => handleCategoryToggle(category?.id)}
+                style={{ cursor: "pointer" }}
+              >
+                <div>
+                  <div>{category?.name}</div>
+                  <div style={{ fontSize: 12, color: "var(--muted)" }}>
+                    {category?.service?.name ||
+                      servicesMap[category?.serviceId] ||
+                      "Not assigned"}{" "}
+                    /{" "}
+                    {(() => {
+                      const itemCount = (categoryData?.subCategories || []).filter(
+                        (item) => item?.categoryId === category?.id
+                      ).length;
+                      return `${itemCount} ${itemCount === 1 ? "item" : "items"}`;
+                    })()}
+                  </div>
+                </div>
+                <DirectoryActions
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => {
+                      setIsModalOpen({
+                        ...isModalOpen,
+                        isSubModalOpen: true,
+                        type: "",
+                        data: category,
+                      });
+                    }}
+                  >
+                    Add Sub Category
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => {
+                      setIsModalOpen({
+                        ...isModalOpen,
+                        isOpen: true,
+                        data: category,
+                        type: "update",
+                      });
+                    }}
+                  >
+                    <TbPencil size={16} />
+                    Edit
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="danger"
+                    disabled={deleteLoading}
+                    onClick={() =>
+                      setCategoryToDelete({
+                        id: category.id,
+                        name: category.name,
+                      })
+                    }
+                  >
+                    <RiDeleteBin6Line size={14} />
+                    Delete
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => handleCategoryToggle(category?.id)}
+                    aria-label={
+                      expandedCategories[category?.id] ? "Collapse" : "Expand"
+                    }
+                  >
+                    <TbChevronDown
+                      size={18}
+                      style={{
+                        transform: expandedCategories[category?.id]
+                          ? "rotate(180deg)"
+                          : "none",
+                        transition: "transform 0.2s",
                       }}
-                      sx={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        py: "8px",
-                        px: "16px",
-                        my: "4px",
-                        bgcolor: "blue.10",
-                        borderRadius: "4px",
-                        cursor: "pointer",
-                        "&:hover": {
-                          bgcolor: "blue.20",
-                        },
-                      }}
-                    >
-                      <Box
-                        sx={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "8px",
-                        }}
-                      >
-                        <Box>
-                          <Typography variant="body1">
-                            {category?.name}
-                          </Typography>
-                          <Typography variant="caption" color="grey.40">
-                            Service:{" "}
-                            {category?.service?.name ||
-                              servicesMap[category?.serviceId] ||
-                              "Not assigned"}
-                          </Typography>
-                        </Box>
-                      </Box>
-                      <Box
-                        sx={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "flex-end",
-                          gap: "8px",
-                        }}
-                      >
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setIsModalOpen({
-                              ...isModalOpen,
-                              isSubModalOpen: true,
-                              type: "",
-                              data: category,
-                            });
-                          }}
-                          className="bg-gray-500 hover:bg-gray-600 text-white px-6 py-1 rounded-lg font-medium text-xs transition-all duration-200 shadow-sm hover:shadow-md flex items-center justify-center h-9 min-w-[140px]"
-                        >
-                          Add Sub Category
-                        </button>
-                        <IconButton
-                          size="small"
-                          sx={{ color: "#00028B" }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setIsModalOpen({
-                              ...isModalOpen,
-                              isOpen: true,
-                              data: category,
-                              type: "update",
-                            });
-                          }}
-                        >
-                          <TbPencil size="18px" />
-                        </IconButton>
-                        <IconButton
-                          disabled={deleteLoading}
-                          size="small"
-                          sx={{ color: "#EF4444" }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDeleteCategory(category.id);
-                          }}
-                        >
-                          <RiDeleteBin6Line size="20px" />
-                        </IconButton>
-                        <IconButton
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleCategoryToggle(category?.id);
-                          }}
-                          size="small"
-                          sx={{
-                            color: "#667085",
-                            transform: expandedCategories[category?.id]
-                              ? "rotate(180deg)"
-                              : "rotate(0deg)",
-                            transition: "transform 0.2s",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            pointerEvents: "auto",
-                          }}
-                        >
-                          <TbChevronDown size="20px" color="black" />
-                        </IconButton>
-                      </Box>
-                    </ListItem>
+                    />
+                  </Button>
+                </DirectoryActions>
+              </DirectoryListRow>
 
-                    {/* Category Items */}
-                    <Collapse in={expandedCategories[category?.id]}>
-                      <Box sx={{ pl: "16px", pb: "8px" }}>
-                        {categoryData?.subCategories
-                          ?.filter((el) => el?.categoryId === category?.id)
-                          ?.map((item) => (
-                            <Box
-                              borderBottom="1px solid #E4E7EC"
-                              key={item?.id}
-                              className="flex items-center justify-between py-2 px-3 !space-y-2 !mb-2"
+              {expandedCategories[category?.id] ? (
+                <div>
+                  {categoryData?.subCategories
+                    ?.filter((el) => el?.categoryId === category?.id)
+                    ?.map((item) => {
+                      const uc = item?.unitCount ?? item?.unit_count;
+                      return (
+                        <DirectoryListRow key={item?.id}>
+                          <div>
+                            <div>{item?.name}</div>
+                            <DirectoryMoney>{formatMoney(item?.price, "£")}</DirectoryMoney>
+                            {uc === undefined || uc === null || uc === "" ? null : (
+                              <div style={{ fontSize: 12, color: "#5c6673" }}>
+                                Unit count: {uc}
+                              </div>
+                            )}
+                          </div>
+                          <DirectoryActions>
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              onClick={() => {
+                                setIsModalOpen({
+                                  ...isModalOpen,
+                                  isSubModalOpen: true,
+                                  type: "update",
+                                  subCatId: item?.id,
+                                  data: {
+                                    ...item,
+                                    categoryName: category.name,
+                                  },
+                                });
+                              }}
                             >
-                              <Box>
-                                <Typography variant="body2" fontFamily="Inter">
-                                  {item?.name}
-                                </Typography>
-                                <Typography variant="body2" fontFamily="Inter">
-                                  {formatGbp(item?.price)}
-                                </Typography>
-                                {(() => {
-                                  const uc = item?.unitCount ?? item?.unit_count;
-                                  if (uc === undefined || uc === null || uc === "") {
-                                    return null;
-                                  }
-                                  return (
-                                    <Typography variant="caption" color="grey.40">
-                                      Unit count: {uc}
-                                    </Typography>
-                                  );
-                                })()}
-                              </Box>
-                              <IconButton
-                                size="small"
-                                onClick={(e) => {
-                                  setIsModalOpen({
-                                    ...isModalOpen,
-                                    subCatId: item?.id,
-                                    data: {
-                                      ...item,
-                                      categoryName: category.name,
-                                    },
-                                  });
-                                  handleMenuClick(e);
-                                }}
-                                color="grey.20"
-                              >
-                                <TbDotsVertical size="20px" />
-                              </IconButton>
-                            </Box>
-                          ))}
-                      </Box>
-                    </Collapse>
-                  </Box>
-                ))
-              : "No categories & sub categories found"}
-          </List>
-        </Box>
-      </Collapse>
-
-      <Menu
-        anchorEl={anchorEl}
-        open={Boolean(anchorEl)}
-        onClose={handleMenuClose}
-        sx={{
-          "& .MuiPaper-root": {
-            borderRadius: "6px",
-            border: "1px solid #E4E7EC",
-            boxShadow: "0px 4px 16px rgba(0, 0, 0, 0.1)",
-          },
-        }}
-      >
-        <MenuItem
-          onClick={(e) => {
-            setIsModalOpen({
-              ...isModalOpen,
-              isSubModalOpen: true,
-              type: "update",
-            });
-            handleMenuClose(e);
-          }}
-          className="flex items-center gap-x-2 font-sm font-Inter !px-2 !mx-2 !rounded-sm border-b"
-        >
-          <TbPencil size="20px" />
-          Edit
-        </MenuItem>
-        <hr className="text-gray-100 w-full !my-1.5" />
-        <MenuItem
-          onClick={(e) => {
-            handleDelteSubCategory();
-            handleMenuClose(e);
-          }}
-          className="flex items-center gap-x-2 font-sm font-Inter !text-red100 !px-2 !mx-2 !rounded-sm"
-        >
-          <RiDeleteBin6Line size="20px" />
-          Delete
-        </MenuItem>
-      </Menu>
+                              Edit
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="danger"
+                              onClick={() => setSubToDelete(item?.id)}
+                            >
+                              Delete
+                            </Button>
+                          </DirectoryActions>
+                        </DirectoryListRow>
+                      );
+                    })}
+                </div>
+              ) : null}
+            </div>
+          ))}
+            </div>
+          ))
+        ) : (
+          <EmptyHint>No categories & sub categories found</EmptyHint>
+        )}
+    </DirectoryTableWrap>
 
       <CategoryModal
         open={isModalOpen.isOpen}
@@ -475,6 +408,27 @@ export default function ItemCategoriesCard({ triggerAdd }) {
           });
         }}
       />
-    </Box>
+
+      <ConfirmDeleteModal
+        open={Boolean(categoryToDelete)}
+        title="Delete category"
+        description={
+          categoryToDelete?.name
+            ? `Remove “${categoryToDelete.name}” and its sub-categories from the catalog?`
+            : "Remove this category from the catalog?"
+        }
+        onClose={() => setCategoryToDelete(null)}
+        onConfirm={handleDeleteCategory}
+        loading={deleteLoading}
+      />
+
+      <ConfirmDeleteModal
+        open={Boolean(subToDelete)}
+        title="Delete sub-category"
+        description="Remove this sub-category from the catalog?"
+        onClose={() => setSubToDelete(null)}
+        onConfirm={handleDeleteSubCategory}
+      />
+    </div>
   );
 }

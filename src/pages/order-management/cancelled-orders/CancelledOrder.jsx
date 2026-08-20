@@ -1,25 +1,18 @@
-import { Box, Typography } from "@mui/material";
-import { BsCardList } from "../../../shared/icons/index";
-import StatCard from "../../../components/ui/StatCard";
 import { useState, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   useGetCancelledOrdersQuery,
   useGetAllOrderStatusesQuery,
 } from "../../../store/services/api";
-import {
-  ORDER_TABLE_STICKY_LEFT_FIELDS,
-  ORDER_TABLE_STICKY_RIGHT_FIELDS,
-} from "../../../shared/constants";
 import DeleteOrderModal from "../order-modals/DeleteOrderModal";
-import {
-  buildOrderListColumns,
-  mapBookingToOrderListRow,
-} from "../orderListTable";
+import AssignOrderModal from "../order-modals/AssignOrderModal";
+import { useOrderListColumns } from "../useOrderListColumns";
+import { mapBookingToOrderListRow, tabOrderMetricItems } from "../orderListUtils";
 import { useOrderListTableFilters } from "../useOrderListTableFilters";
 import OrderListDataTable from "../OrderListDataTable";
 import { useOrderListPageQueries } from "../useOrderListPageQueries";
 import { useOrderListStatsQuery } from "../useOrderListStatsQuery";
+import { OrderError, OrderMetrics, OrderPageHeader } from "../OrderWorkspace";
 
 export default function CancelledOrders() {
   const navigate = useNavigate();
@@ -30,6 +23,7 @@ export default function CancelledOrders() {
     rows: orderBookings,
     totalRows,
     isTableLoading,
+    isError,
     refetch,
     embeddedCounts,
   } = useOrderListPageQueries({
@@ -46,6 +40,11 @@ export default function CancelledOrders() {
     [statusesResponse?.data]
   );
   const [deleteModal, setDeleteModal] = useState({ open: false, orderId: null });
+  const [assignModal, setAssignModal] = useState({
+    open: false,
+    orderId: null,
+    booking: null,
+  });
 
   const handleDeleteSuccess = () => {
     refetch();
@@ -57,85 +56,81 @@ export default function CancelledOrders() {
     [orderBookings]
   );
 
-  const customerColumns = useMemo(
-    () =>
-      buildOrderListColumns({
-        navigate,
-        orderStatuses,
-        setDeleteModal,
-        showAssign: false,
-      }),
-    [navigate, orderStatuses]
-  );
+  const customerColumns = useOrderListColumns({
+    navigate,
+    orderStatuses,
+    setDeleteModal,
+    setAssignModal,
+    showAssign: true,
+  });
 
   return (
     <>
-    <div className="!space-y-11">
-            <Box className="flex items-center gap-x-5 justify-between">
-              <Box className="flex items-center gap-x-5">
-                <Typography color="blue.50">
-                  <BsCardList size="24px" color="blue.50" />
-                </Typography>
+      <div className="min-w-0">
+        <OrderPageHeader
+          title="Cancelled Orders"
+          description="Audit cancelled orders while retaining their service, schedule and monetary context."
+        />
 
-                <Typography variant="h4" fontFamily={"Switzer"} color="grey.20">
-                  Order Management
-                </Typography>
-              </Box>
-            </Box>
+        {isError ? (
+          <OrderError>
+            Could not load cancelled orders. Adjust filters or refresh the page.
+          </OrderError>
+        ) : null}
 
-            <div className="grid sm:grid-cols-2 md:grid-cols-4 gap-7 font-Inter">
-              <StatCard
-                title="TOTAL ORDERS"
-                value={dashboardStats.total}
-                bgColor="bg-purple50"
-              />
+        <OrderMetrics
+          items={tabOrderMetricItems({
+            tabLabel: "Cancelled orders",
+            tabValue: totalRows,
+            tabTone: "danger",
+            stats: dashboardStats,
+          })}
+        />
 
-              <StatCard
-                title="Cancelled ORDERS"
-                value={totalRows}
-                bgColor="bg-green50"
-              />
-            </div>
-
-            <Typography
-              variant="body2"
-              sx={{ fontSize: 13, color: "text.secondary", mt: -4 }}
-            >
-              Cancelled list ({totalRows} matching filters). Table is paginated —
-              use the footer to browse all cancelled orders.
-            </Typography>
-
-            <div className="w-full min-w-0">
-                <OrderListDataTable
-                  data={customersData}
-                columns={customerColumns}
-                totalRows={totalRows}
-                page={tableFilters.page}
-                pageSize={tableFilters.pageSize}
-                onPageChange={tableFilters.setPage}
-                onPageSizeChange={tableFilters.setPageSize}
-                zoneId={tableFilters.zoneId}
-                onZoneIdChange={tableFilters.setZoneId}
-                statusId={tableFilters.statusId}
-                onStatusIdChange={tableFilters.setStatusId}
-                dateRange={tableFilters.dateRange}
-                onDateRangeChange={tableFilters.setDateRange}
-                orderStatuses={orderStatuses}
-                onClearFilters={tableFilters.clearFilters}
-                hasActiveFilters={tableFilters.hasActiveFilters}
-                stickyLeftFields={ORDER_TABLE_STICKY_LEFT_FIELDS}
-                stickyRightFields={ORDER_TABLE_STICKY_RIGHT_FIELDS}
-                searchInput={tableFilters.searchInput}
-                onSearchInputChange={tableFilters.setSearchInput}
-                isTableLoading={isTableLoading}
-              />
-            </div>
-          </div>
+        <OrderListDataTable
+          data={customersData}
+          columns={customerColumns}
+          totalRows={totalRows}
+          page={tableFilters.page}
+          pageSize={tableFilters.pageSize}
+          onPageChange={tableFilters.setPage}
+          onPageSizeChange={tableFilters.setPageSize}
+          zoneId={tableFilters.zoneId}
+          onZoneIdChange={tableFilters.setZoneId}
+          statusId={tableFilters.statusId}
+          onStatusIdChange={tableFilters.setStatusId}
+          dateRange={tableFilters.dateRange}
+          onDateRangeChange={tableFilters.setDateRange}
+          orderStatuses={orderStatuses}
+          showStatusFilter
+          onClearFilters={tableFilters.clearFilters}
+          hasActiveFilters={tableFilters.hasActiveFilters}
+          searchInput={tableFilters.searchInput}
+          onSearchInputChange={tableFilters.setSearchInput}
+          sortBy={tableFilters.sortBy}
+          onSortByChange={tableFilters.setSortBy}
+          sortDir={tableFilters.sortDir}
+          onSortDirChange={tableFilters.setSortDir}
+          isTableLoading={isTableLoading}
+        />
+      </div>
       <DeleteOrderModal
         open={deleteModal.open}
         orderId={deleteModal.orderId}
         onClose={() => setDeleteModal({ open: false, orderId: null })}
         onSuccess={handleDeleteSuccess}
+      />
+      <AssignOrderModal
+        open={assignModal.open}
+        bookingId={assignModal.orderId}
+        bookingSnapshot={assignModal.booking}
+        onClose={() =>
+          setAssignModal({ open: false, orderId: null, booking: null })
+        }
+        onSuccess={() => {
+          refetch();
+          refetchCounts();
+        }}
       />
     </>
   );

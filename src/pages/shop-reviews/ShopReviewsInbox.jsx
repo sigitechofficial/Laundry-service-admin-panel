@@ -1,26 +1,77 @@
 import { useMemo, useState } from "react";
 import {
-  Box,
-  Typography,
-  Chip,
-  MenuItem,
-  TextField,
-  Stack,
-  Rating,
-} from "@mui/material";
-import { BsCardList } from "../../shared/icons/index";
-import DataTable from "../../components/ui/DataTable";
-import ActionButtons from "../../components/ui/ActionButtons";
-import ModalComponent from "../../components/shared/Modal";
-import InputFieldModal from "../../components/ui/InputFieldModal";
-import ButtonBlue from "../../components/ui/ButtonBlue";
+  PageHeader,
+  Button,
+  Field,
+  Input,
+  Select,
+  Table,
+  Modal,
+} from "../../design-system";
 import {
   useGetShopReviewsQuery,
   useHideShopReviewMutation,
   useUnhideShopReviewMutation,
 } from "../../store/services/api";
 import { Delay } from "../../components/shared/Loaders";
+import {
+  DirectoryActions,
+  DirectoryClearButton,
+  DirectoryDotPill,
+  DirectoryDotPills,
+  DirectoryIdentity,
+  DirectoryMetric,
+  DirectoryMetrics,
+  DirectoryTableWrap,
+  DirectoryToolSelect,
+  DirectoryToolbar,
+  DirectoryToolbarEnd,
+} from "../directory-table/directoryTable";
+import { joinMeta } from "../directory-table/directoryTableUtils";
 import useToaster from "../../components/ui/Toaster";
+import { DATE_TIME_FORMAT, formatDate } from "../../utilities/formatters";
+
+const VISIBILITY_OPTIONS = [
+  { value: "", label: "All" },
+  { value: "published", label: "Published" },
+  { value: "hidden", label: "Hidden" },
+];
+
+const RATING_OPTIONS = [
+  { value: "", label: "All" },
+  ...[5, 4, 3, 2, 1].map((n) => ({ value: String(n), label: `${n} stars` })),
+];
+
+const SENTIMENT_OPTIONS = [
+  { value: "", label: "All" },
+  { value: "positive", label: "Has positive" },
+  { value: "negative", label: "Has negative" },
+];
+
+function Stars({ value }) {
+  const n = Math.max(0, Math.min(5, Number(value) || 0));
+  return (
+    <span aria-label={`${n} of 5 stars`} style={{ letterSpacing: 1, fontSize: 14 }}>
+      <span style={{ color: "var(--warning)" }}>{"★".repeat(n)}</span>
+      <span style={{ color: "var(--n-300)" }}>{"★".repeat(5 - n)}</span>
+    </span>
+  );
+}
+
+function ReasonBadges({ reasons, limit }) {
+  const items = Array.isArray(reasons) ? reasons : [];
+  if (!items.length) return "—";
+  return (
+    <DirectoryDotPills
+      maxVisible={limit || items.length}
+      items={items.map((r) => ({
+        key: r.code,
+        label: limit ? r.label || r.code : `${r.label}${r.otherText ? `: ${r.otherText}` : ""}`,
+        tone: r.sentiment === "positive" ? "success" : "danger",
+      }))}
+    />
+  );
+}
 
 export default function ShopReviewsInbox() {
   const { success, error: showError } = useToaster();
@@ -62,86 +113,71 @@ export default function ShopReviewsInbox() {
     rating: row.rating,
     comment: row.comment || "—",
     visibility: row.visibility,
-    submittedAt: row.submittedAt
-      ? new Date(row.submittedAt).toLocaleString()
-      : "—",
+    submittedAt: formatDate(row.submittedAt, DATE_TIME_FORMAT),
     reasons: row.reasons || [],
     raw: row,
   }));
 
   const columns = [
-    { field: "sl", headerName: "SL", flex: 0.05, minWidth: 60 },
-    { field: "orderTrackId", headerName: "ORDER", flex: 0.12, minWidth: 120 },
-    { field: "customer", headerName: "CUSTOMER", flex: 0.12, minWidth: 120 },
-    { field: "shopName", headerName: "SHOP", flex: 0.14, minWidth: 140 },
     {
-      field: "rating",
-      headerName: "RATING",
-      flex: 0.12,
-      minWidth: 120,
-      renderCell: (row) => <Rating value={row.rating} readOnly size="small" />,
-    },
-    {
-      field: "reasons",
-      headerName: "REASONS",
-      flex: 0.2,
-      minWidth: 180,
-      renderCell: (row) => (
-        <Stack direction="row" gap={0.5} flexWrap="wrap">
-          {(row.reasons || []).slice(0, 3).map((r) => (
-            <Chip
-              key={`${row.id}-${r.code}`}
-              size="small"
-              label={r.label || r.code}
-              color={r.sentiment === "positive" ? "success" : "error"}
-              variant="outlined"
-            />
-          ))}
-        </Stack>
-      ),
-    },
-    {
-      field: "visibility",
-      headerName: "STATUS",
-      flex: 0.1,
-      minWidth: 100,
-      renderCell: (row) => (
-        <Chip
-          size="small"
-          label={row.visibility}
-          color={row.visibility === "published" ? "success" : "default"}
+      key: "shopName",
+      header: "Review",
+      render: (row) => (
+        <DirectoryIdentity
+          name={row.shopName}
+          meta={joinMeta(row.customer, row.orderTrackId)}
         />
       ),
     },
-    { field: "submittedAt", headerName: "SUBMITTED", flex: 0.14, minWidth: 140 },
     {
-      field: "actions",
-      headerName: "ACTIONS",
-      flex: 0.12,
-      minWidth: 120,
-      sortable: false,
-      renderCell: (row) => (
-        <ActionButtons
-          showView
-          showEdit={false}
-          showDelete={false}
-          onView={() => setDetail(row.raw)}
-        />
+      key: "visibility",
+      header: "Status",
+      render: (row) => (
+        <DirectoryDotPill tone={row.visibility === "published" ? "success" : "neutral"}>
+          {row.visibility === "published" ? "Published" : "Hidden"}
+        </DirectoryDotPill>
+      ),
+    },
+    {
+      key: "reasons",
+      header: "Reasons",
+      render: (row) => <ReasonBadges reasons={row.reasons} limit={2} />,
+    },
+    {
+      key: "rating",
+      header: "Rating",
+      render: (row) => (
+        <DirectoryMetric value={`${row.rating}/5`} hint={row.submittedAt} />
+      ),
+    },
+    {
+      key: "actions",
+      header: "Actions",
+      render: (row) => (
+        <DirectoryActions>
+          <Button variant="secondary" size="sm" onClick={() => setDetail(row.raw)}>
+            View
+          </Button>
+        </DirectoryActions>
       ),
     },
   ];
 
+  const closeHideModal = () => {
+    setHideOpen(false);
+    setHideTarget(null);
+    setHideReason("");
+  };
+
   const handleHide = async () => {
-    if (!hideTarget) return;
+    if (!hideTarget || isHiding) return;
     try {
       await hideReview({
         id: hideTarget.id,
         body: { hiddenReason: hideReason },
       }).unwrap();
       success("Review hidden");
-      setHideOpen(false);
-      setHideTarget(null);
-      setHideReason("");
+      closeHideModal();
       setDetail(null);
       refetch();
     } catch (err) {
@@ -150,6 +186,7 @@ export default function ShopReviewsInbox() {
   };
 
   const handleUnhide = async (id) => {
+    if (isUnhiding) return;
     try {
       await unhideReview(id).unwrap();
       success("Review published");
@@ -162,194 +199,173 @@ export default function ShopReviewsInbox() {
 
   if (isLoading) return <Delay />;
 
+  const published = detail?.visibility === "published";
+
   return (
-    <div className="!space-y-8">
-      <Box className="flex items-center justify-between gap-x-5 flex-wrap">
-        <Box className="flex items-center gap-x-5">
-          <Typography color="blue.50">
-            <BsCardList size="24px" color="blue.50" />
-          </Typography>
-          <Box>
-            <Typography variant="h4" fontFamily="Switzer" color="grey.20">
-              Shop reviews
-            </Typography>
-            <Typography variant="body2" color="grey.70" fontFamily="Switzer">
-              Moderate customer feedback and audit reason codes across shops
-            </Typography>
-          </Box>
-        </Box>
-      </Box>
-
-      <Stack direction="row" gap={2} flexWrap="wrap">
-        <TextField
-          select
-          size="small"
-          label="Visibility"
-          value={visibility}
-          onChange={(e) => {
-            setVisibility(e.target.value);
-            setPage(1);
-          }}
-          sx={{ minWidth: 160 }}
-        >
-          <MenuItem value="">All</MenuItem>
-          <MenuItem value="published">Published</MenuItem>
-          <MenuItem value="hidden">Hidden</MenuItem>
-        </TextField>
-        <TextField
-          select
-          size="small"
-          label="Rating"
-          value={rating}
-          onChange={(e) => {
-            setRating(e.target.value);
-            setPage(1);
-          }}
-          sx={{ minWidth: 120 }}
-        >
-          <MenuItem value="">All</MenuItem>
-          {[5, 4, 3, 2, 1].map((n) => (
-            <MenuItem key={n} value={String(n)}>
-              {n} stars
-            </MenuItem>
-          ))}
-        </TextField>
-        <TextField
-          select
-          size="small"
-          label="Sentiment"
-          value={sentiment}
-          onChange={(e) => {
-            setSentiment(e.target.value);
-            setPage(1);
-          }}
-          sx={{ minWidth: 150 }}
-        >
-          <MenuItem value="">All</MenuItem>
-          <MenuItem value="positive">Has positive</MenuItem>
-          <MenuItem value="negative">Has negative</MenuItem>
-        </TextField>
-      </Stack>
-
-      <DataTable
-        data={tableRows}
-        columns={columns}
-        searchPlaceholder="Search reviews…"
-        showFilters={false}
-        showDateRange={false}
-        showDownload={false}
-        height={520}
+    <div>
+      <PageHeader
+        title="Shop reviews"
+        description="Moderate customer feedback and audit reason codes across shops"
       />
 
-      <Stack direction="row" gap={2} alignItems="center">
-        <Typography variant="body2" color="grey.70">
-          Page {pagination.page} of {pagination.totalPages || 1} ({pagination.total || 0}{" "}
-          total)
-        </Typography>
-        <ButtonBlue
-          size="small"
-          disabled={page <= 1}
-          onClick={() => setPage((p) => Math.max(1, p - 1))}
-        >
-          Previous
-        </ButtonBlue>
-        <ButtonBlue
-          size="small"
-          disabled={page >= (pagination.totalPages || 1)}
-          onClick={() => setPage((p) => p + 1)}
-        >
-          Next
-        </ButtonBlue>
-      </Stack>
+      <DirectoryMetrics
+        items={[{ label: "Reviews", value: pagination.total || 0, tone: "brand" }]}
+      />
 
-      <ModalComponent
+      <DirectoryTableWrap
+        toolbar={
+          <DirectoryToolbar>
+            <DirectoryToolSelect>
+              <Select
+                aria-label="Visibility"
+                value={visibility}
+                onChange={(value) => {
+                  setVisibility(value);
+                  setPage(1);
+                }}
+                options={VISIBILITY_OPTIONS}
+              />
+            </DirectoryToolSelect>
+            <DirectoryToolSelect>
+              <Select
+                aria-label="Rating"
+                value={rating}
+                onChange={(value) => {
+                  setRating(value);
+                  setPage(1);
+                }}
+                options={RATING_OPTIONS}
+              />
+            </DirectoryToolSelect>
+            <DirectoryToolSelect>
+              <Select
+                aria-label="Sentiment"
+                value={sentiment}
+                onChange={(value) => {
+                  setSentiment(value);
+                  setPage(1);
+                }}
+                options={SENTIMENT_OPTIONS}
+              />
+            </DirectoryToolSelect>
+            {visibility || rating || sentiment ? (
+              <DirectoryToolbarEnd>
+                <DirectoryClearButton
+                  onClick={() => {
+                    setVisibility("");
+                    setRating("");
+                    setSentiment("");
+                    setPage(1);
+                  }}
+                />
+              </DirectoryToolbarEnd>
+            ) : null}
+          </DirectoryToolbar>
+        }
+        footer={
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center" }}>
+            <p className="jd-lead" style={{ margin: 0 }}>
+              Page {pagination.page} of {pagination.totalPages || 1} (
+              {pagination.total || 0} total)
+            </p>
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={page <= 1}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+            >
+              Previous
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={page >= (pagination.totalPages || 1)}
+              onClick={() => setPage((p) => p + 1)}
+            >
+              Next
+            </Button>
+          </div>
+        }
+      >
+        <Table
+          columns={columns}
+          rows={tableRows}
+          rowKey={(row) => row.id}
+          empty="No reviews match these filters"
+        />
+      </DirectoryTableWrap>
+
+      <Modal
         open={!!detail}
         title="Review detail"
         onClose={() => setDetail(null)}
-        primaryAction={
-          detail?.visibility === "published"
-            ? {
-                label: "Hide review",
-                onClick: () => {
-                  setHideTarget(detail);
-                  setHideOpen(true);
-                },
-              }
-            : {
-                label: "Unhide review",
-                onClick: () => handleUnhide(detail.id),
-                isLoading: isUnhiding,
-              }
+        secondaryLabel="Close"
+        primaryLabel={
+          published
+            ? "Hide review"
+            : isUnhiding
+              ? "Publishing…"
+              : "Unhide review"
         }
-        secondaryAction={{
-          label: "Close",
-          onClick: () => setDetail(null),
+        danger={published}
+        onPrimary={() => {
+          if (!detail) return;
+          if (published) {
+            setHideTarget(detail);
+            setHideOpen(true);
+            return;
+          }
+          handleUnhide(detail.id);
         }}
       >
-        {detail && (
-          <Box className="space-y-3">
-            <Typography fontFamily="Switzer">
+        {detail ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <p style={{ margin: 0 }}>
               <strong>Order:</strong> {detail.orderTrackId || detail.bookingId}
-            </Typography>
-            <Typography fontFamily="Switzer">
+            </p>
+            <p style={{ margin: 0 }}>
               <strong>Shop:</strong> {detail.shopName}
-            </Typography>
-            <Typography fontFamily="Switzer">
+            </p>
+            <p style={{ margin: 0 }}>
               <strong>Customer:</strong> {detail.customer?.name}
-            </Typography>
-            <Rating value={detail.rating} readOnly />
-            <Stack direction="row" gap={0.5} flexWrap="wrap">
-              {(detail.reasons || []).map((r) => (
-                <Chip
-                  key={r.code}
-                  size="small"
-                  label={`${r.label}${r.otherText ? `: ${r.otherText}` : ""}`}
-                  color={r.sentiment === "positive" ? "success" : "error"}
-                  variant="outlined"
-                />
-              ))}
-            </Stack>
-            <Typography fontFamily="Switzer" color="grey.80">
+            </p>
+            <Stars value={detail.rating} />
+            <ReasonBadges reasons={detail.reasons} />
+            <p style={{ margin: 0, color: "var(--ink-2)" }}>
               {detail.comment || "No comment"}
-            </Typography>
-            {detail.visibility === "hidden" && detail.hiddenReason && (
-              <Typography fontFamily="Switzer" color="error.main">
+            </p>
+            {detail.visibility === "hidden" && detail.hiddenReason ? (
+              <p style={{ margin: 0, color: "var(--danger)", fontWeight: 500 }}>
                 Hidden reason: {detail.hiddenReason}
-              </Typography>
-            )}
-          </Box>
-        )}
-      </ModalComponent>
+              </p>
+            ) : null}
+          </div>
+        ) : null}
+      </Modal>
 
-      <ModalComponent
+      <Modal
         open={hideOpen}
         title="Hide review"
-        onClose={() => {
-          setHideOpen(false);
-          setHideTarget(null);
-          setHideReason("");
-        }}
-        primaryAction={{
-          label: "Hide",
-          onClick: handleHide,
-          isLoading: isHiding,
-        }}
-        secondaryAction={{
-          label: "Cancel",
-          onClick: () => {
-            setHideOpen(false);
-            setHideTarget(null);
-            setHideReason("");
-          },
-        }}
+        description="This review will no longer appear on the shop."
+        onClose={closeHideModal}
+        primaryLabel={isHiding ? "Hiding…" : "Hide"}
+        secondaryLabel="Cancel"
+        danger
+        onPrimary={handleHide}
       >
-        <InputFieldModal
-          label="Moderation note (optional)"
-          placeholder="Why is this review being hidden?"
-          value={hideReason}
-          onChange={(e) => setHideReason(e.target.value)}
-        />
-      </ModalComponent>
+        <Field
+          label="Moderation note"
+          hint="Optional. Why is this review being hidden?"
+          htmlFor="hide-reason"
+        >
+          <Input
+            id="hide-reason"
+            placeholder="Why is this review being hidden?"
+            value={hideReason}
+            onChange={(e) => setHideReason(e.target.value)}
+          />
+        </Field>
+      </Modal>
     </div>
   );
 }

@@ -1,315 +1,214 @@
-import { useState } from "react";
-import { Box, IconButton, Typography } from "@mui/material";
-import {
-  BsCardList,
-  TbFileDownload,
-  TbEye,
-  TbEdit,
-  TbTrash,
-  MdOutlineLocationOn,
-  MdOutlinePhone,
-  MdMailOutline,
-} from "../../../shared/icons/index";
-import Search from "../../../components/ui/Search";
-import FiltersButton from "../../../components/ui/FiltersButton";
-import DateRangeSelector from "../../../components/ui/DateRangeSelector";
-import DataTable from "../../../components/ui/DataTable";
-import StatusPill from "../../../components/ui/StatusPill";
-import ChangeStatus from "../../../components/ui/Switch";
-import ActionButtons from "../../../components/ui/ActionButtons";
+import { useMemo, useState } from "react";
+import { Button, PageHeader, Table } from "../../../design-system";
 import { useNavigate, useParams } from "react-router-dom";
 import { useGetSpecificDriverDetailQuery } from "../../../store/services/api";
 import { Delay } from "../../../components/shared/Loaders";
-import dayjs from "dayjs";
-import { dateTimeFormat } from "../../../shared/constants";
+import { DATE_TIME_FORMAT, formatDate, formatMoney, resolveCurrencySymbol } from "../../../utilities/formatters";
+import {
+  DirectoryActions,
+  DirectoryDotPill,
+  DirectoryIdentity,
+  DirectoryMetric,
+  DirectoryMoney,
+  DirectorySearch,
+  DirectoryTableWrap,
+  DirectoryToolbar,
+} from "../../directory-table/directoryTable";
+import { directoryStatusTone, joinMeta } from "../../directory-table/directoryTableUtils";
+
+const PANEL = {
+  padding: 24,
+  border: "1px solid var(--line)",
+  borderRadius: "var(--r-xl)",
+  background: "var(--surface)",
+  boxShadow: "var(--e-1)",
+};
+
+function matchesSearch(row, term) {
+  if (!term) return true;
+  const q = term.toLowerCase();
+  return Object.values(row).some((value) => String(value ?? "").toLowerCase().includes(q));
+}
 
 export default function DriverDetails() {
   const navigate = useNavigate();
   const { id } = useParams();
-  const [dateRange, setDateRange] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
 
-  const { data, isLoading } = useGetSpecificDriverDetailQuery(id, { skip: !id });
+  const { data, isLoading, isError } = useGetSpecificDriverDetailQuery(id, { skip: !id });
 
-  // Extract driver information from API response
   const driverInfo = data?.data?.userInformation;
   const driverDetails = driverInfo?.driverInZone;
   const shopInfo = driverInfo?.laundaryDriver;
   const addressInfo = shopInfo?.addressDb;
-  const bookings = data?.data?.driverBookings || [];
+  const bookings = useMemo(
+    () => data?.data?.driverBookings || [],
+    [data?.data?.driverBookings]
+  );
 
-  // Map bookings data for table
-  const customersData = bookings?.map((booking, index) => {
-    return {
-      id: booking?.id,
-      sl: index + 1,
-      orderId: booking?.id,
-      orderDateTime: dayjs(booking?.createdAt).format(dateTimeFormat),
-      serviceType: booking?.serviceType,
-      totalItems: booking?.totalItems,
-      pickupDateTime: dayjs(booking?.collectionDate).format(dateTimeFormat),
-      deliveryDateTime: dayjs(booking?.deliveryDate).format(dateTimeFormat),
-      OnHold: booking?.OnHoldConfirmations?.length,
-      pickupDriver: `
-        ${booking?.driver?.firstName || ""} ${booking?.driver?.lastName || ""}`,
-      deliveryDriver: `${booking?.driver?.firstName || ""} ${
-        booking?.driver?.lastName || ""
-      }`,
-      shopName: booking?.laundryShop?.id,
-      cost: booking?.orderAmount,
-      status: booking?.bookingStatus?.title,
-    };
-  });
+  const rows = useMemo(
+    () =>
+      (bookings || []).map((booking, index) => ({
+        id: booking?.id,
+        sl: index + 1,
+        orderId: booking?.id,
+        orderDateTime: formatDate(booking?.createdAt, DATE_TIME_FORMAT),
+        serviceType: booking?.serviceType || "—",
+        totalItems: booking?.totalItems || 0,
+        pickupDateTime: formatDate(booking?.collectionDate, DATE_TIME_FORMAT),
+        deliveryDateTime: formatDate(booking?.deliveryDate, DATE_TIME_FORMAT),
+        currencySymbol: resolveCurrencySymbol(
+          booking?.billingDetail ?? booking?.paymentSummary ?? booking?.zone ?? booking
+        ),
+        onHold: booking?.OnHoldConfirmations?.length || 0,
+        pickupDriver: `${booking?.driver?.firstName || ""} ${booking?.driver?.lastName || ""}`.trim() || "—",
+        deliveryDriver: `${booking?.deliveryDriver?.firstName || booking?.driver?.firstName || ""} ${
+          booking?.deliveryDriver?.lastName || booking?.driver?.lastName || ""
+        }`.trim() || "—",
+        shopName: booking?.laundryShop?.name || booking?.laundryShop?.shopName || "—",
+        cost: booking?.orderAmount,
+        status: booking?.bookingStatus?.title || "—",
+      })),
+    [bookings]
+  );
 
-  // Column configuration for customer table
-  const customerColumns = [
+  const visibleRows = useMemo(
+    () => rows.filter((row) => matchesSearch(row, searchTerm)),
+    [rows, searchTerm]
+  );
+
+  const columns = [
     {
-      field: "sl",
-      headerName: "SL",
-      flex: 0.15,
-      minWidth: 100,
-    },
-    {
-      field: "orderId",
-      headerName: "Order Id",
-      flex: 0.12,
-      minWidth: 100,
-    },
-    {
-      field: "orderDateTime",
-      headerName: "Order date & time",
-      flex: 0.18,
-      minWidth: 150,
-    },
-    {
-      field: "serviceType",
-      headerName: "Service type",
-      flex: 0.18,
-      minWidth: 150,
-    },
-    {
-      field: "totalItems",
-      headerName: "Total items",
-      flex: 0.15,
-      minWidth: 150,
-    },
-    {
-      field: "pickupDateTime",
-      headerName: "Pickup date/time",
-      flex: 0.1,
-      minWidth: 130,
-      type: "number",
-    },
-    {
-      field: "deliveryDateTime",
-      headerName: "Delivery Date/Time",
-      flex: 0.12,
-      minWidth: 170,
-    },
-    {
-      field: "OnHold ",
-      headerName: "On-hold ",
-      flex: 0.12,
-      minWidth: 120,
-    },
-    {
-      field: "pickupDriver ",
-      headerName: "Pickup Driver ",
-      flex: 0.12,
-      minWidth: 120,
-    },
-    {
-      field: "deliveryDriver",
-      headerName: "Delivery driver",
-      flex: 0.12,
-      minWidth: 120,
-    },
-    {
-      field: "shopName",
-      headerName: "Shop Name",
-      flex: 0.12,
-      minWidth: 120,
-    },
-    {
-      field: "cost",
-      headerName: "Total cost",
-      flex: 0.12,
-      minWidth: 120,
-    },
-    {
-      field: "status",
-      headerName: "Status",
-      flex: 0.08,
-      minWidth: 100,
-    },
-    {
-      field: "changeStatus",
-      headerName: "Change Status",
-      flex: 0.1,
-      minWidth: 130,
-      type: "switch",
-      renderCell: (params) => (
-        <ChangeStatus
-          width={"45px"}
-          checked={params.value}
-          // onChange={(e) => setChecked(e.target.checked)}
+      key: "orderId",
+      header: "Order",
+      render: (row) => (
+        <DirectoryIdentity
+          name={`#${row.orderId}`}
+          meta={joinMeta(row.shopName, row.serviceType)}
         />
       ),
     },
     {
-      field: "actions",
-      headerName: "Actions",
-      flex: 0.15,
-      minWidth: 200,
-      sortable: false,
-      renderCell: () => (
-        <ActionButtons
-          onView={() => alert("View clicked")}
-          onEdit={() => alert("Edit clicked")}
-          onDelete={() => alert("Delete clicked")}
+      key: "orderDateTime",
+      header: "When",
+      render: (row) => (
+        <DirectoryIdentity
+          name={row.orderDateTime}
+          meta={joinMeta(
+            row.pickupDateTime !== "—" ? `Pickup ${row.pickupDateTime}` : null,
+            row.deliveryDateTime !== "—" ? `Delivery ${row.deliveryDateTime}` : null
+          )}
         />
+      ),
+    },
+    {
+      key: "pickupDriver",
+      header: "Drivers",
+      render: (row) => (
+        <DirectoryIdentity
+          name={row.pickupDriver}
+          meta={row.deliveryDriver !== row.pickupDriver ? row.deliveryDriver : undefined}
+        />
+      ),
+    },
+    {
+      key: "totalItems",
+      header: "Items",
+      render: (row) => (
+        <DirectoryMetric
+          value={row.totalItems}
+          hint={row.onHold ? `${row.onHold} on hold` : undefined}
+        />
+      ),
+    },
+    {
+      key: "cost",
+      header: "Total",
+      render: (row) => <DirectoryMoney>{formatMoney(row.cost, row.currencySymbol)}</DirectoryMoney>,
+    },
+    {
+      key: "status",
+      header: "Status",
+      render: (row) => (
+        <DirectoryDotPill tone={directoryStatusTone(row.status)}>{row.status}</DirectoryDotPill>
+      ),
+    },
+    {
+      key: "actions",
+      header: "Actions",
+      render: (row) => (
+        <DirectoryActions>
+          <Button size="sm" variant="secondary" onClick={() => row.id && navigate(`/orders/details/${row.id}`)}>
+            View
+          </Button>
+        </DirectoryActions>
       ),
     },
   ];
 
-  const handleDateChange = (selectedRange) => {
-    console.log("Selected Date Range:", selectedRange);
-    setDateRange(selectedRange);
-
-    // You can use the date range for filtering customers
-    if (selectedRange) {
-      console.log(
-        "Start Date:",
-        selectedRange.startDate.format(dateTimeFormat)
-      );
-      console.log("End Date:", selectedRange.endDate.format(dateTimeFormat));
-      console.log("Label:", selectedRange.label);
-      console.log("Type:", selectedRange.type);
-    }
-  };
-
-  const handleSearchChange = (searchTerm) => {
-    setSearchTerm(searchTerm);
-    console.log("Search term:", searchTerm);
-    // Implement search logic here - filter the customersData
-  };
-
-  const handleFilter = () => {
-    console.log("Filter button clicked");
-    // Open filter modal or apply filters
-  };
-
-  const handleDownload = (data) => {
-    console.log("Download customers data:", data);
-    // Implement download functionality (CSV, Excel, etc.)
-  };
-
-  const handleRowAction = (actionType, rowData) => {
-    console.log("🚀 ~ handleRowAction ~ rowData:", rowData);
-    switch (actionType) {
-      case "view":
-        // Navigate to customer details page or open modal
-        navigate(`/customer-management/${rowData.id}`);
-        break;
-      case "edit":
-        // Navigate to edit customer page or open edit modal
-        console.log("Editing customer:", rowData.name);
-        break;
-      case "delete":
-        // Show confirmation dialog and delete customer
-        console.log("Deleting customer:", rowData.name);
-        break;
-      case "toggle-status":
-        // Toggle customer status
-        console.log("Toggling status for customer:", rowData.name);
-        break;
-      default:
-        break;
-    }
-  };
   if (isLoading) return <Delay />;
 
+  if (isError) {
+    return (
+      <div>
+        <PageHeader
+          title="Driver details"
+          actions={
+            <Button variant="secondary" onClick={() => navigate("/driver-management")}>
+              Back
+            </Button>
+          }
+        />
+        <p role="alert" style={{ color: "var(--danger)" }}>
+          Couldn’t load this driver. The details API failed. Try again or go back to the list.
+        </p>
+      </div>
+    );
+  }
+
+  const fullName = `${driverDetails?.firstName || ""} ${driverDetails?.lastName || ""}`.trim() || "Driver";
+  const address = addressInfo
+    ? `${addressInfo?.streetAddress || ""} ${addressInfo?.district || ""}, ${addressInfo?.province || ""}`.trim()
+    : "";
+
   return (
-    <div className="!space-y-11">
-            <Box className="flex items-center gap-x-5 justify-between">
-              <Box className="flex items-center gap-x-5">
-                <Typography color="blue.50">
-                  <BsCardList size="24px" color="blue.50" />
-                </Typography>
+    <div>
+      <PageHeader
+        title={fullName}
+        description={`Driver ID #${driverDetails?.id || id}`}
+        actions={
+          <Button variant="secondary" onClick={() => navigate("/driver-management")}>
+            Back
+          </Button>
+        }
+      />
 
-                <Typography variant="h4" fontFamily={"Switzer"} color="grey.20">
-                  Driver Management
-                </Typography>
-              </Box>
+      <div style={{ ...PANEL, marginBottom: 20 }}>
+        <p style={{ margin: "0 0 8px", color: "var(--muted)" }}>{driverDetails?.email || "—"}</p>
+        {shopInfo ? <p style={{ margin: "0 0 8px" }}>Shop: {shopInfo?.shopName || "—"}</p> : null}
+        {address ? <p style={{ margin: "0 0 8px" }}>{address}</p> : null}
+        {driverDetails?.role ? <p style={{ margin: 0 }}>Role: {driverDetails.role.name}</p> : null}
+      </div>
 
-              <Box className="flex items-center gap-x-5">
-                <Search
-                  placeholder="Search"
-                  onChange={handleSearchChange}
-                  value={searchTerm}
-                />
-
-                <FiltersButton text="Filters" />
-              </Box>
-            </Box>
-
-            <div className="flex w-full rounded-xl bg-white !p-4">
-              <div className="w-[720px] bg-grey50 rounded-[20px] !p-7 flex justify-between font-Inter">
-                <div className="!space-y-2">
-                  <p className="text-grey20 font-medium text-2xl">
-                    ID #{driverDetails?.id || id}
-                  </p>
-                  <p className="font-medium text-2xl !pt-4 capitalize">
-                    {`${driverDetails?.firstName || ""} ${driverDetails?.lastName || ""}`.trim()}
-                  </p>
-                  <p className="font-medium text-base text-grey20 flex items-center gap-2">
-                    <MdMailOutline size={"22px"} />
-                    {driverDetails?.email || "N/A"}
-                  </p>
-                  {shopInfo && (
-                    <>
-                      <p className="font-medium text-base text-grey20 flex items-center gap-2">
-                        <MdOutlineLocationOn size={"24px"} />
-                        Shop: {shopInfo?.shopName || "N/A"}
-                      </p>
-                      {addressInfo && (
-                        <p className="font-medium text-base text-grey20 flex items-center gap-2">
-                          <MdOutlineLocationOn size={"24px"} />
-                          {`${addressInfo?.streetAddress || ""} ${addressInfo?.district || ""}, ${addressInfo?.province || ""}`.trim()}
-                        </p>
-                      )}
-                    </>
-                  )}
-                  {driverDetails?.role && (
-                    <p className="font-medium text-base text-grey20">
-                      Role: {driverDetails.role.name}
-                    </p>
-                  )}
-                </div>
-
-                <div className="size-20 rounded-2xl">
-                  <img
-                    className="w-full h-full object-center"
-                    src="/images/admin.png"
-                    alt="customer image"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="w-full overflow-auto">
-              <DataTable
-                data={customersData}
-                columns={customerColumns}
-                searchPlaceholder="Search by order ID, product name..."
-                onSearch={handleSearchChange}
-                onFilter={handleFilter}
-                onDateRangeChange={handleDateChange}
-                onDownload={handleDownload}
-                onRowAction={handleRowAction}
-                height={600}
-              />
-            </div>
-          </div>
+      <DirectoryTableWrap
+        toolbar={
+          <DirectoryToolbar>
+            <DirectorySearch
+              id="driver-orders-search"
+              value={searchTerm}
+              onChange={setSearchTerm}
+              placeholder="Search by order ID, shop, status..."
+            />
+          </DirectoryToolbar>
+        }
+      >
+        <Table
+          columns={columns}
+          rows={visibleRows}
+          rowKey={(row) => row.id}
+          empty="No bookings found for this driver"
+        />
+      </DirectoryTableWrap>
+    </div>
   );
 }

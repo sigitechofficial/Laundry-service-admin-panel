@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import SelectField from "../../components/ui/SelectField";
+import { Input, Select } from "../../design-system";
 import {
   useGetAllZonesQuery,
   useGetAllCountriesQuery,
@@ -7,16 +7,15 @@ import {
 } from "../../store/services/api";
 
 const DEFAULT_PERIOD_OPTIONS = [
-  { value: "all", label: "All Time" },
+  { value: "all", label: "All time" },
   { value: "today", label: "Today" },
   { value: "this_week", label: "Last 7 days" },
-  { value: "this_month", label: "This Month" },
+  { value: "this_month", label: "This month" },
+  { value: "custom", label: "Custom range" },
 ];
 
 function normalizeZones(data) {
-  const raw = Array.isArray(data)
-    ? data
-    : data?.zones ?? data?.data ?? [];
+  const raw = Array.isArray(data) ? data : data?.zones ?? data?.data ?? [];
   return Array.isArray(raw) ? raw : [];
 }
 
@@ -40,9 +39,12 @@ export default function DashboardFilter({
     cityId: "",
     countryId: "",
     period: "all",
+    startDate: "",
+    endDate: "",
   });
 
   const filters = value !== undefined ? value : selectedFilters;
+  const isCustom = filters.period === "custom";
 
   const { data: zonesRes } = useGetAllZonesQuery();
   const { data: countriesRes } = useGetAllCountriesQuery();
@@ -57,14 +59,12 @@ export default function DashboardFilter({
     return allZones
       .filter((z) => {
         const zCity = z.cityId ?? z.city?.id;
-        const zCountry =
-          z.countryId ?? z.city?.countryId ?? z.country?.id ?? null;
+        const zCountry = z.countryId ?? z.city?.countryId ?? z.country?.id ?? null;
 
         if (filters.cityId) {
           return zCity == null || String(zCity) === String(filters.cityId);
         }
         if (filters.countryId) {
-          // Prefer zone.countryId; fall back to matching city list when present
           if (zCountry != null) {
             return String(zCountry) === String(filters.countryId);
           }
@@ -98,8 +98,14 @@ export default function DashboardFilter({
     }));
   }, [citiesRes?.data]);
 
-  const handleFilterChange = (field) => (e) => {
-    const val = e.target.value;
+  const commit = (next) => {
+    if (value === undefined) {
+      setSelectedFilters(next);
+    }
+    onChange?.(next);
+  };
+
+  const handleFilterChange = (field) => (val) => {
     let next = { ...filters, [field]: val };
     if (field === "countryId") {
       next = { ...next, cityId: "", zoneId: "" };
@@ -107,68 +113,85 @@ export default function DashboardFilter({
     if (field === "cityId") {
       next = { ...next, zoneId: "" };
     }
-    // Period placeholder "" → treat as all time
-    if (field === "period" && !val) {
-      next = { ...next, period: "all" };
+    if (field === "period") {
+      if (!val) next = { ...next, period: "all" };
+      if (val !== "custom") {
+        next = { ...next, startDate: "", endDate: "" };
+      }
     }
-    if (value === undefined) {
-      setSelectedFilters(next);
-    }
-    onChange?.(next);
+    commit(next);
+  };
+
+  const handleDateChange = (field) => (event) => {
+    commit({ ...filters, [field]: event.target.value });
   };
 
   return (
-    <div className="flex items-center gap-4 flex-wrap justify-end">
-      <SelectField
-        onChange={handleFilterChange("countryId")}
-        options={countryOptions}
-        value={filters.countryId || ""}
-        placeholder="All countries"
-        width={"150px"}
-        radius="4px"
-        height="44px"
-        bgcolor={"white"}
-      />
+    <div className="flex flex-wrap items-center justify-end gap-2">
+      <div className="w-[148px] min-w-[136px]">
+        <Select
+          aria-label="Country"
+          onChange={handleFilterChange("countryId")}
+          options={[{ value: "", label: "All countries" }, ...countryOptions]}
+          value={filters.countryId || ""}
+          placeholder="All countries"
+        />
+      </div>
 
-      <SelectField
-        onChange={handleFilterChange("cityId")}
-        options={cityOptions}
-        value={filters.cityId || ""}
-        placeholder={
-          !filters.countryId
-            ? "All cities"
-            : citiesLoading
-              ? "Loading…"
-              : "All cities"
-        }
-        width={"140px"}
-        radius="4px"
-        height="44px"
-        bgcolor={"white"}
-        disabled={!filters.countryId || citiesLoading}
-      />
+      <div className="w-[148px] min-w-[136px]">
+        <Select
+          aria-label="City"
+          onChange={handleFilterChange("cityId")}
+          options={[{ value: "", label: "All cities" }, ...cityOptions]}
+          value={filters.cityId || ""}
+          placeholder={
+            !filters.countryId ? "All cities" : citiesLoading ? "Loading…" : "All cities"
+          }
+          disabled={!filters.countryId || citiesLoading}
+        />
+      </div>
 
-      <SelectField
-        onChange={handleFilterChange("zoneId")}
-        options={zoneOptions}
-        value={filters.zoneId || ""}
-        placeholder="All zones"
-        width={"140px"}
-        radius="4px"
-        height="44px"
-        bgcolor={"white"}
-      />
+      <div className="w-[148px] min-w-[136px]">
+        <Select
+          aria-label="Zone"
+          onChange={handleFilterChange("zoneId")}
+          options={[{ value: "", label: "All zones" }, ...zoneOptions]}
+          value={filters.zoneId || ""}
+          placeholder="All zones"
+        />
+      </div>
 
-      <SelectField
-        onChange={handleFilterChange("period")}
-        options={periodOptions}
-        value={filters.period || "all"}
-        placeholder="All Time"
-        width={"130px"}
-        radius="4px"
-        height="44px"
-        bgcolor={"white"}
-      />
+      <div className="w-[148px] min-w-[136px]">
+        <Select
+          aria-label="Period"
+          onChange={handleFilterChange("period")}
+          options={periodOptions}
+          value={filters.period || "all"}
+          placeholder="All time"
+        />
+      </div>
+
+      {isCustom ? (
+        <>
+          <div className="w-[148px] min-w-[136px]">
+            <Input
+              type="date"
+              aria-label="Start date"
+              value={filters.startDate || ""}
+              onChange={handleDateChange("startDate")}
+            />
+          </div>
+          <div className="w-[148px] min-w-[136px]">
+            <Input
+              type="date"
+              aria-label="End date"
+              value={filters.endDate || ""}
+              min={filters.startDate || undefined}
+              onChange={handleDateChange("endDate")}
+            />
+          </div>
+        </>
+      ) : null}
     </div>
   );
 }

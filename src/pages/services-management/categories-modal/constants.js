@@ -1,4 +1,8 @@
 import * as yup from "yup";
+import {
+  IMAGE_UPLOAD_MESSAGES,
+  validateImageFile,
+} from "../../../utilities/imageUploadPolicy";
 
 const imageFieldSchema = (requiredMessage) =>
   yup
@@ -8,25 +12,12 @@ const imageFieldSchema = (requiredMessage) =>
       if (value == null || value === "") return false;
       return true;
     })
-    .test("fileSize", "Image size must be less than 5MB", (value) => {
-      if (!value) return false;
-      if (typeof value === "string") return true;
-      return value && value.size <= 5 * 1024 * 1024;
-    })
-    .test(
-      "fileType",
-      "Only image files are allowed (jpg, jpeg, png, gif)",
-      (value) => {
-        if (!value) return false;
-        if (typeof value === "string") return true;
-        return (
-          value &&
-          ["image/jpeg", "image/jpg", "image/png", "image/gif"].includes(
-            value.type
-          )
-        );
-      }
-    );
+    .test("imagePolicy", IMAGE_UPLOAD_MESSAGES.size, function (value) {
+      if (value == null || value === "") return true;
+      const result = validateImageFile(value, { allowExistingUrl: true });
+      if (result.ok) return true;
+      return this.createError({ message: result.message });
+    });
 
 const serviceIdFieldSchema = yup
   .number()

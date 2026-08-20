@@ -1,29 +1,28 @@
 import { useMemo, useState } from "react";
-import { Typography } from "@mui/material";
-import DataTable from "../../components/ui/DataTable";
+import { Button, Table } from "../../design-system";
+import {
+  DirectoryActions,
+  DirectoryDotPill,
+  DirectoryIdentity,
+  DirectoryMetric,
+  DirectoryMetrics,
+  DirectoryTableWrap,
+  DirectoryViewModal,
+} from "../directory-table/directoryTable";
 import { useReportsOnHoldQuery } from "../../store/services/api";
-import { Delay } from "../../components/shared/Loaders";
-import { buildReportParams } from "./reportQueryUtils";
+import ReportToolbar, { ReportPagination } from "./ReportToolbar";
+import { useReportFilters } from "./reportQueryUtils";
+import { downloadReportCsv, ReportInfo, ReportQueueLink, ReportQueryState, unwrapReport } from "./reportUi.js";
 
 export default function OnHoldReport() {
-  const [period, setPeriod] = useState("all");
-  const [search, setSearch] = useState("");
-  const [dateRange, setDateRange] = useState(null);
-  const [page, setPage] = useState(1);
-  const [limit, setLimit] = useState(20);
+  const f = useReportFilters();
+  const [viewRow, setViewRow] = useState(null);
+  const { data, isLoading, isError, error, refetch } = useReportsOnHoldQuery(f.params);
+  const { rows, total, summary } = unwrapReport(data);
 
-  const params = buildReportParams({
-    period,
-    search,
-    page,
-    limit,
-    startDate: dateRange?.startDate,
-    endDate: dateRange?.endDate,
-  });
-  const { data, isLoading } = useReportsOnHoldQuery(params);
   const reportData = useMemo(
     () =>
-      (data?.data?.data || []).map((row, idx) => ({
+      rows.map((row, idx) => ({
         id: `${row.orderId || idx}-${idx}`,
         sl: row.sl ?? idx + 1,
         orderId: row.orderId ?? "—",
@@ -35,65 +34,132 @@ export default function OnHoldReport() {
         status: row.status ?? "—",
         resolution: row.resolution ?? "—",
       })),
-    [data]
+    [rows]
   );
 
-  const totalRows = Number(data?.data?.total || reportData.length || 0);
-
   const columns = [
-    { field: "sl", headerName: "SL", flex: 0.1, minWidth: 60 },
-    { field: "orderId", headerName: "Order ID", flex: 0.2, minWidth: 120 },
-    { field: "customerName", headerName: "Customer", flex: 0.18, minWidth: 140 },
-    { field: "email", headerName: "Email", flex: 0.22, minWidth: 170 },
-    { field: "phone", headerName: "Phone", flex: 0.16, minWidth: 130 },
-    { field: "items", headerName: "Items", flex: 0.1, minWidth: 80 },
     {
-      field: "onHoldReason",
-      headerName: "On Hold Reason",
-      flex: 0.35,
-      minWidth: 250,
-      renderCell: (row) => (
-        <Typography sx={{ fontSize: 13, color: "#475569", whiteSpace: "normal", lineHeight: 1.4 }}>
-          {row.onHoldReason}
-        </Typography>
+      key: "customerName",
+      header: "Order",
+      render: (row) => (
+        <DirectoryIdentity name={row.customerName} meta={row.orderId} />
       ),
     },
-    { field: "status", headerName: "Status", flex: 0.1, minWidth: 90 },
-    { field: "resolution", headerName: "Resolution", flex: 0.14, minWidth: 120 },
+    {
+      key: "email",
+      header: "Contact",
+      render: (row) => <DirectoryIdentity name={row.email} meta={row.phone} />,
+    },
+    {
+      key: "items",
+      header: "Items",
+      render: (row) => <DirectoryMetric value={row.items} />,
+    },
+    {
+      key: "status",
+      header: "Status",
+      render: (row) => <DirectoryDotPill tone="warning">{row.status}</DirectoryDotPill>,
+    },
+    {
+      key: "onHoldReason",
+      header: "Reason",
+      render: (row) => <DirectoryIdentity name={row.onHoldReason} meta={row.resolution} />,
+    },
+    {
+      key: "actions",
+      header: "Actions",
+      render: (row) => (
+        <DirectoryActions>
+          <Button size="sm" variant="secondary" onClick={() => setViewRow(row)}>
+            View
+          </Button>
+        </DirectoryActions>
+      ),
+    },
   ];
 
-  if (isLoading) return <Delay />;
-
   return (
-    <div className="!space-y-6">
-      <div className="w-full overflow-auto">
-        <DataTable
-          data={reportData}
-          columns={columns}
-          searchPlaceholder="Search by order ID, customer..."
-          searchValue={search}
-          onSearchChange={(value) => {
-            setSearch(value);
-            setPage(1);
-          }}
-          dateRangeValue={dateRange}
-          onDateRangeChange={(next) => {
-            setDateRange(next);
-            setPeriod(next?.type || "all");
-            setPage(1);
-          }}
-          serverSidePagination
-          totalRows={totalRows}
-          currentPage={page}
-          pageSize={limit}
-          onPageChange={setPage}
-          onPageSizeChange={(nextLimit) => {
-            setLimit(nextLimit);
-            setPage(1);
-          }}
-          height={500}
+    <ReportQueryState isLoading={isLoading} isError={isError} error={error} onRetry={refetch}>
+      <div>
+        <ReportInfo>
+          Orders currently on hold in the selected period. Open the on-hold queue for operational
+          follow-up. This list returns track IDs, not booking IDs, so rows do not open order details.
+        </ReportInfo>
+        <DirectoryMetrics
+          items={[
+            { label: "On hold", value: summary.onHold ?? total, tone: "warning" },
+            ...(Array.isArray(summary.reasons) ? summary.reasons.slice(0, 3) : []).map((reason, index) => ({
+              label: reason.reason || "Reason",
+              value: reason.count ?? 0,
+              tone: index === 0 ? "navy" : "brand",
+            })),
+          ]}
+        />
+        <DirectoryTableWrap
+          toolbar={
+            <ReportToolbar
+              search={f.search}
+              onSearch={f.setSearch}
+              searchPlaceholder="Search by order ID or reason…"
+              period={f.period}
+              onPeriodChange={f.setPeriod}
+              startDate={f.startDate}
+              endDate={f.endDate}
+              onStartDateChange={f.setStartDate}
+              onEndDateChange={f.setEndDate}
+              zoneId={f.zoneId}
+              onZoneIdChange={f.setZoneId}
+              shopId={f.shopId}
+              onShopIdChange={f.setShopId}
+              onClear={f.clearFilters}
+              extraTools={<ReportQueueLink to="/orders/on-hold-orders">Open on-hold queue</ReportQueueLink>}
+              onExport={() =>
+                downloadReportCsv(
+                  "on-hold.csv",
+                  [
+                    { key: "orderId", header: "Order" },
+                    { key: "customerName", header: "Customer" },
+                    { key: "email", header: "Email" },
+                    { key: "phone", header: "Phone" },
+                    { key: "items", header: "Items" },
+                    { key: "status", header: "Status" },
+                    { key: "onHoldReason", header: "Reason" },
+                    { key: "resolution", header: "Last update" },
+                  ],
+                  reportData
+                )
+              }
+              exportDisabled={!reportData.length}
+            />
+          }
+          footer={
+            <ReportPagination
+              page={f.page}
+              pageSize={f.limit}
+              totalRows={total}
+              onPageChange={f.setPage}
+              onPageSizeChange={f.setLimit}
+            />
+          }
+        >
+          <Table columns={columns} rows={reportData} rowKey={(row) => row.id} empty="No on-hold orders in this period" />
+        </DirectoryTableWrap>
+        <DirectoryViewModal
+          open={Boolean(viewRow)}
+          title={viewRow?.orderId || "On-hold order"}
+          onClose={() => setViewRow(null)}
+          fields={[
+            { label: "Order ID", value: viewRow?.orderId },
+            { label: "Customer", value: viewRow?.customerName },
+            { label: "Email", value: viewRow?.email },
+            { label: "Phone", value: viewRow?.phone },
+            { label: "Items", value: viewRow?.items },
+            { label: "Reason", value: viewRow?.onHoldReason },
+            { label: "Status", value: viewRow?.status },
+            { label: "Last update", value: viewRow?.resolution },
+          ]}
         />
       </div>
-    </div>
+    </ReportQueryState>
   );
 }

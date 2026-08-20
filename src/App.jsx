@@ -1,19 +1,23 @@
-import { Box, ThemeProvider } from "@mui/material";
-import { theme } from "./shared/theme";
 import { BrowserRouter } from "react-router-dom";
+import ErrorBoundary from "./components/ErrorBoundary";
+import OfflineBanner from "./components/shared/OfflineBanner";
 import Component from "./routes/Component";
+import { GoogleMapsProvider } from "./utilities/GoogleMapsProvider";
 import SnackbarProviderWrapper from "./utilities/SnackbarProvider";
 
 function App() {
   return (
     <div className="w-full">
-      <BrowserRouter>
-        <ThemeProvider theme={theme}>
+      <GoogleMapsProvider>
+        <BrowserRouter>
           <SnackbarProviderWrapper>
-            <Component />
+            <ErrorBoundary>
+              <OfflineBanner />
+              <Component />
+            </ErrorBoundary>
           </SnackbarProviderWrapper>
-        </ThemeProvider>
-      </BrowserRouter>
+        </BrowserRouter>
+      </GoogleMapsProvider>
     </div>
   );
 }

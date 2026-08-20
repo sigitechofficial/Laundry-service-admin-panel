@@ -1,45 +1,47 @@
-import { Box, Checkbox, Typography } from "@mui/material";
+import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import ButtonBlue from "../../components/ui/ButtonBlue";
-import ButtonWhite from "../../components/ui/ButtonWhite";
+import { useForm } from "react-hook-form";
+import { yupResolver } from "@hookform/resolvers/yup";
 import {
   useAdminLoginMutation,
   useZoneAdminLoginMutation,
 } from "../../store/services/api";
-import { useForm } from "react-hook-form";
-import { yupResolver } from "@hookform/resolvers/yup";
 import { FALLBACK_DV_TOKEN, loginSchema } from "./constant";
 import useToaster from "../../components/ui/Toaster";
-import { useState } from "react";
-import { AiOutlineEye, AiOutlineEyeInvisible } from "../../shared/icons/index";
-import { setLoginStatus } from "../../hooks/useAuth";
 import { requestDeviceToken } from "../../utilities/requestFCMToken";
 import {
+  hasValidSession,
   persistAdminLoginSession,
   persistZoneAdminLoginSession,
 } from "../../utilities/authStorage";
-import DeploymentInfo from "../../components/ui/DeploymentInfo";
+import {
+  formatDeploymentLine,
+  loadDeploymentInfo,
+} from "../../utilities/deploymentInfo";
+import { DsScope, Button, Field, Input } from "../../design-system";
+import { getApiErrorMessage } from "../../store/services/apiErrors";
+import DsIcon from "../../design-system/icons";
 
 export default function LoginPage() {
   const { success, error } = useToaster();
   const [seePassword, setSeePassword] = useState(false);
-
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState("");
+  const [deployLine, setDeployLine] = useState("");
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const role = searchParams.get("role");
-  const [adminLogin, { isLoading: adminLoginLoading }] =
-    useAdminLoginMutation();
+  const [adminLogin, { isLoading: adminLoginLoading }] = useAdminLoginMutation();
   const [zoneAdminLogin, { isLoading: zoneAdminLoginLoading }] =
     useZoneAdminLoginMutation();
-  const isLoading =
-    role === "manager" ? zoneAdminLoginLoading : adminLoginLoading;
+  const mutationLoading = role === "manager" ? zoneAdminLoginLoading : adminLoginLoading;
+  const busy = submitting || mutationLoading;
 
   const {
     register,
     handleSubmit,
-    formState: { errors },
-    watch,
     setValue,
+    formState: { errors },
   } = useForm({
     resolver: yupResolver(loginSchema),
     mode: "onSubmit",
@@ -52,27 +54,48 @@ export default function LoginPage() {
     },
   });
 
-  const formValues = watch();
+  /** Password managers / automation often set DOM value without RHF onChange. */
+  function syncNativeFields(form) {
+    const fd = new FormData(form);
+    setValue("email", String(fd.get("email") ?? "").trim(), { shouldDirty: true });
+    setValue("password", String(fd.get("password") ?? ""), { shouldDirty: true });
+    setValue("rememberMe", fd.get("rememberMe") != null);
+  }
 
-  const handleLogin = (role) => {
-    navigate(`/auth/login?role=${role}`);
-  };
+  useEffect(() => {
+    if (hasValidSession()) navigate("/", { replace: true });
+  }, [navigate]);
+
+  useEffect(() => {
+    setSubmitError("");
+    setSeePassword(false);
+  }, [role]);
+
+  useEffect(() => {
+    let cancelled = false;
+    loadDeploymentInfo().then((info) => {
+      if (!cancelled) setDeployLine(formatDeploymentLine(info));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const onInvalid = (formErrors) => {
-    const message =
+    setSubmitError(
       formErrors?.email?.message ||
-      formErrors?.password?.message ||
-      "Please fill in email and password.";
-    error(message);
+        formErrors?.password?.message ||
+        "Please fill in email and password."
+    );
   };
 
   const handleSubmitData = async (data) => {
+    if (busy) return;
+    setSubmitError("");
+    setSubmitting(true);
     try {
-      if (data.rememberMe) {
-        localStorage.setItem("rememberedEmail", data.email);
-      } else {
-        localStorage.removeItem("rememberedEmail");
-      }
+      if (data.rememberMe) localStorage.setItem("rememberedEmail", data.email);
+      else localStorage.removeItem("rememberedEmail");
 
       const rawDvToken = await requestDeviceToken();
       const dvToken =
@@ -80,182 +103,163 @@ export default function LoginPage() {
           ? String(rawDvToken).trim()
           : FALLBACK_DV_TOKEN;
 
-      let res;
-      if (role === "manager") {
-        res = await zoneAdminLogin({
-          email: data.email,
-          password: data.password,
-          dvToken,
-        }).unwrap();
-      } else {
-        res = await adminLogin({
-          email: data.email,
-          password: data.password,
-          dvToken,
-        }).unwrap();
-      }
+      const res =
+        role === "manager"
+          ? await zoneAdminLogin({
+              email: data.email,
+              password: data.password,
+              dvToken,
+            }).unwrap()
+          : await adminLogin({
+              email: data.email,
+              password: data.password,
+              dvToken,
+            }).unwrap();
 
       if (res.status === "1") {
-        const payload = res.data;
-        if (role === "manager") {
-          persistZoneAdminLoginSession(payload);
-        } else {
-          persistAdminLoginSession(payload);
+        const persisted =
+          role === "manager"
+            ? persistZoneAdminLoginSession(res.data)
+            : persistAdminLoginSession(res.data);
+        if (!persisted) {
+          const msg = "Sign-in succeeded but no valid session token was issued.";
+          setSubmitError(msg);
+          error(msg);
+          return;
         }
-        setLoginStatus(true);
-        success("Login successful 🎉");
+        success(res.message || "Login successful 🎉");
         navigate("/");
       } else {
-        error("Invalid credentials, please try again.");
+        const msg = res.message || "Invalid credentials, please try again.";
+        setSubmitError(msg);
+        error(msg);
       }
     } catch (err) {
-      error(err?.data?.message || "Something went wrong, please try again.");
+      const msg = getApiErrorMessage(err, "Something went wrong, please try again.");
+      setSubmitError(msg);
+      error(msg);
+    } finally {
+      setSubmitting(false);
     }
   };
 
   return (
-    <Box className="w-full h-full min-h-screen bg-blue100 flex justify-center items-center relative overflow-hidden">
-      <Box
-        className={`w-full  ${role ? "max-w-[850px]" : "max-w-[939px]"
-          } min-h-[500px] bg-white rounded-xl flex flex-col items-center !py-9 gap-y-12 transition-all duration-300 relative z-10`}
-      >
-        <Box pt={"8px"}>
-          <img
-            className="h-16 2xl:h-24 mx-auto"
-            src="/images/logo1.png"
-            alt="logo"
-          />
-        </Box>
-
-        {!role ? (
-          <div className="flex w-full justify-center gap-x-16">
-            <Box
-              onClick={() => handleLogin("admin")}
-              className="bg-grey100 rounded-xl w-full max-w-[280px] 2xl:max-w-[320px] flex flex-col items-center gap-y-5 !py-10 cursor-pointer"
-            >
-              <img src="/images/admin.png" alt="" />
-
-              <Typography variant="h5">Login as Admin</Typography>
-            </Box>
-            <Box
-              onClick={() => handleLogin("manager")}
-              className="bg-grey100 rounded-xl  w-full max-w-[280px] 2xl:max-w-[320px] flex flex-col items-center gap-y-5 !py-10 cursor-pointer"
-            >
-              <img src="/images/zoneAdmin.png" alt="" />
-
-              <Typography variant="h5">Login as Zone manager </Typography>
-            </Box>
+    <DsScope as="main" className="jd-auth">
+      <div className="jd-auth__card">
+        <div className="jd-auth__brand">
+          <div className="logo" aria-hidden="true">
+            <DsIcon name="drop" size={22} />
           </div>
-        ) : (
+          <p className="jd-auth__eyebrow">Just Dry</p>
+        </div>
+        <h1 className="jd-h1">Sign in</h1>
+        <p className="jd-lead">
+          Administrator and Zone Manager use different endpoints. Choose a role, then enter your credentials.
+        </p>
+
+        <div className="jd-rolepick" role="group" aria-label="Sign-in role">
+          <button
+            type="button"
+            className={`jd-role${role === "admin" ? " is-on" : ""}`}
+            aria-pressed={role === "admin"}
+            onClick={() => navigate("/auth/login?role=admin")}
+          >
+            <b>Administrator</b>
+            <span>Full platform</span>
+          </button>
+          <button
+            type="button"
+            className={`jd-role${role === "manager" ? " is-on" : ""}`}
+            aria-pressed={role === "manager"}
+            onClick={() => navigate("/auth/login?role=manager")}
+          >
+            <b>Zone Manager</b>
+            <span>Scoped to assigned zones</span>
+          </button>
+        </div>
+
+        {role ? (
           <form
             noValidate
+            className="jd-auth__form"
+            aria-busy={busy}
             onSubmit={(e) => {
               e.preventDefault();
-              e.stopPropagation();
+              syncNativeFields(e.currentTarget);
               handleSubmit(handleSubmitData, onInvalid)(e);
             }}
-            className="w-full !px-24 font-Inter !space-y-7"
           >
-            {/* Email */}
-            <div className="flex flex-col gap-y-3">
-              <label htmlFor="email" className="text-grey40">
-                Email
-              </label>
+            {submitError ? (
+              <div className="jd-alert jd-alert--danger" role="alert">
+                {submitError}
+              </div>
+            ) : null}
 
-              <input
-                {...register("email")}
+            <Field label="Email" error={errors.email?.message} htmlFor="email">
+              <Input
                 id="email"
-                type="text"
+                type="email"
+                inputMode="email"
                 autoComplete="username"
-                placeholder="Email"
-                className="outline-none border border-grey30 rounded-lg !px-5 h-[52px] font-medium"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                placeholder="name@justdry.com"
+                disabled={busy}
+                aria-invalid={!!errors.email}
+                {...register("email")}
+                error={!!errors.email}
               />
-
-              {errors.email && (
-                <p className="text-error text-sm font-medium">
-                  {errors.email.message}
-                </p>
-              )}
-            </div>
-
-            {/* Password */}
-            <div className="flex flex-col gap-y-3">
-              <label htmlFor="password" className="text-grey40">
-                Password
-              </label>
-
-              <Box className="relative w-full">
-                <input
-                  {...register("password")}
+            </Field>
+            <Field label="Password" error={errors.password?.message} htmlFor="password">
+              <div className="jd-pass">
+                <Input
                   id="password"
                   type={seePassword ? "text" : "password"}
                   autoComplete="current-password"
                   placeholder="Password"
-                  className="w-full outline-none border border-grey30 rounded-lg !px-5 h-[52px] font-medium"
+                  disabled={busy}
+                  aria-invalid={!!errors.password}
+                  {...register("password")}
+                  error={!!errors.password}
                 />
-
                 <button
                   type="button"
-                  onClick={() => setSeePassword(!seePassword)}
-                  className="absolute right-5 bottom-4 cursor-pointer"
+                  className="jd-pass__toggle"
+                  aria-pressed={seePassword}
+                  aria-label={seePassword ? "Hide password" : "Show password"}
+                  onClick={() => setSeePassword((v) => !v)}
                 >
-                  {seePassword ? (
-                    <AiOutlineEyeInvisible size={"20px"} />
-                  ) : (
-                    <AiOutlineEye size={"20px"} />
-                  )}
+                  {seePassword ? "Hide" : "Show"}
                 </button>
-              </Box>
-
-              {errors.password && (
-                <p className="text-error text-sm font-medium">
-                  {errors.password.message}
-                </p>
-              )}
-            </div>
-
-            {/* Remember Me */}
-            <div className="flex items-center">
-              <Checkbox
-                size="medium"
-                sx={{
-                  color: "black",
-                  "&.Mui-checked": { color: "blue.100" },
-                }}
-                checked={!!formValues.rememberMe}
-                onChange={(_, checked) => setValue("rememberMe", checked)}
-              />
-
-              <Typography variant="body1">Remember Me</Typography>
-            </div>
-
-            {/* Buttons */}
-            <Box className="flex items-center justify-end gap-x-5">
-              <ButtonWhite
+              </div>
+            </Field>
+            <label className="jd-check">
+              <input type="checkbox" disabled={busy} {...register("rememberMe")} />
+              Remember me
+            </label>
+            <div className="jd-auth__actions">
+              <Button
                 type="button"
-                text="Cancel"
-                width={"150px"}
+                variant="secondary"
+                disabled={busy}
                 onClick={() => navigate("/auth/login")}
-              />
-
-              <ButtonBlue
-                type="submit"
-                text="Login"
-                width={"200px"}
-                isLoading={isLoading}
-              />
-            </Box>
+              >
+                Back
+              </Button>
+              <Button type="submit" disabled={busy} aria-busy={busy}>
+                {busy
+                  ? "Signing in…"
+                  : role === "manager"
+                    ? "Sign in as Zone Manager"
+                    : "Sign in as Administrator"}
+              </Button>
+            </div>
           </form>
-        )}
-      </Box>
+        ) : null}
 
-      <DeploymentInfo variant="login" />
-
-      <div className="absolute top-1/6 w-[500px] h-[800px] rotate-45 bg-blue50/20 shadow-particle -right-[230px] z-0"></div>
-
-      <div className="absolute top-0 -left-[500px] w-[800px] h-[500px] rotate-45 bg-blue50/20 shadow-particle z-0"></div>
-
-      <div className="absolute -bottom-[400px] left-[250px] w-[500px] h-[500px] rotate-[50deg] bg-blue50/20 shadow-particle z-0"></div>
-    </Box>
+        {deployLine ? <p className="jd-auth__build">{deployLine}</p> : null}
+      </div>
+    </DsScope>
   );
 }

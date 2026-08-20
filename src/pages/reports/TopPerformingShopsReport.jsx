@@ -1,82 +1,196 @@
 import { useMemo, useState } from "react";
-import DataTable from "../../components/ui/DataTable";
+import { Button, Table } from "../../design-system";
+import {
+  DirectoryActions,
+  DirectoryIdentity,
+  DirectoryMetric,
+  DirectoryMetrics,
+  DirectoryMoney,
+  DirectoryTableWrap,
+  DirectoryViewModal,
+} from "../directory-table/directoryTable";
+import { joinMeta } from "../directory-table/directoryTableUtils";
 import { useReportsTopShopsQuery } from "../../store/services/api";
-import { Delay } from "../../components/shared/Loaders";
-import { buildReportParams } from "./reportQueryUtils";
+import ReportToolbar, { ReportPagination } from "./ReportToolbar";
+import { useReportFilters } from "./reportQueryUtils";
+import {
+  downloadReportCsv,
+  ReportEntityLink,
+  ReportInfo,
+  reportMoney,
+  ReportQueryState,
+  shopDetailPath,
+  unwrapReport,
+} from "./reportUi.js";
 
 export default function TopPerformingShopsReport() {
-  const [period, setPeriod] = useState("all");
-  const [search, setSearch] = useState("");
-  const [dateRange, setDateRange] = useState(null);
-
-  const params = buildReportParams({
-    period,
-    startDate: dateRange?.startDate,
-    endDate: dateRange?.endDate,
-  });
-  const { data, isLoading } = useReportsTopShopsQuery(params);
+  const f = useReportFilters();
+  const [viewRow, setViewRow] = useState(null);
+  const { data, isLoading, isError, error, refetch } = useReportsTopShopsQuery(f.params);
+  const { rows, total, summary, currency } = unwrapReport(data);
 
   const reportData = useMemo(
     () =>
-      (data?.data?.data || [])
-        .map((shop, index) => ({
-          id: `${shop.sl || index + 1}-${index}`,
-          sl: shop.sl ?? index + 1,
-          rank: shop.rank ?? "—",
-          shopName: shop.shopName ?? "—",
-          city: shop.city ?? "—",
-          country: shop.country ?? "—",
-          location: shop.location ?? "—",
-          zone: shop.zone ?? "—",
-          ordersCompleted: shop.ordersCompleted ?? 0,
-          grossRevenue: shop.grossRevenue ?? "0.00",
-          commissionPercent: shop.commissionPercent ?? "—",
-          commissionAmount: shop.commissionAmount ?? "0.00",
-          driversCommission: shop.driversCommission ?? "0.00",
-          deduction: shop.deduction ?? "0.00",
-          netPayout: shop.netPayout ?? "0.00",
-        }))
-        .filter((row) =>
-          search
-            ? `${row.shopName} ${row.zone}`.toLowerCase().includes(search.toLowerCase())
-            : true
-        ),
-    [data, search]
+      rows.map((shop, index) => ({
+        ...shop,
+        id: `${shop.shopId || shop.sl || index + 1}-${index}`,
+        sl: shop.sl ?? index + 1,
+        rank: shop.rank ?? "—",
+        shopName: shop.shopName ?? "—",
+        city: shop.city ?? "—",
+        country: shop.country ?? "—",
+        zone: shop.zone ?? "—",
+        location: shop.location ?? "—",
+        ordersCompleted: shop.ordersCompleted ?? 0,
+        grossRevenue: shop.grossRevenue ?? "0.00",
+        commissionPercent: shop.commissionPercent ?? "—",
+        commissionAmount: shop.commissionAmount ?? "0.00",
+        driversCommission: shop.driversCommission ?? "0.00",
+        deduction: shop.deduction ?? "0.00",
+        netPayout: shop.netPayout ?? "0.00",
+      })),
+    [rows]
   );
 
   const columns = [
-    { field: "sl", headerName: "SL", flex: 0.08, minWidth: 60 },
-    { field: "rank", headerName: "Rank", flex: 0.08, minWidth: 70 },
-    { field: "shopName", headerName: "Shop Name", flex: 0.2, minWidth: 170 },
-    { field: "city", headerName: "City", flex: 0.12, minWidth: 110 },
-    { field: "country", headerName: "Country", flex: 0.12, minWidth: 110 },
-    { field: "zone", headerName: "Zone", flex: 0.12, minWidth: 110 },
-    { field: "ordersCompleted", headerName: "Orders", flex: 0.12, minWidth: 90 },
-    { field: "grossRevenue", headerName: "Gross Revenue", flex: 0.14, minWidth: 130 },
-    { field: "netPayout", headerName: "Net Payout", flex: 0.14, minWidth: 120 },
+    {
+      key: "shopName",
+      header: "Shop",
+      render: (row) => (
+        <ReportEntityLink
+          to={shopDetailPath(row.shopId)}
+          name={row.shopName}
+          meta={joinMeta(`#${row.rank}`, row.location)}
+        />
+      ),
+    },
+    {
+      key: "zone",
+      header: "Zone",
+      render: (row) => <DirectoryIdentity name={row.zone} meta={joinMeta(row.city, row.country)} />,
+    },
+    {
+      key: "ordersCompleted",
+      header: "Orders",
+      render: (row) => <DirectoryMetric value={row.ordersCompleted} />,
+    },
+    {
+      key: "grossRevenue",
+      header: "Revenue",
+      render: (row) => <DirectoryMoney>{reportMoney(row.grossRevenue, currency)}</DirectoryMoney>,
+    },
+    {
+      key: "commissionPercent",
+      header: "Commission",
+      render: (row) => (
+        <DirectoryMetric value={row.commissionPercent} hint={reportMoney(row.commissionAmount, currency)} />
+      ),
+    },
+    {
+      key: "netPayout",
+      header: "Net payout",
+      render: (row) => <DirectoryMoney>{reportMoney(row.netPayout, currency)}</DirectoryMoney>,
+    },
+    {
+      key: "actions",
+      header: "Actions",
+      render: (row) => (
+        <DirectoryActions>
+          <Button size="sm" variant="secondary" onClick={() => setViewRow(row)}>
+            View
+          </Button>
+        </DirectoryActions>
+      ),
+    },
   ];
 
-  if (isLoading) return <Delay />;
-
   return (
-    <div className="!space-y-6">
-      <div className="w-full overflow-auto">
-        <DataTable
-          data={reportData}
-          columns={columns}
-          searchPlaceholder="Search by shop name..."
-          searchValue={search}
-          onSearchChange={setSearch}
-          dateRangeValue={dateRange}
-          onDateRangeChange={(next) => {
-            setDateRange(next);
-            setPeriod(next?.type || "all");
-          }}
-          height={500}
-          showFilters={false}
-          showDownload={false}
+    <ReportQueryState isLoading={isLoading} isError={isError} error={error} onRetry={refetch}>
+      <div>
+        <ReportInfo>
+          Shops ranked by completed orders in the selected period. Shop names open the shop profile.
+          The shop filter uses the laundry address ID, not this profile ID.
+        </ReportInfo>
+        <DirectoryMetrics
+          items={[
+            { label: "Shops", value: summary.shops ?? total, tone: "brand" },
+            { label: "Orders", value: summary.orders ?? 0, tone: "navy" },
+            { label: "Revenue", value: reportMoney(summary.revenue, currency), tone: "success" },
+            { label: "Net payout", value: reportMoney(summary.netPayout, currency), tone: "warning" },
+          ]}
+        />
+        <DirectoryTableWrap
+          toolbar={
+            <ReportToolbar
+              search={f.search}
+              onSearch={f.setSearch}
+              searchPlaceholder="Search by shop name…"
+              period={f.period}
+              onPeriodChange={f.setPeriod}
+              startDate={f.startDate}
+              endDate={f.endDate}
+              onStartDateChange={f.setStartDate}
+              onEndDateChange={f.setEndDate}
+              zoneId={f.zoneId}
+              onZoneIdChange={f.setZoneId}
+              onClear={f.clearFilters}
+              onExport={() =>
+                downloadReportCsv(
+                  "top-shops.csv",
+                  [
+                    { key: "rank", header: "Rank" },
+                    { key: "shopName", header: "Shop" },
+                    { key: "location", header: "Location" },
+                    { key: "city", header: "City" },
+                    { key: "country", header: "Country" },
+                    { key: "zone", header: "Zone" },
+                    { key: "ordersCompleted", header: "Orders" },
+                    { key: "grossRevenue", header: "Revenue" },
+                    { key: "commissionPercent", header: "Commission %" },
+                    { key: "commissionAmount", header: "Commission" },
+                    { key: "driversCommission", header: "Driver commission" },
+                    { key: "deduction", header: "Deduction" },
+                    { key: "netPayout", header: "Net payout" },
+                  ],
+                  reportData
+                )
+              }
+              exportDisabled={!reportData.length}
+            />
+          }
+          footer={
+            <ReportPagination
+              page={f.page}
+              pageSize={f.limit}
+              totalRows={total}
+              onPageChange={f.setPage}
+              onPageSizeChange={f.setLimit}
+            />
+          }
+        >
+          <Table columns={columns} rows={reportData} rowKey={(row) => row.id} empty="No shops in this period" />
+        </DirectoryTableWrap>
+        <DirectoryViewModal
+          open={Boolean(viewRow)}
+          title={viewRow?.shopName || "Shop"}
+          onClose={() => setViewRow(null)}
+          fields={[
+            { label: "Rank", value: viewRow?.rank },
+            { label: "Shop", value: viewRow?.shopName },
+            { label: "City", value: viewRow?.city },
+            { label: "Country", value: viewRow?.country },
+            { label: "Zone", value: viewRow?.zone },
+            { label: "Location", value: viewRow?.location },
+            { label: "Orders", value: viewRow?.ordersCompleted },
+            { label: "Gross revenue", value: reportMoney(viewRow?.grossRevenue, currency) },
+            { label: "Commission", value: viewRow?.commissionPercent },
+            { label: "Commission amount", value: reportMoney(viewRow?.commissionAmount, currency) },
+            { label: "Driver commission", value: reportMoney(viewRow?.driversCommission, currency) },
+            { label: "Deduction", value: reportMoney(viewRow?.deduction, currency) },
+            { label: "Net payout", value: reportMoney(viewRow?.netPayout, currency) },
+          ]}
         />
       </div>
-    </div>
+    </ReportQueryState>
   );
 }

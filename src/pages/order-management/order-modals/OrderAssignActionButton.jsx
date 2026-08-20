@@ -1,36 +1,23 @@
-import { Button } from "@mui/material";
 import {
-  assignActionLabel,
+  isReassignBooking,
   canAdminAssignOrReassignFromBooking,
 } from "../../../shared/adminAssignGate";
 
 export default function OrderAssignActionButton({
   booking,
   onClick,
-  size = "small",
 }) {
   if (!canAdminAssignOrReassignFromBooking(booking)) return null;
 
-  const label = assignActionLabel(booking);
-  const isMedium = size === "medium";
+  const label = isReassignBooking(booking) ? "Reassign" : "Assign shop";
 
   return (
-    <Button
-      size={size}
-      variant="contained"
-      sx={{
-        minWidth: isMedium ? 88 : 72,
-        minHeight: isMedium ? 40 : undefined,
-        bgcolor: "#000099",
-        textTransform: "none",
-        fontSize: isMedium ? 13 : 12,
-        fontWeight: isMedium ? 600 : 400,
-        px: isMedium ? 2 : undefined,
-        "&:hover": { bgcolor: "#00007A" },
-      }}
+    <button
+      type="button"
       onClick={onClick}
+      className="h-[34px] whitespace-nowrap rounded-[9px] border border-[#2c3ba0] bg-[#eef0fb] px-3 text-[12.5px] font-semibold text-[#20307f] hover:bg-[#2c3ba0] hover:text-white"
     >
       {label}
-    </Button>
+    </button>
   );
 }

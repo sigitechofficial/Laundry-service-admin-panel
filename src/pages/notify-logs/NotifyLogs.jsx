@@ -1,23 +1,26 @@
-import { useMemo, useState } from "react";
-import {
-  Box,
-  Button,
-  Chip,
-  FormControl,
-  InputLabel,
-  MenuItem,
-  Select,
-  Tab,
-  Tabs,
-  TextField,
-  Typography,
-  Divider,
-} from "@mui/material";
+import { useEffect, useMemo, useState } from "react";
 import dayjs from "dayjs";
-import DataTable from "../../components/ui/DataTable";
-import ModalComponent from "../../components/shared/Modal";
-import { Delay } from "../../components/shared/Loaders";
+import {
+  Button,
+  Field,
+  Modal,
+  Select,
+  Table,
+} from "../../design-system";
 import { useGetNotifyLogsQuery } from "../../store/services/api";
+import {
+  DirectoryActions,
+  DirectoryClearButton,
+  DirectoryDateInput,
+  DirectoryDotPill,
+  DirectoryIdentity,
+  DirectoryMetrics,
+  DirectorySearch,
+  DirectoryTableWrap,
+  DirectoryToolSelect,
+  DirectoryToolbar,
+  DirectoryToolbarEnd,
+} from "../directory-table/directoryTable";
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -46,163 +49,146 @@ function display(value) {
   return String(value);
 }
 
-// ─── badge helpers ────────────────────────────────────────────────────────────
-
-function channelChip(channel) {
+function channelTone(channel) {
   const k = String(channel || "").toLowerCase();
-  if (k === "sms")  return { label: "SMS",  bg: "#E6F0FF", color: "#000099" };
-  if (k === "push") return { label: "Push", bg: "#EDE9FE", color: "#5B21B6" };
-  if (k === "call") return { label: "Call", bg: "#FFEDD5", color: "#9A3412" };
-  return { label: channel || "N/A", bg: "#F1F5F9", color: "#64748B" };
+  if (k === "sms") return { label: "SMS", tone: "info" };
+  if (k === "push") return { label: "Push", tone: "info" };
+  if (k === "call") return { label: "Call", tone: "warning" };
+  return { label: channel || "N/A", tone: "neutral" };
 }
 
-function sessionStatusChip(status) {
+function sessionStatusTone(status) {
   const k = String(status || "").toLowerCase();
-  if (k === "active")  return { label: "Active",  bg: "#DFF5FA", color: "#01C7B8" };
-  if (k === "closed")  return { label: "Closed",  bg: "#F1F5F9", color: "#64748B" };
-  if (k === "expired") return { label: "Expired", bg: "#FEF3C7", color: "#92400E" };
-  return { label: status || "Unknown", bg: "#F1F5F9", color: "#64748B" };
+  if (k === "active") return { label: "Active", tone: "success" };
+  if (k === "closed") return { label: "Closed", tone: "neutral" };
+  if (k === "expired") return { label: "Expired", tone: "warning" };
+  return { label: status || "Unknown", tone: "neutral" };
 }
 
-function twilioChip(status) {
+function twilioTone(status) {
   const k = String(status || "").toLowerCase();
   if (["delivered", "sent", "queued", "accepted", "sending"].includes(k))
-    return { label: status, bg: "#39BE7B33", color: "#379465" };
+    return { label: status, tone: "success" };
   if (["undelivered", "failed", "canceled", "cancelled"].includes(k))
-    return { label: status, bg: "#FFE2E2", color: "#F53939" };
-  return { label: status || "N/A", bg: "#F1F5F9", color: "#64748B" };
+    return { label: status, tone: "danger" };
+  return { label: status || "N/A", tone: "neutral" };
 }
 
-function legChip(leg) {
+function legTone(leg) {
   const k = String(leg || "").toLowerCase();
-  if (k === "pickup")   return { label: "Pickup",   bg: "#E8E5FF", color: "#5B21B6" };
-  if (k === "delivery") return { label: "Delivery", bg: "#E6F0FF", color: "#000099" };
-  return { label: leg || "N/A", bg: "#F1F5F9", color: "#64748B" };
+  if (k === "pickup") return { label: "Pickup", tone: "info" };
+  if (k === "delivery") return { label: "Delivery", tone: "info" };
+  return { label: leg || "N/A", tone: "neutral" };
 }
 
-function PillBadge({ label, bg, color }) {
-  return (
-    <Chip
-      label={label}
-      size="small"
-      sx={{
-        bgcolor: bg,
-        color: color,
-        fontFamily: "Switzer",
-        fontWeight: 600,
-        fontSize: 12,
-        height: 24,
-        borderRadius: "6px",
-        textTransform: "capitalize",
-        "& .MuiChip-label": { px: "10px" },
-      }}
-    />
-  );
+function StatusBadge({ label, tone }) {
+  return <DirectoryDotPill tone={tone}>{label}</DirectoryDotPill>;
 }
 
-// ─── modal sub-components ─────────────────────────────────────────────────────
-
-function ModalSectionHeader({ title, icon }) {
+function ModalSectionHeader({ title }) {
   return (
-    <Box
-      sx={{
+    <div
+      style={{
         display: "flex",
         alignItems: "center",
-        gap: 1,
-        px: 2,
-        py: 1.25,
-        bgcolor: "#F1F5F9",
-        borderRadius: "8px",
-        mb: 2,
-        borderLeft: "3px solid #000099",
+        gap: 8,
+        padding: "8px 12px",
+        background: "var(--canvas)",
+        borderRadius: "var(--r-sm)",
+        marginBottom: 10,
+        borderLeft: "3px solid var(--accent)",
       }}
     >
-      {icon && (
-        <Typography sx={{ fontSize: 15, lineHeight: 1 }}>{icon}</Typography>
-      )}
-      <Typography
-        sx={{
-          fontFamily: "Switzer",
+      <span
+        style={{
           fontWeight: 700,
-          fontSize: 13,
-          color: "#000099",
+          fontSize: 12,
+          color: "var(--accent)",
           textTransform: "uppercase",
           letterSpacing: "0.06em",
         }}
       >
         {title}
-      </Typography>
-    </Box>
+      </span>
+    </div>
   );
 }
 
 function InfoRow({ label, value, badge }) {
   return (
-    <Box
-      sx={{
+    <div
+      style={{
         display: "grid",
-        gridTemplateColumns: "140px 1fr",
-        gap: 1,
-        py: 0.75,
-        borderBottom: "1px dashed #E2E8F0",
-        "&:last-child": { borderBottom: "none" },
+        gridTemplateColumns: "120px 1fr",
+        gap: 8,
+        padding: "8px 0",
+        borderBottom: "1px dashed var(--line)",
       }}
     >
-      <Typography
-        sx={{
-          fontFamily: "Switzer",
+      <span
+        style={{
           fontSize: 12,
           fontWeight: 600,
-          color: "#8F95B2",
+          color: "var(--muted)",
           textTransform: "uppercase",
           letterSpacing: "0.04em",
-          pt: "2px",
+          paddingTop: 2,
         }}
       >
         {label}
-      </Typography>
+      </span>
       {badge ? (
         badge
       ) : (
-        <Typography
-          sx={{
-            fontFamily: "Switzer",
-            fontSize: 14,
-            fontWeight: 500,
-            color: "#1E293B",
-            wordBreak: "break-all",
-          }}
-        >
+        <span style={{ fontSize: 14, fontWeight: 500, wordBreak: "break-all" }}>
           {display(value)}
-        </Typography>
+        </span>
       )}
-    </Box>
+    </div>
   );
 }
 
 function SectionCard({ children }) {
   return (
-    <Box
-      sx={{
-        bgcolor: "#FAFAFA",
-        border: "1px solid #E2E8F0",
-        borderRadius: "10px",
-        px: 2,
-        py: 1.5,
-        mb: 2,
+    <div
+      style={{
+        background: "var(--canvas)",
+        border: "1px solid var(--line)",
+        borderRadius: "var(--r-md)",
+        padding: "8px 14px",
+        marginBottom: 14,
       }}
     >
       {children}
-    </Box>
+    </div>
   );
 }
 
-// ─── main component ───────────────────────────────────────────────────────────
+const PAGE_SIZES = [10, 25, 50, 100].map((n) => ({ value: n, label: String(n) }));
+const LEG_OPTIONS = [
+  { value: "", label: "All" },
+  { value: "pickup", label: "Pickup" },
+  { value: "delivery", label: "Delivery" },
+];
+const CHANNEL_OPTIONS = [
+  { value: "", label: "All" },
+  { value: "push", label: "Push" },
+  { value: "sms", label: "SMS" },
+  { value: "call", label: "Call" },
+];
+const SESSION_STATUS_OPTIONS = [
+  { value: "", label: "All" },
+  { value: "active", label: "Active" },
+  { value: "closed", label: "Closed" },
+  { value: "expired", label: "Expired" },
+];
 
 export default function NotifyLogs() {
   const [tab, setTab] = useState("notifications");
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(50);
+  const [bookingIdInput, setBookingIdInput] = useState("");
+  const [agentUserIdInput, setAgentUserIdInput] = useState("");
   const [bookingId, setBookingId] = useState("");
   const [agentUserId, setAgentUserId] = useState("");
   const [channel, setChannel] = useState("");
@@ -210,6 +196,15 @@ export default function NotifyLogs() {
   const [sessionStatus, setSessionStatus] = useState("");
   const [dateRange, setDateRange] = useState(null);
   const [detailModal, setDetailModal] = useState({ open: false, kind: null, row: null });
+
+  useEffect(() => {
+    const handle = setTimeout(() => {
+      setBookingId(bookingIdInput.trim());
+      setAgentUserId(agentUserIdInput.trim());
+      setPage(1);
+    }, 400);
+    return () => clearTimeout(handle);
+  }, [bookingIdInput, agentUserIdInput]);
 
   const queryArgs = useMemo(() => {
     const params = { type: tab === "sessions" ? "sessions" : "notifications", page, limit };
@@ -223,7 +218,7 @@ export default function NotifyLogs() {
     return params;
   }, [tab, page, limit, bookingId, agentUserId, channel, leg, sessionStatus, dateRange]);
 
-  const { data, isLoading, isFetching } = useGetNotifyLogsQuery(queryArgs);
+  const { data, isLoading, isFetching, isError, refetch } = useGetNotifyLogsQuery(queryArgs);
 
   const notifications = data?.data?.notifications;
   const callSessions  = data?.data?.callSessions;
@@ -231,6 +226,18 @@ export default function NotifyLogs() {
   const openDetail  = (kind, row) => setDetailModal({ open: true, kind, row });
   const closeDetail = () => setDetailModal({ open: false, kind: null, row: null });
   const resetPage   = () => setPage(1);
+
+  const updateDate = (part, value) => {
+    setDateRange((prev) => {
+      const next = {
+        startDate: part === "startDate" ? value || null : prev?.startDate || null,
+        endDate: part === "endDate" ? value || null : prev?.endDate || null,
+      };
+      if (!next.startDate && !next.endDate) return null;
+      return next;
+    });
+    resetPage();
+  };
 
   const notificationRows = useMemo(
     () =>
@@ -269,197 +276,312 @@ export default function NotifyLogs() {
     [callSessions, page, limit]
   );
 
-  const actionCol = (kind) => ({
-    field: "actions",
-    headerName: "",
-    flex: 0.12,
-    minWidth: 90,
-    sortable: false,
-    renderCell: (row) => (
-      <Button
-        size="small"
-        variant="outlined"
-        onClick={() => openDetail(kind, row.raw)}
-        sx={{
-          textTransform: "none",
-          fontFamily: "Switzer",
-          fontWeight: 600,
-          fontSize: 12,
-          borderRadius: "6px",
-          borderColor: "#000099",
-          color: "#000099",
-          minWidth: 62,
-          height: 30,
-          "&:hover": { borderColor: "#000066", bgcolor: "#E6F0FF" },
-        }}
-      >
-        View
-      </Button>
-    ),
-  });
-
   const notifCols = [
-    { field: "sl",           headerName: "SL",             flex: 0.07, minWidth: 50  },
-    { field: "sentAt",       headerName: "Sent At",        flex: 0.2,  minWidth: 155 },
-    { field: "bookingId",    headerName: "Booking",        flex: 0.1,  minWidth: 80  },
-    { field: "orderTrackId", headerName: "Track ID",       flex: 0.16, minWidth: 120 },
-    { field: "leg",          headerName: "Leg",            flex: 0.1,  minWidth: 80  },
-    { field: "channel",      headerName: "Channel",        flex: 0.1,  minWidth: 80  },
-    { field: "agent",        headerName: "Agent",          flex: 0.16, minWidth: 120 },
-    { field: "customer",     headerName: "Customer",       flex: 0.16, minWidth: 120 },
-    { field: "customerPhone",headerName: "Customer Phone", flex: 0.16, minWidth: 130 },
-    { field: "twilioStatus", headerName: "Status",         flex: 0.12, minWidth: 100 },
-    actionCol("notification"),
+    {
+      key: "sentAt",
+      header: "Sent",
+      render: (row) => (
+        <DirectoryIdentity name={row.sentAt} meta={row.channel !== "—" ? row.channel : row.leg} />
+      ),
+    },
+    {
+      key: "bookingId",
+      header: "Booking",
+      render: (row) => (
+        <DirectoryIdentity
+          name={row.bookingId !== "—" ? `#${row.bookingId}` : "—"}
+          meta={row.orderTrackId !== "—" ? row.orderTrackId : undefined}
+        />
+      ),
+    },
+    {
+      key: "twilioStatus",
+      header: "Status",
+      render: (row) => <StatusBadge {...twilioTone(row.twilioStatus)} />,
+    },
+    {
+      key: "customer",
+      header: "Customer",
+      render: (row) => <DirectoryIdentity name={row.customer} meta={row.agent !== "N/A" ? row.agent : undefined} />,
+    },
+    {
+      key: "actions",
+      header: "Actions",
+      render: (row) => (
+        <DirectoryActions>
+          <Button size="sm" variant="secondary" onClick={() => openDetail("notification", row.raw)}>
+            View
+          </Button>
+        </DirectoryActions>
+      ),
+    },
   ];
 
   const sessionCols = [
-    { field: "sl",           headerName: "SL",             flex: 0.07, minWidth: 50  },
-    { field: "createdAt",    headerName: "Created",        flex: 0.2,  minWidth: 155 },
-    { field: "bookingId",    headerName: "Booking",        flex: 0.1,  minWidth: 80  },
-    { field: "orderTrackId", headerName: "Track ID",       flex: 0.16, minWidth: 120 },
-    { field: "leg",          headerName: "Leg",            flex: 0.1,  minWidth: 80  },
-    { field: "status",       headerName: "Status",         flex: 0.1,  minWidth: 90  },
-    { field: "agent",        headerName: "Agent",          flex: 0.16, minWidth: 120 },
-    { field: "customer",     headerName: "Customer",       flex: 0.16, minWidth: 120 },
-    { field: "customerPhone",headerName: "Customer Phone", flex: 0.16, minWidth: 130 },
-    actionCol("session"),
+    {
+      key: "createdAt",
+      header: "Created",
+      render: (row) => (
+        <DirectoryIdentity name={row.createdAt} meta={row.leg !== "—" ? row.leg : undefined} />
+      ),
+    },
+    {
+      key: "bookingId",
+      header: "Booking",
+      render: (row) => (
+        <DirectoryIdentity
+          name={row.bookingId !== "—" ? `#${row.bookingId}` : "—"}
+          meta={row.orderTrackId !== "—" ? row.orderTrackId : undefined}
+        />
+      ),
+    },
+    {
+      key: "status",
+      header: "Status",
+      render: (row) => <StatusBadge {...sessionStatusTone(row.status)} />,
+    },
+    {
+      key: "customer",
+      header: "Customer",
+      render: (row) => <DirectoryIdentity name={row.customer} meta={row.agent !== "N/A" ? row.agent : undefined} />,
+    },
+    {
+      key: "actions",
+      header: "Actions",
+      render: (row) => (
+        <DirectoryActions>
+          <Button size="sm" variant="secondary" onClick={() => openDetail("session", row.raw)}>
+            View
+          </Button>
+        </DirectoryActions>
+      ),
+    },
   ];
 
   const totalRows = tab === "sessions"
     ? Number(callSessions?.total || 0)
     : Number(notifications?.total || 0);
 
+  const totalPages = Math.max(1, Math.ceil(totalRows / limit) || 1);
+  const startIndex = totalRows === 0 ? 0 : (page - 1) * limit + 1;
+  const endIndex = Math.min(page * limit, totalRows);
+
   const detail   = detailModal.row;
   const agent    = detail?.agent;
   const customer = detail?.customer;
 
   return (
-    <Box className="!space-y-4">
-      {/* ── Tabs ── */}
-      <Tabs
-        value={tab}
-        onChange={(_, v) => { setTab(v); resetPage(); }}
-        sx={{
-          borderBottom: "1px solid #E2E8F0",
-          "& .MuiTab-root": { fontFamily: "Switzer", fontWeight: 600, textTransform: "none", color: "#8F95B2" },
-          "& .Mui-selected": { color: "#000099 !important" },
-          "& .MuiTabs-indicator": { bgcolor: "#000099" },
+    <div style={{ display: "grid", gap: 16 }}>
+      <div
+        style={{
+          display: "flex",
+          gap: 8,
+          borderBottom: "1px solid var(--line)",
+          paddingBottom: 8,
         }}
       >
-        <Tab label="Push / SMS Notifications" value="notifications" />
-        <Tab label="Dialer Call Sessions"      value="sessions" />
-      </Tabs>
+        <Button
+          variant={tab === "notifications" ? "primary" : "ghost"}
+          onClick={() => { setTab("notifications"); resetPage(); }}
+        >
+          Push / SMS Notifications
+        </Button>
+        <Button
+          variant={tab === "sessions" ? "primary" : "ghost"}
+          onClick={() => { setTab("sessions"); resetPage(); }}
+        >
+          Dialer Call Sessions
+        </Button>
+      </div>
 
-      {/* ── Filters ── */}
-      <Box className="flex flex-wrap gap-3 items-center">
-        <TextField
-          size="small"
-          label="Booking ID"
-          value={bookingId}
-          onChange={(e) => { setBookingId(e.target.value); resetPage(); }}
-          sx={{ width: 140 }}
-        />
-        <TextField
-          size="small"
-          label="Agent User ID"
-          value={agentUserId}
-          onChange={(e) => { setAgentUserId(e.target.value); resetPage(); }}
-          sx={{ width: 140 }}
-        />
-        <FormControl size="small" sx={{ minWidth: 120 }}>
-          <InputLabel>Leg</InputLabel>
-          <Select label="Leg" value={leg} onChange={(e) => { setLeg(e.target.value); resetPage(); }}>
-            <MenuItem value="">All</MenuItem>
-            <MenuItem value="pickup">Pickup</MenuItem>
-            <MenuItem value="delivery">Delivery</MenuItem>
-          </Select>
-        </FormControl>
-        {tab === "notifications" ? (
-          <FormControl size="small" sx={{ minWidth: 120 }}>
-            <InputLabel>Channel</InputLabel>
-            <Select label="Channel" value={channel} onChange={(e) => { setChannel(e.target.value); resetPage(); }}>
-              <MenuItem value="">All</MenuItem>
-              <MenuItem value="push">Push</MenuItem>
-              <MenuItem value="sms">SMS</MenuItem>
-              <MenuItem value="call">Call</MenuItem>
-            </Select>
-          </FormControl>
-        ) : (
-          <FormControl size="small" sx={{ minWidth: 150 }}>
-            <InputLabel>Session Status</InputLabel>
-            <Select label="Session Status" value={sessionStatus} onChange={(e) => { setSessionStatus(e.target.value); resetPage(); }}>
-              <MenuItem value="">All</MenuItem>
-              <MenuItem value="active">Active</MenuItem>
-              <MenuItem value="closed">Closed</MenuItem>
-              <MenuItem value="expired">Expired</MenuItem>
-            </Select>
-          </FormControl>
-        )}
-      </Box>
+      <DirectoryMetrics
+        items={[
+          {
+            label: tab === "sessions" ? "Call sessions" : "Notifications",
+            value: totalRows,
+            tone: "brand",
+          },
+        ]}
+      />
 
-      {/* ── Table ── */}
-      {isLoading ? (
-        <Delay />
+      {isError ? (
+        <div>
+          <p style={{ color: "var(--danger)", margin: "0 0 12px" }}>
+            Could not load notify logs. Check your connection and try again.
+          </p>
+          <Button variant="secondary" size="sm" onClick={() => refetch()}>
+            Retry
+          </Button>
+        </div>
+      ) : isLoading ? (
+        <div style={{ color: "var(--muted)", padding: 28, textAlign: "center" }}>
+          Loading…
+        </div>
       ) : (
-        <DataTable
-          data={tab === "sessions" ? sessionRows : notificationRows}
-          columns={tab === "sessions" ? sessionCols : notifCols}
-          showFilters={false}
-          showDownload={false}
-          searchPlaceholder="Filter above…"
-          showDateRange
-          dateRangeValue={dateRange}
-          onDateRangeChange={(next) => { setDateRange(next); resetPage(); }}
-          serverSidePagination
-          totalRows={totalRows}
-          currentPage={page}
-          pageSize={limit}
-          onPageChange={setPage}
-          onPageSizeChange={(size) => { setLimit(size); resetPage(); }}
-          height={620}
-        />
-      )}
-      {isFetching && !isLoading && (
-        <Typography sx={{ fontFamily: "Switzer", fontSize: 12, color: "#8F95B2" }}>
-          Refreshing…
-        </Typography>
+        <DirectoryTableWrap
+          toolbar={
+            <DirectoryToolbar>
+              <DirectorySearch
+                id="notify-booking-id"
+                value={bookingIdInput}
+                onChange={setBookingIdInput}
+                placeholder="Booking ID…"
+                aria-label="Booking ID"
+              />
+              <DirectorySearch
+                id="notify-agent-id"
+                value={agentUserIdInput}
+                onChange={setAgentUserIdInput}
+                placeholder="Agent user ID…"
+                aria-label="Agent user ID"
+              />
+              <DirectoryToolSelect>
+                <Select
+                  aria-label="Leg"
+                  value={leg}
+                  onChange={(value) => { setLeg(value); resetPage(); }}
+                  options={LEG_OPTIONS}
+                />
+              </DirectoryToolSelect>
+              {tab === "notifications" ? (
+                <DirectoryToolSelect>
+                  <Select
+                    aria-label="Channel"
+                    value={channel}
+                    onChange={(value) => { setChannel(value); resetPage(); }}
+                    options={CHANNEL_OPTIONS}
+                  />
+                </DirectoryToolSelect>
+              ) : (
+                <DirectoryToolSelect>
+                  <Select
+                    aria-label="Session Status"
+                    value={sessionStatus}
+                    onChange={(value) => { setSessionStatus(value); resetPage(); }}
+                    options={SESSION_STATUS_OPTIONS}
+                  />
+                </DirectoryToolSelect>
+              )}
+              <DirectoryDateInput
+                id="notify-start-date"
+                value={dateRange?.startDate ? dayjs(dateRange.startDate).format("YYYY-MM-DD") : ""}
+                onChange={(value) => updateDate("startDate", value)}
+                aria-label="Start date"
+                title="Start date"
+              />
+              <DirectoryDateInput
+                id="notify-end-date"
+                value={dateRange?.endDate ? dayjs(dateRange.endDate).format("YYYY-MM-DD") : ""}
+                onChange={(value) => updateDate("endDate", value)}
+                aria-label="End date"
+                title="End date"
+              />
+              {bookingIdInput || agentUserIdInput || channel || leg || sessionStatus || dateRange ? (
+                <DirectoryToolbarEnd>
+                  <DirectoryClearButton
+                    onClick={() => {
+                      setBookingIdInput("");
+                      setAgentUserIdInput("");
+                      setChannel("");
+                      setLeg("");
+                      setSessionStatus("");
+                      setDateRange(null);
+                      resetPage();
+                    }}
+                  />
+                </DirectoryToolbarEnd>
+              ) : null}
+            </DirectoryToolbar>
+          }
+          footer={
+            <div
+              style={{
+                display: "flex",
+                flexWrap: "wrap",
+                gap: 12,
+                alignItems: "center",
+                justifyContent: "space-between",
+              }}
+            >
+              <span className="jd-field__hint">
+                {startIndex} - {endIndex} of {totalRows}
+                {isFetching && !isLoading ? " · Refreshing…" : ""}
+              </span>
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  disabled={page <= 1}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                >
+                  Previous
+                </Button>
+                <span className="jd-field__hint">
+                  Page {page} of {totalPages}
+                </span>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  disabled={page >= totalPages || totalRows === 0}
+                  onClick={() => setPage((p) => p + 1)}
+                >
+                  Next
+                </Button>
+              </div>
+              <Field label="Results per page">
+                <div style={{ minWidth: 100 }}>
+                  <Select
+                    aria-label="Results per page"
+                    value={limit}
+                    onChange={(value) => { setLimit(Number(value)); resetPage(); }}
+                    options={PAGE_SIZES}
+                  />
+                </div>
+              </Field>
+            </div>
+          }
+        >
+          <Table
+            columns={tab === "sessions" ? sessionCols : notifCols}
+            rows={tab === "sessions" ? sessionRows : notificationRows}
+            rowKey={(row) => row.id}
+            empty={tab === "sessions" ? "No call sessions" : "No notification logs"}
+            stickyLeft={2}
+          />
+        </DirectoryTableWrap>
       )}
 
-      {/* ─────────────────────── Detail Modal ─────────────────────── */}
-      <ModalComponent
+      <Modal
         open={detailModal.open}
         onClose={closeDetail}
         title={detailModal.kind === "session" ? "Call Session Detail" : "Notify Log Detail"}
-        width={680}
-        secondaryAction={{ label: "Close", onClick: closeDetail }}
+        secondaryLabel="Close"
+        primaryLabel="Done"
+        onPrimary={closeDetail}
       >
         {detail ? (
-          <Box>
-            {/* ── Header ── */}
-            <Box sx={{ mb: 3, pb: 2.5, borderBottom: "1px solid #E2E8F0" }}>
-              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 2, mb: 1 }}>
-                <Typography sx={{ fontFamily: "Switzer", fontWeight: 700, fontSize: 20, color: "#0F172A" }}>
-                  {detail.orderTrackId ? `Order: ${detail.orderTrackId}` : `Booking #${display(detail.bookingId)}`}
-                </Typography>
-              </Box>
-              <Typography sx={{ fontFamily: "Switzer", fontSize: 13, color: "#8F95B2", mb: 1.5 }}>
-                Log ID: {display(detail.id)}&nbsp;&nbsp;·&nbsp;&nbsp;Booking ID: {display(detail.bookingId)}
-              </Typography>
-              <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
-                <PillBadge {...legChip(detail.leg)} />
+          <div style={{ maxHeight: "58vh", overflow: "auto" }}>
+            <div style={{ marginBottom: 16, paddingBottom: 14, borderBottom: "1px solid var(--line)" }}>
+              <strong style={{ fontSize: 16 }}>
+                {detail.orderTrackId ? `Order: ${detail.orderTrackId}` : `Booking #${display(detail.bookingId)}`}
+              </strong>
+              <p className="jd-field__hint" style={{ margin: "6px 0 10px" }}>
+                Log ID: {display(detail.id)}  ·  Booking ID: {display(detail.bookingId)}
+              </p>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                <StatusBadge {...legTone(detail.leg)} />
                 {detailModal.kind === "notification" ? (
                   <>
-                    <PillBadge {...channelChip(detail.channel)} />
-                    <PillBadge {...twilioChip(detail.twilioStatus)} />
+                    <StatusBadge {...channelTone(detail.channel)} />
+                    <StatusBadge {...twilioTone(detail.twilioStatus)} />
                   </>
                 ) : (
-                  <PillBadge {...sessionStatusChip(detail.status)} />
+                  <StatusBadge {...sessionStatusTone(detail.status)} />
                 )}
-              </Box>
-            </Box>
+              </div>
+            </div>
 
-            {/* ── Agent ── */}
-            <ModalSectionHeader title="Agent" icon="👤" />
+            <ModalSectionHeader title="Agent" />
             <SectionCard>
               <InfoRow label="Name"    value={userLabel(agent)} />
               <InfoRow label="User ID" value={detail.agentUserId || agent?.id} />
@@ -474,8 +596,7 @@ export default function NotifyLogs() {
               />
             </SectionCard>
 
-            {/* ── Customer ── */}
-            <ModalSectionHeader title="Customer" icon="👗" />
+            <ModalSectionHeader title="Customer" />
             <SectionCard>
               <InfoRow label="Name"         value={userLabel(customer)} />
               <InfoRow label="User ID"      value={detail.customerId || customer?.id} />
@@ -483,54 +604,44 @@ export default function NotifyLogs() {
               <InfoRow label="Phone (full)" value={fullPhone(detail.customerCountryCode || customer?.countryCode, detail.customerPhone || customer?.phoneNum)} />
             </SectionCard>
 
-            {/* ── Notification / Session details ── */}
             {detailModal.kind === "notification" ? (
               <>
-                <ModalSectionHeader title="Notification Details" icon="📨" />
+                <ModalSectionHeader title="Notification Details" />
                 <SectionCard>
-                  <InfoRow label="Channel"    badge={<PillBadge {...channelChip(detail.channel)} />} />
+                  <InfoRow label="Channel"    badge={<StatusBadge {...channelTone(detail.channel)} />} />
                   <InfoRow label="Attempt #"  value={detail.attemptId} />
                   <InfoRow label="To (masked)"  value={detail.toMasked} />
                   <InfoRow label="From number"  value={detail.fromNumber} />
                   <InfoRow label="Twilio SID"   value={detail.twilioSid} />
-                  <InfoRow label="Twilio status" badge={<PillBadge {...twilioChip(detail.twilioStatus)} />} />
+                  <InfoRow label="Twilio status" badge={<StatusBadge {...twilioTone(detail.twilioStatus)} />} />
                   <InfoRow label="Sent at"      value={fmt(detail.sentAt)} />
                   <InfoRow label="Created at"   value={fmt(detail.createdAt)} />
                 </SectionCard>
                 {detail.bodyPreview && detail.bodyPreview !== "N/A" && (
                   <>
-                    <ModalSectionHeader title="Message" icon="💬" />
-                    <Box
-                      sx={{
-                        bgcolor: "#F8FAFC",
-                        border: "1px solid #E2E8F0",
-                        borderRadius: "10px",
-                        px: 2.5,
-                        py: 2,
-                        mb: 2,
+                    <ModalSectionHeader title="Message" />
+                    <div
+                      style={{
+                        background: "var(--canvas)",
+                        border: "1px solid var(--line)",
+                        borderRadius: "var(--r-md)",
+                        padding: "12px 16px",
+                        marginBottom: 14,
+                        whiteSpace: "pre-wrap",
+                        wordBreak: "break-word",
+                        lineHeight: 1.6,
                       }}
                     >
-                      <Typography
-                        sx={{
-                          fontFamily: "Switzer",
-                          fontSize: 14,
-                          color: "#1E293B",
-                          lineHeight: 1.6,
-                          whiteSpace: "pre-wrap",
-                          wordBreak: "break-word",
-                        }}
-                      >
-                        {detail.bodyPreview}
-                      </Typography>
-                    </Box>
+                      {detail.bodyPreview}
+                    </div>
                   </>
                 )}
               </>
             ) : (
               <>
-                <ModalSectionHeader title="Call Session" icon="📞" />
+                <ModalSectionHeader title="Call Session" />
                 <SectionCard>
-                  <InfoRow label="Status"           badge={<PillBadge {...sessionStatusChip(detail.status)} />} />
+                  <InfoRow label="Status"           badge={<StatusBadge {...sessionStatusTone(detail.status)} />} />
                   <InfoRow label="Agent phone"      value={detail.agentPhoneE164} />
                   <InfoRow label="Expires at"       value={fmt(detail.expiresAt)} />
                   <InfoRow label="Closed at"        value={fmt(detail.closedAt)} />
@@ -540,15 +651,13 @@ export default function NotifyLogs() {
                 </SectionCard>
               </>
             )}
-          </Box>
+          </div>
         ) : (
-          <Box display="flex" justifyContent="center" alignItems="center" minHeight="200px">
-            <Typography variant="body1" fontFamily="Switzer" color="grey.600">
-              No log data available
-            </Typography>
-          </Box>
+          <div style={{ display: "grid", placeItems: "center", minHeight: 160, color: "var(--muted)" }}>
+            No log data available
+          </div>
         )}
-      </ModalComponent>
-    </Box>
+      </Modal>
+    </div>
   );
 }

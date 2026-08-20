@@ -1,28 +1,30 @@
 import { useState, useEffect, useMemo } from "react";
+import { TbPlus, TbTrash } from "../../shared/icons/index";
+import { Button, Field, Input, Modal, PageHeader, Select, Table } from "../../design-system";
+import { PaginationBar, Toggle } from "../misc-kit";
 import {
-  Box,
-  Typography,
-  Divider,
-  Button,
-  Menu,
-  MenuItem,
-  Tooltip,
-  CircularProgress,
-} from "@mui/material";
+  DirectoryActions,
+  DirectoryStatusPill,
+  DirectoryTableWrap,
+  DirectoryToolSelect,
+  DirectoryToolbar,
+} from "../directory-table/directoryTable";
 import {
-  BsCardList,
-  TbPlus,
-  TbCalendar,
-  TbTrash,
-  TbFilter,
-  TbEye,
-} from "../../shared/icons/index";
-import DataTable from "../../components/ui/DataTable";
-import ModalComponent from "../../components/shared/Modal";
-import InputFieldModal from "../../components/ui/InputFieldModal";
-import SelectField from "../../components/ui/SelectField";
+  PolicyDetailRow,
+  PolicyDetailSection,
+  PolicyDetailStack,
+  PolicyIdentity,
+  PolicyMeta,
+  PolicyMoney,
+} from "./policy-ui";
+import {
+  formatPolicyBool,
+  formatPolicyDate,
+  formatPolicyDateTime,
+  formatPolicyMoney,
+  resolvePolicyCurrencySymbol,
+} from "./policyUtils";
 import { useForm, Controller } from "react-hook-form";
-import ButtonBlueLight from "../../components/ui/ButtonBlueLight";
 import useToaster from "../../components/ui/Toaster";
 import {
   useAddCancellationPolicyMutation,
@@ -44,14 +46,8 @@ import {
   unwrapZoneFromApiResponse,
 } from "../../utilities/zonesList";
 import { Delay } from "../../components/shared/Loaders";
-import StyledCheckbox from "../../components/ui/StyledCheckbox";
-import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
-import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
-import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import dayjs from "dayjs";
 import { useSelector } from "react-redux";
-import LabelWithTooltip from "../../components/ui/LabelWithTooltip";
-import ChangeStatus from "../../components/ui/Switch";
 
 /** RTK unwrap shape is usually { data: { policies, pagination } } */
 function parseCancellationPoliciesPayload(response) {
@@ -73,52 +69,6 @@ function isPolicyConsideredActive(p) {
   return s === "1" || s === "true" || s === "yes";
 }
 
-function formatPolicyBool(value) {
-  return value ? "Yes" : "No";
-}
-
-function PolicyDetailRow({ label, value }) {
-  return (
-    <Box
-      sx={{
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "flex-start",
-        gap: 2,
-        py: 1.25,
-        borderBottom: "1px solid #F1F5F9",
-      }}
-    >
-      <Typography sx={{ fontSize: "13px", color: "grey.80", fontFamily: "Switzer", flexShrink: 0 }}>
-        {label}
-      </Typography>
-      <Typography
-        sx={{
-          fontSize: "13px",
-          fontWeight: 500,
-          fontFamily: "Switzer",
-          textAlign: "right",
-          color: "grey.20",
-          wordBreak: "break-word",
-        }}
-      >
-        {value ?? "—"}
-      </Typography>
-    </Box>
-  );
-}
-
-function PolicyDetailSection({ title, children }) {
-  return (
-    <Box>
-      <Typography variant="h6" sx={{ mb: 1.5, fontFamily: "Switzer", fontWeight: 600, fontSize: "15px" }}>
-        {title}
-      </Typography>
-      <Box sx={{ bgcolor: "#FAFBFC", borderRadius: "8px", px: 2, py: 0.5 }}>{children}</Box>
-    </Box>
-  );
-}
-
 export default function CancellationPolicy() {
   const { success, error: showError } = useToaster();
   const [modalOpen, setModalOpen] = useState(false);
@@ -130,10 +80,8 @@ export default function CancellationPolicy() {
   const [reasonIds, setReasonIds] = useState([]); // Store IDs for deletion
 
   const [selectedZoneFilter, setSelectedZoneFilter] = useState("");
-  const [zoneMenuAnchor, setZoneMenuAnchor] = useState(null);
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
-  const [togglingActiveId, setTogglingActiveId] = useState(null);
   const [overlapModalOpen, setOverlapModalOpen] = useState(false);
   const [overlapZoneId, setOverlapZoneId] = useState(null);
   const [pendingAddPayload, setPendingAddPayload] = useState(null);
@@ -186,7 +134,6 @@ export default function CancellationPolicy() {
 
   const policies = policiesResponse?.data?.policies || [];
   const pagination = policiesResponse?.data?.pagination || {};
-  const totalPages = pagination.pages || 1;
 
   const {
     control,
@@ -205,13 +152,13 @@ export default function CancellationPolicy() {
       isActive: true,
       isDefault: true,
       currency: "USD", // Single general currency for entire policy
-      prePickupFeeType: "absolute", // New field: "absolute" or "percentage"
+      prePickupFeeType: "absolute", // New key: "absolute" or "percentage"
       prePickupFeeValue: "", // New field: stores the value
       prePickupAbsoluteAmount: "",
       prePickupPercentage: "",
       prePickupFreeChargeWindowMinutes: "",
       prePickupFirstCancellationLeniency: true,
-      unprocessedFeeType: "absolute", // New field: "absolute" or "percentage"
+      unprocessedFeeType: "absolute", // New key: "absolute" or "percentage"
       unprocessedFeeValue: "", // New field: stores the value
       unprocessedAbsoluteAmount: "",
       unprocessedPercentage: "",
@@ -230,479 +177,41 @@ export default function CancellationPolicy() {
   const unprocessedFeeType = watch("unprocessedFeeType");
   const watchedZoneId = watch("zoneId");
 
-  const currencyOptions = useMemo(() => {
-    const base = [
-      { value: "USD", label: "USD" },
-      { value: "EUR", label: "EUR" },
-      { value: "GBP", label: "GBP" },
-    ];
-    const z = zonesList.find((zone) => String(zone.id) === String(watchedZoneId));
-    const code = currencyCodeFromZone(z, currencyUnitsList);
-    if (code && !base.some((o) => o.value === code)) {
-      return [...base, { value: code, label: code }];
-    }
-    return base;
-  }, [zonesList, watchedZoneId, currencyUnitsList]);
-
-  const selectedZoneLabel = zoneOptions.find(
-    (z) => z.value === String(selectedZoneFilter)
-  )?.label;
-
-  // Table columns
   const columns = [
     {
-      field: "sl",
-      headerName: "SL",
-      flex: 0.05,
-      minWidth: 60,
-      sortable: true,
-    },
-    {
-      field: "id",
-      headerName: "ID",
-      flex: 0.08,
-      minWidth: 80,
-      sortable: true,
-    },
-    {
-      field: "name",
-      headerName: "Policy Name",
-      flex: 0.12,
-      minWidth: 150,
-      sortable: true,
-    },
-    {
-      field: "type",
-      headerName: "Type",
-      flex: 0.1,
-      minWidth: 120,
-      sortable: true,
-      renderCell: (row) => (
-        <Typography sx={{ fontWeight: 500, fontSize: "13px" }}>
-          {row.type || "N/A"}
-        </Typography>
+      key: "name",
+      header: "Policy",
+      render: (row) => (
+        <PolicyIdentity
+          primary={row.name || `Policy #${row.id}`}
+          secondary={row.zoneName || "No zone"}
+        />
       ),
     },
     {
-      field: "zoneName",
-      headerName: "Zone",
-      flex: 0.12,
-      minWidth: 160,
-      sortable: true,
-      renderCell: (row) => (
-        <Typography sx={{ fontWeight: 400, fontSize: "13px" }}>
-          {row.zoneName || "—"}
-        </Typography>
+      key: "isActive",
+      header: "Status",
+      render: (row) => <DirectoryStatusPill active={row.isActive} />,
+    },
+    {
+      key: "prePickupAbsoluteAmount",
+      header: "Fee",
+      render: (row) => (
+        <PolicyMoney>
+          {formatPolicyMoney(row.prePickupAbsoluteAmount, row.currencySymbol, row.prePickupAbsoluteCurrency)}
+        </PolicyMoney>
       ),
     },
     {
-      field: "description",
-      headerName: "Description",
-      flex: 0.15,
-      minWidth: 180,
-      sortable: true,
+      key: "updatedAt",
+      header: "Updated",
+      render: (row) => <PolicyMeta>{row.updatedAt || "—"}</PolicyMeta>,
     },
     {
-      field: "policyStatusAction",
-      headerName: "Status / Action",
-      flex: 0.11,
-      minWidth: 160,
-      sortable: false,
-      renderCell: (row) => (
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-          <ChangeStatus
-            width="45px"
-            checked={Boolean(row.isActive)}
-            disabled={togglingActiveId !== null}
-            onChange={(e) => handleTogglePolicyActive(row, e.target.checked)}
-          />
-          <Typography
-            sx={{
-              color: row.isActive ? "success.main" : "text.secondary",
-              fontWeight: 500,
-              fontSize: "13px",
-            }}
-          >
-            {row.isActive ? "Active" : "Inactive"}
-          </Typography>
-        </Box>
-      ),
-    },
-    {
-      field: "isDefault",
-      headerName: "Default",
-      flex: 0.08,
-      minWidth: 80,
-      sortable: true,
-      renderCell: (row) => (
-        <Typography
-          sx={{
-            color: row.isDefault ? "primary.main" : "text.secondary",
-            fontWeight: 500,
-            fontSize: "13px",
-          }}
-        >
-          {row.isDefault ? "Yes" : "No"}
-        </Typography>
-      ),
-    },
-    {
-      field: "prePickupAbsoluteCurrency",
-      headerName: "Pre-Pickup Currency",
-      flex: 0.08,
-      minWidth: 130,
-      sortable: true,
-      renderCell: (row) => (
-        <Typography sx={{ fontWeight: 500, fontSize: "13px" }}>
-          {row.prePickupAbsoluteCurrency || "N/A"}
-        </Typography>
-      ),
-    },
-    {
-      field: "prePickupAbsoluteAmount",
-      headerName: "Pre-Pickup Amount",
-      flex: 0.1,
-      minWidth: 140,
-      sortable: true,
-      renderCell: (row) => (
-        <Typography sx={{ fontWeight: 500, fontSize: "13px" }}>
-          {row.prePickupAbsoluteCurrency} {row.prePickupAbsoluteAmount || "0.00"}
-        </Typography>
-      ),
-    },
-    {
-      field: "prePickupPercentage",
-      headerName: "Pre-Pickup %",
-      flex: 0.08,
-      minWidth: 110,
-      sortable: true,
-      renderCell: (row) => (
-        <Typography sx={{ fontWeight: 500, fontSize: "13px" }}>
-          {row.prePickupPercentage ? `${row.prePickupPercentage}%` : "N/A"}
-        </Typography>
-      ),
-    },
-    {
-      field: "prePickupFreeChargeWindowMinutes",
-      headerName: "Free Window (Mins)",
-      flex: 0.1,
-      minWidth: 140,
-      sortable: true,
-      renderCell: (row) => (
-        <Typography sx={{ fontWeight: 500, fontSize: "13px" }}>
-          {row.prePickupFreeChargeWindowMinutes || "0"} min
-        </Typography>
-      ),
-    },
-    {
-      field: "prePickupFirstCancellationLeniency",
-      headerName: "First Cancel Leniency",
-      flex: 0.12,
-      minWidth: 150,
-      sortable: true,
-      renderCell: (row) => (
-        <Typography
-          sx={{
-            color: row.prePickupFirstCancellationLeniency ? "success.main" : "text.secondary",
-            fontWeight: 500,
-            fontSize: "13px",
-          }}
-        >
-          {row.prePickupFirstCancellationLeniency ? "Yes" : "No"}
-        </Typography>
-      ),
-    },
-    {
-      field: "unprocessedAbsoluteCurrency",
-      headerName: "Unprocessed Currency",
-      flex: 0.1,
-      minWidth: 150,
-      sortable: true,
-      renderCell: (row) => (
-        <Typography sx={{ fontWeight: 500, fontSize: "13px" }}>
-          {row.unprocessedAbsoluteCurrency || "N/A"}
-        </Typography>
-      ),
-    },
-    {
-      field: "unprocessedAbsoluteAmount",
-      headerName: "Unprocessed Amount",
-      flex: 0.1,
-      minWidth: 150,
-      sortable: true,
-      renderCell: (row) => (
-        <Typography sx={{ fontWeight: 500, fontSize: "13px" }}>
-          {row.unprocessedAbsoluteCurrency} {row.unprocessedAbsoluteAmount || "0.00"}
-        </Typography>
-      ),
-    },
-    {
-      field: "unprocessedOrderValuePercentage",
-      headerName: "Unprocessed % (prepaid)",
-      flex: 0.12,
-      minWidth: 170,
-      sortable: true,
-      renderCell: (row) => {
-        const pct =
-          row.unprocessedOrderValuePercentage || row.unprocessedPercentage;
-        return (
-          <Typography sx={{ fontWeight: 500, fontSize: "13px" }}>
-            {pct ? `${pct}%` : "N/A"}
-          </Typography>
-        );
-      },
-    },
-    {
-      field: "unprocessedAfterPickupMinutes",
-      headerName: "After Pickup (Mins)",
-      flex: 0.1,
-      minWidth: 140,
-      sortable: true,
-      renderCell: (row) => (
-        <Typography sx={{ fontWeight: 500, fontSize: "13px" }}>
-          {row.unprocessedAfterPickupMinutes || "0"} min
-        </Typography>
-      ),
-    },
-    {
-      field: "allowCancelUnprocessed",
-      headerName: "Allow Cancel",
-      flex: 0.1,
-      minWidth: 120,
-      sortable: true,
-      renderCell: (row) => (
-        <Typography
-          sx={{
-            color: row.allowCancelUnprocessed ? "success.main" : "text.secondary",
-            fontWeight: 500,
-            fontSize: "13px",
-          }}
-        >
-          {row.allowCancelUnprocessed ? "Yes" : "No"}
-        </Typography>
-      ),
-    },
-    {
-      field: "courtesyWindowDays",
-      headerName: "Courtesy Window",
-      flex: 0.1,
-      minWidth: 130,
-      sortable: true,
-      renderCell: (row) => (
-        <Typography sx={{ fontWeight: 500, fontSize: "13px" }}>
-          {row.courtesyWindowDays ? `${row.courtesyWindowDays} days` : "N/A"}
-        </Typography>
-      ),
-    },
-    {
-      field: "courtesyCapAmount",
-      headerName: "Courtesy Cap",
-      flex: 0.1,
-      minWidth: 120,
-      sortable: true,
-      renderCell: (row) => (
-        <Typography sx={{ fontWeight: 500, fontSize: "13px" }}>
-          {row.courtesyCapAmount ? `${row.prePickupAbsoluteCurrency} ${row.courtesyCapAmount}` : "N/A"}
-        </Typography>
-      ),
-    },
-    {
-      field: "courtesyCount",
-      headerName: "Courtesy Count",
-      flex: 0.1,
-      minWidth: 130,
-      sortable: true,
-      renderCell: (row) => (
-        <Typography sx={{ fontWeight: 500, fontSize: "13px" }}>
-          {row.courtesyCount || "0"}
-        </Typography>
-      ),
-    },
-    {
-      field: "customerLeniencyEnabled",
-      headerName: "Customer Leniency",
-      flex: 0.1,
-      minWidth: 150,
-      sortable: true,
-      renderCell: (row) => (
-        <Typography
-          sx={{
-            color: row.customerLeniencyEnabled ? "success.main" : "text.secondary",
-            fontWeight: 500,
-            fontSize: "13px",
-          }}
-        >
-          {row.customerLeniencyEnabled ? "Yes" : "No"}
-        </Typography>
-      ),
-    },
-    {
-      field: "createdAt",
-      headerName: "Created At",
-      flex: 0.1,
-      minWidth: 120,
-      sortable: true,
-      renderCell: (row) => (
-        <Typography sx={{ fontWeight: 400, fontSize: "13px" }}>
-          {row.createdAt || "N/A"}
-        </Typography>
-      ),
-    },
-    {
-      field: "updatedAt",
-      headerName: "Updated At",
-      flex: 0.1,
-      minWidth: 120,
-      sortable: true,
-      renderCell: (row) => (
-        <Typography sx={{ fontWeight: 400, fontSize: "13px" }}>
-          {row.updatedAt || "N/A"}
-        </Typography>
-      ),
-    },
-    {
-      field: "createdBy",
-      headerName: "Created By",
-      flex: 0.1,
-      minWidth: 120,
-      sortable: true,
-      renderCell: (row) => (
-        <Typography sx={{ fontWeight: 400, fontSize: "13px" }}>
-          {row.createdBy || "N/A"}
-        </Typography>
-      ),
-    },
-    {
-      field: "updatedBy",
-      headerName: "Updated By",
-      flex: 0.1,
-      minWidth: 120,
-      sortable: true,
-      renderCell: (row) => (
-        <Typography sx={{ fontWeight: 400, fontSize: "13px" }}>
-          {row.updatedBy || "N/A"}
-        </Typography>
-      ),
-    },
-    {
-      field: "deletedAt",
-      headerName: "Deleted At",
-      flex: 0.1,
-      minWidth: 120,
-      sortable: true,
-      renderCell: (row) => (
-        <Typography sx={{ fontWeight: 400, fontSize: "13px" }}>
-          {row.deletedAt || "N/A"}
-        </Typography>
-      ),
-    },
-    {
-      field: "configId",
-      headerName: "Config ID",
-      flex: 0.1,
-      minWidth: 100,
-      sortable: true,
-      renderCell: (row) => (
-        <Typography sx={{ fontWeight: 400, fontSize: "13px" }}>
-          {row.configId || "N/A"}
-        </Typography>
-      ),
-    },
-    {
-      field: "configPolicyId",
-      headerName: "Config Policy ID",
-      flex: 0.12,
-      minWidth: 140,
-      sortable: true,
-      renderCell: (row) => (
-        <Typography sx={{ fontWeight: 400, fontSize: "13px" }}>
-          {row.configPolicyId || "N/A"}
-        </Typography>
-      ),
-    },
-    {
-      field: "configIsActive",
-      headerName: "Config Active",
-      flex: 0.1,
-      minWidth: 120,
-      sortable: true,
-      renderCell: (row) => (
-        <Typography
-          sx={{
-            color: row.configIsActive ? "success.main" : "text.secondary",
-            fontWeight: 500,
-            fontSize: "13px",
-          }}
-        >
-          {row.configIsActive ? "Yes" : "No"}
-        </Typography>
-      ),
-    },
-    {
-      field: "configCreatedAt",
-      headerName: "Config Created At",
-      flex: 0.12,
-      minWidth: 140,
-      sortable: true,
-      renderCell: (row) => (
-        <Typography sx={{ fontWeight: 400, fontSize: "13px" }}>
-          {row.configCreatedAt || "N/A"}
-        </Typography>
-      ),
-    },
-    {
-      field: "configUpdatedAt",
-      headerName: "Config Updated At",
-      flex: 0.12,
-      minWidth: 140,
-      sortable: true,
-      renderCell: (row) => (
-        <Typography sx={{ fontWeight: 400, fontSize: "13px" }}>
-          {row.configUpdatedAt || "N/A"}
-        </Typography>
-      ),
-    },
-    {
-      field: "configDeletedAt",
-      headerName: "Config Deleted At",
-      flex: 0.12,
-      minWidth: 140,
-      sortable: true,
-      renderCell: (row) => (
-        <Typography sx={{ fontWeight: 400, fontSize: "13px" }}>
-          {row.configDeletedAt || "N/A"}
-        </Typography>
-      ),
-    },
-    {
-      field: "actions",
-      headerName: "Actions",
-      flex: 0.08,
-      minWidth: 100,
-      sortable: false,
-      renderCell: (row) => (
-        <Box
-          component="button"
-          type="button"
-          onClick={() => handleView(row)}
-          sx={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 0.5,
-            border: "none",
-            background: "none",
-            cursor: "pointer",
-            color: "primary.main",
-            fontWeight: 500,
-            fontSize: "13px",
-            fontFamily: "Switzer",
-            p: 0,
-            "&:hover": { opacity: 0.8 },
-          }}
-        >
-          <TbEye size={16} />
-          View
-        </Box>
+      key: "actions",
+      header: "Actions",
+      render: (row) => (
+        <DirectoryActions><Button size="sm" variant="secondary" onClick={() => handleView(row)}>View</Button><Button size="sm" variant="secondary" onClick={() => handleEdit(row._rawPolicy || row)}>Edit</Button><Button size="sm" variant="danger" onClick={() => handleDelete(row._rawPolicy || row)}>Delete</Button></DirectoryActions>
       ),
     },
   ];
@@ -710,10 +219,23 @@ export default function CancellationPolicy() {
   // Prepare table data
   const policiesData = policies?.map((policy, index) => {
     const config = policy.cancellationConfig || {};
+    const zone =
+      policy.zone ||
+      zonesList.find((z) => String(z.id) === String(policy.zoneId)) ||
+      null;
     const zoneName =
-      policy.zone?.name ||
+      zone?.name ||
       zoneOptions.find((z) => String(z.value) === String(policy.zoneId))?.label ||
       null;
+    const currencyCode =
+      config.prePickupAbsoluteCurrency ||
+      config.unprocessedAbsoluteCurrency ||
+      currencyCodeFromZone(zone, currencyUnitsList);
+    const currencySymbol = resolvePolicyCurrencySymbol({
+      zone,
+      code: currencyCode,
+      currencyUnits: currencyUnitsList,
+    });
     return {
       id: policy.id,
       sl: (pagination.page - 1) * pagination.limit + index + 1,
@@ -727,16 +249,17 @@ export default function CancellationPolicy() {
       createdBy: policy.createdBy,
       updatedBy: policy.updatedBy,
       createdAt: policy.createdAt
-        ? new Date(policy.createdAt).toLocaleDateString()
+        ? formatPolicyDate(policy.createdAt)
         : "N/A",
       updatedAt: policy.updatedAt
-        ? new Date(policy.updatedAt).toLocaleDateString()
+        ? formatPolicyDate(policy.updatedAt)
         : "N/A",
       deletedAt: policy.deletedAt
-        ? new Date(policy.deletedAt).toLocaleDateString()
+        ? formatPolicyDate(policy.deletedAt)
         : null,
       // Pre-Pickup Charges
-      prePickupAbsoluteCurrency: config.prePickupAbsoluteCurrency || "USD",
+      currencySymbol,
+      prePickupAbsoluteCurrency: config.prePickupAbsoluteCurrency || currencyCode || "",
       prePickupAbsoluteAmount: config.prePickupAbsoluteAmount || "0.00",
       prePickupPercentage: config.prePickupPercentage || null,
       prePickupFreeChargeWindowMinutes: config.prePickupFreeChargeWindowMinutes || 0,
@@ -759,25 +282,19 @@ export default function CancellationPolicy() {
       configPolicyId: config.policyId,
       configIsActive: config.isActive,
       configCreatedAt: config.createdAt
-        ? new Date(config.createdAt).toLocaleDateString()
+        ? formatPolicyDate(config.createdAt)
         : null,
       configUpdatedAt: config.updatedAt
-        ? new Date(config.updatedAt).toLocaleDateString()
+        ? formatPolicyDate(config.updatedAt)
         : null,
       configDeletedAt: config.deletedAt
-        ? new Date(config.deletedAt).toLocaleDateString()
+        ? formatPolicyDate(config.deletedAt)
         : null,
       // Keep original config for edit functionality
       cancellationConfig: policy.cancellationConfig,
       _rawPolicy: policy,
     };
   }) || [];
-
-  useEffect(() => {
-    if (policies.length > 0) {
-      refetch();
-    }
-  }, []);
 
   // Function to generate next version number
   const getNextVersionName = () => {
@@ -962,32 +479,6 @@ export default function CancellationPolicy() {
   const handleCancelDelete = () => {
     setDeleteConfirmOpen(false);
     setPolicyToDelete(null);
-  };
-
-  const handleTogglePolicyActive = async (row, nextActive) => {
-    if (togglingActiveId !== null) return;
-    if (Boolean(row.isActive) === nextActive) return;
-    setTogglingActiveId(row.id);
-    try {
-      await updateCancellationPolicy({
-        id: row.id,
-        body: { isActive: nextActive },
-      }).unwrap();
-      success(
-        nextActive
-          ? "Cancellation policy activated"
-          : "Cancellation policy deactivated"
-      );
-      refetch();
-    } catch (error) {
-      console.error("Error updating policy status:", error);
-      showError(
-        error?.data?.message ||
-          "Failed to update policy status. Please try again."
-      );
-    } finally {
-      setTogglingActiveId(null);
-    }
   };
 
   const handleCloseOverlapModal = () => {
@@ -1332,10 +823,23 @@ export default function CancellationPolicy() {
       : "";
 
   const viewingConfig = viewingPolicy?.cancellationConfig || {};
+  const viewingZone =
+    viewingPolicy?.zone ||
+    zonesList.find((z) => String(z.id) === String(viewingPolicy?.zoneId)) ||
+    null;
   const viewingZoneName =
-    viewingPolicy?.zone?.name ||
+    viewingZone?.name ||
     zoneOptions.find((z) => String(z.value) === String(viewingPolicy?.zoneId))?.label ||
     "—";
+  const viewingCurrencyCode =
+    viewingConfig.prePickupAbsoluteCurrency ||
+    viewingConfig.unprocessedAbsoluteCurrency ||
+    currencyCodeFromZone(viewingZone, currencyUnitsList);
+  const viewingCurrencySymbol = resolvePolicyCurrencySymbol({
+    zone: viewingZone,
+    code: viewingCurrencyCode,
+    currencyUnits: currencyUnitsList,
+  });
   const viewingFreeWindowHours = viewingConfig.prePickupFreeChargeWindowMinutes
     ? (Number(viewingConfig.prePickupFreeChargeWindowMinutes) / 60).toFixed(2)
     : "0";
@@ -1343,177 +847,102 @@ export default function CancellationPolicy() {
     viewingConfig.unprocessedOrderValuePercentage || viewingConfig.unprocessedPercentage;
 
   return (
-    <Box>
-          {/* Header Section */}
-          <Box className="flex items-center gap-x-5 justify-between" sx={{ mb: "44px" }}>
-            <Box className="flex items-center gap-x-5">
-              <Typography color="blue.50">
-                <BsCardList size="24px" color="blue.50" />
-              </Typography>
-              <Typography variant="h4" fontFamily={"Switzer"} color="grey.20">
-                Cancellation Policy
-              </Typography>
-            </Box>
-
-            <Box className="flex items-center gap-x-3 flex-wrap">
-              <Tooltip
-                title={
-                  selectedZoneLabel
-                    ? `Zone: ${selectedZoneLabel}`
-                    : "Filter by zone"
-                }
-              >
-                <Button
-                  variant="outlined"
-                  onClick={(e) => setZoneMenuAnchor(e.currentTarget)}
-                  startIcon={<TbFilter size={18} />}
-                  sx={{
-                    height: 40,
-                    minWidth: 0,
-                    px: 1.5,
-                    borderRadius: "8px",
-                    textTransform: "none",
-                    fontFamily: "Inter",
-                    bgcolor: "white",
-                    border: selectedZoneFilter
-                      ? "2px solid #000099"
-                      : "1px solid #E5E7EB",
-                    color: selectedZoneFilter ? "#000099" : "#64748B",
-                    "&:hover": {
-                      bgcolor: "#F8FAFC",
-                      borderColor: selectedZoneFilter ? "#000099" : "#CBD5E1",
-                    },
-                    "& .MuiButton-startIcon": { mr: 0.5 },
-                  }}
-                >
-                  Zone
-                </Button>
-              </Tooltip>
-              <Menu
-                anchorEl={zoneMenuAnchor}
-                open={Boolean(zoneMenuAnchor)}
-                onClose={() => setZoneMenuAnchor(null)}
-                anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
-                transformOrigin={{ vertical: "top", horizontal: "right" }}
-                PaperProps={{
-                  sx: { minWidth: 220, borderRadius: 2, mt: 1 },
-                }}
-              >
-                <MenuItem
-                  onClick={() => {
-                    setSelectedZoneFilter("");
-                    setZoneMenuAnchor(null);
-                  }}
-                  selected={selectedZoneFilter === ""}
-                >
-                  All zones
-                </MenuItem>
-                {zoneOptions.map((z) => (
-                  <MenuItem
-                    key={z.value}
-                    onClick={() => {
-                      setSelectedZoneFilter(z.value);
-                      setZoneMenuAnchor(null);
-                    }}
-                    selected={String(selectedZoneFilter) === String(z.value)}
-                  >
-                    {z.label}
-                  </MenuItem>
-                ))}
-              </Menu>
-              <ButtonBlueLight
-                variant="outlined"
-                bgColor="#8B5CF6"
-                color="white"
-                radius="8px"
-                startIcon={<TbPlus size={"24px"} />}
-                onClick={() => setReasonsModalOpen(true)}
-                sx={{
-                  border: "1px solid #8B5CF6",
-                  "&:hover": {
-                    backgroundColor: "#7C3AED",
-                    borderColor: "#7C3AED",
-                  },
-                }}
-              >
-                Manage Cancellation Reasons
-              </ButtonBlueLight>
-              <ButtonBlueLight
-                variant="outlined"
-                bgColor="blue.200"
-                color="white"
-                radius="8px"
-                startIcon={<TbPlus size={"24px"} />}
-                onClick={handleAdd}
-              >
-                Add Cancellation Policy
-              </ButtonBlueLight>
-            </Box>
-          </Box>
-
-
-          {/* Data Table */}
+    <div style={{ display: "grid", gap: 20 }}>
+      <PageHeader
+        title="Cancellation Policy"
+        description="Fees and windows when a customer cancels pickup or delivery."
+        actions={
+          <>
+            <Button variant="secondary" onClick={() => setReasonsModalOpen(true)}>
+              <TbPlus size={18} />
+              Manage cancellation reasons
+            </Button>
+            <Button onClick={handleAdd}>
+              <TbPlus size={18} />
+              Add cancellation policy
+            </Button>
+          </>
+        }
+      />
+      {/* Data Table */}
           {isLoading ? (
             <Delay />
           ) : (
-            <Box sx={{ width: "100%", overflow: "auto" }}>
-              <DataTable
-                data={policiesData}
+            <DirectoryTableWrap
+              toolbar={
+                <DirectoryToolbar>
+                  <DirectoryToolSelect>
+                    <Select
+                      aria-label="Filter by zone"
+                      value={selectedZoneFilter}
+                      onChange={setSelectedZoneFilter}
+                      options={[{ value: "", label: "All zones" }, ...zoneOptions]}
+                      placeholder="All zones"
+                    />
+                  </DirectoryToolSelect>
+                </DirectoryToolbar>
+              }
+              footer={
+                <PaginationBar
+                  page={page}
+                  limit={limit}
+                  total={pagination.total || 0}
+                  onPageChange={setPage}
+                  onLimitChange={(next) => {
+                    setLimit(next);
+                    setPage(1);
+                  }}
+                />
+              }
+            >
+              <Table
                 columns={columns}
-                height={600}
-                showFilters={false}
-                stickyLeftFields={["sl", "zoneName"]}
+                rows={policiesData}
+                rowKey={(row, i) => row.id ?? row.sl ?? i}
+                empty="No policies yet"
+                stickyLeft={1}
               />
-            </Box>
+            </DirectoryTableWrap>
           )}
 
           {/* Add/Edit Modal */}
-          <ModalComponent
-            open={modalOpen}
-            title={editingPolicy ? "EDIT CANCELLATION POLICY" : "CANCELLATION POLICY"}
-            onClose={handleClose}
-            width={800}
-            primaryAction={{
-              label: "Save",
-              onClick: handleSubmit(onSubmit),
-              isLoading: isSubmitting,
-            }}
-            secondaryAction={{
-              label: "Cancel",
-              onClick: handleClose,
-            }}
-          >
-            <LocalizationProvider dateAdapter={AdapterDayjs}>
-              <Box className="flex flex-col gap-5">
+          <Modal
+        open={modalOpen}
+        title={editingPolicy ? "EDIT CANCELLATION POLICY" : "CANCELLATION POLICY"}
+        onClose={handleClose}
+        size={"xl"}
+        primaryLabel={isSubmitting ? "Saving…" : "Save"}
+        secondaryLabel={"Cancel"}
+        onPrimary={handleSubmit(onSubmit)}
+        primaryDisabled={Boolean(isSubmitting)}
+
+      >
+
+              <div className="flex flex-col gap-5">
                 {/* Basic Information Section */}
-                <Box>
-                  <Typography variant="h6" sx={{ mb: 1, fontFamily: "Switzer", fontWeight: 600 }}>
+                <div>
+                  <h3 style={{ margin: 0 }}>
                     Basic Information
-                  </Typography>
-                  <Typography variant="body2" sx={{ mb: 2, color: "grey.80", fontFamily: "Switzer", fontSize: "12px" }}>
+                  </h3>
+                  <p style={{ margin: 0, color: "var(--muted)" }}>
                     Configure the fundamental settings for this cancellation policy, including name, description, and activation status.
-                  </Typography>
-                  <Box className="flex flex-col gap-4">
+                  </p>
+                  <div className="flex flex-col gap-4">
                     <Controller
                       name="name"
                       control={control}
                       rules={{ required: "Policy name is required" }}
                       render={({ field: { onChange, value } }) => (
-                        <Box>
-                          <InputFieldModal
-                            title="Policy Name*"
-                            placeholder="Enter policy name"
-                            value={value || ""}
-                            onChange={(e) => onChange(e.target.value)}
-                            disabled={!editingPolicy} // Disable when adding new policy (not editing)
-                            tooltipText={editingPolicy ? "Policy name/identifier. This is a required field and must be unique." : "Policy name is auto-generated and cannot be edited."}
-                          />
+                        <div>
+                          <Field label={"Policy Name*"}>
+                      <Input placeholder={"Enter policy name"} value={value || ""} onChange={(e) => onChange(e.target.value)} disabled={!editingPolicy} />
+                    </Field>
                           {errors.name && (
-                            <Typography variant="caption" sx={{ color: "error.main", mt: 1, display: "block" }}>
+                            <p style={{ margin: 0, color: "var(--danger-700)" }}>
                               {errors.name.message}
-                            </Typography>
+                            </p>
                           )}
-                        </Box>
+                        </div>
                       )}
                     />
 
@@ -1522,20 +951,16 @@ export default function CancellationPolicy() {
                       control={control}
                       rules={{ required: "Description is required" }}
                       render={({ field: { onChange, value } }) => (
-                        <Box>
-                          <InputFieldModal
-                            title="Description*"
-                            placeholder="Enter policy description"
-                            value={value || ""}
-                            onChange={(e) => onChange(e.target.value)}
-                            tooltipText="Policy description or notes. Optional field to provide additional context about the policy."
-                          />
+                        <div>
+                          <Field label={"Description*"} hint={"Policy description or notes. Optional field to provide additional context about the policy."}>
+                      <Input placeholder={"Enter policy description"} value={value || ""} onChange={(e) => onChange(e.target.value)} />
+                    </Field>
                           {errors.description && (
-                            <Typography variant="caption" sx={{ color: "error.main", mt: 1, display: "block" }}>
+                            <p style={{ margin: 0, color: "var(--danger-700)" }}>
                               {errors.description.message}
-                            </Typography>
+                            </p>
                           )}
-                        </Box>
+                        </div>
                       )}
                     />
                     <Controller
@@ -1543,11 +968,9 @@ export default function CancellationPolicy() {
                       control={control}
                       rules={{ required: "Zone is required" }}
                       render={({ field: { onChange, value } }) => (
-                        <Box>
-                          <SelectField
-                            title="Zone*"
-                            value={value || ""}
-                            onChange={(e) => {
+                        <div>
+                          <Field label={"Zone*"} hint={"Select which zone this cancellation policy applies to."}>
+                      <Select aria-label={"Zone*"} value={value || ""} onChange={(next) => ((e) => {
                               const newZoneId = String(e?.target?.value ?? e ?? "");
                               onChange(newZoneId);
                               if (!newZoneId) return;
@@ -1573,199 +996,96 @@ export default function CancellationPolicy() {
                                   apply(currencyCodeFromZone(detail, currencyUnitsList));
                                 })
                                 .catch(() => {});
-                            }}
-                            options={zoneOptions}
-                            placeholder="Select zone"
-                            fullWidth
-                            tooltipText="Select which zone this cancellation policy applies to."
-                          />
+                            })({ target: { value: next } })} options={zoneOptions} placeholder={"Select zone"} />
+                    </Field>
                           {errors.zoneId && (
-                            <Typography
-                              variant="caption"
-                              sx={{ color: "error.main", mt: 1, display: "block" }}
-                            >
+                            <p style={{ margin: 0, color: "var(--danger-700)" }}>
                               {errors.zoneId.message}
-                            </Typography>
+                            </p>
                           )}
-                        </Box>
+                        </div>
                       )}
                     />
                     <Controller
                       name="currency"
                       control={control}
                       render={({ field: { value } }) => (
-                        <InputFieldModal
-                          title="Currency"
-                          value={value ?? ""}
-                          onChange={() => {}}
-                          placeholder={watchedZoneId ? "Set from zone" : "Select zone first"}
-                          disabled
-                          tooltipText="Currency follows the selected zone. Change the zone to change currency."
-                        />
+                        <Field label={"Currency"} hint={"Currency follows the selected zone. Change the zone to change currency."}>
+                      <Input placeholder={watchedZoneId ? "Set from zone" : "Select zone first"} value={value ?? ""} onChange={() => {}} disabled={true} />
+                    </Field>
                       )}
                     />
-                    <Box className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-2 gap-4">
                       <Controller
                         name="effectiveFrom"
                         control={control}
                         render={({ field: { onChange, value } }) => (
-                          <Box sx={{ width: "100%" }}>
-                            <Box sx={{ display: "flex", alignItems: "center", gap: "4px", mb: "8px" }}>
-                              <Typography variant="body2" sx={{ color: "#374151" }}>
+                          <div>
+                            <div>
+                              <p style={{ margin: 0 }}>
                                 Effective From
-                              </Typography>
-                            </Box>
-                            <DatePicker
-                              value={value || dayjs()}
-                              onChange={(newValue) => onChange(newValue)}
-                              slotProps={{
-                                textField: {
-                                  placeholder: "Select effective from",
-                                  fullWidth: true,
-                                  sx: {
-                                    width: "100%",
-                                    "& .MuiOutlinedInput-root": {
-                                      height: "52px",
-                                      borderRadius: "8px",
-                                      backgroundColor: "#F4F7FF !important",
-                                      fontFamily: "Switzer",
-                                      border: "none !important",
-                                      boxShadow: "none !important",
-                                      "& fieldset": {
-                                        border: "none !important",
-                                        display: "none",
-                                      },
-                                      "&:hover fieldset": {
-                                        border: "none !important",
-                                      },
-                                      "&.Mui-focused fieldset": {
-                                        border: "none !important",
-                                      },
-                                    },
-                                    "& .MuiPickersInputBase-root": {
-                                      backgroundColor: "#F4F7FF !important",
-                                      border: "none !important",
-                                      boxShadow: "none !important",
-                                    },
-                                    "& .MuiInputBase-input": {
-                                      fontFamily: "Switzer",
-                                      fontSize: "16px",
-                                      color: "#374151",
-                                      backgroundColor: "transparent",
-                                    },
-                                  },
-                                },
-                              }}
-                              slots={{
-                                openPickerIcon: () => <TbCalendar size={20} style={{ color: "#6B7280" }} />,
-                              }}
-                            />
-                          </Box>
+                              </p>
+                            </div>
+                            <Input type="date" value={value && dayjs(value).isValid() ? dayjs(value).format("YYYY-MM-DD") : ""} onChange={(e) => onChange(e.target.value ? dayjs(e.target.value) : null)} />
+                          </div>
                         )}
                       />
                       <Controller
                         name="effectiveTo"
                         control={control}
                         render={({ field: { onChange, value } }) => (
-                          <Box sx={{ width: "100%" }}>
-                            <Box sx={{ display: "flex", alignItems: "center", gap: "4px", mb: "8px" }}>
-                              <Typography variant="body2" sx={{ color: "#374151" }}>
+                          <div>
+                            <div>
+                              <p style={{ margin: 0 }}>
                                 Effective To
-                              </Typography>
-                            </Box>
-                            <DatePicker
-                              value={value}
-                              onChange={(newValue) => onChange(newValue)}
-                              slotProps={{
-                                textField: {
-                                  placeholder: "Select effective to",
-                                  fullWidth: true,
-                                  sx: {
-                                    width: "100%",
-                                    "& .MuiOutlinedInput-root": {
-                                      height: "52px",
-                                      borderRadius: "8px",
-                                      backgroundColor: "#F4F7FF !important",
-                                      fontFamily: "Switzer",
-                                      "& fieldset": {
-                                        border: "none",
-                                      },
-                                    },
-                                    "& .MuiPickersInputBase-root": {
-                                      backgroundColor: "#F4F7FF !important",
-                                    },
-                                    "& .MuiInputBase-input": {
-                                      fontFamily: "Switzer",
-                                      fontSize: "16px",
-                                      color: "#374151",
-                                      backgroundColor: "transparent",
-                                    },
-                                  },
-                                },
-                              }}
-                              slots={{
-                                openPickerIcon: () => <TbCalendar size={20} style={{ color: "#6B7280" }} />,
-                              }}
-                            />
-                          </Box>
+                              </p>
+                            </div>
+                            <Input type="date" value={value && dayjs(value).isValid() ? dayjs(value).format("YYYY-MM-DD") : ""} onChange={(e) => onChange(e.target.value ? dayjs(e.target.value) : null)} />
+                          </div>
                         )}
                       />
                       <Controller
                         name="isActive"
                         control={control}
                         render={({ field: { onChange, value } }) => (
-                          <Box className="flex items-center gap-2">
-                            <StyledCheckbox
-                              checked={!!value}
-                              onChange={(e) => onChange(e.target.checked)}
-                            />
-                            <LabelWithTooltip
-                              label="Active"
-                              tooltipText="Set whether this policy is active."
-                            />
-                          </Box>
+                          <div className="flex items-center gap-2">
+                            <input type="checkbox" checked={Boolean(value)} onChange={(e) => onChange(e.target.checked)} />
+                            <span title={"Set whether this policy is active."}>{"Active"}</span>
+                          </div>
                         )}
                       />
                       <Controller
                         name="isDefault"
                         control={control}
                         render={({ field: { onChange, value } }) => (
-                          <Box className="flex items-center gap-2">
-                            <StyledCheckbox
-                              checked={!!value}
-                              onChange={(e) => onChange(e.target.checked)}
-                            />
-                            <LabelWithTooltip
-                              label="Default policy"
-                              tooltipText="Set whether this is the default cancellation policy."
-                            />
-                          </Box>
+                          <div className="flex items-center gap-2">
+                            <input type="checkbox" checked={Boolean(value)} onChange={(e) => onChange(e.target.checked)} />
+                            <span title={"Set whether this is the default cancellation policy."}>{"Default policy"}</span>
+                          </div>
                         )}
                       />
-                    </Box>
-                  </Box>
-                </Box>
+                    </div>
+                  </div>
+                </div>
 
-                <Divider />
+                <hr style={{ border: 0, borderTop: "1px solid var(--line)", margin: "16px 0" }} />
 
                 {/* Pre-Pickup Charges Section */}
-                <Box>
-                  <Typography variant="h6" sx={{ mb: 1, fontFamily: "Switzer", fontWeight: 600 }}>
+                <div>
+                  <h3 style={{ margin: 0 }}>
                     Pre-Pickup Charges
-                  </Typography>
-                  <Typography variant="body2" sx={{ mb: 2, color: "grey.80", fontFamily: "Switzer", fontSize: "12px" }}>
+                  </h3>
+                  <p style={{ margin: 0, color: "var(--muted)" }}>
                     Define cancellation fees and policies for orders that are cancelled before the pickup has occurred. Set absolute amounts, percentages, free charge windows, and first cancellation leniency.
-                  </Typography>
-                  <Box className="flex flex-col gap-4">
-                    <Box className="grid grid-cols-2 gap-4">
+                  </p>
+                  <div className="flex flex-col gap-4">
+                    <div className="grid grid-cols-2 gap-4">
                       <Controller
                         name="prePickupFeeType"
                         control={control}
                         render={({ field: { onChange, value } }) => (
-                          <SelectField
-                            title="Fee Type"
-                            value={value}
-                            onChange={(e) => {
+                          <Field label={"Fee Type"} hint={"Choose between a fixed amount (Absolute) or a percentage of the order value (Percentage)."}>
+                      <Select aria-label={"Fee Type"} value={value} onChange={(next) => ((e) => {
                               onChange(e.target.value);
                               // Clear the fee value when switching types
                               reset({
@@ -1773,49 +1093,33 @@ export default function CancellationPolicy() {
                                 prePickupFeeType: e.target.value,
                                 prePickupFeeValue: "",
                               });
-                            }}
-                            options={[
+                            })({ target: { value: next } })} options={[
                               { value: "absolute", label: "Absolute Amount" },
                               { value: "percentage", label: "Percentage (%)" },
-                            ]}
-                            placeholder="Select fee type"
-                            fullWidth
-                            tooltipText="Choose between a fixed amount (Absolute) or a percentage of the order value (Percentage)."
-                          />
+                            ]} placeholder={"Select fee type"} />
+                    </Field>
                         )}
                       />
                       <Controller
                         name="prePickupFeeValue"
                         control={control}
                         render={({ field: { onChange, value } }) => (
-                          <InputFieldModal
-                            title={prePickupFeeType === "absolute" ? "Absolute Amount" : "Percentage (%)"}
-                            placeholder={prePickupFeeType === "absolute" ? "Enter amount" : "Enter percentage"}
-                            type="number"
-                            value={value || ""}
-                            onChange={(e) => onChange(e.target.value)}
-                            tooltipText={
-                              prePickupFeeType === "absolute"
+                          <Field label={prePickupFeeType === "absolute" ? "Absolute Amount" : "Percentage (%)"} hint={prePickupFeeType === "absolute"
                                 ? "Fixed cancellation fee amount for pre-pickup cancellations. This is a flat fee charged when a customer cancels before pickup."
-                                : "Percentage-based cancellation fee for pre-pickup cancellations (e.g., 5.00 for 5% of order value)."
-                            }
-                          />
+                                : "Percentage-based cancellation fee for pre-pickup cancellations (e.g., 5.00 for 5% of order value)."}>
+                      <Input type={"number"} placeholder={prePickupFeeType === "absolute" ? "Enter amount" : "Enter percentage"} value={value || ""} onChange={(e) => onChange(e.target.value)} />
+                    </Field>
                         )}
                       />
-                    </Box>
+                    </div>
 
                     <Controller
                       name="prePickupFreeChargeWindowMinutes"
                       control={control}
                       render={({ field: { onChange, value } }) => (
-                        <InputFieldModal
-                          title="Free Charge Window (Hours)"
-                          placeholder="Enter hours"
-                          type="number"
-                          value={value || ""}
-                          onChange={(e) => onChange(e.target.value)}
-                          tooltipText="Time window in hours after order placement where cancellations are free. This value is converted to minutes before saving."
-                        />
+                        <Field label={"Free Charge Window (Hours)"} hint={"Time window in hours after order placement where cancellations are free. This value is converted to minutes before saving."}>
+                      <Input type={"number"} placeholder={"Enter hours"} value={value || ""} onChange={(e) => onChange(e.target.value)} />
+                    </Field>
                       )}
                     />
 
@@ -1823,41 +1127,33 @@ export default function CancellationPolicy() {
                       name="prePickupFirstCancellationLeniency"
                       control={control}
                       render={({ field: { onChange, value } }) => (
-                        <Box className="flex items-center gap-2">
-                          <StyledCheckbox
-                            checked={value}
-                            onChange={(e) => onChange(e.target.checked)}
-                          />
-                          <LabelWithTooltip
-                            label="First Cancellation Leniency"
-                            tooltipText="Automatically forgive the first cancellation. When enabled, the first cancellation for each customer is automatically forgiven without charging a fee."
-                          />
-                        </Box>
+                        <div className="flex items-center gap-2">
+                          <input type="checkbox" checked={Boolean(value)} onChange={(e) => onChange(e.target.checked)} />
+                          <span title={"Automatically forgive the first cancellation. When enabled, the first cancellation for each customer is automatically forgiven without charging a fee."}>{"First Cancellation Leniency"}</span>
+                        </div>
                       )}
                     />
-                  </Box>
-                </Box>
+                  </div>
+                </div>
 
-                <Divider />
+                <hr style={{ border: 0, borderTop: "1px solid var(--line)", margin: "16px 0" }} />
 
                 {/* Unprocessed Order Charges Section */}
-                <Box>
-                  <Typography variant="h6" sx={{ mb: 1, fontFamily: "Switzer", fontWeight: 600 }}>
+                <div>
+                  <h3 style={{ margin: 0 }}>
                     Unprocessed Order Charges
-                  </Typography>
-                  <Typography variant="body2" sx={{ mb: 2, color: "grey.80", fontFamily: "Switzer", fontSize: "12px" }}>
+                  </h3>
+                  <p style={{ margin: 0, color: "var(--muted)" }}>
                     Configure cancellation fees for orders that have been picked up but not yet processed. Set charges based on time after pickup, order value percentage, and cancellation permissions.
-                  </Typography>
-                  <Box className="flex flex-col gap-4">
-                    <Box className="grid grid-cols-2 gap-4">
+                  </p>
+                  <div className="flex flex-col gap-4">
+                    <div className="grid grid-cols-2 gap-4">
                       <Controller
                         name="unprocessedFeeType"
                         control={control}
                         render={({ field: { onChange, value } }) => (
-                          <SelectField
-                            title="Fee Type"
-                            value={value}
-                            onChange={(e) => {
+                          <Field label={"Fee Type"} hint={"Choose a fixed amount (Absolute) or a percentage of prepaid (Percentage). Prepaid = minimum order + service fee + tip."}>
+                      <Select aria-label={"Fee Type"} value={value} onChange={(next) => ((e) => {
                               const next = e.target.value;
                               onChange(next);
                               // Clear the fee value when switching types; order-value % only applies to percentage fee type
@@ -1867,57 +1163,37 @@ export default function CancellationPolicy() {
                                 unprocessedFeeValue: "",
                                 ...(next === "absolute" && { unprocessedOrderValuePercentage: "" }),
                               });
-                            }}
-                            options={[
+                            })({ target: { value: next } })} options={[
                               { value: "absolute", label: "Absolute Amount" },
                               { value: "percentage", label: "Percentage (%)" },
-                            ]}
-                            placeholder="Select fee type"
-                            fullWidth
-                            tooltipText="Choose a fixed amount (Absolute) or a percentage of prepaid (Percentage). Prepaid = minimum order + service fee + tip."
-                          />
+                            ]} placeholder={"Select fee type"} />
+                    </Field>
                         )}
                       />
                       <Controller
                         name="unprocessedFeeValue"
                         control={control}
                         render={({ field: { onChange, value } }) => (
-                          <InputFieldModal
-                            title={
-                              unprocessedFeeType === "absolute"
+                          <Field label={unprocessedFeeType === "absolute"
                                 ? "Absolute Amount"
-                                : "Unprocessed fee % (of prepaid)"
-                            }
-                            placeholder={
-                              unprocessedFeeType === "absolute"
-                                ? "Enter amount"
-                                : "e.g. 50"
-                            }
-                            type="number"
-                            value={value || ""}
-                            onChange={(e) => onChange(e.target.value)}
-                            tooltipText={
-                              unprocessedFeeType === "absolute"
+                                : "Unprocessed fee % (of prepaid)"} hint={unprocessedFeeType === "absolute"
                                 ? "Fixed cancellation fee for unprocessed / On the Way cancellations."
-                                : "Percentage of prepaid (minimum order + service fee + tip). Example: 50 = keep half of prepaid. This is the only % used by cancel fee."
-                            }
-                          />
+                                : "Percentage of prepaid (minimum order + service fee + tip). Example: 50 = keep half of prepaid. This is the only % used by cancel fee."}>
+                      <Input type={"number"} placeholder={unprocessedFeeType === "absolute"
+                                ? "Enter amount"
+                                : "e.g. 50"} value={value || ""} onChange={(e) => onChange(e.target.value)} />
+                    </Field>
                         )}
                       />
-                    </Box>
+                    </div>
 
                     <Controller
                       name="unprocessedAfterPickupMinutes"
                       control={control}
                       render={({ field: { onChange, value } }) => (
-                        <InputFieldModal
-                          title="After Pickup (Hours)"
-                          placeholder="Enter hours"
-                          type="number"
-                          value={value || ""}
-                          onChange={(e) => onChange(e.target.value)}
-                          tooltipText="Legacy field (hours, stored as minutes). Not used by cancel fee calc today."
-                        />
+                        <Field label={"After Pickup (Hours)"} hint={"Legacy field (hours, stored as minutes). Not used by cancel fee calc today."}>
+                      <Input type={"number"} placeholder={"Enter hours"} value={value || ""} onChange={(e) => onChange(e.target.value)} />
+                    </Field>
                       )}
                     />
 
@@ -1925,45 +1201,34 @@ export default function CancellationPolicy() {
                       name="allowCancelUnprocessed"
                       control={control}
                       render={({ field: { onChange, value } }) => (
-                        <Box className="flex items-center gap-2">
-                          <StyledCheckbox
-                            checked={value}
-                            onChange={(e) => onChange(e.target.checked)}
-                          />
-                          <LabelWithTooltip
-                            label="Allow Cancel Unprocessed"
-                            tooltipText="Allow cancellation of unprocessed orders. When enabled, customers can cancel orders that have not yet been processed."
-                          />
-                        </Box>
+                        <div className="flex items-center gap-2">
+                          <input type="checkbox" checked={Boolean(value)} onChange={(e) => onChange(e.target.checked)} />
+                          <span title={"Allow cancellation of unprocessed orders. When enabled, customers can cancel orders that have not yet been processed."}>{"Allow Cancel Unprocessed"}</span>
+                        </div>
                       )}
                     />
-                  </Box>
-                </Box>
+                  </div>
+                </div>
 
-                <Divider />
+                <hr style={{ border: 0, borderTop: "1px solid var(--line)", margin: "16px 0" }} />
 
                 {/* Courtesy Window Section */}
-                <Box>
-                  <Typography variant="h6" sx={{ mb: 1, fontFamily: "Switzer", fontWeight: 600 }}>
+                <div>
+                  <h3 style={{ margin: 0 }}>
                     Courtesy Window
-                  </Typography>
-                  <Typography variant="body2" sx={{ mb: 2, color: "grey.80", fontFamily: "Switzer", fontSize: "12px" }}>
+                  </h3>
+                  <p style={{ margin: 0, color: "var(--muted)" }}>
                     Set up a grace period where customers can cancel orders with reduced or waived fees. Configure the time window, maximum charge cap, and number of allowed courtesy cancellations.
-                  </Typography>
-                  <Box className="flex flex-col gap-4">
-                    <Box className="grid grid-cols-2 gap-4">
+                  </p>
+                  <div className="flex flex-col gap-4">
+                    <div className="grid grid-cols-2 gap-4">
                       <Controller
                         name="courtesyWindowDays"
                         control={control}
                         render={({ field: { onChange, value } }) => (
-                          <InputFieldModal
-                            title="Window Days"
-                            placeholder="Enter days"
-                            type="number"
-                            value={value || ""}
-                            onChange={(e) => onChange(e.target.value)}
-                            tooltipText="Time window in days for courtesy cancellations. Cancellations within this window may be eligible for courtesy waivers."
-                          />
+                          <Field label={"Window Days"} hint={"Time window in days for courtesy cancellations. Cancellations within this window may be eligible for courtesy waivers."}>
+                      <Input type={"number"} placeholder={"Enter days"} value={value || ""} onChange={(e) => onChange(e.target.value)} />
+                    </Field>
                         )}
                       />
 
@@ -1971,103 +1236,83 @@ export default function CancellationPolicy() {
                         name="courtesyCapAmount"
                         control={control}
                         render={({ field: { onChange, value } }) => (
-                          <InputFieldModal
-                            title="Cap Amount"
-                            placeholder="Enter amount"
-                            type="number"
-                            value={value || ""}
-                            onChange={(e) => onChange(e.target.value)}
-                            tooltipText="Maximum total cancellation charges per customer within the courtesy window. Once this cap is reached, additional cancellations may be waived."
-                          />
+                          <Field label={"Cap Amount"} hint={"Maximum total cancellation charges per customer within the courtesy window. Once this cap is reached, additional cancellations may be waived."}>
+                      <Input type={"number"} placeholder={"Enter amount"} value={value || ""} onChange={(e) => onChange(e.target.value)} />
+                    </Field>
                         )}
                       />
-                    </Box>
+                    </div>
 
                     <Controller
                       name="courtesyCount"
                       control={control}
                       render={({ field: { onChange, value } }) => (
-                        <InputFieldModal
-                          title="Count"
-                          placeholder="Enter count"
-                          type="number"
-                          value={value || ""}
-                          onChange={(e) => onChange(e.target.value)}
-                          tooltipText="Maximum number of courtesy cancellations allowed per customer within the courtesy window period."
-                        />
+                        <Field label={"Count"} hint={"Maximum number of courtesy cancellations allowed per customer within the courtesy window period."}>
+                      <Input type={"number"} placeholder={"Enter count"} value={value || ""} onChange={(e) => onChange(e.target.value)} />
+                    </Field>
                       )}
                     />
-                  </Box>
-                </Box>
+                  </div>
+                </div>
 
-                <Divider />
+                <hr style={{ border: 0, borderTop: "1px solid var(--line)", margin: "16px 0" }} />
 
                 {/* Customer Leniency Section */}
-                <Box>
-                  <Typography variant="h6" sx={{ mb: 1, fontFamily: "Switzer", fontWeight: 600 }}>
+                <div>
+                  <h3 style={{ margin: 0 }}>
                     Customer Leniency
-                  </Typography>
-                  <Typography variant="body2" sx={{ mb: 2, color: "grey.80", fontFamily: "Switzer", fontSize: "12px" }}>
+                  </h3>
+                  <p style={{ margin: 0, color: "var(--muted)" }}>
                     Enable customer-friendly leniency features such as first cancellation forgiveness and courtesy windows to provide a better customer experience while managing cancellation policies.
-                  </Typography>
+                  </p>
                   <Controller
                     name="customerLeniencyEnabled"
                     control={control}
                     render={({ field: { onChange, value } }) => (
-                      <Box className="flex items-center gap-2">
-                        <StyledCheckbox
-                          checked={value}
-                          onChange={(e) => onChange(e.target.checked)}
-                        />
-                        <LabelWithTooltip
-                          label="Enable Customer Leniency"
-                          tooltipText="Enable customer leniency features. When enabled, the system applies leniency rules such as first cancellation forgiveness and courtesy windows."
-                        />
-                      </Box>
+                      <div className="flex items-center gap-2">
+                        <input type="checkbox" checked={Boolean(value)} onChange={(e) => onChange(e.target.checked)} />
+                        <span title={"Enable customer leniency features. When enabled, the system applies leniency rules such as first cancellation forgiveness and courtesy windows."}>{"Enable Customer Leniency"}</span>
+                      </div>
                     )}
                   />
-                </Box>
-              </Box>
-            </LocalizationProvider>
-          </ModalComponent>
+                </div>
+              </div>
 
-          <ModalComponent
-            open={overlapModalOpen}
-            title="ACTIVE POLICY IN THIS ZONE"
-            onClose={handleCloseOverlapModal}
-            width={640}
-            primaryAction={{
-              label: "Retry saving new policy",
-              onClick: handleRetryPendingAdd,
-              isLoading: isAdding,
-            }}
-            secondaryAction={{
-              label: "Close",
-              onClick: handleCloseOverlapModal,
-            }}
-          >
-            <Box className="flex flex-col gap-3">
-              <Typography variant="body2" sx={{ color: "grey.80", fontFamily: "Switzer" }}>
+          </Modal>
+
+          <Modal
+        open={overlapModalOpen}
+        title={"ACTIVE POLICY IN THIS ZONE"}
+        onClose={handleCloseOverlapModal}
+        size={"lg"}
+        primaryLabel={isAdding ? "Saving…" : "Retry saving new policy"}
+        secondaryLabel={"Close"}
+        onPrimary={handleRetryPendingAdd}
+        primaryDisabled={Boolean(isAdding)}
+
+      >
+            <div className="flex flex-col gap-3">
+              <p style={{ margin: 0, color: "var(--muted)" }}>
                 Another active cancellation policy in{" "}
-                <Typography component="span" sx={{ fontWeight: 600 }}>
+                <span style={{ margin: 0 }}>
                   {overlapZoneLabel || "this zone"}
-                </Typography>{" "}
+                </span>{" "}
                 overlaps the dates you chose. Deactivate it below, then retry saving your new policy.
-              </Typography>
+              </p>
               {overlapPoliciesLoading ? (
-                <Box sx={{ display: "flex", justifyContent: "center", py: 3 }}>
-                  <CircularProgress size={32} />
-                </Box>
+                <div>
+                  <span className="jd-field__hint">Loading…</span>
+                </div>
               ) : overlapPoliciesList.length === 0 ? (
-                <Box className="flex flex-col gap-2">
-                  <Typography variant="body2" color="text.secondary">
+                <div className="flex flex-col gap-2">
+                  <p style={{ margin: 0, color: "var(--muted)" }}>
                     {overlapPolicyFetchAll
                       ? "No policies were returned for this zone. Check the zone or try again later."
                       : "We could not list active policies for this zone. Load all policies for the zone below, then switch off Active on the overlapping policy."}
-                  </Typography>
+                  </p>
                   {!overlapPolicyFetchAll && overlapZoneId != null && (
                     <Button
-                      variant="outlined"
+                      variant="secondary"
                       onClick={() => {
                         setOverlapPolicyFetchAll(true);
                         fetchOverlapPolicies({
@@ -2081,319 +1326,197 @@ export default function CancellationPolicy() {
                     </Button>
                   )}
                   {overlapPolicyFetchAll && overlapZoneId != null && (
-                    <Button variant="text" size="small" onClick={refetchOverlapPoliciesList}>
+                    <Button variant="ghost" size="sm" onClick={refetchOverlapPoliciesList}>
                       Refresh list
                     </Button>
                   )}
-                </Box>
+                </div>
               ) : (
-                <Box className="flex flex-col gap-2">
+                <div className="flex flex-col gap-2">
                   {overlapPoliciesList.map((policy) => {
                     const from =
                       policy.effectiveFrom || policy.created_date || policy.createdAt;
                     const to = policy.effectiveTo || policy.expiry_date || policy.expiryDate;
-                    const fromLabel = from ? new Date(from).toLocaleDateString() : "—";
-                    const toLabel = to ? new Date(to).toLocaleDateString() : "Open-ended";
+                    const fromLabel = from ? formatPolicyDate(from) : "—";
+                    const toLabel = to ? formatPolicyDate(to) : "Open-ended";
                     return (
-                      <Box
-                        key={policy.id}
-                        sx={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                          gap: 2,
-                          flexWrap: "wrap",
-                          p: 1.5,
-                          borderRadius: 1,
-                          bgcolor: "grey.50",
-                          border: "1px solid",
-                          borderColor: "grey.200",
-                        }}
-                      >
-                        <Box sx={{ minWidth: 0, flex: 1 }}>
-                          <Typography sx={{ fontWeight: 600, fontSize: "14px" }}>
+                      <div>
+                        <div>
+                          <p style={{ margin: 0 }}>
                             {policy.name || `Policy #${policy.id}`}
-                          </Typography>
-                          <Typography variant="caption" color="text.secondary" display="block">
+                          </p>
+                          <p style={{ margin: 0, color: "var(--muted)" }}>
                             ID {policy.id} · {fromLabel} → {toLabel}
-                          </Typography>
-                        </Box>
-                        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                          <ChangeStatus
-                            width="45px"
-                            checked={isPolicyConsideredActive(policy)}
-                            disabled={overlapTogglingId !== null}
-                            onChange={(e) =>
-                              handleOverlapPolicyToggle(policy, e.target.checked)
-                            }
-                          />
-                          <Typography
-                            sx={{
-                              fontSize: "13px",
-                              fontWeight: 500,
-                              color: isPolicyConsideredActive(policy)
-                                ? "success.main"
-                                : "text.secondary",
-                            }}
-                          >
+                          </p>
+                        </div>
+                        <div>
+                          <Toggle checked={isPolicyConsideredActive(policy)} onChange={(e) =>
+                              handleOverlapPolicyToggle(policy, e.target.checked)} disabled={overlapTogglingId !== null} />
+                          <p style={{ margin: 0, color: "var(--muted)" }}>
                             {isPolicyConsideredActive(policy) ? "Active" : "Inactive"}
-                          </Typography>
-                        </Box>
-                      </Box>
+                          </p>
+                        </div>
+                      </div>
                     );
                   })}
-                </Box>
+                </div>
               )}
-            </Box>
-          </ModalComponent>
+            </div>
+          </Modal>
 
-          {/* View Policy Modal */}
-          <ModalComponent
+          <Modal
             open={viewModalOpen}
-            title="VIEW CANCELLATION POLICY"
+            title="View cancellation policy"
             onClose={handleCloseView}
-            width={720}
-            primaryAction={{
-              label: "Close",
-              onClick: handleCloseView,
-            }}
+            size="xl"
+            primaryLabel="Close"
+            secondaryLabel="Close"
+            onPrimary={handleCloseView}
           >
-            {viewingPolicy && (
-              <Box className="flex flex-col gap-5">
-                <PolicyDetailSection title="Basic Information">
-                  <PolicyDetailRow label="Policy Name" value={viewingPolicy.name} />
+            {viewingPolicy ? (
+              <PolicyDetailStack>
+                <PolicyDetailSection title="Identity">
+                  <PolicyDetailRow label="Policy name" value={viewingPolicy.name} />
+                  <PolicyDetailRow label="Policy ID" value={viewingPolicy.id} />
                   <PolicyDetailRow label="Description" value={viewingPolicy.description} />
                   <PolicyDetailRow label="Zone" value={viewingZoneName} />
-                  <PolicyDetailRow label="Type" value={viewingPolicy.type || "—"} />
+                  <PolicyDetailRow label="Zone ID" value={viewingPolicy.zoneId ?? "—"} />
                   <PolicyDetailRow label="Status" value={viewingPolicy.isActive ? "Active" : "Inactive"} />
-                  <PolicyDetailRow label="Default Policy" value={formatPolicyBool(viewingPolicy.isDefault)} />
-                  <PolicyDetailRow
-                    label="Effective From"
-                    value={
-                      viewingPolicy.effectiveFrom
-                        ? new Date(viewingPolicy.effectiveFrom).toLocaleDateString()
-                        : "—"
-                    }
-                  />
-                  <PolicyDetailRow
-                    label="Effective To"
-                    value={
-                      viewingPolicy.effectiveTo
-                        ? new Date(viewingPolicy.effectiveTo).toLocaleDateString()
-                        : "—"
-                    }
-                  />
-                  <PolicyDetailRow
-                    label="Created At"
-                    value={
-                      viewingPolicy.createdAt
-                        ? new Date(viewingPolicy.createdAt).toLocaleString()
-                        : "—"
-                    }
-                  />
-                  <PolicyDetailRow
-                    label="Updated At"
-                    value={
-                      viewingPolicy.updatedAt
-                        ? new Date(viewingPolicy.updatedAt).toLocaleString()
-                        : "—"
-                    }
-                  />
+                  <PolicyDetailRow label="Default policy" value={formatPolicyBool(viewingPolicy.isDefault)} />
+                  <PolicyDetailRow label="Effective from" value={formatPolicyDate(viewingPolicy.effectiveFrom)} />
+                  <PolicyDetailRow label="Effective to" value={formatPolicyDate(viewingPolicy.effectiveTo)} />
+                  <PolicyDetailRow label="Created at" value={formatPolicyDateTime(viewingPolicy.createdAt)} />
+                  <PolicyDetailRow label="Updated at" value={formatPolicyDateTime(viewingPolicy.updatedAt)} />
                 </PolicyDetailSection>
-
-                <PolicyDetailSection title="Pre-Pickup Charges">
+                <PolicyDetailSection title="Pre-pickup charges">
                   <PolicyDetailRow
                     label="Currency"
-                    value={viewingConfig.prePickupAbsoluteCurrency || "—"}
+                    value={
+                      viewingCurrencySymbol
+                        ? `${viewingConfig.prePickupAbsoluteCurrency || viewingCurrencyCode || ""} (${viewingCurrencySymbol})`.trim()
+                        : viewingConfig.prePickupAbsoluteCurrency || "—"
+                    }
                   />
                   <PolicyDetailRow
-                    label="Absolute Amount"
-                    value={
-                      viewingConfig.prePickupAbsoluteAmount != null
-                        ? `${viewingConfig.prePickupAbsoluteCurrency || ""} ${viewingConfig.prePickupAbsoluteAmount}`
-                        : "—"
-                    }
+                    label="Absolute amount"
+                    value={formatPolicyMoney(
+                      viewingConfig.prePickupAbsoluteAmount,
+                      viewingCurrencySymbol,
+                      viewingConfig.prePickupAbsoluteCurrency
+                    )}
                   />
                   <PolicyDetailRow
                     label="Percentage"
-                    value={
-                      viewingConfig.prePickupPercentage
-                        ? `${viewingConfig.prePickupPercentage}%`
-                        : "—"
-                    }
+                    value={viewingConfig.prePickupPercentage ? `${viewingConfig.prePickupPercentage}%` : "—"}
                   />
                   <PolicyDetailRow
-                    label="Free Charge Window"
+                    label="Free charge window"
                     value={`${viewingFreeWindowHours} hours (${viewingConfig.prePickupFreeChargeWindowMinutes || 0} min)`}
                   />
                   <PolicyDetailRow
-                    label="First Cancellation Leniency"
+                    label="First cancellation leniency"
                     value={formatPolicyBool(viewingConfig.prePickupFirstCancellationLeniency)}
                   />
                 </PolicyDetailSection>
-
-                <PolicyDetailSection title="Unprocessed Order Charges">
+                <PolicyDetailSection title="Unprocessed order charges">
                   <PolicyDetailRow
-                    label="Currency"
-                    value={viewingConfig.unprocessedAbsoluteCurrency || "—"}
-                  />
-                  <PolicyDetailRow
-                    label="Absolute Amount"
-                    value={
-                      viewingConfig.unprocessedAbsoluteAmount != null
-                        ? `${viewingConfig.unprocessedAbsoluteCurrency || ""} ${viewingConfig.unprocessedAbsoluteAmount}`
-                        : "—"
-                    }
+                    label="Absolute amount"
+                    value={formatPolicyMoney(
+                      viewingConfig.unprocessedAbsoluteAmount,
+                      viewingCurrencySymbol,
+                      viewingConfig.unprocessedAbsoluteCurrency
+                    )}
                   />
                   <PolicyDetailRow
                     label="Percentage (prepaid)"
                     value={viewingUnprocessedPct ? `${viewingUnprocessedPct}%` : "—"}
                   />
                   <PolicyDetailRow
-                    label="After Pickup (Minutes)"
-                    value={`${viewingConfig.unprocessedAfterPickupMinutes || 0} min`}
-                  />
-                  <PolicyDetailRow
-                    label="Allow Cancel Unprocessed"
+                    label="Allow cancel unprocessed"
                     value={formatPolicyBool(viewingConfig.allowCancelUnprocessed)}
                   />
                 </PolicyDetailSection>
-
-                <PolicyDetailSection title="Courtesy Window">
+                <PolicyDetailSection title="Courtesy & leniency">
+                  <PolicyDetailRow label="Window days" value={viewingConfig.courtesyWindowDays ?? "—"} />
                   <PolicyDetailRow
-                    label="Window Days"
-                    value={viewingConfig.courtesyWindowDays ?? "—"}
+                    label="Cap amount"
+                    value={formatPolicyMoney(
+                      viewingConfig.courtesyCapAmount,
+                      viewingCurrencySymbol,
+                      viewingConfig.prePickupAbsoluteCurrency
+                    )}
                   />
                   <PolicyDetailRow
-                    label="Cap Amount"
-                    value={
-                      viewingConfig.courtesyCapAmount != null
-                        ? `${viewingConfig.prePickupAbsoluteCurrency || ""} ${viewingConfig.courtesyCapAmount}`
-                        : "—"
-                    }
-                  />
-                  <PolicyDetailRow label="Courtesy Count" value={viewingConfig.courtesyCount ?? "—"} />
-                </PolicyDetailSection>
-
-                <PolicyDetailSection title="Customer Leniency">
-                  <PolicyDetailRow
-                    label="Enable Customer Leniency"
+                    label="Enable customer leniency"
                     value={formatPolicyBool(viewingConfig.customerLeniencyEnabled)}
                   />
                 </PolicyDetailSection>
-              </Box>
-            )}
-          </ModalComponent>
+              </PolicyDetailStack>
+            ) : null}
+          </Modal>
 
-          {/* Delete Confirmation Modal */}
-          <ModalComponent
+          <Modal
             open={deleteConfirmOpen}
-            title="DELETE CANCELLATION POLICY"
+            title="Delete cancellation policy"
+            description={`Are you sure you want to delete “${policyToDelete?.name || "this policy"}”? This cannot be undone.`}
             onClose={handleCancelDelete}
-            width={500}
-            primaryAction={{
-              label: "Delete",
-              onClick: handleConfirmDelete,
-              isLoading: isDeleting,
-            }}
-            secondaryAction={{
-              label: "Cancel",
-              onClick: handleCancelDelete,
-            }}
-          >
-            <Box className="flex flex-col gap-4">
-              <Typography
-                variant="body1"
-                sx={{ color: "grey.80", fontFamily: "Switzer" }}
-              >
-                Are you sure you want to delete the cancellation policy "{policyToDelete?.name}"?
-              </Typography>
-              <Typography
-                variant="body2"
-                sx={{ color: "error.main", fontFamily: "Switzer" }}
-              >
-                This action cannot be undone.
-              </Typography>
-            </Box>
-          </ModalComponent>
+            size="sm"
+            primaryLabel={isDeleting ? "Deleting…" : "Delete"}
+            secondaryLabel="Cancel"
+            onPrimary={handleConfirmDelete}
+            primaryDisabled={isDeleting}
+            danger
+          />
 
           {/* Cancellation Reasons Modal */}
-          <ModalComponent
-            open={reasonsModalOpen}
-            title="MANAGE CANCELLATION REASONS"
-            onClose={handleCloseReasonsModal}
-            width={600}
-            primaryAction={{
-              label: "Save Reasons",
-              onClick: handleSubmitReasons,
-              isLoading: isCreatingReason,
-            }}
-            secondaryAction={{
-              label: "Cancel",
-              onClick: handleCloseReasonsModal,
-            }}
-          >
-            <Box className="flex flex-col gap-4">
-              <Typography
-                variant="body2"
-                sx={{ color: "grey.80", fontFamily: "Switzer", mb: 2 }}
-              >
+          <Modal
+        open={reasonsModalOpen}
+        title={"MANAGE CANCELLATION REASONS"}
+        onClose={handleCloseReasonsModal}
+        size={"md"}
+        primaryLabel={isCreatingReason ? "Saving…" : "Save Reasons"}
+        secondaryLabel={"Cancel"}
+        onPrimary={handleSubmitReasons}
+        primaryDisabled={Boolean(isCreatingReason)}
+
+      >
+            <div className="flex flex-col gap-4">
+              <p style={{ margin: 0, color: "var(--muted)" }}>
                 Add cancellation reasons that customers can select when canceling their orders.
-              </Typography>
+              </p>
 
               {cancelReasons.map((reason, index) => {
                 const hasId = reasonIds[index] !== null && reasonIds[index] !== undefined;
                 return (
-                  <Box key={index} className="flex items-center gap-2">
-                    <Box className="flex-1">
-                      <InputFieldModal
-                        placeholder={`Enter cancellation reason ${index + 1}`}
-                        value={reason}
-                        onChange={(e) => handleReasonChange(index, e.target.value)}
-                        title={index === 0 ? "Cancellation Reason" : ""}
-                        disabled={hasId} // Disable editing existing reasons
-                      />
-                    </Box>
+                  <div
+                    key={hasId ? `reason-${reasonIds[index]}` : `new-reason-${index}`}
+                    className="flex items-center gap-2"
+                  >
+                    <div className="flex-1">
+                      <Field label={index === 0 ? "Cancellation Reason" : ""}>
+                      <Input placeholder={`Enter cancellation reason ${index + 1}`} value={reason} onChange={(e) => handleReasonChange(index, e.target.value)} disabled={hasId} />
+                    </Field>
+                    </div>
                     {(cancelReasons.length > 1 || hasId) && (
-                      <Box
-                        onClick={() => hasId ? handleDeleteReason(index) : handleRemoveReason(index)}
-                        sx={{
-                          cursor: "pointer",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          width: "40px",
-                          height: "52px",
-                          borderRadius: "8px",
-                          backgroundColor: hasId ? "#FEE2E2" : "#FEE2E2",
-                          color: "#DC2626",
-                          "&:hover": {
-                            backgroundColor: "#FECACA",
-                          },
-                        }}
+                      <Button
+                        size="sm"
+                        variant="danger"
+                        onClick={() => (hasId ? handleDeleteReason(index) : handleRemoveReason(index))}
                         title={hasId ? "Delete from database" : "Remove from list"}
                       >
-                        <TbTrash size={20} />
-                      </Box>
+                        <TbTrash size={16} />
+                      </Button>
                     )}
-                  </Box>
+                  </div>
                 );
               })}
 
-              <ButtonBlueLight
-                variant="outlined"
-                bgColor="blue.200"
-                color="white"
-                radius="8px"
-                startIcon={<TbPlus size={"20px"} />}
-                onClick={handleAddReason}
-                sx={{ mt: 1 }}
-              >
+              <Button onClick={handleAddReason}>
                 Add Another Reason
-              </ButtonBlueLight>
-            </Box>
-          </ModalComponent>
-        </Box>
+              </Button>
+            </div>
+          </Modal>
+        </div>
   );
 }
 

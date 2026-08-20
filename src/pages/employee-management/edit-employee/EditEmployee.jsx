@@ -1,19 +1,17 @@
-import { Box, Typography } from "@mui/material";
 import { useParams, useNavigate } from "react-router-dom";
-import { IoChevronBackOutline } from "../../../shared/icons/index";
 import { useEffect } from "react";
 import {
   useUpdateAdminEmployeeMutation,
   useGetAdminEmployeesQuery,
 } from "../../../store/services/api";
 import useToaster from "../../../components/ui/Toaster";
-import ButtonBlue from "../../../components/ui/ButtonBlue";
-import ButtonWhite from "../../../components/ui/ButtonWhite";
+import { Button, Field, Input, PageHeader } from "../../../design-system";
 import { Delay } from "../../../components/shared/Loaders";
+import { extractAdminEmployees } from "../extractAdminEmployees";
 import { useForm } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
-import FormInputField from "../../../components/ui/FormInputField";
+import { DirectoryError, DirectoryFormCard, DirectoryFormGrid, DirectoryStack } from "../../directory-table/directoryTable";
 
 const editEmployeeSchema = yup.object().shape({
   firstName: yup.string().required("First name is required").min(2, "At least 2 characters"),
@@ -35,9 +33,16 @@ export default function EditEmployee() {
   const { id } = useParams();
   const navigate = useNavigate();
 
-  const { data, isLoading: isFetching } = useGetAdminEmployeesQuery(undefined, { skip: !id });
-  const adminEmployees = data?.data?.adminEmployees ?? [];
+  const { data, currentData, isLoading: isListLoading, isFetching, isUninitialized, isError, refetch } =
+    useGetAdminEmployeesQuery(undefined, { skip: !id, refetchOnMountOrArgChange: true });
+  const payload = currentData ?? data;
+  const adminEmployees = extractAdminEmployees(payload);
   const employee = adminEmployees.find((e) => String(e.id) === String(id));
+  const showInitialLoader =
+    Boolean(id) &&
+    payload == null &&
+    !isError &&
+    (isUninitialized || isListLoading || isFetching);
 
   const [updateEmployee, { isLoading }] = useUpdateAdminEmployeeMutation();
   const { success, error } = useToaster();
@@ -52,14 +57,14 @@ export default function EditEmployee() {
     defaultValues,
   });
 
-  const onSubmit = async (data) => {
+  const onSubmit = async (formData) => {
     const body = {
       employeeId: Number(id),
-      firstName: data.firstName,
-      lastName: data.lastName,
-      email: data.email,
-      phoneNum: data.phoneNum,
-      roleId: Number(data.roleId),
+      firstName: formData.firstName,
+      lastName: formData.lastName,
+      email: formData.email,
+      phoneNum: formData.phoneNum,
+      roleId: Number(formData.roleId),
     };
     const res = await updateEmployee(body);
     if (res?.data?.status === "1") {
@@ -82,51 +87,85 @@ export default function EditEmployee() {
     }
   }, [employee, reset]);
 
-  if (isFetching) return <Delay />;
-  if (!employee) {
+  if (showInitialLoader) {
     return (
-      <Box className="w-full">
-        <button type="button" onClick={() => navigate(-1)} aria-label="Go back" className="flex items-center justify-center p-1 rounded-lg hover:bg-grey50">
-          <IoChevronBackOutline size={24} />
-        </button>
-        <Typography>Employee not found.</Typography>
-      </Box>
+      <div
+        style={{
+          minHeight: 280,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <Delay />
+      </div>
+    );
+  }
+  if (isError || !employee) {
+    return (
+      <div>
+        <PageHeader
+          title="Edit employee"
+          actions={
+            <Button variant="secondary" onClick={() => navigate(-1)}>
+              Back
+            </Button>
+          }
+        />
+        <DirectoryError onRetry={isError ? () => refetch() : undefined}>
+          {isError ? "Could not load this employee." : "Employee not found."}
+        </DirectoryError>
+      </div>
     );
   }
 
   return (
-    <Box className="w-full">
-      <Box className="flex items-center gap-x-5 mb-6">
-        <button
-          type="button"
-          onClick={() => navigate(-1)}
-          aria-label="Go back"
-          className="flex items-center justify-center p-1 rounded-lg hover:bg-grey50 transition-colors"
-        >
-          <IoChevronBackOutline size={24} />
-        </button>
-        <Typography variant="h4" sx={{ fontSize: "1.5rem", fontWeight: 700, fontFamily: "Switzer, sans-serif", color: "#101828", letterSpacing: "-0.02em" }}>
-          Edit Employee
-        </Typography>
-      </Box>
+    <div>
+      <PageHeader
+        title="Edit employee"
+        description="Update this admin employee"
+        actions={
+          <Button variant="secondary" onClick={() => navigate(-1)}>
+            Back
+          </Button>
+        }
+      />
 
       <form onSubmit={handleSubmit(onSubmit)}>
-        <Box className="w-full grid grid-cols-2 gap-5 !pt-10">
-          <Box className="bg-white rounded-xl !p-7 !space-y-5">
-            <FormInputField title="First Name" label="First Name" placeholder="First Name" name="firstName" register={register} error={errors.firstName} />
-            <FormInputField title="Last Name" label="Last Name" placeholder="Last Name" name="lastName" register={register} error={errors.lastName} />
-            <FormInputField title="Phone Number" label="Phone Number" placeholder="Phone Number" name="phoneNum" register={register} error={errors.phoneNum} />
-          </Box>
-          <Box className="bg-white rounded-xl !p-7 !space-y-5">
-            <FormInputField title="Email" label="Email" type="email" placeholder="Email" name="email" register={register} error={errors.email} />
-            <FormInputField title="Role ID" label="Role ID" placeholder="e.g. 6" name="roleId" type="number" register={register} error={errors.roleId} />
-          </Box>
-        </Box>
-        <Box className="w-full flex justify-end gap-5 !pt-10 !pr-5">
-          <ButtonWhite text="Cancel" onClick={() => navigate(-1)} size="medium" />
-          <ButtonBlue text="Update" type="submit" isLoading={isLoading} size="medium" />
-        </Box>
+        <DirectoryFormGrid>
+          <DirectoryFormCard title="Profile">
+          <DirectoryStack>
+            <Field label="First name" error={errors.firstName?.message} htmlFor="edit-emp-first-name">
+              <Input id="edit-emp-first-name" placeholder="First name" {...register("firstName")} error={!!errors.firstName} />
+            </Field>
+            <Field label="Last name" error={errors.lastName?.message} htmlFor="edit-emp-last-name">
+              <Input id="edit-emp-last-name" placeholder="Last name" {...register("lastName")} error={!!errors.lastName} />
+            </Field>
+            <Field label="Phone number" error={errors.phoneNum?.message} htmlFor="edit-emp-phone">
+              <Input id="edit-emp-phone" placeholder="Phone number" {...register("phoneNum")} error={!!errors.phoneNum} />
+            </Field>
+          </DirectoryStack>
+          </DirectoryFormCard>
+          <DirectoryFormCard title="Account">
+          <DirectoryStack>
+            <Field label="Email" error={errors.email?.message} htmlFor="edit-emp-email">
+              <Input id="edit-emp-email" type="email" placeholder="Email" {...register("email")} error={!!errors.email} />
+            </Field>
+            <Field label="Role ID" error={errors.roleId?.message} htmlFor="edit-emp-role">
+              <Input id="edit-emp-role" type="number" placeholder="e.g. 6" {...register("roleId")} error={!!errors.roleId} />
+            </Field>
+          </DirectoryStack>
+          </DirectoryFormCard>
+        </DirectoryFormGrid>
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 20 }}>
+          <Button type="button" variant="secondary" onClick={() => navigate(-1)}>
+            Cancel
+          </Button>
+          <Button type="submit" disabled={isLoading}>
+            {isLoading ? "Updating…" : "Update"}
+          </Button>
+        </div>
       </form>
-    </Box>
+    </div>
   );
 }

@@ -1,16 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import {
-  Box,
-  Typography,
-  Button,
-  Paper,
-  Chip,
-  Rating,
-  Stack,
-  Select,
-  MenuItem,
-} from "@mui/material";
+import { Badge, Button, PageHeader, Select } from "../../../design-system";
 import dayjs from "dayjs";
 import { Delay } from "../../../components/shared/Loaders";
 import {
@@ -28,9 +18,13 @@ import {
   useGetShopReviewByBookingQuery,
   useEditOrderMutation,
 } from "../../../store/services/api";
-import { BASE_URL } from "../../../utilities/URL";
+import {
+  formatDate,
+  formatMoney,
+  joinMediaUrl,
+  resolveCurrencySymbol,
+} from "../../../utilities/formatters";
 import { canEditOrderFromBooking } from "../../../shared/orderEditStatusGate";
-import ModalComponent from "../../../components/shared/Modal";
 import useToaster from "../../../components/ui/Toaster";
 import {
   mergeInvoiceDetailsFromResponse,
@@ -40,6 +34,12 @@ import {
 import AssignOrderModal from "../order-modals/AssignOrderModal";
 import OrderAssignActionButton from "../order-modals/OrderAssignActionButton";
 import { canAdminAssignOrReassignFromBooking } from "../../../shared/adminAssignGate";
+import InvoiceDetailModal from "../invoice/InvoiceDetailModal";
+import {
+  buildInvoiceView,
+  invoicePrintHtml,
+  printHtmlDocument,
+} from "../invoice/invoiceView";
 
 const statusStyleMap = {
   completed: { bg: "#D1FAE5", color: "#065F46", label: "Completed" },
@@ -48,19 +48,47 @@ const statusStyleMap = {
   hold: { bg: "#FEF3C7", color: "#92400E", label: "On Hold" },
 };
 
-const CARD_SX = {
-  borderRadius: "12px",
-  border: "1px solid #E5E7EB",
-  boxShadow: "0 1px 4px 0 rgb(0 0 0 / 0.06), 0 4px 16px -4px rgb(0 0 0 / 0.04)",
+const CARD = {
+  borderRadius: 16,
+  border: "1px solid #e6e9f0",
+  boxShadow: "0 1px 2px rgba(16, 21, 31, 0.04)",
   overflow: "hidden",
+  background: "#fff",
 };
 
-const SECTION_HEADER_SX = {
-  px: 2.5,
-  py: 1.75,
-  borderBottom: "1px solid #F1F5F9",
-  bgcolor: "#FFFFFF",
+const SECTION_HEAD = {
+  padding: "14px 20px",
+  borderBottom: "1px solid var(--line)",
+  background: "var(--surface)",
 };
+
+function StarRating({ value = 0 }) {
+  const filled = Math.max(0, Math.min(5, Math.round(Number(value) || 0)));
+  return (
+    <span
+      aria-label={`${filled} out of 5 stars`}
+      style={{ letterSpacing: 2, fontSize: 16, lineHeight: 1 }}
+    >
+      <span style={{ color: "var(--warning)" }}>{"★".repeat(filled)}</span>
+      <span style={{ color: "var(--n-300)" }}>{"★".repeat(5 - filled)}</span>
+    </span>
+  );
+}
+
+function statusBadgeTone(status) {
+  const normalized = String(status || "").toLowerCase();
+  if (normalized.includes("complete")) return "success";
+  if (normalized.includes("cancel")) return "danger";
+  if (normalized.includes("pending") || normalized.includes("hold")) return "warning";
+  return "neutral";
+}
+
+function paymentBadgeTone(status) {
+  const normalized = String(status || "pending").toLowerCase();
+  if (normalized === "paid") return "success";
+  if (normalized === "failed") return "danger";
+  return "warning";
+}
 
 function getPaymentStatusBadge(status) {
   const normalized = String(status || "pending").toLowerCase();
@@ -78,12 +106,6 @@ function formatPaymentType(value) {
   return normalized === "cash" ? "Cash" : "Card";
 }
 
-function formatMoney(amount, symbol = "£") {
-  const n = Number(amount);
-  if (!Number.isFinite(n)) return `${symbol}0.00`;
-  return `${symbol}${n.toFixed(2)}`;
-}
-
 function getStatusBadge(status) {
   const normalized = String(status || "").toLowerCase();
   if (normalized.includes("complete")) return statusStyleMap.completed;
@@ -95,7 +117,7 @@ function getStatusBadge(status) {
 
 function formatDateTime(date, timeFrom, timeTo, fallback = "N/A") {
   if (!date) return fallback;
-  const formattedDate = dayjs(date).format("ddd DD MMM");
+  const formattedDate = formatDate(date, "ddd DD MMM");
   if (timeFrom && timeTo) return `${formattedDate}, ${timeFrom} - ${timeTo}`;
   return formattedDate || fallback;
 }
@@ -108,221 +130,9 @@ function formatAddress(address) {
   return parts.join(", ") || "N/A";
 }
 
-function escapeHtml(value) {
-  return String(value ?? "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
-}
-
 function toNumber(value, fallback = 0) {
   const parsed = Number.parseFloat(value);
   return Number.isFinite(parsed) ? parsed : fallback;
-}
-
-function buildInvoiceView(invoiceDetails, fallbackShopName = "") {
-  if (!invoiceDetails) return null;
-  const customerName =
-    `${invoiceDetails?.customer?.firstName || ""} ${invoiceDetails?.customer?.lastName || ""}`.trim() ||
-    "Customer";
-  const invoiceNo = invoiceDetails?.orderTrackId || `INV-${invoiceDetails?.id || ""}`;
-  const dateText = dayjs(invoiceDetails?.createdAt || invoiceDetails?.collectionDate).isValid()
-    ? dayjs(invoiceDetails.createdAt || invoiceDetails.collectionDate).format("DD MMM YYYY")
-    : "N/A";
-  const timeText = invoiceDetails?.collectionTimeTo || invoiceDetails?.collectionTimeFrom || "N/A";
-  const addressText = [invoiceDetails?.customer?.phoneNum, invoiceDetails?.dropOffAddress?.streetAddress]
-    .filter(Boolean)
-    .join(" · ");
-  const agentName =
-    `${invoiceDetails?.driver?.firstName || ""} ${invoiceDetails?.driver?.lastName || ""}`.trim() ||
-    fallbackShopName ||
-    "justDray cleaner";
-  const items = (invoiceDetails?.customerSelectedServices || [])
-    .filter((it) => Number(it?.items) > 0)
-    .map((it, idx) => ({
-      id: it?.id || idx + 1,
-      name: it?.subCategory?.name || it?.category?.name || it?.service?.name || "Item",
-      qty: Number(it?.items) || 0,
-      rate: Number(it?.categoryPrice || it?.subCategory?.price || 0),
-      serviceName: it?.service?.name || "",
-      addOns: (it?.addOns || []).map((ad) => ({
-        name: ad?.name || ad?.addOnService?.name || ad?.service?.name || ad?.title || "Add-on",
-        price: Number(ad?.price || 0),
-        qty: Number(ad?.quantity || 1),
-      })),
-      preferences: (it?.selectedServicePreferences || [])
-        .map((pref) => pref?.preferenceValue?.value)
-        .filter(Boolean),
-      instruction: it?.serviceInstruction || "",
-    }));
-  const addOns = items.reduce(
-    (sum, item) =>
-      sum +
-      item.addOns.reduce((acc, ad) => acc + (Number(ad.qty) || 1) * (Number(ad.price) || 0), 0),
-    0
-  );
-  const servicesSubtotal = resolveServicesSubtotal(invoiceDetails, items);
-  const serviceCharge = Number(invoiceDetails?.billingDetail?.serviceCharge ?? 0);
-  const minimumOrderFee = Number(invoiceDetails?.billingDetail?.upfrontAmount ?? 0);
-  const discount = Number(invoiceDetails?.billingDetail?.discount ?? 0);
-  const orderSubtotal = resolveOrderSubtotal(invoiceDetails, {
-    servicesSubtotal,
-    serviceCharge,
-    minimumOrderFee,
-  });
-  const grandTotal = Number(
-    invoiceDetails?.orderAmount ?? invoiceDetails?.billingDetail?.total ?? orderSubtotal
-  );
-  const pickupWindow = `${invoiceDetails?.collectionTimeFrom || "N/A"}-${invoiceDetails?.collectionTimeTo || "N/A"}`;
-  const deliveryWindow = `${invoiceDetails?.deliveryTimeFrom || "N/A"}-${invoiceDetails?.deliveryTimeTo || "N/A"}`;
-  const computedTotalItems = items.reduce((sum, item) => sum + (Number(item.qty) || 0), 0);
-  return {
-    invoiceNo,
-    customerName,
-    dateText,
-    timeText,
-    addressText: addressText || "N/A",
-    agentName,
-    totalItems: computedTotalItems > 0 ? computedTotalItems : Number(invoiceDetails?.totalItems || 0),
-    items,
-    servicesSubtotal,
-    subtotal: orderSubtotal,
-    addOns,
-    minimumOrderFee,
-    serviceCharge,
-    discount,
-    grandTotal,
-    pickupWindow,
-    deliveryWindow,
-    bags: Number(invoiceDetails?.noOfBags || 0),
-    frequency: invoiceDetails?.frequency || "Just Once",
-    emailOrPhone: [invoiceDetails?.customer?.phoneNum, invoiceDetails?.customer?.email]
-      .filter(Boolean)
-      .join(" · "),
-    printedDate: dayjs().format("DD MMM YYYY"),
-  };
-}
-
-function printHtmlDocument(html) {
-  const iframe = document.createElement("iframe");
-  iframe.style.position = "fixed";
-  iframe.style.right = "0";
-  iframe.style.bottom = "0";
-  iframe.style.width = "0";
-  iframe.style.height = "0";
-  iframe.style.border = "0";
-  document.body.appendChild(iframe);
-  const doc = iframe.contentWindow?.document;
-  if (!doc) return;
-  doc.open();
-  doc.write(html);
-  doc.close();
-  iframe.onload = () => {
-    iframe.contentWindow?.focus();
-    iframe.contentWindow?.print();
-    setTimeout(() => {
-      if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
-    }, 1200);
-  };
-}
-
-function a4InvoiceHtml(view) {
-  const rows = view.items
-    .map((item, idx) => {
-      const addonRows = (item.addOns || []).length
-        ? (item.addOns || [])
-            .map(
-              (ad) =>
-                `<div class="itemSubRow"><span>+ ${ad.qty}x ${ad.name}</span><span>£${(
-                  ad.qty * ad.price
-                ).toFixed(2)}</span></div>`
-            )
-            .join("")
-        : "";
-      const prefRow =
-        (item.preferences || []).length > 0
-          ? `<div class="itemMuted">Pref: ${(item.preferences || []).join(", ")}</div>`
-          : "";
-      const instructionRow = item.instruction
-        ? `<div class="itemMuted">${item.instruction}</div>`
-        : "";
-      return `<tr><td class="center">${idx + 1}</td><td class="itemCell"><div class="itemTitle">${item.serviceName ? `${item.serviceName} - ` : ""}${item.name}</div>${addonRows}${prefRow}${instructionRow}</td><td class="right">${item.qty}</td><td class="right">£${item.rate.toFixed(2)}</td><td class="right">£${(item.qty * item.rate).toFixed(2)}</td></tr>`;
-    })
-    .join("");
-  return `<!doctype html><html><head><meta charset="utf-8"/><title>A4 Receipt</title>
-  <style>
-    *{box-sizing:border-box}
-    body{font-family:Arial,sans-serif;color:#111827;margin:0;padding:20px;background:#fff}
-    .sheet{max-width:1000px;margin:0 auto}
-    .top{display:flex;justify-content:space-between;align-items:flex-start;gap:24px;margin-bottom:14px}
-    .brand{font-size:40px;font-weight:700;line-height:1.05;margin:0}
-    .receiptTag{font-size:22px;font-weight:500;margin-top:3px}
-    .meta{font-size:14px;line-height:1.5;min-width:230px}
-    .metaRow{display:flex;gap:8px}
-    .metaLabel{font-weight:700;min-width:58px}
-    .customer{border:1px solid #d1d5db;border-radius:10px;padding:12px 14px;margin:12px 0 14px;display:flex;justify-content:space-between;align-items:flex-start;gap:18px}
-    .customerMain{font-size:14px;line-height:1.4}
-    .pieces{font-size:13px;font-weight:700;white-space:nowrap}
-    table{width:100%;border-collapse:collapse}
-    th,td{border:1px solid #d1d5db;padding:9px 10px;font-size:13px;vertical-align:top}
-    th{background:#f8fafc;font-size:12px;letter-spacing:.02em}
-    .center{text-align:center}
-    .right{text-align:right}
-    .itemCell{line-height:1.35}
-    .itemTitle{font-weight:700}
-    .itemSubRow{display:flex;justify-content:space-between;gap:10px;color:#374151;font-size:12px;margin-top:2px}
-    .itemMuted{font-size:12px;color:#6b7280;margin-top:2px}
-    .totals{margin-left:auto;width:280px;margin-top:10px}
-    .totals .row{display:flex;justify-content:space-between;padding:4px 0;font-size:14px}
-    .totals .grand{font-weight:700;font-size:24px;padding-top:6px}
-  </style>
-  </head><body><div class="sheet">
-    <div class="top">
-      <div>
-        <h1 class="brand">justDray cleaner</h1>
-        <div class="receiptTag">CUSTOMER RECEIPT</div>
-      </div>
-      <div class="meta">
-        <div class="metaRow"><span class="metaLabel">Invoice:</span><span>${view.invoiceNo}</span></div>
-        <div class="metaRow"><span class="metaLabel">Date:</span><span>${view.dateText}</span></div>
-        <div class="metaRow"><span class="metaLabel">Time:</span><span>${view.timeText}</span></div>
-        <div class="metaRow"><span class="metaLabel">Agent:</span><span>${view.agentName}</span></div>
-      </div>
-    </div>
-    <div class="customer">
-      <div class="customerMain">
-        <div><b>Customer:</b> ${view.customerName}</div>
-        <div><b>Contact / Address:</b> ${view.addressText}</div>
-      </div>
-      <div class="pieces">Total Pieces: ${view.totalItems}</div>
-    </div>
-    <table>
-      <thead><tr><th>#</th><th>ITEM DETAILS</th><th>QTY</th><th>RATE</th><th>LINE TOTAL</th></tr></thead>
-      <tbody>${rows}</tbody>
-    </table>
-    <div class="totals">
-      <div class="row"><span>Services subtotal</span><span>£${view.servicesSubtotal.toFixed(2)}</span></div>
-      <div class="row"><span>Minimum Order Fee</span><span>-£${Math.abs(view.minimumOrderFee || 0).toFixed(2)}</span></div>
-      <div class="row"><span>Service Charge</span><span>£${view.serviceCharge.toFixed(2)}</span></div>
-      <div class="row"><span>Subtotal</span><span>£${view.subtotal.toFixed(2)}</span></div>
-      <div class="row"><span>Discount</span><span>£${view.discount.toFixed(2)}</span></div>
-      <div class="row grand"><span>Grand Total</span><span>£${view.grandTotal.toFixed(2)}</span></div>
-    </div>
-  </div></body></html>`;
-}
-
-function thermalInvoiceHtml(view) {
-  const itemRows = view.items
-    .map((item) => {
-      const addonRows = item.addOns
-        .map((ad) => `<div class="subrow"><span>+ ${ad.qty}x ${ad.name}</span><span>£${(ad.qty * ad.price).toFixed(2)}</span></div>`)
-        .join("");
-      return `<div class="row strong"><span>${item.qty}x ${item.serviceName ? `${item.serviceName} - ` : ""}${item.name}</span><span>£${(item.qty * item.rate).toFixed(2)}</span></div>${addonRows}`;
-    })
-    .join("");
-  return `<!doctype html><html><head><meta charset="utf-8"/><title>58mm Thermal</title><style>body{font-family:'Courier New',monospace}.ticket{width:58mm;margin:0 auto;padding:8px}.row{display:flex;justify-content:space-between;font-size:11px}.subrow{display:flex;justify-content:space-between;font-size:10px;padding-left:8px;color:#374151}.line{border-top:1px dashed #333;margin:6px 0}.strong{font-weight:700}</style></head><body><div class="ticket"><div style="text-align:center;font-weight:700">justDray cleaner</div><div style="text-align:center;font-size:11px">Customer Receipt</div><div style="text-align:center;font-size:10px">Format: 58mm Thermal</div><div class="line"></div><div class="row"><span>Invoice</span><span>${view.invoiceNo}</span></div><div class="row"><span>Date</span><span>${view.dateText}</span></div><div class="row"><span>Pickup</span><span>${view.pickupWindow}</span></div><div class="row"><span>Delivery</span><span>${view.deliveryWindow}</span></div><div class="line"></div><div><b>${view.customerName}</b></div><div style="font-size:10px">${view.emailOrPhone || ""}</div><div style="font-size:10px">${view.addressText}</div><div class="line"></div><div class="row strong"><span>Items (${view.totalItems})</span><span>Amount</span></div>${itemRows}<div class="line"></div><div class="row"><span>Services subtotal</span><span>£${view.servicesSubtotal.toFixed(2)}</span></div><div class="row"><span>Minimum Order Fee</span><span>-£${Math.abs(view.minimumOrderFee || 0).toFixed(2)}</span></div><div class="row"><span>Service Charge</span><span>£${view.serviceCharge.toFixed(2)}</span></div><div class="row"><span>Subtotal</span><span>£${view.subtotal.toFixed(2)}</span></div><div class="row"><span>Discount</span><span>£${view.discount.toFixed(2)}</span></div><div class="line"></div><div class="row strong" style="font-size:18px"><span>Total</span><span>£${view.grandTotal.toFixed(2)}</span></div></div></body></html>`;
 }
 
 export default function OrderDetailsPage() {
@@ -453,28 +263,6 @@ export default function OrderDetailsPage() {
     return canAdminAssignOrReassignFromBooking(orderData);
   }, [orderData]);
 
-  const groupedItems = useMemo(() => {
-    if (!orderItemsData?.customerServices) return [];
-    return orderItemsData.customerServices.flatMap((service) => {
-      const itemGroups = {};
-      service.categories?.forEach((category) => {
-        category.subCategories?.forEach((subCategory) => {
-          const key = `${service.serviceName}-${subCategory.name}`;
-          if (!itemGroups[key]) {
-            itemGroups[key] = {
-              serviceName: service.serviceName,
-              name: subCategory.name,
-              price: subCategory.price,
-              count: 0,
-              categoryName: category.name,
-            };
-          }
-          itemGroups[key].count += 1;
-        });
-      });
-      return Object.values(itemGroups);
-    });
-  }, [orderItemsData]);
   const selectedServiceGroups = useMemo(() => {
     const rows = Array.isArray(orderData?.customerSelectedServices)
       ? orderData.customerSelectedServices.filter(
@@ -673,7 +461,10 @@ export default function OrderDetailsPage() {
   const paymentStatusBadge = getPaymentStatusBadge(
     paymentSummary?.billingPaymentStatus ?? orderData?.billingDetail?.paymentStatus
   );
-  const paymentCurrencySymbol = paymentSummary?.currencySymbol ?? "£";
+  const paymentCurrencySymbol =
+    resolveCurrencySymbol(paymentSummary) ||
+    resolveCurrencySymbol(orderData) ||
+    "£";
   const amountDueNow = Number(
     paymentSummary?.amountDueNow ??
       (String(orderData?.billingDetail?.paymentStatus || "").toLowerCase() === "paid"
@@ -684,12 +475,6 @@ export default function OrderDetailsPage() {
     () => buildInvoiceView(invoiceDetails, shopName),
     [invoiceDetails, shopName]
   );
-  const invoicePreviewHtml = useMemo(() => {
-    if (!invoiceView) return "";
-    return invoiceModal.format === "thermal"
-      ? thermalInvoiceHtml(invoiceView)
-      : a4InvoiceHtml(invoiceView);
-  }, [invoiceModal.format, invoiceView]);
 
   const handleOpenInvoiceModal = async () => {
     try {
@@ -712,190 +497,7 @@ export default function OrderDetailsPage() {
 
   const handlePrintInvoice = () => {
     if (!invoiceView) return;
-    const html = invoiceModal.format === "thermal" ? thermalInvoiceHtml(invoiceView) : a4InvoiceHtml(invoiceView);
-    printHtmlDocument(html);
-  };
-
-  const handlePrintReceipt = () => {
-    if (!orderData) return;
-
-    const receiptOrderId = orderData?.orderTrackId || orderData?.id || orderId || "";
-    const createdAt = dayjs(orderData?.created_at || orderData?.createdAt).isValid()
-      ? dayjs(orderData?.created_at || orderData?.createdAt).format("ddd DD MMM YYYY · HH:mm")
-      : "";
-
-    const customerName = `${orderData?.customer?.firstName || ""} ${orderData?.customer?.lastName || ""}`.trim();
-    const customerEmail = orderData?.customer?.email || "";
-    const customerPhone = orderData?.customer?.phone || orderData?.customer?.mobile || "";
-
-    const pickupDateText = dayjs(orderData?.collectionDate).isValid()
-      ? dayjs(orderData?.collectionDate).format("ddd DD MMM YYYY")
-      : "N/A";
-    const pickupTimeText =
-      orderData?.collectionTimeFrom && orderData?.collectionTimeTo
-        ? `${orderData.collectionTimeFrom} - ${orderData.collectionTimeTo}`
-        : orderData?.collectionTimeFrom || "N/A";
-
-    const deliveryDateText = dayjs(orderData?.deliveryDate).isValid()
-      ? dayjs(orderData?.deliveryDate).format("ddd DD MMM YYYY")
-      : "N/A";
-    const deliveryTimeText =
-      orderData?.deliveryTimeFrom && orderData?.deliveryTimeTo
-        ? `${orderData.deliveryTimeFrom} - ${orderData.deliveryTimeTo}`
-        : orderData?.deliveryTimeFrom || "N/A";
-
-    const dropOff = orderData?.dropOffAddress || null;
-    const pickup = orderData?.pickupAddress || null;
-
-    const items = Array.isArray(groupedItems)
-      ? groupedItems.map((row) => ({
-          label: `${row.name} (${row.serviceName})`,
-          qty: row.count,
-          price: row.price,
-        }))
-      : [];
-
-    const itemsHtml =
-      items.length > 0
-        ? items
-            .map(
-              (it) => `
-              <div class="row item">
-                <div class="grow">
-                  <div class="name">${escapeHtml(it.label)}</div>
-                  <div class="muted">Qty: ${escapeHtml(it.qty)}</div>
-                </div>
-                <div class="price">$${escapeHtml((Number(it.qty || 0) * Number(it.price || 0)).toFixed(2))}</div>
-              </div>
-            `
-            )
-            .join("")
-        : `<div class="muted">No items</div>`;
-
-    const html = `<!doctype html>
-<html>
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Receipt #${escapeHtml(receiptOrderId)}</title>
-    <style>
-      @page { margin: 12mm; }
-      body { font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial; color: #0f172a; }
-      .sheet { max-width: 520px; margin: 0 auto; }
-      .brand { display:flex; align-items:flex-start; justify-content:space-between; gap: 12px; }
-      .brand h1 { margin:0; font-size: 16px; letter-spacing: .08em; text-transform: uppercase; }
-      .brand .meta { text-align:right; font-size: 12px; color: #475569; }
-      .divider { height:1px; background:#e2e8f0; margin: 12px 0; }
-      .sectionTitle { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: #64748b; margin: 0 0 8px; font-weight: 700; }
-      .row { display:flex; justify-content:space-between; gap: 12px; }
-      .grow { flex: 1; min-width: 0; }
-      .muted { color:#64748b; font-size: 12px; }
-      .value { font-size: 13px; color:#334155; font-weight: 600; }
-      .item { padding: 8px 0; border-bottom: 1px dashed #e2e8f0; }
-      .item:last-child { border-bottom: none; }
-      .name { font-size: 13px; font-weight: 700; color:#0f172a; }
-      .price { font-size: 13px; font-weight: 700; white-space: nowrap; }
-      .totals { margin-top: 10px; }
-      .totals .row { padding: 6px 0; }
-      .totals .grand { border-top: 2px solid #0f172a; margin-top: 8px; padding-top: 10px; }
-      .footer { margin-top: 18px; text-align:center; font-size: 11px; color:#64748b; }
-      .pill { display:inline-flex; align-items:center; gap:6px; padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; background:#f1f5f9; color:#334155; }
-      .dot { width: 6px; height: 6px; border-radius: 50%; background: #0ea5e9; display:inline-block; }
-    </style>
-  </head>
-  <body>
-    <div class="sheet">
-      <div class="brand">
-        <div>
-          <h1>Receipt</h1>
-          <div class="muted">Order #${escapeHtml(receiptOrderId)}</div>
-          ${statusBadge?.label ? `<div style="margin-top:6px"><span class="pill"><span class="dot"></span>${escapeHtml(statusBadge.label)}</span></div>` : ""}
-        </div>
-        <div class="meta">
-          <div>${escapeHtml(createdAt)}</div>
-          <div>${escapeHtml(shopName || "")}</div>
-        </div>
-      </div>
-
-      <div class="divider"></div>
-
-      <div>
-        <div class="sectionTitle">Customer</div>
-        <div class="row"><div class="muted">Name</div><div class="value">${escapeHtml(customerName || "N/A")}</div></div>
-        ${customerPhone ? `<div class="row"><div class="muted">Phone</div><div class="value">${escapeHtml(customerPhone)}</div></div>` : ""}
-        ${customerEmail ? `<div class="row"><div class="muted">Email</div><div class="value">${escapeHtml(customerEmail)}</div></div>` : ""}
-      </div>
-
-      <div class="divider"></div>
-
-      <div>
-        <div class="sectionTitle">Schedule</div>
-        <div class="row"><div class="muted">Pickup</div><div class="value">${escapeHtml(pickupDateText)} · ${escapeHtml(pickupTimeText)}</div></div>
-        <div class="row"><div class="muted">Delivery</div><div class="value">${escapeHtml(deliveryDateText)} · ${escapeHtml(deliveryTimeText)}</div></div>
-      </div>
-
-      <div class="divider"></div>
-
-      <div>
-        <div class="sectionTitle">Address</div>
-        <div class="row"><div class="muted">Pickup</div><div class="value">${escapeHtml(formatAddress(pickup))}</div></div>
-        <div class="row"><div class="muted">Drop off</div><div class="value">${escapeHtml(formatAddress(dropOff))}</div></div>
-      </div>
-
-      <div class="divider"></div>
-
-      <div>
-        <div class="sectionTitle">Items</div>
-        ${itemsHtml}
-      </div>
-
-      <div class="divider"></div>
-
-      <div class="totals">
-        <div class="row"><div class="muted">Total items</div><div class="value">${escapeHtml(orderData?.totalItems || items.reduce((s, i) => s + Number(i.qty || 0), 0) || 0)}</div></div>
-        <div class="row grand"><div class="name">Total</div><div class="price">$${escapeHtml(orderTotal)}</div></div>
-      </div>
-
-      <div class="footer">Thank you</div>
-    </div>
-    <script>
-      window.onload = () => { window.print(); };
-    </script>
-  </body>
-</html>`;
-
-    // Use an off-screen iframe for reliable printing (avoids popup blockers/blank tabs).
-    const iframe = document.createElement("iframe");
-    iframe.style.position = "fixed";
-    iframe.style.right = "0";
-    iframe.style.bottom = "0";
-    iframe.style.width = "0";
-    iframe.style.height = "0";
-    iframe.style.border = "0";
-    iframe.setAttribute("aria-hidden", "true");
-    document.body.appendChild(iframe);
-
-    const frameDoc = iframe.contentWindow?.document;
-    if (!frameDoc) {
-      document.body.removeChild(iframe);
-      return;
-    }
-
-    frameDoc.open();
-    frameDoc.write(html);
-    frameDoc.close();
-
-    const cleanup = () => {
-      setTimeout(() => {
-        if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
-      }, 1200);
-    };
-
-    iframe.onload = () => {
-      iframe.contentWindow?.focus();
-      iframe.contentWindow?.print();
-      cleanup();
-    };
+    printHtmlDocument(invoicePrintHtml(invoiceView, invoiceModal.format));
   };
 
   const pickupPrimaryProof = pickupProofs[0] || {};
@@ -976,10 +578,11 @@ export default function OrderDetailsPage() {
   const attemptRows = Array.isArray(orderData?.attempts) ? orderData.attempts : [];
 
   const formatAttemptFeeLabel = (attempt) => {
-    const currency = attempt?.feeCurrency || "£";
-    const sep = String(currency).length > 1 ? " " : "";
-    const amount = Number(attempt?.feeAmount || 0).toFixed(2);
-    if (attempt?.feeCharged) return `Charged ${currency}${sep}${amount}`;
+    const feeSymbol =
+      resolveCurrencySymbol(attempt) || attempt?.feeCurrency || "£";
+    if (attempt?.feeCharged) {
+      return `Charged ${formatMoney(attempt?.feeAmount, feeSymbol, attempt?.feeCurrency)}`;
+    }
     if (attempt?.feeWaived && attempt?.feeWaiveReason) {
       return `No fee · ${attempt.feeWaiveReason}`;
     }
@@ -993,9 +596,7 @@ export default function OrderDetailsPage() {
       const reason = a.failureReasonLabel || a.failureReason || "Reason not recorded";
       return {
         text: `${type} failed · ${reason} · ${formatAttemptFeeLabel(a)}`,
-        time: dayjs(a.failedAt || a.updatedAt).isValid()
-          ? dayjs(a.failedAt || a.updatedAt).format("ddd DD MMM · HH:mm")
-          : "—",
+        time: formatDate(a.failedAt || a.updatedAt, "ddd DD MMM · HH:mm"),
       };
     });
 
@@ -1015,9 +616,7 @@ export default function OrderDetailsPage() {
     }
     return {
       text,
-      time: dayjs(ev.createdAt).isValid()
-        ? dayjs(ev.createdAt).format("ddd DD MMM · HH:mm")
-        : "—",
+      time: formatDate(ev.createdAt, "ddd DD MMM · HH:mm"),
     };
   });
 
@@ -1054,94 +653,50 @@ export default function OrderDetailsPage() {
 
   if (!orderData) {
     return (
-      <Box className="space-y-6!">
-        <Button
-          startIcon={<TbChevronLeft size={18} />}
-          onClick={() => navigate(-1)}
-          sx={{ textTransform: "none" }}
-        >
-          Back
-        </Button>
-        <Paper sx={{ p: 4 }}>
-          <Typography>No order data available</Typography>
-        </Paper>
-      </Box>
+      <div>
+        <PageHeader
+          title="Order Details"
+          description="No order data available"
+          actions={
+            <Button variant="secondary" onClick={() => navigate(-1)}>
+              <TbChevronLeft size={18} />
+              Back
+            </Button>
+          }
+        />
+      </div>
     );
   }
 
   return (
     <>
-    <Box sx={{ pb: 1, width: "100%", display: "flex", flexDirection: "column", gap: 2.5 }}>
-      <Paper sx={{ ...CARD_SX, px: 2.5, py: 1.75 }}>
-        <Box className="flex items-center justify-between gap-3 flex-wrap">
-          <Box className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => navigate(-1)}
-              aria-label="Go back"
-              className="flex items-center justify-center p-1 rounded-lg hover:bg-grey50 transition-colors"
-            >
-              <TbChevronLeft size={20} />
-            </button>
-            <Box>
-              <Typography sx={{ fontSize: 18, fontWeight: 700, color: "#0F172A" }}>
-                Order Details
-              </Typography>
-              <Typography sx={{ fontSize: 12, color: "#64748B" }}>
-                #{orderData.orderTrackId || orderData.id}
-              </Typography>
-            </Box>
-          </Box>
-
-          <Box className="flex items-center gap-2">
+    <div style={{ paddingBottom: 8, width: "100%", display: "flex", flexDirection: "column", gap: 20 }}>
+      <PageHeader
+        title="Order Details"
+        description={`#${orderData.orderTrackId || orderData.id}`}
+        actions={
+          <>
             <Button
-              variant="outlined"
-              size="medium"
+              variant="secondary"
               disabled={!orderId || orderId <= 1}
               onClick={() => navigate(`/orders/details/${orderId - 1}`)}
-              sx={{
-                minWidth: 40,
-                width: 40,
-                height: 40,
-                borderRadius: "8px",
-                borderColor: "#E2E8F0",
-                color: "#64748B",
-              }}
+              aria-label="Previous order"
             >
-              <TbChevronLeft size={22} />
+              <TbChevronLeft size={18} />
             </Button>
             <Button
-              variant="outlined"
-              size="medium"
+              variant="secondary"
               disabled={!orderId}
               onClick={() => navigate(`/orders/details/${orderId + 1}`)}
-              sx={{
-                minWidth: 40,
-                width: 40,
-                height: 40,
-                borderRadius: "8px",
-                borderColor: "#E2E8F0",
-                color: "#64748B",
-              }}
+              aria-label="Next order"
             >
-              <TbChevronRight size={22} />
+              <TbChevronRight size={18} />
             </Button>
             {canShowGenerateInvoice ? (
               <Button
-                variant="outlined"
+                variant="secondary"
                 onClick={handleOpenInvoiceModal}
                 disabled={isFetchingInvoice}
-                sx={{
-                  textTransform: "none",
-                  borderRadius: "8px",
-                  borderColor: "#D0D5DD",
-                  color: "#344054",
-                  bgcolor: "#fff",
-                  fontWeight: 600,
-                  fontSize: 13,
-                  minHeight: 40,
-                  px: 2,
-                }}
               >
                 {isFetchingInvoice ? "Loading..." : "View / Print Invoice"}
               </Button>
@@ -1153,783 +708,528 @@ export default function OrderDetailsPage() {
                 onClick={() => setAssignModalOpen(true)}
               />
             ) : null}
-            <Button
-              variant="contained"
-              onClick={() => navigate(`/orders/edit/${orderId}`)}
-              sx={{
-                textTransform: "none",
-                borderRadius: "8px",
-                bgcolor: "#000099",
-                color: "#fff",
-                fontWeight: 600,
-                fontSize: 13,
-                minHeight: 40,
-                px: 2,
-                "&:hover": { bgcolor: "#00007A" },
-              }}
-            >
+            <Button onClick={() => navigate(`/orders/edit/${orderId}`)}>
               Edit Order
             </Button>
-          </Box>
-        </Box>
-      </Paper>
-      <Box className="grid grid-cols-1 xl:grid-cols-[1fr_304px] gap-5">
-        <Box sx={{ display: "flex", flexDirection: "column", rowGap: 2.5 }}>
-          <Paper sx={CARD_SX}>
-            <Box sx={{ p: 2.5 }}>
-              <Box
-                sx={{
-                  display: "grid",
-                  gridTemplateColumns: { xs: "1fr", md: "1fr auto" },
-                  alignItems: "start",
-                  gap: 2,
-                }}
-              >
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
-                  <Typography
-                    variant="caption"
-                    color="text.secondary"
-                    sx={{
-                      fontSize: 10,
-                      letterSpacing: "0.08em",
-                      fontWeight: 700,
-                      textTransform: "uppercase",
-                    }}
-                  >
+          </>
+        }
+      />
+      <div className="grid grid-cols-1 xl:grid-cols-[1fr_304px] gap-5">
+        <div style={{ display: "flex", flexDirection: "column", rowGap: 20 }}>
+          <div style={CARD}>
+            <div style={{ padding: 20 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr auto", alignItems: "start", gap: 16 }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  <p style={{ margin: 0, color: "var(--muted)",  fontSize: 10, letterSpacing: "0.08em", fontWeight: 700, textTransform: "uppercase" }}>
                     Order ID
-                  </Typography>
-                  <Typography
-                    fontFamily="Switzer"
-                    fontWeight={700}
-                    sx={{ lineHeight: 1.1, fontSize: 28, color: "#0F172A" }}
-                  >
+                  </p>
+                  <p style={{ margin: 0, fontFamily: "Switzer", fontWeight: 700, lineHeight: 1.1, fontSize: 28, color: "#0F172A" }}>
                     #{orderData.orderTrackId || orderData.id}
-                  </Typography>
-                  <Box className="flex items-center gap-2 flex-wrap">
-                    <Box
-                      sx={{
-                        bgcolor: statusBadge.bg,
-                        color: statusBadge.color,
-                        px: 1.6,
-                        minHeight: 26,
-                        borderRadius: "999px",
-                        display: "inline-flex",
-                        alignItems: "center",
-                        border: "1px solid rgba(0,0,0,0.08)",
-                      }}
-                    >
-                      <Typography variant="caption" fontWeight={700} sx={{ fontSize: 10 }}>
-                        {statusBadge.label}
-                      </Typography>
-                    </Box>
+                  </p>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Badge tone={statusBadgeTone(orderData?.bookingStatus?.title)}>
+                      {statusBadge.label}
+                    </Badge>
                     {paymentWaitingAdmin ? (
-                      <Chip
-                        size="small"
-                        color="error"
-                        variant="filled"
-                        label="Payment hold — admin action"
+                      <button
+                        type="button"
                         onClick={() => navigate("/orders/payment-failures")}
-                        sx={{ height: 26, fontWeight: 700, fontSize: 10, cursor: "pointer" }}
-                      />
+                        style={{ background: "none", border: "none", padding: 0, cursor: "pointer" }}
+                      >
+                        <Badge tone="danger">Payment hold — admin action</Badge>
+                      </button>
                     ) : null}
-                    <Box
-                      sx={{
-                        px: 1.3,
-                        minHeight: 26,
-                        borderRadius: "999px",
-                        bgcolor: "#EFF6FF",
-                        color: "#2563EB",
-                        border: "1px solid #BFDBFE",
-                        display: "inline-flex",
-                        alignItems: "center",
-                      }}
-                    >
-                      <Typography variant="caption" sx={{ fontWeight: 700, fontSize: 10 }}>
+                    <div style={{ paddingLeft: 10.4, paddingRight: 10.4, minHeight: 26, borderRadius: "999px", background: "#EFF6FF", color: "#2563EB", border: "1px solid #BFDBFE", display: "inline-flex", alignItems: "center" }}>
+                      <p style={{ margin: 0,  fontWeight: 700, fontSize: 10 }}>
                         {orderData.frequency || "Just Once"}
-                      </Typography>
-                    </Box>
-                  </Box>
+                      </p>
+                    </div>
+                  </div>
 
-                  <Box
-                    sx={{
-                      mt: 1.5,
-                      display: "flex",
-                      flexWrap: "wrap",
-                      alignItems: "center",
-                      gap: 1,
-                      maxWidth: 520,
-                    }}
-                  >
-                    <Select
-                      value={selectedStatusId}
-                      onChange={(e) => setSelectedStatusId(e.target.value)}
-                      size="small"
-                      displayEmpty
-                      disabled={isUpdatingStatus || !orderStatusOptions.length}
-                      sx={{
-                        minWidth: 220,
-                        flex: "1 1 220px",
-                        height: 40,
-                        borderRadius: "8px",
-                        border: "1px solid #E2E8F0",
-                        bgcolor: "#fff",
-                        fontFamily: "Switzer",
-                        fontSize: 13,
-                        "& .MuiSelect-select": {
-                          py: "8px",
-                          px: "12px",
-                          display: "flex",
-                          alignItems: "center",
-                        },
-                        "& .MuiOutlinedInput-notchedOutline": { border: "none" },
-                      }}
-                      MenuProps={{
-                        PaperProps: { sx: { maxHeight: 320 } },
-                      }}
-                    >
-                      {orderStatusOptions.length ? (
-                        orderStatusOptions.map((option) => (
-                          <MenuItem key={option.id} value={String(option.id)}>
-                            {option.title}
-                          </MenuItem>
-                        ))
-                      ) : (
-                        <MenuItem value="" disabled>
-                          No status available
-                        </MenuItem>
-                      )}
-                    </Select>
+                  <div style={{ marginTop: 12, display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, maxWidth: 520 }}>
+                    <div style={{ minWidth: 220, flex: "1 1 220px" }}>
+                      <Select
+                        value={selectedStatusId}
+                        onChange={(value) => setSelectedStatusId(String(value))}
+                        disabled={isUpdatingStatus || !orderStatusOptions.length}
+                        placeholder="No status available"
+                        options={orderStatusOptions.map((option) => ({
+                          value: String(option.id),
+                          label: option.title,
+                        }))}
+                      />
+                    </div>
                     <Button
-                      variant="contained"
                       onClick={handleUpdateStatus}
                       disabled={
                         isUpdatingStatus || !statusDirty || !selectedStatusId
                       }
-                      sx={{
-                        textTransform: "none",
-                        borderRadius: "8px",
-                        bgcolor: "#000099",
-                        color: "#fff",
-                        fontWeight: 600,
-                        fontSize: 13,
-                        minHeight: 40,
-                        px: 2,
-                        "&:hover": { bgcolor: "#00007A" },
-                        "&.Mui-disabled": {
-                          bgcolor: "#CBD5E1",
-                          color: "#fff",
-                        },
-                      }}
                     >
                       {isUpdatingStatus ? "Updating..." : "Update Status"}
                     </Button>
-                  </Box>
-                </Box>
+                  </div>
+                </div>
 
-                <Box
-                  sx={{
-                    display: "flex",
-                    justifyContent: "flex-end",
-                    gap: 1.2,
-                  }}
-                >
-                  <Paper
-                    sx={{
-                      border: "1px solid #E2E8F0",
-                      borderRadius: "10px",
-                      boxShadow: "none",
-                      p: 1.5,
-                    }}
+                <div style={{ display: "flex", justifyContent: "flex-end", gap: 9.6 }}>
+                  <div
+                    style={{ border: "1px solid var(--line)",
+                      borderRadius: "var(--r-md)",
+                      padding: 12, }}
                   >
-                    <Typography
-                      variant="caption"
-                      color="text.secondary"
-                      sx={{ fontSize: 10, textTransform: "uppercase", fontWeight: 700 }}
-                    >
+                    <p style={{ margin: 0, color: "var(--muted)",  fontSize: 10, textTransform: "uppercase", fontWeight: 700 }}>
                       Order Total
-                    </Typography>
-                    <Typography
-                      fontFamily="Switzer"
-                      fontWeight={700}
-                      color="#0000A0"
-                      sx={{ mt: 0.35, fontSize: 24, lineHeight: 1 }}
-                    >
-                      ${orderTotal}
-                    </Typography>
-                  </Paper>
-                </Box>
-              </Box>
-            </Box>
-          </Paper>
+                    </p>
+                    <p style={{ margin: 0, fontFamily: "Switzer", fontWeight: 700, color: "#0000A0", marginTop: 2.8, fontSize: 24, lineHeight: 1 }}>
+                      {formatMoney(orderTotal, paymentCurrencySymbol)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
 
-          <Paper sx={CARD_SX}>
-            <Box sx={SECTION_HEADER_SX}>
-              <Box className="flex items-center gap-1.5">
-                <Box sx={{ width: 6, height: 6, borderRadius: "50%", bgcolor: "#93C5FD" }} />
-                <Typography
-                  variant="caption"
-                  color="text.secondary"
-                  sx={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}
-                >
+          <div style={CARD}>
+            <div style={{ ...SECTION_HEAD }}>
+              <div className="flex items-center gap-1.5">
+                <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#93C5FD" }} />
+                <p style={{ margin: 0, color: "var(--muted)",  fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}>
                   Collection & Delivery
-                </Typography>
-              </Box>
-            </Box>
-            <Box className="grid grid-cols-1 md:grid-cols-2" sx={{ bgcolor: "#FCFDFE" }}>
-              <Box
-                sx={{
-                  p: 2.5,
-                  borderRight: { md: "1px solid #E4E7EC" },
-                  borderBottom: { xs: "1px solid #E4E7EC", md: "none" },
-                }}
-              >
-                <Box className="flex items-center justify-between gap-2 mb-1.5">
-                  <Box className="flex items-center gap-2">
+                </p>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2" style={{ background: "#FCFDFE" }}>
+              <div style={{ padding: 20, borderRight: "1px solid #E4E7EC", borderBottom: "none" }}>
+                <div className="flex items-center justify-between gap-2 mb-1.5">
+                  <div className="flex items-center gap-2">
                     <TbFileDescription size={16} color="#2563EB" />
-                    <Typography variant="caption" sx={{ color: "#2563EB", fontWeight: 700, fontSize: 10, letterSpacing: "0.05em" }}>
+                    <p style={{ margin: 0,  color: "#2563EB", fontWeight: 700, fontSize: 10, letterSpacing: "0.05em" }}>
                       COLLECTION
-                    </Typography>
-                  </Box>
-                  <Box sx={{ px: 1.1, py: 0.35, borderRadius: "999px", bgcolor: "#EFF6FF", border: "1px solid #BFDBFE" }}>
-                    <Typography sx={{ fontSize: 10, color: "#1D4ED8", fontWeight: 700 }}>
+                    </p>
+                  </div>
+                  <div style={{ paddingLeft: 8.8, paddingRight: 8.8, paddingTop: 2.8, paddingBottom: 2.8, borderRadius: "999px", background: "#EFF6FF", border: "1px solid #BFDBFE" }}>
+                    <p style={{ margin: 0, fontSize: 10, color: "#1D4ED8", fontWeight: 700 }}>
                       Pickup Window
-                    </Typography>
-                  </Box>
-                </Box>
-                <Typography fontFamily="Switzer" fontWeight={700} sx={{ fontSize: 20, color: "#0F172A", lineHeight: 1.2 }}>
+                    </p>
+                  </div>
+                </div>
+                <p style={{ margin: 0, fontFamily: "Switzer", fontWeight: 700, fontSize: 20, color: "#0F172A", lineHeight: 1.2 }}>
                   {orderData.collectionTimeFrom || "N/A"} -{" "}
                   {orderData.collectionTimeTo || "N/A"}
-                </Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ fontSize: 12, mt: 0.5 }}>
-                  {dayjs(orderData.collectionDate).isValid()
-                    ? dayjs(orderData.collectionDate).format("ddd DD MMM YYYY")
+                </p>
+                <p style={{ margin: 0, color: "var(--muted)",  fontSize: 12, marginTop: 4 }}>
+                  {orderData.collectionDate
+                    ? formatDate(orderData.collectionDate, "ddd DD MMM YYYY")
                     : "N/A"}
-                </Typography>
-                <Box sx={{ mt: 2, pt: 1.6, borderTop: "1px solid #E9EEF5" }}>
+                </p>
+                <div style={{ marginTop: 16, paddingTop: 12.8, borderTop: "1px solid #E9EEF5" }}>
                   <TbFileDescription size={16} color="#2563EB" />
-                  <Typography
-                    variant="caption"
-                    color="text.secondary"
-                    sx={{ fontWeight: 700, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.06em" }}
-                  >
+                  <p style={{ margin: 0, color: "var(--muted)",  fontWeight: 700, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.06em" }}>
                     Proof of Pickup
-                  </Typography>
-                  <Box sx={{ mt: 1, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1 }}>
-                    <Paper sx={{ p: 1, border: "1px solid #E2E8F0", boxShadow: "none", borderRadius: "8px", bgcolor: "#fff" }}>
-                      <Typography sx={{ fontSize: 10, color: "#64748B", textTransform: "uppercase", fontWeight: 700 }}>
+                  </p>
+                  <div style={{ marginTop: 8, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                    <div style={{ padding: 8, border: "1px solid var(--line)", borderRadius: "var(--r-md)", background: "var(--surface)" }}>
+                      <p style={{ margin: 0, fontSize: 10, color: "#64748B", textTransform: "uppercase", fontWeight: 700 }}>
                         Items Counted
-                      </Typography>
-                      <Typography sx={{ fontSize: 14, fontWeight: 700, color: "#0F172A" }}>
+                      </p>
+                      <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: "#0F172A" }}>
                         {pickupItemsDisplayCount || 0}
-                      </Typography>
-                    </Paper>
-                    <Paper sx={{ p: 1, border: "1px solid #E2E8F0", boxShadow: "none", borderRadius: "8px", bgcolor: "#fff" }}>
-                      <Typography sx={{ fontSize: 10, color: "#64748B", textTransform: "uppercase", fontWeight: 700 }}>
+                      </p>
+                    </div>
+                    <div style={{ padding: 8, border: "1px solid var(--line)", borderRadius: "var(--r-md)", background: "var(--surface)" }}>
+                      <p style={{ margin: 0, fontSize: 10, color: "#64748B", textTransform: "uppercase", fontWeight: 700 }}>
                         Images
-                      </Typography>
-                      <Typography sx={{ fontSize: 14, fontWeight: 700, color: "#0F172A" }}>
+                      </p>
+                      <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: "#0F172A" }}>
                         {pickupProofs.length || 0}
-                      </Typography>
-                    </Paper>
-                  </Box>
+                      </p>
+                    </div>
+                  </div>
                   {pickupProofs.some((p) => p.note) && (
-                    <Paper
-                      sx={{ mt: 1, p: 1.1, bgcolor: "#FFFBEB", border: "1px solid #FDE68A", boxShadow: "none", borderRadius: "8px" }}
+                    <div
+                      style={{ marginTop: 8, padding: 9, background: "var(--warning-bg)", border: "1px solid #FDE68A", borderRadius: "var(--r-md)" }}
                     >
-                      <Typography variant="caption" color="#92400E" sx={{ fontSize: 11 }}>
+                      <p style={{ margin: 0, color: "#92400E",  fontSize: 11 }}>
                         Note: {pickupProofs.find((p) => p.note)?.note}
-                      </Typography>
-                    </Paper>
+                      </p>
+                    </div>
                   )}
-                </Box>
-              </Box>
+                </div>
+              </div>
 
-              <Box sx={{ p: 2.5 }}>
-                <Box className="flex items-center justify-between gap-2 mb-1.5">
-                  <Box className="flex items-center gap-2">
+              <div style={{ padding: 20 }}>
+                <div className="flex items-center justify-between gap-2 mb-1.5">
+                  <div className="flex items-center gap-2">
                     <MdOutlineStore size={16} color="#059669" />
-                    <Typography variant="caption" sx={{ color: "#059669", fontWeight: 700, fontSize: 10, letterSpacing: "0.05em" }}>
+                    <p style={{ margin: 0,  color: "#059669", fontWeight: 700, fontSize: 10, letterSpacing: "0.05em" }}>
                       DELIVERY
-                    </Typography>
-                  </Box>
-                  <Box sx={{ px: 1.1, py: 0.35, borderRadius: "999px", bgcolor: "#ECFDF5", border: "1px solid #A7F3D0" }}>
-                    <Typography sx={{ fontSize: 10, color: "#047857", fontWeight: 700 }}>
+                    </p>
+                  </div>
+                  <div style={{ paddingLeft: 8.8, paddingRight: 8.8, paddingTop: 2.8, paddingBottom: 2.8, borderRadius: "999px", background: "#ECFDF5", border: "1px solid #A7F3D0" }}>
+                    <p style={{ margin: 0, fontSize: 10, color: "#047857", fontWeight: 700 }}>
                       Drop-off Window
-                    </Typography>
-                  </Box>
-                </Box>
-                <Typography fontFamily="Switzer" fontWeight={700} sx={{ fontSize: 20, color: "#0F172A", lineHeight: 1.2 }}>
+                    </p>
+                  </div>
+                </div>
+                <p style={{ margin: 0, fontFamily: "Switzer", fontWeight: 700, fontSize: 20, color: "#0F172A", lineHeight: 1.2 }}>
                   {orderData.deliveryTimeFrom || "N/A"} -{" "}
                   {orderData.deliveryTimeTo || "N/A"}
-                </Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ fontSize: 12, mt: 0.5 }}>
-                  {dayjs(orderData.deliveryDate).isValid()
-                    ? dayjs(orderData.deliveryDate).format("ddd DD MMM YYYY")
+                </p>
+                <p style={{ margin: 0, color: "var(--muted)",  fontSize: 12, marginTop: 4 }}>
+                  {orderData.deliveryDate
+                    ? formatDate(orderData.deliveryDate, "ddd DD MMM YYYY")
                     : "N/A"}
-                </Typography>
-                <Box sx={{ mt: 2, pt: 1.6, borderTop: "1px solid #E9EEF5" }}>
-                  <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                </p>
+                <div style={{ marginTop: 16, paddingTop: 12.8, borderTop: "1px solid #E9EEF5" }}>
+                  <p style={{ margin: 0, color: "var(--muted)",  fontWeight: 700, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.06em" }}>
                     Proof of Delivery
-                  </Typography>
-                  <Box sx={{ mt: 1, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1 }}>
-                    <Paper sx={{ p: 1, border: "1px solid #E2E8F0", boxShadow: "none", borderRadius: "8px", bgcolor: "#fff" }}>
-                      <Typography sx={{ fontSize: 10, color: "#64748B", textTransform: "uppercase", fontWeight: 700 }}>
+                  </p>
+                  <div style={{ marginTop: 8, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                    <div style={{ padding: 8, border: "1px solid var(--line)", borderRadius: "var(--r-md)", background: "var(--surface)" }}>
+                      <p style={{ margin: 0, fontSize: 10, color: "#64748B", textTransform: "uppercase", fontWeight: 700 }}>
                         Items Counted
-                      </Typography>
-                      <Typography sx={{ fontSize: 14, fontWeight: 700, color: "#0F172A" }}>
+                      </p>
+                      <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: "#0F172A" }}>
                         {deliveryItemsDisplayCount || 0}
-                      </Typography>
-                    </Paper>
-                    <Paper sx={{ p: 1, border: "1px solid #E2E8F0", boxShadow: "none", borderRadius: "8px", bgcolor: "#fff" }}>
-                      <Typography sx={{ fontSize: 10, color: "#64748B", textTransform: "uppercase", fontWeight: 700 }}>
+                      </p>
+                    </div>
+                    <div style={{ padding: 8, border: "1px solid var(--line)", borderRadius: "var(--r-md)", background: "var(--surface)" }}>
+                      <p style={{ margin: 0, fontSize: 10, color: "#64748B", textTransform: "uppercase", fontWeight: 700 }}>
                         Images
-                      </Typography>
-                      <Typography sx={{ fontSize: 14, fontWeight: 700, color: "#0F172A" }}>
+                      </p>
+                      <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: "#0F172A" }}>
                         {deliveryProofs.length || 0}
-                      </Typography>
-                    </Paper>
-                  </Box>
+                      </p>
+                    </div>
+                  </div>
                   {pickupItemsCount > deliveryItemsCount && (
-                    <Paper
-                      sx={{ mt: 1, p: 1.1, bgcolor: "#FEF2F2", border: "1px solid #FECACA", boxShadow: "none", borderRadius: "8px" }}
+                    <div
+                      style={{ marginTop: 8, padding: 9, background: "var(--danger-bg)", border: "1px solid #FECACA", borderRadius: "var(--r-md)" }}
                     >
-                      <Typography variant="caption" color="#B91C1C" sx={{ fontSize: 11 }}>
+                      <p style={{ margin: 0, color: "#B91C1C",  fontSize: 11 }}>
                         Delivery item count is lower than pickup count.
-                      </Typography>
-                    </Paper>
+                      </p>
+                    </div>
                   )}
-                </Box>
-              </Box>
-            </Box>
-          </Paper>
+                </div>
+              </div>
+            </div>
+          </div>
 
-          <Paper sx={CARD_SX}>
-            <Box
-              sx={SECTION_HEADER_SX}
-              className="flex items-center justify-between"
-            >
-              <Box className="flex items-center gap-1.5">
-                <Box sx={{ width: 6, height: 6, borderRadius: "50%", bgcolor: "#A78BFA" }} />
-                <Typography
-                  variant="caption"
-                  color="text.secondary"
-                  sx={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}
-                >
+          <div style={CARD}>
+            <div className="flex items-center justify-between" style={{ ...SECTION_HEAD }}>
+              <div className="flex items-center gap-1.5">
+                <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#A78BFA" }} />
+                <p style={{ margin: 0, color: "var(--muted)",  fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}>
                   Proof of Collection & Delivery
-                </Typography>
-              </Box>
-              <Typography variant="caption" color="text.secondary">
-                {dayjs(orderData.collectionDate).isValid()
-                  ? dayjs(orderData.collectionDate).format("ddd DD MMM")
+                </p>
+              </div>
+              <p style={{ margin: 0, color: "var(--muted)", fontSize: 12 }}>
+                {orderData.collectionDate
+                  ? formatDate(orderData.collectionDate, "ddd DD MMM")
                   : "N/A"}{" "}
                 -{" "}
-                {dayjs(orderData.deliveryDate).isValid()
-                  ? dayjs(orderData.deliveryDate).format("ddd DD MMM")
+                {orderData.deliveryDate
+                  ? formatDate(orderData.deliveryDate, "ddd DD MMM")
                   : "N/A"}
-              </Typography>
-            </Box>
+              </p>
+            </div>
 
-            <Box className="grid grid-cols-1 md:grid-cols-2">
-              <Box
-                sx={{
-                  p: 2.5,
-                  borderRight: { md: "1px solid #E4E7EC" },
-                  borderBottom: { xs: "1px solid #E4E7EC", md: "none" },
-                }}
-              >
-                <Typography variant="caption" sx={{ color: "#2563EB", fontWeight: 700, fontSize: 10 }}>
+            <div className="grid grid-cols-1 md:grid-cols-2">
+              <div style={{ padding: 20, borderRight: "1px solid #E4E7EC", borderBottom: "none" }}>
+                <p style={{ margin: 0,  color: "#2563EB", fontWeight: 700, fontSize: 10 }}>
                   PROOF OF PICKUP
-                </Typography>
-                <Box className="grid grid-cols-3 gap-2 mt-2">
+                </p>
+                <div className="grid grid-cols-3 gap-2 mt-2">
                   {pickupProofs.length ? (
                     pickupProofs.slice(0, 3).map((proof, idx) => (
-                      <Box
-                        key={proof.id || idx}
-                        className="aspect-square rounded-md overflow-hidden bg-[#F3F4F6]"
-                      >
+                      <div key={proof.id || idx} className="aspect-square rounded-md overflow-hidden bg-[#F3F4F6]">
                         <img
-                          src={`${BASE_URL}${proof.imgUpload}`}
+                          src={joinMediaUrl(proof.imgUpload)}
                           alt={`pickup-${idx}`}
                           className="w-full h-full object-cover"
                         />
-                      </Box>
+                      </div>
                     ))
                   ) : (
-                    <Paper
-                      sx={{
-                        p: 1.8,
+                    <div
+                      style={{ padding: 14,
                         gridColumn: "1 / -1",
                         textAlign: "left",
-                        bgcolor: "#F8FAFC",
-                        border: "1px dashed #E2E8F0",
-                        borderRadius: "12px",
-                        boxShadow: "none",
-                      }}
+                        background: "var(--canvas)",
+                        border: "1px dashed var(--line)",
+                        borderRadius: "var(--r-lg)", }}
                     >
-                      <Typography variant="caption" color="text.secondary" sx={{ fontSize: 11 }}>
+                      <p style={{ margin: 0, color: "var(--muted)",  fontSize: 11 }}>
                         No images attached
-                      </Typography>
-                    </Paper>
+                      </p>
+                    </div>
                   )}
-                </Box>
-                <Box sx={{ mt: 2 }} className="space-y-0">
-                  <Box className="flex items-center justify-between py-2" sx={{ borderTop: "1px solid #F1F5F9" }}>
-                    <Typography sx={{ fontSize: 11, color: "#94A3B8" }}>Items Collected</Typography>
-                    <Typography sx={{ fontSize: 11, color: "#334155", fontWeight: 600 }}>
+                </div>
+                <div className="space-y-0" style={{ marginTop: 16 }}>
+                  <div className="flex items-center justify-between py-2" style={{ borderTop: "1px solid #F1F5F9" }}>
+                    <p style={{ margin: 0, fontSize: 11, color: "#94A3B8" }}>Items Collected</p>
+                    <p style={{ margin: 0, fontSize: 11, color: "#334155", fontWeight: 600 }}>
                       {pickupItemsDisplayCount || 0} items
-                    </Typography>
-                  </Box>
-                  <Box className="flex items-center justify-between py-2" sx={{ borderTop: "1px solid #F1F5F9" }}>
-                    <Typography sx={{ fontSize: 11, color: "#94A3B8" }}>Driver Signature</Typography>
-                    <Typography sx={{ fontSize: 11, color: "#94A3B8", fontStyle: "italic" }}>Not captured</Typography>
-                  </Box>
-                  <Box className="flex items-center justify-between py-2" sx={{ borderTop: "1px solid #F1F5F9" }}>
-                    <Typography sx={{ fontSize: 11, color: "#94A3B8" }}>Customer Signature</Typography>
-                    <Typography sx={{ fontSize: 11, color: "#94A3B8", fontStyle: "italic" }}>Not captured</Typography>
-                  </Box>
-                  <Box className="flex items-center justify-between py-2" sx={{ borderTop: "1px solid #F1F5F9" }}>
-                    <Typography sx={{ fontSize: 11, color: "#94A3B8" }}>Timestamp</Typography>
-                    <Typography sx={{ fontSize: 11, color: "#334155", fontWeight: 500 }}>{pickupProofTime}</Typography>
-                  </Box>
-                </Box>
+                    </p>
+                  </div>
+                  <div className="flex items-center justify-between py-2" style={{ borderTop: "1px solid #F1F5F9" }}>
+                    <p style={{ margin: 0, fontSize: 11, color: "#94A3B8" }}>Driver Signature</p>
+                    <p style={{ margin: 0, fontSize: 11, color: "#94A3B8", fontStyle: "italic" }}>Not captured</p>
+                  </div>
+                  <div className="flex items-center justify-between py-2" style={{ borderTop: "1px solid #F1F5F9" }}>
+                    <p style={{ margin: 0, fontSize: 11, color: "#94A3B8" }}>Customer Signature</p>
+                    <p style={{ margin: 0, fontSize: 11, color: "#94A3B8", fontStyle: "italic" }}>Not captured</p>
+                  </div>
+                  <div className="flex items-center justify-between py-2" style={{ borderTop: "1px solid #F1F5F9" }}>
+                    <p style={{ margin: 0, fontSize: 11, color: "#94A3B8" }}>Timestamp</p>
+                    <p style={{ margin: 0, fontSize: 11, color: "#334155", fontWeight: 500 }}>{pickupProofTime}</p>
+                  </div>
+                </div>
                 {pickupProofs.some((p) => p.note) && (
-                  <Paper
-                    sx={{
-                      mt: 1.5,
-                      p: 1.4,
-                      bgcolor: "#FFFBEB",
+                  <div
+                    style={{ marginTop: 12,
+                      padding: 11,
+                      background: "var(--warning-bg)",
                       border: "1px solid #FDE68A",
-                      borderRadius: "8px",
-                      boxShadow: "none",
-                    }}
+                      borderRadius: "var(--r-md)", }}
                   >
-                    <Typography sx={{ fontSize: 10, fontWeight: 700, color: "#D97706", textTransform: "uppercase", mb: 0.6 }}>
+                    <p style={{ margin: 0, fontSize: 10, fontWeight: 700, color: "#D97706", textTransform: "uppercase", marginBottom: 4.8 }}>
                       Driver Note
-                    </Typography>
-                    <Typography sx={{ fontSize: 13, color: "#334155" }}>
+                    </p>
+                    <p style={{ margin: 0, fontSize: 13, color: "#334155" }}>
                       {pickupProofs.find((p) => p.note)?.note}
-                    </Typography>
-                  </Paper>
+                    </p>
+                  </div>
                 )}
-              </Box>
+              </div>
 
-              <Box sx={{ p: 2.5 }}>
-                <Typography variant="caption" sx={{ color: "#059669", fontWeight: 700, fontSize: 10 }}>
+              <div style={{ padding: 20 }}>
+                <p style={{ margin: 0,  color: "#059669", fontWeight: 700, fontSize: 10 }}>
                   PROOF OF DELIVERY
-                </Typography>
-                <Box className="grid grid-cols-3 gap-2 mt-2">
+                </p>
+                <div className="grid grid-cols-3 gap-2 mt-2">
                   {deliveryProofs.length ? (
                     deliveryProofs.slice(0, 3).map((proof, idx) => (
-                      <Box
-                        key={proof.id || idx}
-                        className="aspect-square rounded-md overflow-hidden bg-[#F3F4F6]"
-                      >
+                      <div key={proof.id || idx} className="aspect-square rounded-md overflow-hidden bg-[#F3F4F6]">
                         <img
-                          src={`${BASE_URL}${proof.imgUpload}`}
+                          src={joinMediaUrl(proof.imgUpload)}
                           alt={`delivery-${idx}`}
                           className="w-full h-full object-cover"
                         />
-                      </Box>
+                      </div>
                     ))
                   ) : (
-                    <Paper
-                      sx={{
-                        p: 1.8,
+                    <div
+                      style={{ padding: 14,
                         gridColumn: "1 / -1",
                         textAlign: "left",
-                        bgcolor: "#F8FAFC",
-                        border: "1px dashed #E2E8F0",
-                        borderRadius: "12px",
-                        boxShadow: "none",
-                      }}
+                        background: "var(--canvas)",
+                        border: "1px dashed var(--line)",
+                        borderRadius: "var(--r-lg)", }}
                     >
-                      <Typography variant="caption" color="text.secondary" sx={{ fontSize: 11 }}>
+                      <p style={{ margin: 0, color: "var(--muted)",  fontSize: 11 }}>
                         No images available
-                      </Typography>
-                    </Paper>
+                      </p>
+                    </div>
                   )}
-                </Box>
-                <Box sx={{ mt: 2 }} className="space-y-0">
-                  <Box className="flex items-center justify-between py-2" sx={{ borderTop: "1px solid #F1F5F9" }}>
-                    <Typography sx={{ fontSize: 11, color: "#94A3B8" }}>Items Delivered</Typography>
-                    <Typography
-                      sx={{
-                        fontSize: 11,
+                </div>
+                <div className="space-y-0" style={{ marginTop: 16 }}>
+                  <div className="flex items-center justify-between py-2" style={{ borderTop: "1px solid #F1F5F9" }}>
+                    <p style={{ margin: 0, fontSize: 11, color: "#94A3B8" }}>Items Delivered</p>
+                    <p style={{ margin: 0, fontSize: 11,
                         color: deliveryItemsCount > 0 ? "#334155" : "#EF4444",
-                        fontWeight: 600,
-                      }}
-                    >
+                        fontWeight: 600, }}>
                       {deliveryItemsDisplayCount || 0} items
-                    </Typography>
-                  </Box>
-                  <Box className="flex items-center justify-between py-2" sx={{ borderTop: "1px solid #F1F5F9" }}>
-                    <Typography sx={{ fontSize: 11, color: "#94A3B8" }}>Driver Signature</Typography>
-                    <Typography sx={{ fontSize: 11, color: "#94A3B8", fontStyle: "italic" }}>Not captured</Typography>
-                  </Box>
-                  <Box className="flex items-center justify-between py-2" sx={{ borderTop: "1px solid #F1F5F9" }}>
-                    <Typography sx={{ fontSize: 11, color: "#94A3B8" }}>Customer Signature</Typography>
-                    <Typography sx={{ fontSize: 11, color: "#94A3B8", fontStyle: "italic" }}>Not captured</Typography>
-                  </Box>
-                  <Box className="flex items-center justify-between py-2" sx={{ borderTop: "1px solid #F1F5F9" }}>
-                    <Typography sx={{ fontSize: 11, color: "#94A3B8" }}>Timestamp</Typography>
-                    <Typography sx={{ fontSize: 11, color: "#334155", fontWeight: 500 }}>{deliveryProofTime}</Typography>
-                  </Box>
-                </Box>
+                    </p>
+                  </div>
+                  <div className="flex items-center justify-between py-2" style={{ borderTop: "1px solid #F1F5F9" }}>
+                    <p style={{ margin: 0, fontSize: 11, color: "#94A3B8" }}>Driver Signature</p>
+                    <p style={{ margin: 0, fontSize: 11, color: "#94A3B8", fontStyle: "italic" }}>Not captured</p>
+                  </div>
+                  <div className="flex items-center justify-between py-2" style={{ borderTop: "1px solid #F1F5F9" }}>
+                    <p style={{ margin: 0, fontSize: 11, color: "#94A3B8" }}>Customer Signature</p>
+                    <p style={{ margin: 0, fontSize: 11, color: "#94A3B8", fontStyle: "italic" }}>Not captured</p>
+                  </div>
+                  <div className="flex items-center justify-between py-2" style={{ borderTop: "1px solid #F1F5F9" }}>
+                    <p style={{ margin: 0, fontSize: 11, color: "#94A3B8" }}>Timestamp</p>
+                    <p style={{ margin: 0, fontSize: 11, color: "#334155", fontWeight: 500 }}>{deliveryProofTime}</p>
+                  </div>
+                </div>
                 {pickupItemsCount > deliveryItemsCount && (
-                  <Paper
-                    sx={{
-                      mt: 1.5,
-                      p: 1.4,
-                      bgcolor: "#FEF2F2",
+                  <div
+                    style={{ marginTop: 12,
+                      padding: 11,
+                      background: "var(--danger-bg)",
                       border: "1px solid #FECACA",
-                      borderRadius: "8px",
-                      boxShadow: "none",
-                    }}
+                      borderRadius: "var(--r-md)", }}
                   >
-                    <Typography sx={{ fontSize: 10, fontWeight: 700, color: "#EF4444", textTransform: "uppercase", mb: 0.6 }}>
+                    <p style={{ margin: 0, fontSize: 10, fontWeight: 700, color: "#EF4444", textTransform: "uppercase", marginBottom: 4.8 }}>
                       Alert
-                    </Typography>
-                    <Typography sx={{ fontSize: 11, color: "#475569", lineHeight: 1.4 }}>
+                    </p>
+                    <p style={{ margin: 0, fontSize: 11, color: "#475569", lineHeight: 1.4 }}>
                       {deliveryItemsCount || 0} items recorded at delivery. Possible mismatch with
                       pickup count of {pickupItemsCount || 0}.
-                    </Typography>
-                  </Paper>
+                    </p>
+                  </div>
                 )}
-              </Box>
-            </Box>
-          </Paper>
+              </div>
+            </div>
+          </div>
 
-          <Paper sx={CARD_SX}>
-            <Box
-              sx={SECTION_HEADER_SX}
-              className="flex items-center justify-between"
-            >
-              <Box className="flex items-center gap-1.5">
-                <Box sx={{ width: 6, height: 6, borderRadius: "50%", bgcolor: "#34D399" }} />
-                <Typography
-                  variant="caption"
-                  color="text.secondary"
-                  sx={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}
-                >
+          <div style={CARD}>
+            <div className="flex items-center justify-between" style={{ ...SECTION_HEAD }}>
+              <div className="flex items-center gap-1.5">
+                <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#34D399" }} />
+                <p style={{ margin: 0, color: "var(--muted)",  fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}>
                   Order Items
-                </Typography>
-              </Box>
-              <Box
-                sx={{
-                  px: 1.4,
-                  minHeight: 30,
-                  borderRadius: "6px",
-                  bgcolor: "#ECFDF3",
-                  border: "1px solid #86EFAC",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <Typography
-                  variant="caption"
-                  color="#15803D"
-                  sx={{ fontWeight: 700, fontSize: 11, lineHeight: 1.1, display: "flex", alignItems: "center" }}
-                >
+                </p>
+              </div>
+              <div style={{ paddingLeft: 11.2, paddingRight: 11.2, minHeight: 30, borderRadius: "6px", background: "#ECFDF3", border: "1px solid #86EFAC", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+                <p style={{ margin: 0, color: "#15803D",  fontWeight: 700, fontSize: 11, lineHeight: 1.1, display: "flex", alignItems: "center" }}>
                   {selectedServiceGroups.length || 0} service(s)
-                </Typography>
-              </Box>
-            </Box>
+                </p>
+              </div>
+            </div>
 
-            <Box sx={{ p: 2, display: "flex", flexDirection: "column", gap: 1.5 }}>
+            <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 12 }}>
               {!selectedServiceGroups.length ? (
-                <Typography variant="body2" color="text.secondary" sx={{ fontSize: 15, py: 0.6 }}>
+                <p style={{ margin: 0, color: "var(--muted)",  fontSize: 15, paddingTop: 4.8, paddingBottom: 4.8 }}>
                   {isLoadingItems ? "Loading items..." : "No selected order items available"}
-                </Typography>
+                </p>
               ) : (
                 <>
-                  <Box>
-                    <Typography sx={{ fontSize: 11, fontWeight: 700, color: "#64748B", letterSpacing: "0.08em", textTransform: "uppercase", mb: 1 }}>
+                  <div>
+                    <p style={{ margin: 0, fontSize: 11, fontWeight: 700, color: "#64748B", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 8 }}>
                       Select service
-                    </Typography>
-                    <Box sx={{ display: "flex", gap: 1.25, overflowX: "auto", pb: 0.5 }}>
+                    </p>
+                    <div style={{ display: "flex", gap: 10, overflowX: "auto", paddingBottom: 4 }}>
                       {selectedServiceGroups.map((serviceGroup) => {
                         const active = String(serviceGroup.serviceId) === String(selectedItemsServiceIdResolved);
                         const imgUrl =
                           serviceGroup.items?.[0]?.serviceImage
-                            ? `${BASE_URL}${String(serviceGroup.items[0].serviceImage).replace(/^\//, "")}`
+                            ? joinMediaUrl(serviceGroup.items[0].serviceImage)
                             : "";
                         const initial = (serviceGroup.serviceName || "?").trim().charAt(0).toUpperCase();
                         return (
-                          <Box
-                            key={`svc-chip-${serviceGroup.serviceId}`}
-                            component="button"
-                            type="button"
-                            onClick={() => setSelectedItemsServiceId(serviceGroup.serviceId)}
-                            sx={{
-                              flex: "0 0 auto",
+                          <button key={`svc-chip-${serviceGroup.serviceId}`} type="button" onClick={() => setSelectedItemsServiceId(serviceGroup.serviceId)} style={{ flex: "0 0 auto",
                               minWidth: 92,
                               maxWidth: 112,
-                              px: 1.25,
-                              py: 1.25,
+                              paddingLeft: 10, paddingRight: 10,
+                              paddingTop: 10, paddingBottom: 10,
                               borderRadius: "12px",
                               border: "none",
-                              bgcolor: active ? "#EFF6FF" : "#F8FAFC",
-                              cursor: "pointer",
-                            }}
-                          >
-                            <Box
-                              sx={{
-                                width: 48,
-                                height: 48,
-                                mx: "auto",
-                                mb: 1,
-                                borderRadius: "10px",
-                                overflow: "hidden",
-                                bgcolor: "#EEF2FF",
-                                border: "1px solid #E2E8F0",
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                              }}
-                            >
+                              background: active ? "#EFF6FF" : "#F8FAFC",
+                              cursor: "pointer", }}>
+                            <div style={{ width: 48, height: 48, marginLeft: "auto", marginRight: "auto", marginBottom: 8, borderRadius: "10px", overflow: "hidden", background: "#EEF2FF", border: "1px solid #E2E8F0", display: "flex", alignItems: "center", justifyContent: "center" }}>
                               {imgUrl ? (
-                                <Box component="img" src={imgUrl} alt="" sx={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                                <img src={imgUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                               ) : (
-                                <Typography sx={{ fontSize: 15, color: "#94A3B8" }}>{initial}</Typography>
+                                <p style={{ margin: 0, fontSize: 15, color: "#94A3B8" }}>{initial}</p>
                               )}
-                            </Box>
-                            <Typography sx={{ fontSize: 12, fontWeight: 600, lineHeight: 1.25, color: active ? "#2563EB" : "#64748B" }}>
+                            </div>
+                            <p style={{ margin: 0, fontSize: 12, fontWeight: 600, lineHeight: 1.25, color: active ? "#2563EB" : "#64748B" }}>
                               {serviceGroup.serviceName}
-                            </Typography>
-                            <Typography sx={{ mt: 0.35, fontSize: 11, color: "#475569" }}>
+                            </p>
+                            <p style={{ margin: 0, marginTop: 2.8, fontSize: 11, color: "#475569" }}>
                               {serviceGroup.items.reduce((sum, item) => sum + (item.qty || 0), 0)} item(s)
-                            </Typography>
-                          </Box>
+                            </p>
+                          </button>
                         );
                       })}
-                    </Box>
-                  </Box>
+                    </div>
+                  </div>
 
-                  <Box>
-                    <Typography sx={{ fontSize: 11, fontWeight: 700, color: "#64748B", letterSpacing: "0.08em", textTransform: "uppercase", mb: 1 }}>
+                  <div>
+                    <p style={{ margin: 0, fontSize: 11, fontWeight: 700, color: "#64748B", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 8 }}>
                       Category
-                    </Typography>
-                    <Box sx={{ display: "flex", gap: 2.25, overflowX: "auto", borderBottom: "1px solid #E5E7EB" }}>
-                      <Box
-                        component="button"
-                        type="button"
-                        onClick={() => setSelectedItemsCategoryKey("all")}
-                        sx={{
-                          pb: 1.1,
+                    </p>
+                    <div style={{ display: "flex", gap: 18, overflowX: "auto", borderBottom: "1px solid #E5E7EB" }}>
+                      <button type="button" onClick={() => setSelectedItemsCategoryKey("all")} style={{ paddingBottom: 8.8,
                           border: "none",
-                          bgcolor: "transparent",
+                          background: "transparent",
                           fontWeight: 700,
                           fontSize: 14,
                           color: selectedItemsCategoryKey === "all" ? "#2563EB" : "#64748B",
                           borderBottom: "2px solid",
                           borderBottomColor: selectedItemsCategoryKey === "all" ? "#2563EB" : "transparent",
-                          mb: "-1px",
-                          cursor: "pointer",
-                        }}
-                      >
+                          marginBottom: "-1px",
+                          cursor: "pointer", }}>
                         All
-                      </Box>
+                      </button>
                       {categoryTabsForSelectedService.map((tab) => (
-                        <Box
-                          key={`cat-tab-${tab.key}`}
-                          component="button"
-                          type="button"
-                          onClick={() => setSelectedItemsCategoryKey(tab.key)}
-                          sx={{
-                            pb: 1.1,
+                        <button key={`cat-tab-${tab.key}`} type="button" onClick={() => setSelectedItemsCategoryKey(tab.key)} style={{ paddingBottom: 8.8,
                             border: "none",
-                            bgcolor: "transparent",
+                            background: "transparent",
                             whiteSpace: "nowrap",
                             fontWeight: 700,
                             fontSize: 14,
                             color: selectedItemsCategoryKey === tab.key ? "#2563EB" : "#64748B",
                             borderBottom: "2px solid",
                             borderBottomColor: selectedItemsCategoryKey === tab.key ? "#2563EB" : "transparent",
-                            mb: "-1px",
-                            cursor: "pointer",
-                          }}
-                        >
+                            marginBottom: "-1px",
+                            cursor: "pointer", }}>
                           {tab.label}
-                        </Box>
+                        </button>
                       ))}
-                    </Box>
-                  </Box>
+                    </div>
+                  </div>
 
-                  <Box
-                    sx={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 1,
-                      mt: 0.25,
-                    }}
-                  >
-                    <Box sx={{ width: 4, height: 22, bgcolor: "#2563EB", borderRadius: 1 }} />
-                    <Typography sx={{ fontWeight: 700, fontSize: 16, color: "#0F172A" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 2 }}>
+                    <div style={{ width: 4, height: 22, background: "#2563EB", borderRadius: 4 }} />
+                    <p style={{ margin: 0, fontWeight: 700, fontSize: 16, color: "#0F172A" }}>
                       {selectedItemsCategoryKey === "all" ? "Items" : selectedItemsCategoryKey}
-                    </Typography>
-                  </Box>
-                  <Box sx={{ display: "flex", flexDirection: "column", gap: 1.2 }}>
+                    </p>
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 9.6 }}>
                     {visibleOrderItems.map((item) => {
                       const lineTotal = (item.qty || 0) * (item.unitPrice || 0);
                       return (
-                        <Box
-                          key={`item-${item.id}`}
-                          sx={{
-                            border: "1px solid #E5E7EB",
-                            borderRadius: "12px",
-                            p: 1.5,
-                            bgcolor: "#fff",
-                          }}
-                        >
-                          <Box
-                            sx={{
-                              display: "flex",
-                              justifyContent: "space-between",
-                              alignItems: "flex-start",
-                              gap: 1,
-                            }}
-                          >
-                            <Box>
-                              <Typography sx={{ fontSize: 14, fontWeight: 700, color: "#0F172A" }}>
+                        <div key={`item-${item.id}`} style={{ border: "1px solid #E5E7EB", borderRadius: "12px", padding: 12, background: "#fff" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
+                            <div>
+                              <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: "#0F172A" }}>
                                 {item.itemName}
-                              </Typography>
-                              <Typography sx={{ fontSize: 11, color: "#64748B" }}>
+                              </p>
+                              <p style={{ margin: 0, fontSize: 11, color: "#64748B" }}>
                                 {item.categoryName || selectedServiceData?.serviceName}
-                              </Typography>
-                              <Typography sx={{ mt: 0.45, fontSize: 13, color: "#0F172A", fontWeight: 600 }}>
-                                ${item.unitPrice.toFixed(2)}{" "}
-                                <Box component="span" sx={{ color: "#94A3B8", fontWeight: 500 }}>
+                              </p>
+                              <p style={{ margin: 0, marginTop: 3.6, fontSize: 13, color: "#0F172A", fontWeight: 600 }}>
+                                {formatMoney(item.unitPrice, paymentCurrencySymbol)}{" "}
+                                <span style={{ color: "#94A3B8", fontWeight: 500 }}>
                                   / piece
-                                </Box>
-                              </Typography>
-                            </Box>
-                            <Box sx={{ textAlign: "right" }}>
-                              <Typography sx={{ fontSize: 11, color: "#334155" }}>
+                                </span>
+                              </p>
+                            </div>
+                            <div style={{ textAlign: "right" }}>
+                              <p style={{ margin: 0, fontSize: 11, color: "#334155" }}>
                                 Qty: <b>{item.qty}</b>
-                              </Typography>
-                              <Typography sx={{ mt: 0.4, fontSize: 22, fontWeight: 700, color: "#0F172A" }}>
-                                ${lineTotal.toFixed(2)}
-                              </Typography>
-                            </Box>
-                          </Box>
+                              </p>
+                              <p style={{ margin: 0, marginTop: 3.2, fontSize: 22, fontWeight: 700, color: "#0F172A" }}>
+                                {formatMoney(lineTotal, paymentCurrencySymbol)}
+                              </p>
+                            </div>
+                          </div>
                           {(item.addOns || []).length > 0 && (
-                            <Box sx={{ mt: 0.75 }}>
+                            <div style={{ marginTop: 6 }}>
                               {(item.addOns || []).map((ad, idx) => (
-                                <Typography key={`addon-${item.id}-${idx}`} sx={{ fontSize: 11, color: "#475569" }}>
+                                <p key={`addon-${item.id}-${idx}`} style={{ margin: 0, fontSize: 11, color: "#475569" }}>
                                   + {Number(ad?.quantity || 1)}x {ad?.name || ad?.addOnService?.name || "Add-on"} (
-                                  ${((Number(ad?.quantity || 1) * Number(ad?.price || 0))).toFixed(2)})
-                                </Typography>
+                                  {formatMoney(
+                                    Number(ad?.quantity || 1) * Number(ad?.price || 0),
+                                    paymentCurrencySymbol
+                                  )}
+                                  )
+                                </p>
                               ))}
-                            </Box>
+                            </div>
                           )}
                           {(item.preferences || []).length > 0 && (
-                            <Typography sx={{ mt: 0.55, fontSize: 11, color: "#64748B" }}>
+                            <p style={{ margin: 0, marginTop: 4.4, fontSize: 11, color: "#64748B" }}>
                               Preferences: {item.preferences.join(", ")}
-                            </Typography>
+                            </p>
                           )}
                           {(item.repairItems || []).length > 0 && (
-                            <Box sx={{ mt: 0.75, display: "flex", flexDirection: "column", gap: 0.6 }}>
+                            <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 4.8 }}>
                               {(item.repairItems || []).map((ri, rIdx) => {
                                 const optionNames = (ri?.options || [])
                                   .map((o) => o?.optionName)
@@ -1937,205 +1237,172 @@ export default function OrderDetailsPage() {
                                   .join(", ");
                                 const images = Array.isArray(ri?.images) ? ri.images : [];
                                 return (
-                                  <Box
-                                    key={`repair-${item.id}-${rIdx}`}
-                                    sx={{
-                                      p: 1,
-                                      borderRadius: "8px",
-                                      bgcolor: "#F8FAFC",
-                                      border: "1px solid #E2E8F0",
-                                    }}
-                                  >
-                                    <Typography sx={{ fontSize: 12, fontWeight: 600, color: "#0F172A" }}>
+                                  <div key={`repair-${item.id}-${rIdx}`} style={{ padding: 8, borderRadius: "8px", background: "#F8FAFC", border: "1px solid #E2E8F0" }}>
+                                    <p style={{ margin: 0, fontSize: 12, fontWeight: 600, color: "#0F172A" }}>
                                       {ri?.garmentName || "Garment"}
                                       {ri?.quantity > 1 ? ` ×${ri.quantity}` : ""}
-                                    </Typography>
+                                    </p>
                                     {optionNames ? (
-                                      <Typography sx={{ fontSize: 11, color: "#475569", mt: 0.25 }}>
+                                      <p style={{ margin: 0, fontSize: 11, color: "#475569", marginTop: 2 }}>
                                         {optionNames}
-                                      </Typography>
+                                      </p>
                                     ) : null}
                                     {ri?.instruction ? (
-                                      <Typography sx={{ fontSize: 11, color: "#64748B", mt: 0.25, fontStyle: "italic" }}>
+                                      <p style={{ margin: 0, fontSize: 11, color: "#64748B", marginTop: 2, fontStyle: "italic" }}>
                                         {ri.instruction}
-                                      </Typography>
+                                      </p>
                                     ) : null}
                                     {images.length > 0 ? (
-                                      <Box sx={{ mt: 0.6, display: "flex", gap: 0.6, flexWrap: "wrap" }}>
+                                      <div style={{ marginTop: 4.8, display: "flex", gap: 4.8, flexWrap: "wrap" }}>
                                         {images.map((img, ii) => {
                                           const path = img?.imageUrl || "";
-                                          const src = String(path).startsWith("http")
-                                            ? path
-                                            : `${BASE_URL}/${path}`.replace(/([^:]\/)\/+/g, "$1");
+                                          const src = joinMediaUrl(path);
                                           return (
-                                            <Box
-                                              key={`ri-img-${rIdx}-${ii}`}
-                                              component="img"
-                                              src={src}
-                                              alt=""
-                                              sx={{
-                                                width: 48,
-                                                height: 48,
-                                                objectFit: "cover",
-                                                borderRadius: "6px",
-                                                border: "1px solid #E2E8F0",
-                                              }}
-                                            />
+                                            <img key={`ri-img-${rIdx}-${ii}`} src={src} alt="" style={{ width: 48, height: 48, objectFit: "cover", borderRadius: "6px", border: "1px solid #E2E8F0" }} />
                                           );
                                         })}
-                                      </Box>
+                                      </div>
                                     ) : null}
-                                  </Box>
+                                  </div>
                                 );
                               })}
-                            </Box>
+                            </div>
                           )}
                           {item.instruction ? (
-                            <Typography sx={{ mt: 0.55, fontSize: 11, color: "#64748B", fontStyle: "italic" }}>
+                            <p style={{ margin: 0, marginTop: 4.4, fontSize: 11, color: "#64748B", fontStyle: "italic" }}>
                               Note: {item.instruction}
-                            </Typography>
+                            </p>
                           ) : null}
-                        </Box>
+                        </div>
                       );
                     })}
-                  </Box>
+                  </div>
                 </>
               )}
-            </Box>
+            </div>
 
-            <Box sx={{ p: 2.5, borderTop: "1px solid #E4E7EC", bgcolor: "#FCFCFD", display: "flex", flexDirection: "column", rowGap: 0.4 }}>
-              <Box className="flex items-center justify-between" sx={{ py: 0.9 }}>
-                <Typography variant="body2" color="text.secondary">
+            <div style={{ padding: 20, borderTop: "1px solid #E4E7EC", background: "#FCFCFD", display: "flex", flexDirection: "column", rowGap: 3.2 }}>
+              <div className="flex items-center justify-between" style={{ paddingTop: 7.2, paddingBottom: 7.2 }}>
+                <p style={{ margin: 0, color: "var(--muted)", fontSize: 14 }}>
                   Services subtotal
-                </Typography>
-                <Typography variant="body2">${servicesSubtotalAmount.toFixed(2)}</Typography>
-              </Box>
-              <Box className="flex items-center justify-between" sx={{ py: 0.9 }}>
-                <Typography variant="body2" color="text.secondary">
+                </p>
+                <p style={{ margin: 0, fontSize: 14 }}>
+                  {formatMoney(servicesSubtotalAmount, paymentCurrencySymbol)}
+                </p>
+              </div>
+              <div className="flex items-center justify-between" style={{ paddingTop: 7.2, paddingBottom: 7.2 }}>
+                <p style={{ margin: 0, color: "var(--muted)", fontSize: 14 }}>
                   Minimum Order Fee
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  -${Math.abs(minimumOrderFeeAmount).toFixed(2)}
-                </Typography>
-              </Box>
-              <Box className="flex items-center justify-between" sx={{ py: 0.9 }}>
-                <Typography variant="body2" color="text.secondary">
+                </p>
+                <p style={{ margin: 0, color: "var(--muted)", fontSize: 14 }}>
+                  -{formatMoney(Math.abs(minimumOrderFeeAmount), paymentCurrencySymbol)}
+                </p>
+              </div>
+              <div className="flex items-center justify-between" style={{ paddingTop: 7.2, paddingBottom: 7.2 }}>
+                <p style={{ margin: 0, color: "var(--muted)", fontSize: 14 }}>
                   Service Charge
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  ${serviceChargeAmount.toFixed(2)}
-                </Typography>
-              </Box>
-              <Box className="flex items-center justify-between" sx={{ py: 0.9 }}>
-                <Typography variant="body2" color="text.secondary">
+                </p>
+                <p style={{ margin: 0, color: "var(--muted)", fontSize: 14 }}>
+                  {formatMoney(serviceChargeAmount, paymentCurrencySymbol)}
+                </p>
+              </div>
+              <div className="flex items-center justify-between" style={{ paddingTop: 7.2, paddingBottom: 7.2 }}>
+                <p style={{ margin: 0, color: "var(--muted)", fontSize: 14 }}>
                   Subtotal
-                </Typography>
-                <Typography variant="body2">${orderSubtotalAmount.toFixed(2)}</Typography>
-              </Box>
-              <Box className="flex items-center justify-between" sx={{ py: 0.9 }}>
-                <Typography variant="body2" color="text.secondary">
+                </p>
+                <p style={{ margin: 0, fontSize: 14 }}>{formatMoney(orderSubtotalAmount, paymentCurrencySymbol)}</p>
+              </div>
+              <div className="flex items-center justify-between" style={{ paddingTop: 7.2, paddingBottom: 7.2 }}>
+                <p style={{ margin: 0, color: "var(--muted)", fontSize: 14 }}>
                   Delivery Fee
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  ${deliveryFeeAmount.toFixed(2)}
-                </Typography>
-              </Box>
-              <Box className="flex items-center justify-between" sx={{ py: 0.9 }}>
-                <Typography variant="body2" color="text.secondary">
+                </p>
+                <p style={{ margin: 0, color: "var(--muted)", fontSize: 14 }}>
+                  {formatMoney(deliveryFeeAmount, paymentCurrencySymbol)}
+                </p>
+              </div>
+              <div className="flex items-center justify-between" style={{ paddingTop: 7.2, paddingBottom: 7.2 }}>
+                <p style={{ margin: 0, color: "var(--muted)", fontSize: 14 }}>
                   Driver Tip
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  ${tipAmount.toFixed(2)}
-                </Typography>
-              </Box>
-              <Box className="flex items-center justify-between" sx={{ py: 0.9 }}>
-                <Typography variant="body2" color="text.secondary">
+                </p>
+                <p style={{ margin: 0, color: "var(--muted)", fontSize: 14 }}>
+                  {formatMoney(tipAmount, paymentCurrencySymbol)}
+                </p>
+              </div>
+              <div className="flex items-center justify-between" style={{ paddingTop: 7.2, paddingBottom: 7.2 }}>
+                <p style={{ margin: 0, color: "var(--muted)", fontSize: 14 }}>
                   Payment Status
-                </Typography>
-                <Box
-                  sx={{
-                    px: 1.2,
-                    py: 0.35,
-                    borderRadius: "999px",
-                    bgcolor: paymentStatusBadge.bg,
-                    color: paymentStatusBadge.color,
-                    fontSize: 12,
-                    fontWeight: 700,
-                  }}
+                </p>
+                <Badge
+                  tone={paymentBadgeTone(
+                    paymentSummary?.billingPaymentStatus ?? orderData?.billingDetail?.paymentStatus
+                  )}
                 >
                   {paymentStatusBadge.label}
-                </Box>
-              </Box>
-              <Box className="flex items-center justify-between" sx={{ py: 0.9 }}>
-                <Typography variant="body2" color="text.secondary">
+                </Badge>
+              </div>
+              <div className="flex items-center justify-between" style={{ paddingTop: 7.2, paddingBottom: 7.2 }}>
+                <p style={{ margin: 0, color: "var(--muted)", fontSize: 14 }}>
                   Amount Due
-                </Typography>
-                <Typography
-                  variant="body2"
-                  sx={{
-                    fontWeight: 700,
-                    color: amountDueNow > 0 ? "#B45309" : "#065F46",
-                  }}
-                >
+                </p>
+                <p style={{ margin: 0, fontSize: 14, fontWeight: 700,
+                    color: amountDueNow > 0 ? "#B45309" : "#065F46", }}>
                   {formatMoney(amountDueNow, paymentCurrencySymbol)}
-                </Typography>
-              </Box>
+                </p>
+              </div>
               {paymentSummary?.paymentStateLabel ? (
-                <Box sx={{ py: 0.5 }}>
-                  <Typography variant="caption" sx={{ fontSize: 11, color: "#64748B" }}>
+                <div style={{ paddingTop: 4, paddingBottom: 4 }}>
+                  <p style={{ margin: 0,  fontSize: 11, color: "#64748B" }}>
                     {paymentSummary.paymentStateLabel}
-                  </Typography>
-                </Box>
+                  </p>
+                </div>
               ) : null}
-              <Box className="flex items-center justify-between pt-2.5 mt-2.5" sx={{ borderTop: "1px solid #E4E7EC" }}>
-                <Typography fontFamily="Switzer" fontWeight={700}>
+              <div className="flex items-center justify-between pt-2.5 mt-2.5" style={{ borderTop: "1px solid #E4E7EC" }}>
+                <p style={{ margin: 0, fontFamily: "Switzer", fontWeight: 700 }}>
                   Total
-                </Typography>
-                <Typography fontFamily="Switzer" fontWeight={700} color="primary.main">
-                  ${orderTotal}
-                </Typography>
-              </Box>
-            </Box>
-          </Paper>
+                </p>
+                <p style={{ margin: 0, fontFamily: "Switzer", fontWeight: 700, color: "var(--accent)" }}>
+                  {formatMoney(orderTotal, paymentCurrencySymbol)}
+                </p>
+              </div>
+            </div>
+          </div>
 
           {/* ── Service Comparison: Customer Original vs Agent Invoice ─────── */}
           {(comparisonData || isLoadingComparison) && (
-            <Paper sx={CARD_SX}>
-              <Box sx={SECTION_HEADER_SX} className="flex items-center justify-between">
-                <Box className="flex items-center gap-1.5">
-                  <Box sx={{ width: 6, height: 6, borderRadius: "50%", bgcolor: "#F59E0B" }} />
-                  <Typography variant="caption" color="text.secondary"
-                    sx={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}>
+            <div style={CARD}>
+              <div className="flex items-center justify-between" style={{ ...SECTION_HEAD }}>
+                <div className="flex items-center gap-1.5">
+                  <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#F59E0B" }} />
+                  <p style={{ margin: 0, color: "var(--muted)",  fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}>
                     Service Comparison
-                  </Typography>
+                  </p>
                   {comparisonData?.fallbackToLive && (
-                    <Typography variant="caption"
-                      sx={{ fontSize: 10, color: "#9CA3AF", fontStyle: "italic", ml: 1 }}>
+                    <p style={{ margin: 0,  fontSize: 10, color: "#9CA3AF", fontStyle: "italic", marginLeft: 8 }}>
                       (snapshot not yet available — showing current services)
-                    </Typography>
+                    </p>
                   )}
-                </Box>
-                <Box sx={{ px: 1.3, minHeight: 22, borderRadius: "999px", bgcolor: "#FFFBEB", border: "1px solid #FDE68A", display: "inline-flex", alignItems: "center" }}>
-                  <Typography sx={{ fontSize: 10, color: "#B45309", fontWeight: 700 }}>Customer vs Agent</Typography>
-                </Box>
-              </Box>
+                </div>
+                <div style={{ paddingLeft: 10.4, paddingRight: 10.4, minHeight: 22, borderRadius: "999px", background: "#FFFBEB", border: "1px solid #FDE68A", display: "inline-flex", alignItems: "center" }}>
+                  <p style={{ margin: 0, fontSize: 10, color: "#B45309", fontWeight: 700 }}>Customer vs Agent</p>
+                </div>
+              </div>
 
               {isLoadingComparison ? (
-                <Box sx={{ p: 2.5 }}>
-                  <Typography variant="caption" color="text.secondary">Loading comparison...</Typography>
-                </Box>
+                <div style={{ padding: 20 }}>
+                  <p style={{ margin: 0, color: "var(--muted)", fontSize: 12 }}>Loading comparison...</p>
+                </div>
               ) : (
-                <Box className="grid grid-cols-1 md:grid-cols-2">
+                <div className="grid grid-cols-1 md:grid-cols-2">
                   {/* ── Customer Original ── */}
-                  <Box sx={{ p: 2.5, borderRight: { md: "1px solid #E4E7EC" } }}>
-                    <Box sx={{ mb: 1.5, display: "flex", alignItems: "center", gap: 1 }}>
-                      <Box sx={{ width: 4, height: 18, bgcolor: "#F59E0B", borderRadius: 1 }} />
-                      <Typography sx={{ fontSize: 11, fontWeight: 700, color: "#92400E", letterSpacing: "0.06em", textTransform: "uppercase" }}>
+                  <div style={{ padding: 20, borderRight: "1px solid #E4E7EC" }}>
+                    <div style={{ marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
+                      <div style={{ width: 4, height: 18, background: "#F59E0B", borderRadius: 4 }} />
+                      <p style={{ margin: 0, fontSize: 11, fontWeight: 700, color: "#92400E", letterSpacing: "0.06em", textTransform: "uppercase" }}>
                         Customer Selected
-                      </Typography>
-                    </Box>
+                      </p>
+                    </div>
                     {(!comparisonData?.customerOriginal?.services?.length) ? (
-                      <Typography variant="caption" color="text.secondary" sx={{ fontSize: 12 }}>No snapshot available</Typography>
+                      <p style={{ margin: 0, color: "var(--muted)",  fontSize: 12 }}>No snapshot available</p>
                     ) : (() => {
                       const groups = {};
                       (comparisonData.customerOriginal.services || []).forEach((svc) => {
@@ -2144,78 +1411,78 @@ export default function OrderDetailsPage() {
                         groups[heading].push(svc);
                       });
                       return (
-                        <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                           {Object.entries(groups).map(([heading, items]) => (
-                            <Box key={heading}>
-                              <Typography sx={{ fontSize: 11, fontWeight: 700, color: "#92400E", textTransform: "uppercase", letterSpacing: "0.06em", mb: 0.75, borderBottom: "1px solid #FDE68A", pb: 0.4 }}>
+                            <div key={heading}>
+                              <p style={{ margin: 0, fontSize: 11, fontWeight: 700, color: "#92400E", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6, borderBottom: "1px solid #FDE68A", paddingBottom: 3.2 }}>
                                 {heading}
-                              </Typography>
-                              <Box sx={{ display: "flex", flexDirection: "column", gap: 0.75 }}>
+                              </p>
+                              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                                 {items.map((svc, idx) => (
-                                  <Box key={`orig-${svc.id || idx}`} sx={{ border: "1px solid #FDE68A", borderRadius: "10px", p: 1.4, bgcolor: "#FFFBEB" }}>
-                                    <Typography sx={{ fontSize: 13, fontWeight: 700, color: "#0F172A" }}>
+                                  <div key={`orig-${svc.id || idx}`} style={{ border: "1px solid #FDE68A", borderRadius: "10px", padding: 11.2, background: "#FFFBEB" }}>
+                                    <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: "#0F172A" }}>
                                       {svc.subCategory?.name || svc.category?.name || "Item"}
-                                    </Typography>
-                                    <Box className="flex items-center gap-3 mt-0.5 flex-wrap">
+                                    </p>
+                                    <div className="flex items-center gap-3 mt-0.5 flex-wrap">
                                       {svc.items != null && (
-                                        <Typography sx={{ fontSize: 11, color: "#475569" }}>Qty: <b>{svc.items}</b></Typography>
+                                        <p style={{ margin: 0, fontSize: 11, color: "#475569" }}>Qty: <b>{svc.items}</b></p>
                                       )}
                                       {svc.categoryPrice != null && (
-                                        <Typography sx={{ fontSize: 11, color: "#475569" }}>£{Number(svc.categoryPrice).toFixed(2)}/pc</Typography>
+                                        <p style={{ margin: 0, fontSize: 11, color: "#475569" }}>{formatMoney(svc.categoryPrice, paymentCurrencySymbol)}/pc</p>
                                       )}
-                                    </Box>
+                                    </div>
                                     {(svc.preferences || []).length > 0 && (
-                                      <Box sx={{ mt: 0.75, display: "flex", flexWrap: "wrap", gap: 0.5 }}>
+                                      <div style={{ marginTop: 6, display: "flex", flexWrap: "wrap", gap: 4 }}>
                                         {svc.preferences.map((pref, pi) => (
-                                          <Box key={pi} sx={{ px: 1, py: 0.3, borderRadius: "999px", bgcolor: "#FEF3C7", border: "1px solid #FDE68A" }}>
-                                            <Typography sx={{ fontSize: 10, color: "#92400E", fontWeight: 600 }}>
+                                          <div key={pi} style={{ paddingLeft: 8, paddingRight: 8, paddingTop: 2.4, paddingBottom: 2.4, borderRadius: "999px", background: "#FEF3C7", border: "1px solid #FDE68A" }}>
+                                            <p style={{ margin: 0, fontSize: 10, color: "#92400E", fontWeight: 600 }}>
                                               {pref.preferenceType?.name && `${pref.preferenceType.name}: `}{pref.preferenceValue?.value || "—"}
-                                            </Typography>
-                                          </Box>
+                                            </p>
+                                          </div>
                                         ))}
-                                      </Box>
+                                      </div>
                                     )}
                                     {svc.serviceInstruction && (
-                                      <Typography sx={{ mt: 0.5, fontSize: 11, color: "#6B7280", fontStyle: "italic" }}>
+                                      <p style={{ margin: 0, marginTop: 4, fontSize: 11, color: "#6B7280", fontStyle: "italic" }}>
                                         Note: {svc.serviceInstruction}
-                                      </Typography>
+                                      </p>
                                     )}
-                                  </Box>
+                                  </div>
                                 ))}
-                              </Box>
-                            </Box>
+                              </div>
+                            </div>
                           ))}
                           {(comparisonData.customerOriginal.bookingPreferences || []).length > 0 && (
-                            <Box>
-                              <Typography sx={{ fontSize: 10, color: "#92400E", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", mb: 0.5 }}>
+                            <div>
+                              <p style={{ margin: 0, fontSize: 10, color: "#92400E", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>
                                 Booking Preferences
-                              </Typography>
-                              <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
+                              </p>
+                              <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
                                 {comparisonData.customerOriginal.bookingPreferences.map((pref, pi) => (
-                                  <Box key={pi} sx={{ px: 1, py: 0.3, borderRadius: "999px", bgcolor: "#FEF3C7", border: "1px solid #FDE68A" }}>
-                                    <Typography sx={{ fontSize: 10, color: "#92400E", fontWeight: 600 }}>
+                                  <div key={pi} style={{ paddingLeft: 8, paddingRight: 8, paddingTop: 2.4, paddingBottom: 2.4, borderRadius: "999px", background: "#FEF3C7", border: "1px solid #FDE68A" }}>
+                                    <p style={{ margin: 0, fontSize: 10, color: "#92400E", fontWeight: 600 }}>
                                       {pref.preferenceType?.name && `${pref.preferenceType.name}: `}{pref.preferenceValue?.value || "—"}
-                                    </Typography>
-                                  </Box>
+                                    </p>
+                                  </div>
                                 ))}
-                              </Box>
-                            </Box>
+                              </div>
+                            </div>
                           )}
-                        </Box>
+                        </div>
                       );
                     })()}
-                  </Box>
+                  </div>
 
                   {/* ── Agent Invoice ── */}
-                  <Box sx={{ p: 2.5 }}>
-                    <Box sx={{ mb: 1.5, display: "flex", alignItems: "center", gap: 1 }}>
-                      <Box sx={{ width: 4, height: 18, bgcolor: "#000099", borderRadius: 1 }} />
-                      <Typography sx={{ fontSize: 11, fontWeight: 700, color: "#000099", letterSpacing: "0.06em", textTransform: "uppercase" }}>
+                  <div style={{ padding: 20 }}>
+                    <div style={{ marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
+                      <div style={{ width: 4, height: 18, background: "#000099", borderRadius: 4 }} />
+                      <p style={{ margin: 0, fontSize: 11, fontWeight: 700, color: "#000099", letterSpacing: "0.06em", textTransform: "uppercase" }}>
                         Agent Invoice
-                      </Typography>
-                    </Box>
+                      </p>
+                    </div>
                     {(!comparisonData?.agentInvoice?.services?.length) ? (
-                      <Typography variant="caption" color="text.secondary" sx={{ fontSize: 12 }}>No agent services yet</Typography>
+                      <p style={{ margin: 0, color: "var(--muted)",  fontSize: 12 }}>No agent services yet</p>
                     ) : (() => {
                       const groups = {};
                       (comparisonData.agentInvoice.services || []).forEach((svc) => {
@@ -2224,355 +1491,274 @@ export default function OrderDetailsPage() {
                         groups[heading].push(svc);
                       });
                       return (
-                        <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                           {Object.entries(groups).map(([heading, items]) => (
-                            <Box key={heading}>
-                              <Typography sx={{ fontSize: 11, fontWeight: 700, color: "#000099", textTransform: "uppercase", letterSpacing: "0.06em", mb: 0.75, borderBottom: "1px solid #C7D2FE", pb: 0.4 }}>
+                            <div key={heading}>
+                              <p style={{ margin: 0, fontSize: 11, fontWeight: 700, color: "#000099", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6, borderBottom: "1px solid #C7D2FE", paddingBottom: 3.2 }}>
                                 {heading}
-                              </Typography>
-                              <Box sx={{ display: "flex", flexDirection: "column", gap: 0.75 }}>
+                              </p>
+                              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                                 {items.map((svc, idx) => (
-                                  <Box key={`agent-${svc.id || idx}`} sx={{ border: "1px solid #C7D2FE", borderRadius: "10px", p: 1.4, bgcolor: "#EEF2FF" }}>
-                                    <Typography sx={{ fontSize: 13, fontWeight: 700, color: "#0F172A" }}>
+                                  <div key={`agent-${svc.id || idx}`} style={{ border: "1px solid #C7D2FE", borderRadius: "10px", padding: 11.2, background: "#EEF2FF" }}>
+                                    <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: "#0F172A" }}>
                                       {svc.subCategory?.name || svc.category?.name || "Item"}
-                                    </Typography>
-                                    <Box className="flex items-center gap-3 mt-0.5 flex-wrap">
+                                    </p>
+                                    <div className="flex items-center gap-3 mt-0.5 flex-wrap">
                                       {svc.items != null && (
-                                        <Typography sx={{ fontSize: 11, color: "#475569" }}>Qty: <b>{svc.items}</b></Typography>
+                                        <p style={{ margin: 0, fontSize: 11, color: "#475569" }}>Qty: <b>{svc.items}</b></p>
                                       )}
                                       {svc.categoryPrice != null && (
-                                        <Typography sx={{ fontSize: 11, color: "#475569" }}>£{Number(svc.categoryPrice).toFixed(2)}/pc</Typography>
+                                        <p style={{ margin: 0, fontSize: 11, color: "#475569" }}>{formatMoney(svc.categoryPrice, paymentCurrencySymbol)}/pc</p>
                                       )}
-                                    </Box>
+                                    </div>
                                     {(svc.addOns || []).length > 0 && (
-                                      <Box sx={{ mt: 0.5 }}>
+                                      <div style={{ marginTop: 4 }}>
                                         {svc.addOns.map((ad, ai) => (
-                                          <Typography key={ai} sx={{ fontSize: 11, color: "#475569" }}>
-                                            + {ad.items || 1}x {ad.addOnService?.name || "Add-on"} (£{Number(ad.price || 0).toFixed(2)})
-                                          </Typography>
+                                          <p key={ai} style={{ margin: 0, fontSize: 11, color: "#475569" }}>
+                                            + {ad.items || 1}x {ad.addOnService?.name || "Add-on"} ({formatMoney(ad.price, paymentCurrencySymbol)})
+                                          </p>
                                         ))}
-                                      </Box>
+                                      </div>
                                     )}
                                     {(svc.selectedServicePreferences || []).length > 0 && (
-                                      <Box sx={{ mt: 0.75, display: "flex", flexWrap: "wrap", gap: 0.5 }}>
+                                      <div style={{ marginTop: 6, display: "flex", flexWrap: "wrap", gap: 4 }}>
                                         {svc.selectedServicePreferences.map((pref, pi) => (
-                                          <Box key={pi} sx={{ px: 1, py: 0.3, borderRadius: "999px", bgcolor: "#E0E7FF", border: "1px solid #C7D2FE" }}>
-                                            <Typography sx={{ fontSize: 10, color: "#3730A3", fontWeight: 600 }}>
+                                          <div key={pi} style={{ paddingLeft: 8, paddingRight: 8, paddingTop: 2.4, paddingBottom: 2.4, borderRadius: "999px", background: "#E0E7FF", border: "1px solid #C7D2FE" }}>
+                                            <p style={{ margin: 0, fontSize: 10, color: "#3730A3", fontWeight: 600 }}>
                                               {pref.preferenceType?.name && `${pref.preferenceType.name}: `}{pref.preferenceValue?.value || "—"}
-                                            </Typography>
-                                          </Box>
+                                            </p>
+                                          </div>
                                         ))}
-                                      </Box>
+                                      </div>
                                     )}
                                     {svc.serviceInstruction && (
-                                      <Typography sx={{ mt: 0.5, fontSize: 11, color: "#6B7280", fontStyle: "italic" }}>
+                                      <p style={{ margin: 0, marginTop: 4, fontSize: 11, color: "#6B7280", fontStyle: "italic" }}>
                                         Note: {svc.serviceInstruction}
-                                      </Typography>
+                                      </p>
                                     )}
-                                  </Box>
+                                  </div>
                                 ))}
-                              </Box>
-                            </Box>
+                              </div>
+                            </div>
                           ))}
-                        </Box>
+                        </div>
                       );
                     })()}
-                  </Box>
-                </Box>
+                  </div>
+                </div>
               )}
-            </Paper>
+            </div>
           )}
-        </Box>
+        </div>
 
-        <Box sx={{ display: "flex", flexDirection: "column", rowGap: 2.5 }}>
-          <Paper sx={CARD_SX}>
-            <Box sx={SECTION_HEADER_SX}>
-              <Box className="flex items-center gap-1.5">
-                <Box sx={{ width: 6, height: 6, borderRadius: "50%", bgcolor: "#34D399" }} />
-                <Typography
-                  variant="caption"
-                  color="text.secondary"
-                  sx={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}
-                >
+        <div style={{ display: "flex", flexDirection: "column", rowGap: 20 }}>
+          <div style={CARD}>
+            <div style={{ ...SECTION_HEAD }}>
+              <div className="flex items-center gap-1.5">
+                <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#34D399" }} />
+                <p style={{ margin: 0, color: "var(--muted)",  fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}>
                   Payment
-                </Typography>
-              </Box>
-            </Box>
-            <Box sx={{ p: 2.5 }} className="space-y-3">
-              <Box className="flex justify-between gap-3">
-                <Typography
-                  variant="caption"
-                  color="text.secondary"
-                  sx={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em" }}
-                >
+                </p>
+              </div>
+            </div>
+            <div className="space-y-3" style={{ padding: 20 }}>
+              <div className="flex justify-between gap-3">
+                <p style={{ margin: 0, color: "var(--muted)",  fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em" }}>
                   Method
-                </Typography>
-                <Typography sx={{ fontSize: 13, fontWeight: 500, color: "#475569" }} textAlign="right">
+                </p>
+                <p style={{ margin: 0, textAlign: "right", fontSize: 13, fontWeight: 500, color: "#475569" }}>
                   {formatPaymentType(paymentSummary?.paymentType ?? orderData?.paymentType)}
-                </Typography>
-              </Box>
-              <Box className="flex justify-between gap-3 items-center">
-                <Typography
-                  variant="caption"
-                  color="text.secondary"
-                  sx={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em" }}
-                >
+                </p>
+              </div>
+              <div className="flex justify-between gap-3 items-center">
+                <p style={{ margin: 0, color: "var(--muted)",  fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em" }}>
                   Status
-                </Typography>
-                <Box
-                  sx={{
-                    px: 1.2,
-                    py: 0.35,
-                    borderRadius: "999px",
-                    bgcolor: paymentStatusBadge.bg,
-                    color: paymentStatusBadge.color,
-                    fontSize: 12,
-                    fontWeight: 700,
-                  }}
+                </p>
+                <Badge
+                  tone={paymentBadgeTone(
+                    paymentSummary?.billingPaymentStatus ?? orderData?.billingDetail?.paymentStatus
+                  )}
                 >
                   {paymentStatusBadge.label}
-                </Box>
-              </Box>
+                </Badge>
+              </div>
               {paymentWaitingAdmin ? (
-                <Box
-                  sx={{
-                    mt: 0.5,
-                    p: 1.25,
-                    borderRadius: 1.5,
-                    bgcolor: "#FEF2F2",
-                    border: "1px solid #FECACA",
-                  }}
-                >
-                  <Typography sx={{ fontSize: 12, fontWeight: 700, color: "#991B1B" }}>
+                <div style={{ marginTop: 4, padding: 10, borderRadius: 6, background: "#FEF2F2", border: "1px solid #FECACA" }}>
+                  <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: "#991B1B" }}>
                     Flagged: payment not processed — delivery held
-                  </Typography>
-                  <Typography sx={{ fontSize: 11, color: "#7F1D1D", mt: 0.5 }}>
+                  </p>
+                  <p style={{ margin: 0, fontSize: 11, color: "#7F1D1D", marginTop: 4 }}>
                     Agent is waiting for admin instruction. Resolve under Payment Failures
                     (shift to cash or allow proceed).
-                  </Typography>
+                  </p>
                   <Button
-                    size="small"
-                    color="error"
-                    sx={{ mt: 1, textTransform: "none", fontWeight: 700 }}
+                    size="sm"
+                    variant="danger"
                     onClick={() => navigate("/orders/payment-failures")}
+                    style={{ marginTop: 8 }}
                   >
                     Open Payment Failures
                   </Button>
-                </Box>
+                </div>
               ) : null}
-              <Box className="flex justify-between gap-3">
-                <Typography
-                  variant="caption"
-                  color="text.secondary"
-                  sx={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em" }}
-                >
+              <div className="flex justify-between gap-3">
+                <p style={{ margin: 0, color: "var(--muted)",  fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em" }}>
                   Amount Due
-                </Typography>
-                <Typography
-                  sx={{
-                    fontSize: 13,
+                </p>
+                <p style={{ margin: 0, textAlign: "right", fontSize: 13,
                     fontWeight: 700,
-                    color: amountDueNow > 0 ? "#B45309" : "#065F46",
-                  }}
-                  textAlign="right"
-                >
+                    color: amountDueNow > 0 ? "#B45309" : "#065F46", }}>
                   {formatMoney(amountDueNow, paymentCurrencySymbol)}
-                </Typography>
-              </Box>
+                </p>
+              </div>
               {paymentSummary?.paidAtBooking?.totalPaid > 0 ? (
-                <Box className="flex justify-between gap-3">
-                  <Typography
-                    variant="caption"
-                    color="text.secondary"
-                    sx={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em" }}
-                  >
+                <div className="flex justify-between gap-3">
+                  <p style={{ margin: 0, color: "var(--muted)",  fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em" }}>
                     Paid at Booking
-                  </Typography>
-                  <Typography sx={{ fontSize: 13, fontWeight: 500, color: "#475569" }} textAlign="right">
+                  </p>
+                  <p style={{ margin: 0, textAlign: "right", fontSize: 13, fontWeight: 500, color: "#475569" }}>
                     {formatMoney(paymentSummary.paidAtBooking.totalPaid, paymentCurrencySymbol)}
-                  </Typography>
-                </Box>
+                  </p>
+                </div>
               ) : null}
               {paymentSummary?.paymentStateLabel ? (
-                <Typography variant="caption" sx={{ fontSize: 11, color: "#64748B", display: "block" }}>
+                <p style={{ margin: 0,  fontSize: 11, color: "#64748B", display: "block" }}>
                   {paymentSummary.paymentStateLabel}
-                </Typography>
+                </p>
               ) : null}
               {orderData?.invoiceStatus ? (
-                <Box className="flex justify-between gap-3">
-                  <Typography
-                    variant="caption"
-                    color="text.secondary"
-                    sx={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em" }}
-                  >
+                <div className="flex justify-between gap-3">
+                  <p style={{ margin: 0, color: "var(--muted)",  fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em" }}>
                     Invoice
-                  </Typography>
-                  <Typography sx={{ fontSize: 13, fontWeight: 500, color: "#475569" }} textAlign="right">
+                  </p>
+                  <p style={{ margin: 0, textAlign: "right", fontSize: 13, fontWeight: 500, color: "#475569" }}>
                     {String(orderData.invoiceStatus).charAt(0).toUpperCase() +
                       String(orderData.invoiceStatus).slice(1)}
-                  </Typography>
-                </Box>
+                  </p>
+                </div>
               ) : null}
-            </Box>
-          </Paper>
+            </div>
+          </div>
 
-          <Paper sx={CARD_SX}>
-            <Box sx={SECTION_HEADER_SX}>
-              <Box className="flex items-center gap-1.5">
-                <Box sx={{ width: 6, height: 6, borderRadius: "50%", bgcolor: "#C4B5FD" }} />
-                <Typography
-                  variant="caption"
-                  color="text.secondary"
-                  sx={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}
-                >
+          <div style={CARD}>
+            <div style={{ ...SECTION_HEAD }}>
+              <div className="flex items-center gap-1.5">
+                <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#C4B5FD" }} />
+                <p style={{ margin: 0, color: "var(--muted)",  fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}>
                   Shop
-                </Typography>
-              </Box>
-            </Box>
-            <Box sx={{ p: 2.5 }} className="space-y-3">
-              <Box className="flex justify-between gap-3">
-                <Typography
-                  variant="caption"
-                  color="text.secondary"
-                  sx={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em" }}
-                >
+                </p>
+              </div>
+            </div>
+            <div className="space-y-3" style={{ padding: 20 }}>
+              <div className="flex justify-between gap-3">
+                <p style={{ margin: 0, color: "var(--muted)",  fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em" }}>
                   Shop Name
-                </Typography>
-                <Typography sx={{ fontSize: 13, fontWeight: 500, color: "#475569" }} textAlign="right">
+                </p>
+                <p style={{ margin: 0, textAlign: "right", fontSize: 13, fontWeight: 500, color: "#475569" }}>
                   {shopName || "Not assigned"}
-                </Typography>
-              </Box>
-              <Box className="flex justify-between gap-3">
-                <Typography
-                  variant="caption"
-                  color="text.secondary"
-                  sx={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em" }}
-                >
+                </p>
+              </div>
+              <div className="flex justify-between gap-3">
+                <p style={{ margin: 0, color: "var(--muted)",  fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em" }}>
                   Frequency
-                </Typography>
-                <Typography sx={{ fontSize: 13, fontWeight: 500, color: "#475569" }} textAlign="right">
+                </p>
+                <p style={{ margin: 0, textAlign: "right", fontSize: 13, fontWeight: 500, color: "#475569" }}>
                   {orderData?.frequency || "Just Once"}
-                </Typography>
-              </Box>
-            </Box>
-          </Paper>
+                </p>
+              </div>
+            </div>
+          </div>
 
-          <Paper sx={CARD_SX}>
-            <Box sx={SECTION_HEADER_SX}>
-              <Box className="flex items-center gap-1.5">
-                <Box sx={{ width: 6, height: 6, borderRadius: "50%", bgcolor: "#FBBF24" }} />
-                <Typography
-                  variant="caption"
-                  color="text.secondary"
-                  sx={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}
-                >
+          <div style={CARD}>
+            <div style={{ ...SECTION_HEAD }}>
+              <div className="flex items-center gap-1.5">
+                <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#FBBF24" }} />
+                <p style={{ margin: 0, color: "var(--muted)",  fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}>
                   Customer Review
-                </Typography>
-              </Box>
-            </Box>
-            <Box sx={{ p: 2.5 }} className="space-y-3">
+                </p>
+              </div>
+            </div>
+            <div className="space-y-3" style={{ padding: 20 }}>
               {!shopReview ? (
-                <Typography sx={{ fontSize: 13, color: "#64748B" }}>
+                <p style={{ margin: 0, fontSize: 13, color: "#64748B" }}>
                   No review submitted for this order yet.
-                </Typography>
+                </p>
               ) : (
                 <>
-                  <Box className="flex items-center justify-between gap-3">
-                    <Rating value={Number(shopReview.rating) || 0} readOnly size="small" />
-                    <Chip
-                      size="small"
-                      label={shopReview.visibility || "published"}
-                      color={shopReview.visibility === "hidden" ? "default" : "success"}
-                    />
-                  </Box>
-                  <Stack direction="row" gap={0.75} flexWrap="wrap">
+                  <div className="flex items-center justify-between gap-3">
+                    <StarRating value={Number(shopReview.rating) || 0} />
+                    <Badge tone={shopReview.visibility === "hidden" ? "neutral" : "success"}>
+                      {shopReview.visibility || "published"}
+                    </Badge>
+                  </div>
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                     {(shopReview.reasons || []).map((r) => (
-                      <Chip
+                      <Badge
                         key={`${r.code}-${r.label}`}
-                        size="small"
-                        variant="outlined"
-                        color={r.sentiment === "positive" ? "success" : "error"}
-                        label={r.otherText ? `${r.label}: ${r.otherText}` : r.label || r.code}
-                      />
+                        tone={r.sentiment === "positive" ? "success" : "danger"}
+                      >
+                        {r.otherText ? `${r.label}: ${r.otherText}` : r.label || r.code}
+                      </Badge>
                     ))}
-                  </Stack>
-                  <Typography sx={{ fontSize: 13, color: "#334155" }}>
+                  </div>
+                  <p style={{ margin: 0, fontSize: 13, color: "#334155" }}>
                     {shopReview.comment || "No written comment"}
-                  </Typography>
-                  <Typography sx={{ fontSize: 11, color: "#94A3B8" }}>
+                  </p>
+                  <p style={{ margin: 0, fontSize: 11, color: "#94A3B8" }}>
                     {shopReview.customerName || "Customer"}
                     {shopReview.submittedAt
-                      ? ` · ${dayjs(shopReview.submittedAt).format("DD MMM YYYY, HH:mm")}`
+                      ? ` · ${formatDate(shopReview.submittedAt, "DD MMM YYYY, HH:mm")}`
                       : ""}
-                  </Typography>
+                  </p>
                 </>
               )}
-            </Box>
-          </Paper>
+            </div>
+          </div>
 
-          <Paper sx={CARD_SX}>
-            <Box sx={SECTION_HEADER_SX}>
-              <Box className="flex items-center gap-1.5">
-                <Box sx={{ width: 6, height: 6, borderRadius: "50%", bgcolor: "#60A5FA" }} />
-                <Typography
-                  variant="caption"
-                  color="text.secondary"
-                  sx={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}
-                >
+          <div style={CARD}>
+            <div style={{ ...SECTION_HEAD }}>
+              <div className="flex items-center gap-1.5">
+                <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#60A5FA" }} />
+                <p style={{ margin: 0, color: "var(--muted)",  fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}>
                   Delivery Address
-                </Typography>
-              </Box>
-            </Box>
-            <Box sx={{ p: 2.5 }} className="space-y-3">
-              <Typography variant="caption" sx={{ color: "#2563EB", fontWeight: 700, fontSize: 10 }}>
+                </p>
+              </div>
+            </div>
+            <div className="space-y-3" style={{ padding: 20 }}>
+              <p style={{ margin: 0,  color: "#2563EB", fontWeight: 700, fontSize: 10 }}>
                 DELIVERY LOCATION
-              </Typography>
-              <Typography variant="body2" sx={{ lineHeight: 1.45 }}>
+              </p>
+              <p style={{ margin: 0, fontSize: 14, lineHeight: 1.45 }}>
                 {formatAddress(orderData.pickupAddress || orderData.dropOffAddress)}
-              </Typography>
-              <Box className="flex justify-between gap-3">
-                <Typography variant="caption" color="text.secondary" sx={{ fontSize: 10, textTransform: "uppercase" }}>
+              </p>
+              <div className="flex justify-between gap-3">
+                <p style={{ margin: 0, color: "var(--muted)",  fontSize: 10, textTransform: "uppercase" }}>
                   Instructions
-                </Typography>
-                <Typography variant="caption" textAlign="right">
+                </p>
+                <p style={{ margin: 0, textAlign: "right", fontSize: 12 }}>
                   {orderData?.driverInstruction || "N/A"}
-                </Typography>
-              </Box>
-            </Box>
-          </Paper>
+                </p>
+              </div>
+            </div>
+          </div>
 
-          <Paper sx={CARD_SX}>
-            <Box sx={SECTION_HEADER_SX}>
-              <Box className="flex items-center gap-1.5">
-                <Box sx={{ width: 6, height: 6, borderRadius: "50%", bgcolor: "#FBBF24" }} />
-                <Typography
-                  variant="caption"
-                  color="text.secondary"
-                  sx={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}
-                >
+          <div style={CARD}>
+            <div style={{ ...SECTION_HEAD }}>
+              <div className="flex items-center gap-1.5">
+                <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#FBBF24" }} />
+                <p style={{ margin: 0, color: "var(--muted)",  fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}>
                   Drivers
-                </Typography>
-              </Box>
-            </Box>
-            <Box sx={{ p: 2.5 }} className="space-y-3">
-              <Box>
-                <Typography variant="caption" sx={{ color: "#2563EB", fontWeight: 700, fontSize: 10 }}>
+                </p>
+              </div>
+            </div>
+            <div className="space-y-3" style={{ padding: 20 }}>
+              <div>
+                <p style={{ margin: 0,  color: "#2563EB", fontWeight: 700, fontSize: 10 }}>
                   COLLECTION DRIVER
-                </Typography>
-                <Box className="flex items-center gap-2.5 mt-2">
-                  <Box
-                    sx={{
-                      width: 32,
-                      height: 32,
-                      borderRadius: "999px",
-                      bgcolor: "#F1F5F9",
-                      border: "1px solid #E2E8F0",
-                    }}
-                  />
-                  <Typography
-                    variant="body2"
-                    sx={{
-                      fontSize: 14,
+                </p>
+                <div className="flex items-center gap-2.5 mt-2">
+                  <div style={{ width: 32, height: 32, borderRadius: "999px", background: "#F1F5F9", border: "1px solid #E2E8F0" }} />
+                  <p style={{ margin: 0,  fontSize: 14,
                       color:
                         pickupDriverLabel === "Shop owner" ||
                         pickupDriverLabel === "Unassigned"
@@ -2582,53 +1768,31 @@ export default function OrderDetailsPage() {
                         pickupDriverLabel === "Shop owner" ||
                         pickupDriverLabel === "Unassigned"
                           ? "italic"
-                          : "normal",
-                    }}
-                  >
+                          : "normal", }}>
                     {pickupDriverLabel}
-                  </Typography>
-                </Box>
+                  </p>
+                </div>
                 {pickupCompletedByLabel ? (
-                  <Typography
-                    variant="caption"
-                    sx={{ mt: 0.75, display: "block", color: "#64748B", fontSize: 12 }}
-                  >
+                  <p style={{ margin: 0,  marginTop: 6, display: "block", color: "#64748B", fontSize: 12 }}>
                     Completed by {pickupCompletedByLabel}
                     {orderData?.pickupCompletedAt
-                      ? ` · ${dayjs(orderData.pickupCompletedAt).isValid()
-                          ? dayjs(orderData.pickupCompletedAt).format("DD MMM YYYY · HH:mm")
-                          : ""}`
+                      ? ` · ${formatDate(orderData.pickupCompletedAt, "DD MMM YYYY · HH:mm")}`
                       : ""}
-                  </Typography>
+                  </p>
                 ) : null}
                 {orderData?.geofenceCompliance?.hasAnyOverride ? (
-                  <Chip
-                    size="small"
-                    color="warning"
-                    variant="outlined"
-                    label="Geofence override recorded"
-                    sx={{ mt: 1 }}
-                  />
+                  <div style={{ marginTop: 8 }}>
+                    <Badge tone="warning">Geofence override recorded</Badge>
+                  </div>
                 ) : null}
-              </Box>
-              <Box>
-                <Typography variant="caption" sx={{ color: "#059669", fontWeight: 700, fontSize: 10 }}>
+              </div>
+              <div>
+                <p style={{ margin: 0,  color: "#059669", fontWeight: 700, fontSize: 10 }}>
                   DELIVERY DRIVER
-                </Typography>
-                <Box className="flex items-center gap-2.5 mt-2">
-                  <Box
-                    sx={{
-                      width: 32,
-                      height: 32,
-                      borderRadius: "999px",
-                      bgcolor: "#F1F5F9",
-                      border: "1px solid #E2E8F0",
-                    }}
-                  />
-                  <Typography
-                    variant="body2"
-                    sx={{
-                      fontSize: 14,
+                </p>
+                <div className="flex items-center gap-2.5 mt-2">
+                  <div style={{ width: 32, height: 32, borderRadius: "999px", background: "#F1F5F9", border: "1px solid #E2E8F0" }} />
+                  <p style={{ margin: 0,  fontSize: 14,
                       color:
                         deliveryDriverLabel === "Shop owner" ||
                         deliveryDriverLabel === "Unassigned"
@@ -2638,258 +1802,143 @@ export default function OrderDetailsPage() {
                         deliveryDriverLabel === "Shop owner" ||
                         deliveryDriverLabel === "Unassigned"
                           ? "italic"
-                          : "normal",
-                    }}
-                  >
+                          : "normal", }}>
                     {deliveryDriverLabel}
-                  </Typography>
-                </Box>
+                  </p>
+                </div>
                 {deliveryCompletedByLabel ? (
-                  <Typography
-                    variant="caption"
-                    sx={{ mt: 0.75, display: "block", color: "#64748B", fontSize: 12 }}
-                  >
+                  <p style={{ margin: 0,  marginTop: 6, display: "block", color: "#64748B", fontSize: 12 }}>
                     Completed by {deliveryCompletedByLabel}
                     {orderData?.deliveryCompletedAt
-                      ? ` · ${dayjs(orderData.deliveryCompletedAt).isValid()
-                          ? dayjs(orderData.deliveryCompletedAt).format("DD MMM YYYY · HH:mm")
-                          : ""}`
+                      ? ` · ${formatDate(orderData.deliveryCompletedAt, "DD MMM YYYY · HH:mm")}`
                       : ""}
-                  </Typography>
+                  </p>
                 ) : null}
-              </Box>
-            </Box>
-          </Paper>
+              </div>
+            </div>
+          </div>
 
-          <Paper sx={CARD_SX}>
-            <Box sx={SECTION_HEADER_SX}>
-              <Box className="flex items-center gap-1.5">
-                <Box sx={{ width: 6, height: 6, borderRadius: "50%", bgcolor: "#F87171" }} />
-                <Typography
-                  variant="caption"
-                  color="text.secondary"
-                  sx={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}
-                >
+          <div style={CARD}>
+            <div style={{ ...SECTION_HEAD }}>
+              <div className="flex items-center gap-1.5">
+                <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#F87171" }} />
+                <p style={{ margin: 0, color: "var(--muted)",  fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}>
                   Attempt outcomes
-                </Typography>
-              </Box>
-            </Box>
-            <Box sx={{ p: 2.5 }} className="space-y-3">
+                </p>
+              </div>
+            </div>
+            <div className="space-y-3" style={{ padding: 20 }}>
               {attemptRows.length ? (
                 attemptRows.map((attempt) => {
                   const failed = String(attempt.status || "").toLowerCase() === "failed";
                   const feeCharged = Boolean(attempt.feeCharged);
                   return (
-                    <Box
-                      key={attempt.id}
-                      sx={{
-                        p: 1.5,
+                    <div key={attempt.id} style={{ padding: 12,
                         borderRadius: "10px",
                         border: "1px solid #E5E7EB",
-                        bgcolor: failed ? "#FFF7F7" : "#F8FAFC",
-                      }}
-                    >
-                      <Box className="flex items-center justify-between gap-2" sx={{ mb: 0.75 }}>
-                        <Typography
-                          variant="caption"
-                          sx={{
-                            fontWeight: 700,
+                        background: failed ? "#FFF7F7" : "#F8FAFC", }}>
+                      <div className="flex items-center justify-between gap-2" style={{ marginBottom: 6 }}>
+                        <p style={{ margin: 0,  fontWeight: 700,
                             fontSize: 10,
                             letterSpacing: "0.06em",
                             textTransform: "uppercase",
-                            color: attempt.attemptType === "delivery" ? "#059669" : "#2563EB",
-                          }}
-                        >
+                            color: attempt.attemptType === "delivery" ? "#059669" : "#2563EB", }}>
                           {attempt.attemptType || "attempt"} #{attempt.attemptNumber || "—"}
-                        </Typography>
-                        <Chip
-                          size="small"
-                          label={String(attempt.status || "—")}
-                          sx={{
-                            height: 22,
-                            fontSize: 11,
-                            fontWeight: 700,
-                            textTransform: "capitalize",
-                            bgcolor: failed ? "#FEE2E2" : "#E2E8F0",
-                            color: failed ? "#991B1B" : "#334155",
-                          }}
-                        />
-                      </Box>
+                        </p>
+                        <Badge tone={failed ? "danger" : "neutral"}>
+                          {String(attempt.status || "—")}
+                        </Badge>
+                      </div>
                       {failed ? (
                         <>
-                          <Typography variant="body2" sx={{ fontSize: 13, fontWeight: 600, color: "#0F172A" }}>
+                          <p style={{ margin: 0,  fontSize: 13, fontWeight: 600, color: "#0F172A" }}>
                             {attempt.failureReasonLabel || attempt.failureReason || "Reason not recorded"}
-                          </Typography>
+                          </p>
                           {attempt.failureReasonNote ? (
-                            <Typography variant="caption" sx={{ display: "block", mt: 0.5, color: "#64748B" }}>
+                            <p style={{ margin: 0, fontSize: 12, display: "block", marginTop: 4, color: "#64748B" }}>
                               Note: {attempt.failureReasonNote}
-                            </Typography>
+                            </p>
                           ) : null}
-                          <Chip
-                            size="small"
-                            label={formatAttemptFeeLabel(attempt)}
-                            sx={{
-                              mt: 1,
-                              height: 22,
-                              fontSize: 11,
-                              fontWeight: 700,
-                              bgcolor: feeCharged ? "#FFEDD5" : "#D1FAE5",
-                              color: feeCharged ? "#9A3412" : "#065F46",
-                            }}
-                          />
+                          <div style={{ marginTop: 8 }}>
+                            <Badge tone={feeCharged ? "warning" : "success"}>
+                              {formatAttemptFeeLabel(attempt)}
+                            </Badge>
+                          </div>
                         </>
                       ) : (
-                        <Typography variant="caption" sx={{ color: "#64748B" }}>
+                        <p style={{ margin: 0, fontSize: 12, color: "#64748B" }}>
                           {attempt.completedAt
-                            ? `Completed ${dayjs(attempt.completedAt).isValid()
-                                ? dayjs(attempt.completedAt).format("DD MMM YYYY · HH:mm")
-                                : ""}`
+                            ? `Completed ${formatDate(attempt.completedAt, "DD MMM YYYY · HH:mm")}`
                             : String(attempt.status || "Open")}
-                        </Typography>
+                        </p>
                       )}
                       {attempt.driverName ? (
-                        <Typography variant="caption" sx={{ display: "block", mt: 0.75, color: "#94A3B8" }}>
+                        <p style={{ margin: 0, fontSize: 12, display: "block", marginTop: 6, color: "#94A3B8" }}>
                           By {attempt.driverName}
-                        </Typography>
+                        </p>
                       ) : null}
-                    </Box>
+                    </div>
                   );
                 })
               ) : (
-                <Typography variant="body2" sx={{ color: "#94A3B8", fontSize: 13 }}>
+                <p style={{ margin: 0,  color: "#94A3B8", fontSize: 13 }}>
                   No pickup or delivery attempts recorded yet.
-                </Typography>
+                </p>
               )}
-            </Box>
-          </Paper>
+            </div>
+          </div>
 
-          <Paper sx={CARD_SX}>
-            <Box sx={SECTION_HEADER_SX}>
-              <Box className="flex items-center gap-1.5">
-                <Box sx={{ width: 6, height: 6, borderRadius: "50%", bgcolor: "#D1D5DB" }} />
-                <Typography
-                  variant="caption"
-                  color="text.secondary"
-                  sx={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}
-                >
+          <div style={CARD}>
+            <div style={{ ...SECTION_HEAD }}>
+              <div className="flex items-center gap-1.5">
+                <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#D1D5DB" }} />
+                <p style={{ margin: 0, color: "var(--muted)",  fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}>
                   Activity
-                </Typography>
-              </Box>
-            </Box>
-            <Box sx={{ p: 2.5 }} className="space-y-4">
+                </p>
+              </div>
+            </div>
+            <div className="space-y-4" style={{ padding: 20 }}>
               {activityRows.map((activity, idx) => (
-                <Box key={idx} className="flex gap-3 items-start">
-                  <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", mt: "3px" }}>
-                    <Box
-                      sx={{
-                        width: 8,
+                <div key={idx} className="flex gap-3 items-start">
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginTop: "3px" }}>
+                    <div style={{ width: 8,
                         height: 8,
                         borderRadius: "50%",
-                        bgcolor: idx === 0 ? "#4ADE80" : idx === 1 ? "#60A5FA" : "#CBD5E1",
-                        flexShrink: 0,
-                      }}
-                    />
+                        background: idx === 0 ? "#4ADE80" : idx === 1 ? "#60A5FA" : "#CBD5E1",
+                        flexShrink: 0, }} />
                     {idx < activityRows.length - 1 && (
-                      <Box sx={{ width: 1, height: 28, bgcolor: "#E2E8F0", mt: 1 }} />
+                      <div style={{ width: 1, height: 28, background: "#E2E8F0", marginTop: 8 }} />
                     )}
-                  </Box>
-                  <Box>
-                    <Typography variant="body2" sx={{ fontSize: 12, fontWeight: 600 }}>
+                  </div>
+                  <div>
+                    <p style={{ margin: 0,  fontSize: 12, fontWeight: 600 }}>
                       {activity.text}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary" sx={{ fontSize: 10 }}>
+                    </p>
+                    <p style={{ margin: 0, color: "var(--muted)",  fontSize: 10 }}>
                       {activity.time}
-                    </Typography>
-                  </Box>
-                </Box>
+                    </p>
+                  </div>
+                </div>
               ))}
-            </Box>
-          </Paper>
+            </div>
+          </div>
 
-        </Box>
-      </Box>
-    </Box>
+        </div>
+      </div>
+    </div>
 
-    <ModalComponent
+    <InvoiceDetailModal
       open={invoiceModal.open}
+      view={invoiceView}
+      format={invoiceModal.format}
+      onFormatChange={(format) => setInvoiceModal((prev) => ({ ...prev, format }))}
       onClose={handleCloseInvoiceModal}
-      title=""
-      width={760}
-      maxHeight="92vh"
-      hideHeader
-    >
-      <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
-        <Typography sx={{ textAlign: "center", fontSize: 24, fontWeight: 700, color: "#111827", lineHeight: 1.2 }}>
-          Confirm Invoice
-        </Typography>
-        <Typography sx={{ textAlign: "center", color: "#6B7280", fontSize: 14, mb: 0.5 }}>
-          Review the summary before finalizing
-        </Typography>
-        <Paper sx={{ border: "1px solid #E5E7EB", borderRadius: "12px", p: 1.25, boxShadow: "none" }}>
-          <Typography sx={{ fontSize: 11, color: "#6B7280", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", mb: 1 }}>
-            Receipt Print Format
-          </Typography>
-          <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1 }}>
-            <Button onClick={() => setInvoiceModal((p) => ({ ...p, format: "a4" }))} variant="outlined" sx={{ minHeight: 42, fontSize: 14, fontWeight: 600, textTransform: "none", borderRadius: "10px", bgcolor: invoiceModal.format === "a4" ? "#ECFDF5" : "#fff", color: invoiceModal.format === "a4" ? "#047857" : "#4B5563", borderColor: invoiceModal.format === "a4" ? "#059669" : "#D1D5DB" }}>A4 Receipt</Button>
-            <Button onClick={() => setInvoiceModal((p) => ({ ...p, format: "thermal" }))} variant="outlined" sx={{ minHeight: 42, fontSize: 14, fontWeight: 600, textTransform: "none", borderRadius: "10px", bgcolor: invoiceModal.format === "thermal" ? "#ECFDF5" : "#fff", color: invoiceModal.format === "thermal" ? "#047857" : "#4B5563", borderColor: invoiceModal.format === "thermal" ? "#059669" : "#D1D5DB" }}>58mm Thermal</Button>
-          </Box>
-        </Paper>
-        <Paper sx={{ border: "1px solid #E5E7EB", borderRadius: "12px", p: 2, boxShadow: "none" }}>
-          <Box sx={{ display: "grid", gridTemplateColumns: "1fr auto", rowGap: 1 }}>
-            <Typography sx={{ color: "#6B7280", fontSize: 14 }}>Customer</Typography>
-            <Typography sx={{ color: "#111827", fontWeight: 600, fontSize: 14 }}>{invoiceView?.customerName || "N/A"}</Typography>
-            <Typography sx={{ color: "#6B7280", fontSize: 14 }}>Invoice No.</Typography>
-            <Typography sx={{ color: "#111827", fontWeight: 600, fontSize: 14 }}>{invoiceView?.invoiceNo || "N/A"}</Typography>
-            <Typography sx={{ color: "#6B7280", fontSize: 14 }}>Receipt Format</Typography>
-            <Typography sx={{ color: "#111827", fontWeight: 600, fontSize: 14 }}>{invoiceModal.format === "a4" ? "A4 Receipt" : "58mm Thermal"}</Typography>
-            <Typography sx={{ color: "#6B7280", fontSize: 14 }}>Total Items</Typography>
-            <Typography sx={{ color: "#111827", fontWeight: 600, fontSize: 14 }}>{invoiceView?.totalItems || 0}</Typography>
-          </Box>
-          <Box sx={{ mt: 2, pt: 1.5, borderTop: "1px solid #E5E7EB", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <Typography sx={{ color: "#1F2937", fontWeight: 700, fontSize: 22 }}>Total</Typography>
-            <Typography sx={{ color: "#1F2937", fontWeight: 700, fontSize: 24 }}>£{Number(invoiceView?.grandTotal || 0).toFixed(2)}</Typography>
-          </Box>
-        </Paper>
-        <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1.3fr 1.8fr", gap: 1.5 }}>
-          <Button variant="outlined" onClick={handleCloseInvoiceModal} sx={{ minHeight: 44, borderRadius: "10px", textTransform: "none" }}>Cancel</Button>
-          <Button variant="outlined" onClick={() => setInvoiceModal((p) => ({ ...p, previewOpen: true }))} sx={{ minHeight: 44, borderRadius: "10px", textTransform: "none", color: "#047857", borderColor: "#047857", bgcolor: "#ECFDF5" }}>Preview Receipt</Button>
-          <Button variant="contained" onClick={handlePrintInvoice} sx={{ minHeight: 44, borderRadius: "10px", textTransform: "none", bgcolor: "#047857" }}>Confirm & Generate</Button>
-        </Box>
-      </Box>
-    </ModalComponent>
-
-    <ModalComponent
-      open={invoiceModal.previewOpen}
-      onClose={() => setInvoiceModal((p) => ({ ...p, previewOpen: false }))}
-      title={invoiceModal.format === "a4" ? "A4 Receipt Preview" : "58mm Thermal Preview"}
-      width={invoiceModal.format === "a4" ? 960 : 420}
-    >
-      {invoicePreviewHtml ? (
-        <Box
-          sx={{
-            border: "1px solid #D1D5DB",
-            borderRadius: "10px",
-            overflow: "hidden",
-            bgcolor: "#F8FAFC",
-          }}
-        >
-          <iframe
-            title={invoiceModal.format === "a4" ? "A4 Receipt Preview" : "58mm Thermal Preview"}
-            srcDoc={invoicePreviewHtml}
-            style={{
-              width: "100%",
-              height: invoiceModal.format === "a4" ? "76vh" : "520px",
-              border: "0",
-              background: "#fff",
-            }}
-          />
-        </Box>
-      ) : (
-        <Typography sx={{ fontSize: 13, color: "#64748B" }}>
-          Receipt preview is unavailable.
-        </Typography>
-      )}
-    </ModalComponent>
+      onPrint={handlePrintInvoice}
+      onEdit={() => {
+        handleCloseInvoiceModal();
+        navigate(`/orders/edit/${orderId}`);
+      }}
+    />
     <AssignOrderModal
       open={assignModalOpen}
       bookingId={bookingId}

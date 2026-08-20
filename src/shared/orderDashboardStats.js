@@ -47,6 +47,7 @@ export function getOrderDashboardStats(orderCountsResponse) {
     completed,
     cancelled,
     onHold,
+    actionRequired: toCount(d.actionRequiredCount),
     hasExtended,
     /** Sanity: terminal + open buckets (on-hold counted separately on backend) */
     openPipeline: pending,

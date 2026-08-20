@@ -1,24 +1,5 @@
-import React, { useState, useEffect, useMemo } from "react";
-import {
-  Box,
-  Typography,
-  IconButton,
-  List,
-  ListItem,
-  Collapse,
-  Checkbox,
-  Menu,
-  MenuItem,
-  FormControl,
-  Select,
-} from "@mui/material";
-import {
-  TbPlus,
-  RiDeleteBin6Line,
-  TbChevronDown,
-  TbDotsVertical,
-  TbPencil,
-} from "../../shared/icons/index";
+import { useState, useEffect, useMemo, useCallback } from "react";
+import { TbChevronDown, TbPencil, RiDeleteBin6Line } from "../../shared/icons/index";
 import {
   useAddPreferenceMutation,
   useAddPreferenceValueMutation,
@@ -26,20 +7,55 @@ import {
   useDeletePreferenceValueMutation,
   useEditPreferenceTypeMutation,
   useEditPreferenceValueMutation,
+  useGetAllServicesQuery,
   useGetPreferencesQuery,
+  useGetServiceWitPreferencesQuery,
 } from "../../store/services/api";
-import { MiniLoader } from "../../components/shared/Loaders";
 import { useSelector } from "react-redux";
-import ModalComponent from "../../components/shared/Modal";
-import InputFieldModal from "../../components/ui/InputFieldModal";
+import { Button, Field, Input, Select, Modal } from "../../design-system";
 import useToaster from "../../components/ui/Toaster";
+import ConfirmDeleteModal from "./ConfirmDeleteModal";
+import { EmptyHint, QueryState } from "./QueryState";
+import {
+  DirectoryDotPills,
+  DirectoryFormCard,
+  DirectoryListRow,
+  DirectoryMetrics,
+} from "../directory-table/directoryTable";
 
 function readParentPreferenceTypeId(pref) {
   if (!pref || typeof pref !== "object") return "";
-  const v =
-    pref.parentPreferenceTypeId ?? pref.parentId ?? pref.parent?.id;
+  const v = pref.parentPreferenceTypeId ?? pref.parentId ?? pref.parent?.id;
   if (v == null || v === "") return "";
   return Number(v);
+}
+
+function collectLinkedPreferenceIds(preferencesData) {
+  const ids = new Set();
+  (preferencesData || []).forEach((pref) => {
+    if (pref?.id != null) ids.add(String(pref.id));
+    if (pref?.preferenceTypeId != null) ids.add(String(pref.preferenceTypeId));
+    (pref?.childTypes || []).forEach((child) => {
+      if (child?.id != null) ids.add(String(child.id));
+    });
+  });
+  return ids;
+}
+
+function ServicePreferenceProbe({ service, onIndex }) {
+  const { data } = useGetServiceWitPreferencesQuery(service.id, {
+    skip: !service.id,
+  });
+
+  useEffect(() => {
+    onIndex(
+      String(service.id),
+      service.name,
+      collectLinkedPreferenceIds(data?.data?.preferencesData)
+    );
+  }, [data, onIndex, service.id, service.name]);
+
+  return null;
 }
 
 /** Wash Type must stay top-level — no parent preference. */
@@ -51,7 +67,6 @@ function isWashTypePreferenceName(name) {
 
 export default function PreferencesCard({ triggerAdd }) {
   const { success, error } = useToaster();
-
   const preferences = useSelector((state) => state?.apiData?.preferences);
 
   const [addPreference, { isLoading: preferenceLoading }] =
@@ -65,9 +80,51 @@ export default function PreferencesCard({ triggerAdd }) {
   const [editPreferenceType, { isLoading: editPrefTypeLoading }] =
     useEditPreferenceTypeMutation();
 
-  const { isLoading, refetch: refetchPreferences } = useGetPreferencesQuery();
+  const {
+    isLoading,
+    isError,
+    error: preferencesQueryError,
+    refetch: refetchPreferences,
+  } = useGetPreferencesQuery();
+  const { data: servicesResponse } = useGetAllServicesQuery();
+  const services = servicesResponse?.data?.services ?? [];
+  const [prefServiceIndex, setPrefServiceIndex] = useState({});
+
+  const handlePreferenceIndex = useCallback((serviceId, name, ids) => {
+    const nextIds = [...ids].sort();
+    setPrefServiceIndex((prev) => {
+      const existing = prev[serviceId];
+      if (
+        existing &&
+        existing.name === name &&
+        existing.ids.join(",") === nextIds.join(",")
+      ) {
+        return prev;
+      }
+      return { ...prev, [serviceId]: { name, ids: nextIds } };
+    });
+  }, []);
+
+  const servicesByPreferenceId = useMemo(() => {
+    const map = {};
+    Object.values(prefServiceIndex).forEach(({ name, ids }) => {
+      ids.forEach((id) => {
+        if (!map[id]) map[id] = [];
+        if (!map[id].includes(name)) map[id].push(name);
+      });
+    });
+    return map;
+  }, [prefServiceIndex]);
+
+  const parentNameById = useMemo(() => {
+    const map = {};
+    (preferences || []).forEach((pref) => {
+      map[String(pref.id)] = pref.name;
+    });
+    return map;
+  }, [preferences]);
+  const [deleteTarget, setDeleteTarget] = useState(null);
   const [expandedPrefs, setExpandedPrefs] = useState({});
-  const [anchorEl, setAnchorEl] = useState(null);
   const [preferenceData, setPreferenceData] = useState({
     name: "",
     preferenceId: "",
@@ -82,26 +139,24 @@ export default function PreferencesCard({ triggerAdd }) {
     useState(false);
 
   const parentSelectOptions = useMemo(() => {
-    if (!preferences?.length) return [];
-    if (
+    const none = [{ value: "", label: "None (top-level)" }];
+    if (!preferences?.length) return none;
+    const list =
       preferenceData.type === "preference" &&
       preferenceData.preferenceId !== "" &&
       preferenceData.preferenceId != null
-    ) {
-      return preferences.filter(
-        (p) => String(p.id) !== String(preferenceData.preferenceId)
-      );
-    }
-    return preferences;
-  }, [
-    preferences,
-    preferenceData.type,
-    preferenceData.preferenceId,
-  ]);
+        ? preferences.filter(
+            (p) => String(p.id) !== String(preferenceData.preferenceId)
+          )
+        : preferences;
+    return [
+      ...none,
+      ...list.map((p) => ({ value: String(p.id), label: p.name })),
+    ];
+  }, [preferences, preferenceData.type, preferenceData.preferenceId]);
 
   const parentSelectDisabled = isWashTypePreferenceName(preferenceData.name);
 
-  // Handle external trigger to open add modal
   useEffect(() => {
     if (triggerAdd && triggerAdd > 0 && !preferenceData.open) {
       setPreferenceData((prev) => ({
@@ -136,12 +191,17 @@ export default function PreferencesCard({ triggerAdd }) {
     }));
   };
 
-  const handleMenuClick = (event) => {
-    setAnchorEl(event.currentTarget);
-  };
-
-  const handleMenuClose = () => {
-    setAnchorEl(null);
+  const resetPreferenceData = () => {
+    setPreferenceData({
+      name: "",
+      preferenceId: "",
+      open: false,
+      valueModal: false,
+      subPreference: "",
+      subPreferenceId: "",
+      type: "",
+      parentPreferenceTypeId: "",
+    });
   };
 
   const handleAddPreference = async () => {
@@ -160,16 +220,7 @@ export default function PreferencesCard({ triggerAdd }) {
       if (res?.status === "1") {
         success("Preference added successfully!");
         handleToggle(false);
-        setPreferenceData({
-          name: "",
-          preferenceId: "",
-          open: false,
-          valueModal: false,
-          subPreference: "",
-          subPreferenceId: "",
-          type: "",
-          parentPreferenceTypeId: "",
-        });
+        resetPreferenceData();
       } else {
         error(res?.message || "Something went wrong");
       }
@@ -193,16 +244,7 @@ export default function PreferencesCard({ triggerAdd }) {
       if (res?.status === "1") {
         success("Preference updated successfully!");
         handleToggle(false);
-        setPreferenceData({
-          name: "",
-          preferenceId: "",
-          open: false,
-          valueModal: false,
-          subPreference: "",
-          subPreferenceId: "",
-          type: "",
-          parentPreferenceTypeId: "",
-        });
+        resetPreferenceData();
       } else {
         error(res?.message || "Something went wrong");
       }
@@ -212,17 +254,12 @@ export default function PreferencesCard({ triggerAdd }) {
   };
 
   const isExplicitMutationFailure = (res) =>
-    res &&
-    (res.status === "0" ||
-      res.status === 0 ||
-      res.success === false);
+    res && (res.status === "0" || res.status === 0 || res.success === false);
 
   const hasPreferenceValue = (prefList, prefId, rawValue) => {
     const value = String(rawValue || "").trim().toLowerCase();
     if (!value) return false;
-    const pref = (prefList || []).find(
-      (p) => String(p?.id) === String(prefId)
-    );
+    const pref = (prefList || []).find((p) => String(p?.id) === String(prefId));
     if (!pref || !Array.isArray(pref.preferenceValues)) return false;
     return pref.preferenceValues.some(
       (v) => String(v?.value || "").trim().toLowerCase() === value
@@ -244,39 +281,15 @@ export default function PreferencesCard({ triggerAdd }) {
 
       if (mutationResult?.data && !isExplicitMutationFailure(mutationResult.data)) {
         success("Preference value added successfully!");
-        setPreferenceData({
-          name: "",
-          preferenceId: "",
-          open: false,
-          valueModal: false,
-          subPreference: "",
-          subPreferenceId: "",
-          type: "",
-          parentPreferenceTypeId: "",
-        });
+        resetPreferenceData();
       } else {
         const refetchResult = await refetchPreferences();
         const refreshedPrefs = Array.isArray(refetchResult?.data?.data)
           ? refetchResult.data.data
           : preferences;
-        if (
-          hasPreferenceValue(
-            refreshedPrefs,
-            preferenceData.preferenceId,
-            trimmed
-          )
-        ) {
+        if (hasPreferenceValue(refreshedPrefs, preferenceData.preferenceId, trimmed)) {
           success("Preference value added successfully!");
-          setPreferenceData({
-            name: "",
-            preferenceId: "",
-            open: false,
-            valueModal: false,
-            subPreference: "",
-            subPreferenceId: "",
-            type: "",
-            parentPreferenceTypeId: "",
-          });
+          resetPreferenceData();
         } else {
           const errData = mutationResult?.error?.data;
           error(
@@ -313,16 +326,7 @@ export default function PreferencesCard({ triggerAdd }) {
       }).unwrap();
       if (!isExplicitMutationFailure(res)) {
         success("Preference value updated successfully!");
-        setPreferenceData({
-          name: "",
-          preferenceId: "",
-          open: false,
-          valueModal: false,
-          subPreference: "",
-          subPreferenceId: "",
-          type: "",
-          parentPreferenceTypeId: "",
-        });
+        resetPreferenceData();
       } else {
         error(res?.message || res?.error || "Something went wrong");
       }
@@ -338,6 +342,7 @@ export default function PreferencesCard({ triggerAdd }) {
       let res = await deletePreference(id).unwrap();
       if (res.status === "1") {
         success("Preference deleted successfully");
+        setDeleteTarget(null);
       } else {
         error(res?.message || "Failed to delete preference");
       }
@@ -346,7 +351,6 @@ export default function PreferencesCard({ triggerAdd }) {
     }
   };
 
-  // Sub-preference UI: rely on local submit flag only (RTK mutation `isLoading` can stick across repeats).
   const primaryModalLoading = preferenceData.valueModal
     ? isSubmittingSubPreference
     : preferenceData.type === "preference"
@@ -358,6 +362,7 @@ export default function PreferencesCard({ triggerAdd }) {
       let res = await deletePreferenceValue(id).unwrap();
       if (res.status === "1") {
         success("Preference value deleted successfully");
+        setDeleteTarget(null);
       } else {
         error(res?.message || "Failed to delete preference value");
       }
@@ -366,446 +371,349 @@ export default function PreferencesCard({ triggerAdd }) {
     }
   };
 
-  return isLoading ? (
-    <MiniLoader />
-  ) : (
-    <Box
-      className="w-full"
-      sx={{
-        bgcolor: "white",
-        borderRadius: "12px",
-        border: "1px solid #E4E7EC",
-        overflow: "hidden",
-        fontFamily: "Inter",
-      }}
-    >
-      {/* Header */}
-      <Box
-        sx={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          p: "16px 20px",
-          borderBottom: "1px solid #E4E7EC",
-          bgcolor: "blue.10",
-        }}
-      >
-        <Typography
-          variant="subtitle1"
-          sx={{
-            fontWeight: 700,
-            fontSize: "18px",
-            color: "#101828",
-            fontFamily: "Inter, sans-serif",
-          }}
-        >
-          Preferences
-        </Typography>
-      </Box>
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    if (deleteTarget.kind === "value") {
+      await deletePrefValue(deleteTarget.id);
+      return;
+    }
+    await deletePref(deleteTarget.id);
+  };
 
-      {/* Content */}
-      <Collapse in={true}>
-        <Box sx={{ p: "12px" }}>
-          <List sx={{ p: "0 8px" }}>
-            {preferences?.map((preference) => (
-              <Box key={preference?.id}>
-                <ListItem
-                  onClick={() => handlePrefToggle(preference?.id)}
-                  sx={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    cursor: "pointer",
-                    py: "8px",
-                    px: "16px",
-                    my: "4px",
-                    bgcolor: "blue.10",
-                    borderRadius: "4px",
-                    "&:hover": {
-                      bgcolor: "blue.20",
-                    },
+  const closeModal = () => {
+    setIsSubmittingSubPreference(false);
+    handleToggle(Boolean(preferenceData.valueModal));
+  };
+
+  const handlePrimary = () => {
+    if (primaryModalLoading) return;
+    if (preferenceData.valueModal) {
+      if (preferenceData.type === "update") handleUpdatePreferenceValue();
+      else handleAddPreferenceValue();
+      return;
+    }
+    if (preferenceData.type === "preference") handleEditPreference();
+    else handleAddPreference();
+  };
+
+  const modalTitle = preferenceData.valueModal
+    ? preferenceData.type === "update"
+      ? "Update sub Preferences"
+      : "Add sub Preferences"
+    : preferenceData.type === "preference"
+      ? "Update Preference"
+      : "Add Preference";
+
+  const primaryLabel = preferenceData.valueModal
+    ? preferenceData.type === "update"
+      ? "Update Sub Preference"
+      : "Add Sub Preference"
+    : preferenceData.type === "preference"
+      ? "Update"
+      : "Add Preference";
+
+  const totalPrefs = preferences?.length ?? 0;
+  const totalValues = (preferences || []).reduce(
+    (n, pref) => n + (pref.preferenceValues?.length || 0),
+    0
+  );
+  const linkedPreferenceCount = (preferences || []).filter(
+    (pref) => (servicesByPreferenceId[String(pref.id)] || []).length > 0
+  ).length;
+
+  if (isLoading || isError) {
+    return (
+      <QueryState
+        loading={isLoading}
+        error={preferencesQueryError || isError}
+        onRetry={refetchPreferences}
+        errorLabel="Could not load preferences. Please try again."
+      />
+    );
+  }
+
+  return (
+    <div>
+      {services.map((service) => (
+        <ServicePreferenceProbe
+          key={service.id}
+          service={service}
+          onIndex={handlePreferenceIndex}
+        />
+      ))}
+      <DirectoryMetrics
+        items={[
+          { label: "Preference types", value: totalPrefs, tone: "brand" },
+          { label: "Preference values", value: totalValues, tone: "navy" },
+          { label: "Linked to a service", value: linkedPreferenceCount, tone: "success" },
+        ]}
+      />
+    <DirectoryFormCard
+      title="Preferences"
+      hint="Attach these types to a service in Configure. Catalog then shows them on that service."
+      flush
+    >
+        {!preferences?.length ? (
+          <EmptyHint>No preferences yet. Use Add Preference to create the first type.</EmptyHint>
+        ) : null}
+        {preferences?.map((preference) => (
+          <div key={preference?.id}>
+            <DirectoryListRow
+              onClick={() => handlePrefToggle(preference?.id)}
+              style={{ cursor: "pointer" }}
+            >
+              <span style={{ minWidth: 140, display: "flex", flexDirection: "column", gap: 4 }}>
+                <span>{preference?.name}</span>
+                {(() => {
+                  const parentId = readParentPreferenceTypeId(preference);
+                  const usedOn = servicesByPreferenceId[String(preference?.id)] || [];
+                  const parentLabel =
+                    parentId !== "" ? parentNameById[String(parentId)] : "";
+                  return (
+                    <DirectoryDotPills
+                      items={[
+                        parentLabel
+                          ? { key: "parent", tone: "neutral", label: `Child of ${parentLabel}` }
+                          : { key: "top", tone: "neutral", label: "Top-level" },
+                        ...(usedOn.length
+                          ? usedOn.map((serviceName) => ({
+                              key: serviceName,
+                              tone: "info",
+                              label: serviceName,
+                            }))
+                          : [{ key: "unlinked", tone: "warning", label: "Not linked to a service" }]),
+                      ]}
+                    />
+                  );
+                })()}
+              </span>
+              <div
+                style={{ display: "flex", alignItems: "center", gap: 8 }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => {
+                    setIsSubmittingSubPreference(false);
+                    setPreferenceData((prev) => ({
+                      ...prev,
+                      name: preference?.name,
+                      preferenceId: preference?.id,
+                      type: "",
+                      subPreference: "",
+                      subPreferenceId: "",
+                      valueModal: true,
+                      open: false,
+                      parentPreferenceTypeId: "",
+                    }));
                   }}
                 >
-                  <Box
-                    sx={{ display: "flex", alignItems: "center", gap: "8px" }}
-                  >
-                    <Typography width={"140px"} variant="body1">
-                      {preference?.name}
-                    </Typography>
-                  </Box>
-                  <Box
-                    sx={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "flex-end",
-                      gap: "8px",
+                  Add Sub Preference
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => {
+                    setPreferenceData({
+                      type: "preference",
+                      preferenceId: preference?.id,
+                      name: preference?.name,
+                      open: true,
+                      parentPreferenceTypeId: isWashTypePreferenceName(
+                        preference?.name
+                      )
+                        ? ""
+                        : readParentPreferenceTypeId(preference),
+                    });
+                  }}
+                >
+                  <TbPencil size={16} />
+                  Edit
+                </Button>
+                <Button
+                  size="sm"
+                  variant="danger"
+                  disabled={preferenceDeleteLoading}
+                  onClick={() =>
+                    setDeleteTarget({
+                      kind: "preference",
+                      id: preference?.id,
+                      name: preference?.name,
+                    })
+                  }
+                >
+                  <RiDeleteBin6Line size={14} />
+                  Delete
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => handlePrefToggle(preference?.id)}
+                  aria-label={expandedPrefs[preference?.id] ? "Collapse" : "Expand"}
+                >
+                  <TbChevronDown
+                    size={18}
+                    style={{
+                      transform: expandedPrefs[preference?.id]
+                        ? "rotate(180deg)"
+                        : "none",
+                      transition: "transform 0.2s",
                     }}
-                  >
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setIsSubmittingSubPreference(false);
-                        setPreferenceData((prev) => ({
-                          ...prev,
-                          name: preference?.name,
-                          preferenceId: preference?.id,
-                          type: "",
-                          subPreference: "",
-                          subPreferenceId: "",
-                          valueModal: true,
-                          open: false,
-                          parentPreferenceTypeId: "",
-                        }));
-                      }}
-                      className="bg-gray-500 hover:bg-gray-600 text-white px-5 py-1 rounded-lg font-medium text-xs transition-all duration-200 shadow-sm hover:shadow-md flex items-center justify-center h-9 min-w-[140px]"
-                    >
-                      Add Sub Preference
-                    </button>
+                  />
+                </Button>
+              </div>
+            </DirectoryListRow>
 
-                    <IconButton
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setPreferenceData({
-                          type: "preference",
-                          preferenceId: preference?.id,
-                          name: preference?.name,
-                          open: true,
-                          parentPreferenceTypeId:
-                            isWashTypePreferenceName(preference?.name)
-                              ? ""
-                              : readParentPreferenceTypeId(preference),
-                        });
-                      }}
-                      size="small"
-                    >
-                      <TbPencil size="20px" />
-                    </IconButton>
-
-                    <IconButton
-                      disabled={preferenceDeleteLoading}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        deletePref(preference?.id);
-                      }}
-                      size="small"
-                      sx={{ color: "#EF4444" }}
-                    >
-                      <RiDeleteBin6Line size="20px" />
-                    </IconButton>
-
-                    <IconButton
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handlePrefToggle(preference?.id);
-                      }}
-                      size="small"
-                      sx={{
-                        color: "#667085",
-                        transform: expandedPrefs[preference?.id]
-                          ? "rotate(180deg)"
-                          : "rotate(0deg)",
-                        transition: "transform 0.2s",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        pointerEvents: "auto",
-                      }}
-                    >
-                      <TbChevronDown size="20px" color="black" />
-                    </IconButton>
-                  </Box>
-                </ListItem>
-
-                {/* Preference Options */}
-                <Collapse in={expandedPrefs[preference?.id]}>
-                  <Box sx={{ pb: "8px" }}>
-                    {preference?.preferenceValues?.map((option) => (
-                      <Box
-                        key={option.value}
-                        sx={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                          py: "4px",
-                          px: "4px",
-                          borderRadius: "4px",
-                          // "&:hover": {
-                          //   bgcolor: "#F9FAFB",
-                          // },
+            {expandedPrefs[preference?.id] ? (
+              <div>
+                {preference?.preferenceValues?.map((option) => (
+                  <DirectoryListRow key={option.value}>
+                    <label style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                      <input type="checkbox" defaultChecked readOnly />
+                      <span>{option?.value}</span>
+                    </label>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => {
+                          setPreferenceData((prev) => ({
+                            ...prev,
+                            name: preference.name,
+                            subPreference: option?.value,
+                            preferenceId: preference?.id,
+                            subPreferenceId: option?.id,
+                            type: "update",
+                            parentPreferenceTypeId: "",
+                            valueModal: true,
+                            open: false,
+                          }));
                         }}
                       >
-                        <Box
-                          sx={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "4px",
-                          }}
-                        >
-                          <Checkbox
-                            size="medium"
-                            defaultChecked
-                            sx={{
-                              color: "black",
-                              "&.Mui-checked": { color: "blue.100" },
-                            }}
-                          />
-                          <Typography variant="subtitle2">
-                            {option?.value}
-                          </Typography>
-                        </Box>
-                        <IconButton
-                          size="small"
-                          onClick={(e) => {
-                            handleMenuClick(e, option);
-
-                            setPreferenceData((prev) => ({
-                              ...prev,
-                              name: preference.name,
-                              subPreference: option?.value,
-                              preferenceId: preference?.id,
-                              subPreferenceId: option?.id,
-                              type: "update",
-                              parentPreferenceTypeId: "",
-                            }));
-                          }}
-                          sx={{ color: "#667085" }}
-                        >
-                          <TbDotsVertical size="20px" />
-                        </IconButton>
-                      </Box>
-                    ))}
-                  </Box>
-                </Collapse>
-              </Box>
-            ))}
-          </List>
-        </Box>
-      </Collapse>
-
-      {/* Context Menu */}
-      <Menu
-        anchorEl={anchorEl}
-        open={Boolean(anchorEl)}
-        onClose={handleMenuClose}
-        sx={{
-          "& .MuiPaper-root": {
-            borderRadius: "6px",
-            border: "1px solid #E4E7EC",
-            boxShadow: "0px 4px 16px rgba(0, 0, 0, 0.1)",
-          },
-        }}
-      >
-        <MenuItem
-          onClick={() => {
-            setPreferenceData((prev) => ({
-              ...prev,
-              valueModal: true,
-              parentPreferenceTypeId: "",
-            }));
-            handleMenuClose();
-          }}
-          className="flex items-center gap-x-2 font-sm font-Inter !px-2 !mx-2 !rounded-sm border-b"
-        >
-          <TbPencil size="20px" />
-          Edit
-        </MenuItem>
-
-        <hr className="text-gray-100 w-full !my-1.5" />
-
-        <MenuItem
-          onClick={() => {
-            deletePrefValue(preferenceData.subPreferenceId);
-            handleMenuClose();
-          }}
-          disabled={deletePrefValueLoading}
-          className="flex items-center gap-x-2 font-sm font-Inter !text-red100 !px-2 !mx-2 !rounded-sm"
-        >
-          <RiDeleteBin6Line size="20px" />
-          Delete
-        </MenuItem>
-      </Menu>
-
-      <ModalComponent
-        open={preferenceData.open || preferenceData.valueModal}
-        title={
-          preferenceData.valueModal
-            ? preferenceData.type === "update"
-              ? "Update sub  Preferences"
-              : "Add sub  Preferences"
-            : preferenceData.type === "preference"
-            ? "Update Preference"
-            : "ADD PREFERENCE"
-        }
-        onClose={() => {
-          setIsSubmittingSubPreference(false);
-          handleToggle(Boolean(preferenceData.valueModal));
-        }}
-        secondaryAction={{
-          label: "Cancel",
-          onClick: () => {
-            setIsSubmittingSubPreference(false);
-            handleToggle(Boolean(preferenceData.valueModal));
-          },
-        }}
-        primaryAction={{
-          label: preferenceData.valueModal
-            ? preferenceData.type === "update"
-              ? "Update Sub Preference"
-              : "Add Sub Preference"
-            : preferenceData.type === "preference"
-            ? "Update"
-            : "Add Preference",
-          onClick: preferenceData.valueModal
-            ? preferenceData.type === "update"
-              ? handleUpdatePreferenceValue
-              : handleAddPreferenceValue
-            : preferenceData.type === "preference"
-            ? handleEditPreference
-            : handleAddPreference,
-          isLoading: primaryModalLoading,
-        }}
-      >
-        <Box className="flex flex-col gap-5">
-          <InputFieldModal
-            title="Name (Preference Name)"
-            placeholder={"preference"}
-            name="name"
-            disabled={preferenceData.valueModal}
-            value={preferenceData?.name}
-            onChange={(e) => {
-              const name = e.target.value;
-              const wash = isWashTypePreferenceName(name);
-              setPreferenceData({
-                ...preferenceData,
-                name,
-                ...(wash ? { parentPreferenceTypeId: "" } : {}),
-              });
-            }}
-          />
-          {!preferenceData.valueModal && (
-              <Box className="w-full">
-                <Typography
-                  variant="body2"
-                  sx={{ color: "#374151", mb: "8px" }}
-                >
-                  Parent preference
-                </Typography>
-                <FormControl fullWidth>
-                  <Select
-                    displayEmpty
-                    disabled={parentSelectDisabled}
-                    value={
-                      parentSelectDisabled
-                        ? ""
-                        : preferenceData.parentPreferenceTypeId === "" ||
-                            preferenceData.parentPreferenceTypeId == null
-                          ? ""
-                          : String(preferenceData.parentPreferenceTypeId)
-                    }
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      setPreferenceData({
-                        ...preferenceData,
-                        parentPreferenceTypeId:
-                          v === "" ? "" : Number(v),
-                      });
-                    }}
-                    renderValue={(selected) => {
-                      if (parentSelectDisabled) {
-                        return (
-                          <Typography
-                            component="span"
-                            variant="body1"
-                            sx={{
-                              color: "#94A3B8",
-                              fontFamily: "Switzer",
-                            }}
-                          >
-                            Not applicable (Wash Type is top-level)
-                          </Typography>
-                        );
-                      }
-                      if (selected === "") {
-                        return (
-                          <Typography
-                            component="span"
-                            variant="body1"
-                            sx={{
-                              color: "#94A3B8",
-                              fontFamily: "Switzer",
-                            }}
-                          >
-                            Select parent preference
-                          </Typography>
-                        );
-                      }
-                      const p = preferences?.find(
-                        (pref) => String(pref.id) === selected
-                      );
-                      return (
-                        <Typography
-                          component="span"
-                          variant="body1"
-                          sx={{ fontFamily: "Switzer", fontWeight: 400 }}
-                        >
-                          {p?.name ?? selected}
-                        </Typography>
-                      );
-                    }}
-                    sx={{
-                      height: 52,
-                      borderRadius: "8px",
-                      bgcolor: parentSelectDisabled ? "#F2F4F7" : "#F4F7FF",
-                      fontFamily: "Switzer",
-                      fontWeight: 400,
-                      "& .MuiOutlinedInput-notchedOutline": {
-                        border: "none",
-                      },
-                      "&:hover .MuiOutlinedInput-notchedOutline": {
-                        border: "none",
-                      },
-                      "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
-                        border: "none",
-                      },
-                    }}
-                    MenuProps={{
-                      PaperProps: { sx: { maxHeight: 360 } },
-                    }}
-                  >
-                    <MenuItem value="">
-                      <Typography
-                        component="span"
-                        variant="body2"
-                        sx={{ color: "#94A3B8", fontStyle: "italic" }}
+                        Edit
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="danger"
+                        disabled={deletePrefValueLoading}
+                        onClick={() =>
+                          setDeleteTarget({
+                            kind: "value",
+                            id: option?.id,
+                            name: option?.value,
+                          })
+                        }
                       >
-                        None (top-level)
-                      </Typography>
-                    </MenuItem>
-                    {parentSelectOptions?.map((p) => (
-                      <MenuItem key={p.id} value={String(p.id)}>
-                        {p.name}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-              </Box>
-            )}
-          {preferenceData.valueModal && (
-            <InputFieldModal
-              title="Name (Sub Preferences)"
-              placeholder={"..."}
+                        Delete
+                      </Button>
+                    </div>
+                  </DirectoryListRow>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        ))}
+    </DirectoryFormCard>
+
+      <Modal
+        open={preferenceData.open || preferenceData.valueModal}
+        title={modalTitle}
+        onClose={closeModal}
+        secondaryLabel="Cancel"
+        primaryLabel={primaryModalLoading ? "Saving…" : primaryLabel}
+        onPrimary={handlePrimary}
+      >
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <Field label="Name (Preference Name)" htmlFor="pref-name">
+            <Input
+              id="pref-name"
               name="name"
-              value={preferenceData?.subPreference}
+              placeholder="preference"
+              disabled={preferenceData.valueModal}
+              value={preferenceData?.name}
               onChange={(e) => {
+                const name = e.target.value;
+                const wash = isWashTypePreferenceName(name);
                 setPreferenceData({
                   ...preferenceData,
-                  subPreference: e.target.value,
+                  name,
+                  ...(wash ? { parentPreferenceTypeId: "" } : {}),
                 });
               }}
             />
-          )}
-        </Box>
-      </ModalComponent>
-    </Box>
+          </Field>
+
+          {!preferenceData.valueModal ? (
+            <Field
+              label="Parent preference"
+              hint={
+                parentSelectDisabled
+                  ? "Not applicable (Wash Type is top-level)"
+                  : undefined
+              }
+            >
+              <Select
+                value={
+                  parentSelectDisabled
+                    ? ""
+                    : preferenceData.parentPreferenceTypeId === "" ||
+                        preferenceData.parentPreferenceTypeId == null
+                      ? ""
+                      : String(preferenceData.parentPreferenceTypeId)
+                }
+                onChange={(v) =>
+                  setPreferenceData({
+                    ...preferenceData,
+                    parentPreferenceTypeId: v === "" ? "" : Number(v),
+                  })
+                }
+                options={parentSelectOptions}
+                placeholder="Select parent preference"
+                disabled={parentSelectDisabled}
+              />
+            </Field>
+          ) : null}
+
+          {preferenceData.valueModal ? (
+            <Field label="Name (Sub Preferences)" htmlFor="sub-pref-name">
+              <Input
+                id="sub-pref-name"
+                name="subPreference"
+                placeholder="…"
+                value={preferenceData?.subPreference}
+                onChange={(e) => {
+                  setPreferenceData({
+                    ...preferenceData,
+                    subPreference: e.target.value,
+                  });
+                }}
+              />
+            </Field>
+          ) : null}
+        </div>
+      </Modal>
+
+      <ConfirmDeleteModal
+        open={Boolean(deleteTarget)}
+        title={
+          deleteTarget?.kind === "value"
+            ? "Delete preference value"
+            : "Delete preference"
+        }
+        description={
+          deleteTarget?.name
+            ? `Remove “${deleteTarget.name}”? This cannot be undone.`
+            : "Remove this item? This cannot be undone."
+        }
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={confirmDelete}
+        loading={
+          deleteTarget?.kind === "value"
+            ? deletePrefValueLoading
+            : preferenceDeleteLoading
+        }
+      />
+    </div>
   );
 }

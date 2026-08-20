@@ -1,43 +1,65 @@
-import { Box, Typography } from "@mui/material";
-import {
-  BsCardList,
-  MdOutlinePhone,
-  MdMailOutline,
-} from "../../../shared/icons/index";
-import Search from "../../../components/ui/Search";
+import { Badge, Button, PageHeader } from "../../../design-system";
 import { useNavigate, useParams } from "react-router-dom";
 import { useGetAdminEmployeesQuery } from "../../../store/services/api";
 import { Delay } from "../../../components/shared/Loaders";
-import { useState } from "react";
-import { IoChevronBackOutline } from "../../../shared/icons/index";
-import StatusPill from "../../../components/ui/StatusPill";
+import { extractAdminEmployees } from "../extractAdminEmployees";
+
+const PANEL = {
+  padding: 16,
+  border: "1px solid #e6e9f0",
+  borderRadius: 16,
+  background: "#fff",
+  boxShadow: "0 1px 2px rgba(16, 21, 31, 0.04)",
+};
 
 export default function EmployeeDetails() {
   const navigate = useNavigate();
   const { id } = useParams();
-  const [searchTerm, setSearchTerm] = useState("");
 
-  const { data, isLoading } = useGetAdminEmployeesQuery(undefined, { skip: !id });
-  const adminEmployees = data?.data?.adminEmployees ?? [];
+  const { data, currentData, isLoading, isFetching, isUninitialized, isError, refetch } =
+    useGetAdminEmployeesQuery(undefined, { skip: !id, refetchOnMountOrArgChange: true });
+  const payload = currentData ?? data;
+  const adminEmployees = extractAdminEmployees(payload);
   const employee = adminEmployees.find((e) => String(e.id) === String(id));
+  const showInitialLoader =
+    Boolean(id) &&
+    payload == null &&
+    !isError &&
+    (isUninitialized || isLoading || isFetching);
 
-  const handleSearchChange = (value) => setSearchTerm(value);
-
-  if (isLoading) return <Delay />;
-  if (!employee) {
+  if (showInitialLoader) {
     return (
-      <div className="!space-y-11">
-        <Box className="flex items-center gap-x-5 justify-between">
-          <button
-            type="button"
-            onClick={() => navigate(-1)}
-            aria-label="Go back"
-            className="flex items-center justify-center p-1 rounded-lg hover:bg-grey50 transition-colors"
-          >
-            <IoChevronBackOutline size={24} />
-          </button>
-        </Box>
-        <Typography>Employee not found.</Typography>
+      <div
+        style={{
+          minHeight: 280,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <Delay />
+      </div>
+    );
+  }
+  if (isError || !employee) {
+    return (
+      <div>
+        <PageHeader
+          title="Employee details"
+          actions={
+            <Button variant="secondary" onClick={() => navigate(-1)}>
+              Back
+            </Button>
+          }
+        />
+        <p style={{ color: "var(--muted)" }}>
+          {isError ? "Could not load this employee." : "Employee not found."}
+        </p>
+        {isError ? (
+          <Button variant="secondary" onClick={() => refetch()}>
+            Retry
+          </Button>
+        ) : null}
       </div>
     );
   }
@@ -45,54 +67,37 @@ export default function EmployeeDetails() {
   const fullName = [employee.firstName, employee.lastName].filter(Boolean).join(" ") || "—";
 
   return (
-    <div className="!space-y-11">
-      <Box className="flex items-center gap-x-5 justify-between">
-        <Box className="flex items-center gap-x-5">
-          <button
-            type="button"
-            onClick={() => navigate(-1)}
-            aria-label="Go back"
-            className="flex items-center justify-center p-1 rounded-lg hover:bg-grey50 transition-colors"
-          >
-            <IoChevronBackOutline size={24} />
-          </button>
-          <Typography color="blue.50">
-            <BsCardList size="24px" color="blue.50" />
-          </Typography>
-          <Typography variant="h4" fontFamily={"Switzer"} color="grey.20">
-            Employee Details
-          </Typography>
-        </Box>
-        <Search
-          placeholder="Search"
-          onChange={handleSearchChange}
-          value={searchTerm}
-        />
-      </Box>
+    <div>
+      <PageHeader
+        title="Employee details"
+        description={`ID #${employee.id}`}
+        actions={
+          <>
+            <Button variant="secondary" onClick={() => navigate(-1)}>
+              Back
+            </Button>
+            <Button onClick={() => navigate(`/employee-management/edit/${employee.id}`)}>
+              Edit
+            </Button>
+          </>
+        }
+      />
 
-      <div className="flex w-full rounded-xl bg-white !p-4">
-        <div className="w-full max-w-[720px] bg-grey50 rounded-[20px] !p-7 flex justify-between font-Inter">
-          <div className="!space-y-2">
-            <p className="text-grey20 font-medium text-2xl">ID #{employee.id}</p>
-            <p className="font-medium text-2xl !pt-4 capitalize">{fullName}</p>
-            <p className="font-medium text-base text-grey20 flex items-center gap-2">
-              <MdMailOutline size={22} />
-              {employee.email ?? "—"}
-            </p>
-            <p className="font-medium text-base text-grey20 flex items-center gap-2">
-              <MdOutlinePhone size={22} />
-              {employee.phoneNum ?? "—"}
-            </p>
-            <p className="font-medium text-base text-grey20 flex items-center gap-2">
-              Status: <StatusPill status={employee.status ? "active" : "block"} />
-            </p>
+      <div style={PANEL}>
+        <h2 style={{ margin: "0 0 8px", fontSize: 22, fontWeight: 700 }}>{fullName}</h2>
+        <p style={{ margin: "0 0 16px", color: "var(--muted)" }}>{employee.email ?? "—"}</p>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 16 }}>
+          <div>
+            <p className="jd-field__hint" style={{ margin: 0 }}>Phone</p>
+            <p style={{ margin: "6px 0 0", fontWeight: 600 }}>{employee.phoneNum ?? "—"}</p>
           </div>
-          <div className="size-20 rounded-2xl">
-            <img
-              className="w-full h-full object-center"
-              src="/images/admin.png"
-              alt="employee"
-            />
+          <div>
+            <p className="jd-field__hint" style={{ margin: 0 }}>Status</p>
+            <div style={{ marginTop: 6 }}>
+              <Badge tone={employee.status ? "success" : "danger"}>
+                {employee.status ? "active" : "block"}
+              </Badge>
+            </div>
           </div>
         </div>
       </div>

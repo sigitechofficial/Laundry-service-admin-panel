@@ -1,39 +1,115 @@
-import React, { useState, useEffect, useCallback } from "react";
-import {
-  Box,
-  Typography,
-  IconButton,
-  List,
-  ListItem,
-  Collapse,
-  Switch,
-  FormControlLabel,
-} from "@mui/material";
-import { RiDeleteBin6Line, TbPencil } from "../../shared/icons/index";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { TbGripVertical } from "react-icons/tb";
+import { RiDeleteBin6Line, TbPencil } from "../../shared/icons/index";
 import {
   useAddServiceMutation,
   useDeleteServiceMutation,
   useEditServiceMutation,
   useGetAllServicesQuery,
+  useGetCategoriesQuery,
+  useGetSubCategoriesQuery,
   useUpdateServicesSortOrderMutation,
 } from "../../store/services/api";
-import { useDispatch } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
 import { setServices } from "../../store/services/apiReducer";
-import { Delay, MiniLoader } from "../../components/shared/Loaders";
-import ModalComponent from "../../components/shared/Modal";
-import InputFieldModal from "../../components/ui/InputFieldModal";
-import TextareaField from "../../components/ui/TextArea";
-import ImageUpload from "../../components/ui/ImageUpload";
-import { useSelector } from "react-redux";
+import { Button, Field, Input, Textarea, Modal } from "../../design-system";
 import useToaster from "../../components/ui/Toaster";
-import { BASE_URL } from "../../utilities/URL";
+import { formatMoney, joinMediaUrl } from "../../utilities/formatters";
+import {
+  IMAGE_UPLOAD_ACCEPT,
+  acceptImageFile,
+} from "../../utilities/imageUploadPolicy";
+import { getApiErrorMessage } from "../../store/services/apiErrors";
+import ConfirmDeleteModal from "./ConfirmDeleteModal";
+import { EmptyHint, QueryState } from "./QueryState";
+import {
+  DirectoryActions,
+  DirectoryDotPill,
+  DirectoryIdentity,
+  DirectoryListRow,
+  DirectoryMetrics,
+  DirectoryMoney,
+  DirectoryTableWrap,
+} from "../directory-table/directoryTable";
+
+function ImageField({ label, value, onChange }) {
+  const { error: toastError } = useToaster();
+  const fileInputRef = useRef(null);
+  const src =
+    !value ? "" : typeof value === "string" ? value : URL.createObjectURL(value);
+
+  return (
+    <Field label={label} hint="JPEG, PNG, GIF, or WebP. Max 5MB.">
+      <button
+        type="button"
+        onClick={() => fileInputRef.current?.click()}
+        style={{
+          width: "100%",
+          cursor: "pointer",
+          borderRadius: "var(--r-md)",
+          background: "var(--canvas)",
+          border: "1px dashed var(--line-2)",
+          padding: 16,
+          textAlign: "center",
+          color: "var(--muted)",
+          font: "inherit",
+        }}
+      >
+        {src ? (
+          <img
+            src={src}
+            alt="Service preview"
+            style={{
+              maxHeight: 150,
+              maxWidth: "100%",
+              borderRadius: "var(--r-sm)",
+              objectFit: "cover",
+              display: "block",
+              margin: "0 auto",
+            }}
+          />
+        ) : (
+          "Upload image"
+        )}
+      </button>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept={IMAGE_UPLOAD_ACCEPT}
+        hidden
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          e.target.value = "";
+          if (!file) return;
+          const accepted = acceptImageFile(file, toastError);
+          if (accepted) onChange(accepted);
+        }}
+      />
+      {value ? (
+        <div style={{ marginTop: 8, textAlign: "center" }}>
+          <Button variant="ghost" size="sm" onClick={() => onChange(null)}>
+            Remove
+          </Button>
+        </div>
+      ) : null}
+    </Field>
+  );
+}
 
 export default function ServicesCard({ triggerAdd }) {
   const { success, error } = useToaster();
   const dispatch = useDispatch();
   const services = useSelector((state) => state?.apiData?.services);
-  const { isLoading, refetch } = useGetAllServicesQuery();
+  const { isLoading, isError, error: servicesQueryError, refetch } = useGetAllServicesQuery();
+  const { data: categoriesResponse } = useGetCategoriesQuery();
+  const { data: subCategoriesResponse } = useGetSubCategoriesQuery();
+  const allCategories = Array.isArray(categoriesResponse?.data)
+    ? categoriesResponse.data
+    : [];
+  const allSubCategories = Array.isArray(subCategoriesResponse?.data)
+    ? subCategoriesResponse.data
+    : [];
+  const [deleteTarget, setDeleteTarget] = useState(null);
   const [updateServicesSortOrder, { isLoading: reorderLoading }] =
     useUpdateServicesSortOrderMutation();
   const [dragOrder, setDragOrder] = useState(null);
@@ -92,7 +168,6 @@ export default function ServicesCard({ triggerAdd }) {
     );
   };
 
-  // Handle form data population for update modal
   useEffect(() => {
     if (add.type === "update" && add.id) {
       const serviceToEdit = services?.find((service) => service.id === add.id);
@@ -109,7 +184,7 @@ export default function ServicesCard({ triggerAdd }) {
           ...prev,
           name: serviceToEdit.name || "",
           description: serviceToEdit.description || "",
-          image: BASE_URL + serviceToEdit.image || "",
+          image: joinMediaUrl(serviceToEdit.image),
           turnaroundTime: formatTurnaroundTime(
             serviceToEdit.timeRequired ?? serviceToEdit.turnaroundTime
           ),
@@ -127,7 +202,6 @@ export default function ServicesCard({ triggerAdd }) {
     }
   }, [add.type, add.id, services]);
 
-  // Handle external trigger to open add modal
   useEffect(() => {
     if (triggerAdd && triggerAdd > 0 && !add.open) {
       setAdd((prev) => ({ ...prev, open: true, type: "add" }));
@@ -190,9 +264,9 @@ export default function ServicesCard({ triggerAdd }) {
         setDragOrder(null);
         success("Service order updated.");
         void refetch();
-      } catch {
+      } catch (err) {
         setDragOrder(null);
-        error("Could not save order. Please try again.");
+        error(getApiErrorMessage(err, "Could not save order. Please try again."));
       }
     },
     [
@@ -253,10 +327,19 @@ export default function ServicesCard({ triggerAdd }) {
   };
 
   const handleAddService = async () => {
-    if (!add.name.trim()) { error("Service name is required."); return; }
+    if (!add.name.trim()) {
+      error("Service name is required.");
+      return;
+    }
     if (add.pricedByWeight) {
-      if (!add.basePrice || isNaN(Number(add.basePrice))) { error("Enter a valid base price."); return; }
-      if (!add.baseWeightKg || isNaN(Number(add.baseWeightKg))) { error("Enter a valid base weight (kg)."); return; }
+      if (!add.basePrice || isNaN(Number(add.basePrice))) {
+        error("Enter a valid base price.");
+        return;
+      }
+      if (!add.baseWeightKg || isNaN(Number(add.baseWeightKg))) {
+        error("Enter a valid base weight (kg).");
+        return;
+      }
     }
 
     const formData = new FormData();
@@ -271,21 +354,34 @@ export default function ServicesCard({ triggerAdd }) {
       formData.append("baseWeightKg", add.baseWeightKg);
     }
 
-    let res = await addService(formData).unwrap();
-    if (res?.status === "1") {
-      handleToggle();
-      void refetch();
-    } else {
-      error("Something went wrong");
+    try {
+      let res = await addService(formData).unwrap();
+      if (res?.status === "1") {
+        handleToggle();
+        void refetch();
+      } else {
+        error(res?.message || "Something went wrong");
+      }
+    } catch (err) {
+      error(getApiErrorMessage(err, "Failed to add service"));
     }
   };
 
   const handleEditService = async () => {
     try {
-      if (!add.name.trim()) { error("Service name is required."); return; }
+      if (!add.name.trim()) {
+        error("Service name is required.");
+        return;
+      }
       if (add.pricedByWeight) {
-        if (!add.basePrice || isNaN(Number(add.basePrice))) { error("Enter a valid base price."); return; }
-        if (!add.baseWeightKg || isNaN(Number(add.baseWeightKg))) { error("Enter a valid base weight (kg)."); return; }
+        if (!add.basePrice || isNaN(Number(add.basePrice))) {
+          error("Enter a valid base price.");
+          return;
+        }
+        if (!add.baseWeightKg || isNaN(Number(add.baseWeightKg))) {
+          error("Enter a valid base weight (kg).");
+          return;
+        }
       }
 
       const formData = new FormData();
@@ -313,321 +409,318 @@ export default function ServicesCard({ triggerAdd }) {
         error("Something went wrong");
       }
     } catch (err) {
-      console.error("Error updating service:", err);
-      error("Failed to update service");
+      error(getApiErrorMessage(err, "Failed to update service"));
     }
   };
 
-  const handleDelete = async (id) => {
-    let res = await deletService(id).unwrap();
-
-    if (res.status === "1") {
-      success("Service deleted successfully");
+  const handleDelete = async () => {
+    if (!deleteTarget?.id) return;
+    try {
+      const res = await deletService(deleteTarget.id).unwrap();
+      if (res.status === "1") {
+        success("Service deleted successfully");
+        setDeleteTarget(null);
+        void refetch();
+      } else {
+        error(res?.message || "Could not delete service.");
+      }
+    } catch (err) {
+      error(getApiErrorMessage(err, "Could not delete service."));
     }
   };
 
-  return isLoading ? (
-    <MiniLoader />
-  ) : (
-    <Box
-      className="w-full"
-      sx={{
-        bgcolor: "white",
-        borderRadius: "12px",
-        border: "1px solid #E4E7EC",
-        overflow: "hidden",
-        fontFamily: "Inter",
-      }}
-    >
-      {/* Header */}
-      <Box
-        sx={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          p: "16px 20px",
-          borderBottom: "1px solid #E4E7EC",
-          bgcolor: "blue.10",
-        }}
-      >
-        <Box>
-          <Typography
-            variant="subtitle1"
-            sx={{
-              fontWeight: 700,
-              fontSize: "18px",
-              color: "#101828",
-              fontFamily: "Inter, sans-serif",
-            }}
-          >
-            Services
-          </Typography>
-          <Typography
-            variant="caption"
-            sx={{ display: "block", color: "#64748B", mt: 0.5 }}
-          >
-            Drag using the handle to set the order shown to customers.
-          </Typography>
-        </Box>
-      </Box>
+  const saving = addServiceLoading || editServiceLoading;
+  const totalServices = services?.length ?? 0;
+  const weightPriced = (services || []).filter(
+    (service) =>
+      service.pricingBasis === "weight" || service.pricingBasis === "WEIGHT"
+  ).length;
 
-      {/* Content */}
-      <Collapse in={true}>
-        <Box sx={{ p: "12px" }}>
-          <List sx={{ p: "0 8px" }}>
-            {serviceList.map((service) => (
-              <ListItem
-                key={service.id}
-                onDragOver={(e) => handleDragOverItem(e, service.id)}
-                onDragLeave={handleDragLeaveItem}
-                onDrop={(e) => handleDropOnItem(e, service.id)}
-                sx={{
-                  display: "flex",
+  if (isLoading || isError) {
+    return (
+      <QueryState
+        loading={isLoading}
+        error={servicesQueryError || isError}
+        onRetry={refetch}
+        errorLabel="Could not load services. Please try again."
+      />
+    );
+  }
+
+  return (
+    <div>
+      <DirectoryMetrics
+        items={[
+          { label: "Total services", value: totalServices, tone: "brand" },
+          { label: "Priced by weight", value: weightPriced, tone: "navy" },
+          {
+            label: "Priced by item",
+            value: Math.max(0, totalServices - weightPriced),
+            tone: "success",
+          },
+        ]}
+      />
+    <DirectoryTableWrap>
+        {serviceList.length === 0 ? (
+          <EmptyHint>No services yet. Use Add Service to create the first catalog item.</EmptyHint>
+        ) : (
+        serviceList.map((service) => {
+          const categoryCount = allCategories.filter(
+            (category) =>
+              String(category.serviceId ?? category.service?.id) ===
+              String(service.id)
+          ).length;
+          const categoryIds = new Set(
+            allCategories
+              .filter(
+                (category) =>
+                  String(category.serviceId ?? category.service?.id) ===
+                  String(service.id)
+              )
+              .map((category) => String(category.id))
+          );
+          const itemCount = allSubCategories.filter((item) =>
+            categoryIds.has(String(item.categoryId))
+          ).length;
+          const pricedByWeight =
+            service.pricingBasis === "weight" || service.pricingBasis === "WEIGHT";
+          return (
+          <DirectoryListRow
+            key={service.id}
+            active={dragOverId === service.id}
+            onDragOver={(e) => handleDragOverItem(e, service.id)}
+            onDragLeave={handleDragLeaveItem}
+            onDrop={(e) => handleDropOnItem(e, service.id)}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
+              <span
+                draggable={!reorderLoading}
+                onDragStart={(e) => handleDragStart(e, service.id)}
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                  display: "inline-flex",
                   alignItems: "center",
-                  justifyContent: "space-between",
-                  py: "8px",
-                  px: "16px",
-                  my: "8px",
-                  bgcolor:
-                    dragOverId === service.id ? "rgba(21, 112, 239, 0.12)" : "blue.10",
-                  borderRadius: "4px",
-                  border:
-                    dragOverId === service.id
-                      ? "1px dashed #1570EF"
-                      : "1px solid transparent",
+                  cursor: reorderLoading ? "not-allowed" : "grab",
+                  color: "#8a94a2",
+                  flexShrink: 0,
                 }}
+                aria-label="Drag to reorder service"
               >
-                <Box sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0 }}>
-                  <Box
-                    component="span"
-                    draggable={!reorderLoading}
-                    onDragStart={(e) => handleDragStart(e, service.id)}
-                    onClick={(e) => e.stopPropagation()}
-                    sx={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      cursor: reorderLoading ? "not-allowed" : "grab",
-                      color: "#94A3B8",
-                      flexShrink: 0,
-                      "&:active": { cursor: "grabbing" },
-                    }}
-                    aria-label="Drag to reorder service"
-                  >
-                    <TbGripVertical size={20} />
-                  </Box>
-                  <Typography variant="body1" sx={{ flex: 1 }}>
-                    {service.name}
-                  </Typography>
-                </Box>
+                <TbGripVertical size={20} />
+              </span>
+              <DirectoryIdentity
+                name={service.name}
+                meta={`${categoryCount} ${categoryCount === 1 ? "category" : "categories"} · ${itemCount} ${itemCount === 1 ? "item" : "items"}`}
+              />
+              <DirectoryDotPill tone={pricedByWeight ? "info" : "neutral"}>
+                {pricedByWeight ? "By weight" : "By item"}
+              </DirectoryDotPill>
+              {pricedByWeight && service.basePrice != null ? (
+                <DirectoryMoney>{formatMoney(service.basePrice, "£")}</DirectoryMoney>
+              ) : null}
+            </div>
 
-                <Box className="flex items-center">
-                  <IconButton
-                    disabled={editServiceLoading || reorderLoading}
-                    onClick={() => handleUpdateClick(service)}
-                    size="small"
-                  >
-                    <TbPencil size="20px" />
-                  </IconButton>
+            <DirectoryActions>
+              <Button
+                size="sm"
+                variant="secondary"
+                disabled={editServiceLoading || reorderLoading}
+                onClick={() => handleUpdateClick(service)}
+              >
+                <TbPencil size={16} />
+                Edit
+              </Button>
+              <Button
+                size="sm"
+                variant="danger"
+                disabled={deleteLoading || reorderLoading}
+                onClick={() =>
+                  setDeleteTarget({ id: service.id, name: service.name })
+                }
+              >
+                <RiDeleteBin6Line size={14} />
+                Delete
+              </Button>
+            </DirectoryActions>
+          </DirectoryListRow>
+          );
+        })
+        )}
+    </DirectoryTableWrap>
 
-                  <IconButton
-                    disabled={deleteLoading || reorderLoading}
-                    onClick={() => handleDelete(service.id)}
-                    size="small"
-                    sx={{
-                      color: "#EF4444",
-                      "&:hover": {
-                        bgcolor: "#FEF2F2",
-                      },
-                    }}
-                  >
-                    <RiDeleteBin6Line size="16px" />
-                  </IconButton>
-                </Box>
-              </ListItem>
-            ))}
-          </List>
-        </Box>
-      </Collapse>
-
-      <ModalComponent
+      <Modal
         open={add.open}
-        title={add.type === "update" ? "Update Service" : "ADD SERVICE"}
+        title={add.type === "update" ? "Update Service" : "Add Service"}
         onClose={handleToggle}
-        secondaryAction={{ label: "Cancel", onClick: handleToggle }}
-        primaryAction={{
-          label: add.type === "update" ? "Update Service" : "Add Service",
-          onClick: add.type === "update" ? handleEditService : handleAddService,
-          isLoading: addServiceLoading || editServiceLoading,
+        secondaryLabel="Cancel"
+        primaryLabel={
+          saving
+            ? add.type === "update"
+              ? "Updating…"
+              : "Adding…"
+            : add.type === "update"
+              ? "Update Service"
+              : "Add Service"
+        }
+        onPrimary={() => {
+          if (saving) return;
+          if (add.type === "update") handleEditService();
+          else handleAddService();
         }}
       >
-        <Box className="flex flex-col gap-5">
-          <ImageUpload
-            title="Service Image"
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <ImageField
+            label="Service Image"
             value={add.image}
-            onChange={(value) =>
-              setAdd((prev) => ({ ...prev, image: value }))
-            }
+            onChange={(value) => setAdd((prev) => ({ ...prev, image: value }))}
           />
 
-          <InputFieldModal
-            title="Service (Service name)"
-            label="Service Name"
-            placeholder="Service name"
-            name="name"
-            value={add.name}
-            onChange={handleChange}
-          />
+          <Field label="Service Name" htmlFor="service-name">
+            <Input
+              id="service-name"
+              name="name"
+              placeholder="Service name"
+              value={add.name}
+              onChange={handleChange}
+            />
+          </Field>
 
-          {/* Turnaround time */}
-          <InputFieldModal
-            title="Turnaround Time (Days)"
-            placeholder="e.g. 2"
-            name="turnaroundTime"
-            type="text"
-            inputMode="numeric"
-            pattern="[0-9]*"
-            value={add.turnaroundTime}
-            onChange={handleTurnaroundChange}
-          />
+          <Field label="Turnaround Time (Days)" htmlFor="turnaround-time">
+            <Input
+              id="turnaround-time"
+              name="turnaroundTime"
+              placeholder="e.g. 2"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              value={add.turnaroundTime}
+              onChange={handleTurnaroundChange}
+            />
+          </Field>
 
-          {/* Weight-based pricing toggle */}
-          <Box>
-            <FormControlLabel
-              control={
-                <Switch
-                  checked={add.pricedByWeight}
-                  onChange={(e) =>
-                    setAdd((prev) => ({
-                      ...prev,
-                      pricedByWeight: e.target.checked,
-                      basePrice: "",
-                      baseWeightKg: "",
-                      additionalPricePerKg: "",
-                    }))
-                  }
-                  color="primary"
-                />
-              }
-              label={
-                <Typography variant="body2" sx={{ color: "#374151", fontWeight: 500 }}>
-                  Priced by weight (e.g. £18.85 / 6 kg)
-                </Typography>
+          <label style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+            <input
+              type="checkbox"
+              checked={add.pricedByWeight}
+              onChange={(e) =>
+                setAdd((prev) => ({
+                  ...prev,
+                  pricedByWeight: e.target.checked,
+                  basePrice: "",
+                  baseWeightKg: "",
+                  additionalPricePerKg: "",
+                }))
               }
             />
-          </Box>
+            Priced by weight (e.g. £18.85 / 6 kg)
+          </label>
 
-          {/* Weight-pricing detail fields */}
-          {add.pricedByWeight && (
-            <Box className="flex flex-col gap-5 px-5 py-4 rounded-xl border-0">
-              <Typography variant="body2" sx={{ color: "#6B7280", fontWeight: 600, fontSize: "13px" }}>
+          {add.pricedByWeight ? (
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: 16,
+                padding: 16,
+                border: "1px solid var(--line)",
+                borderRadius: "var(--r-lg)",
+                background: "var(--canvas)",
+              }}
+            >
+              <div style={{ fontSize: 13, fontWeight: 600, color: "var(--muted)" }}>
                 Weight Pricing Details
-              </Typography>
-
-              <Box className="flex gap-4">
-                <Box className="flex-1">
-                  <InputFieldModal
-                    title="Base Price (£)"
-                    placeholder="e.g. 18.85"
+              </div>
+              <div style={{ display: "flex", gap: 16 }}>
+                <Field label="Base Price (£)" htmlFor="base-price">
+                  <Input
+                    id="base-price"
                     name="basePrice"
                     type="number"
+                    placeholder="e.g. 18.85"
                     value={add.basePrice}
                     onChange={handleChange}
                   />
-                </Box>
-                <Box className="flex-1">
-                  <InputFieldModal
-                    title="Base Weight (kg)"
-                    placeholder="e.g. 6"
+                </Field>
+                <Field label="Base Weight (kg)" htmlFor="base-weight">
+                  <Input
+                    id="base-weight"
                     name="baseWeightKg"
                     type="number"
+                    placeholder="e.g. 6"
                     value={add.baseWeightKg}
                     onChange={handleChange}
                   />
-                </Box>
-              </Box>
+                </Field>
+              </div>
+              {add.basePrice && add.baseWeightKg ? (
+                <div style={{ color: "var(--ink-2)", fontSize: 14 }}>
+                  Preview:{" "}
+                  <strong>
+                    {formatMoney(add.basePrice, "£")} / {add.baseWeightKg} kg
+                  </strong>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
 
-              {/* Live preview */}
-              {add.basePrice && add.baseWeightKg && (
-                <Box className="flex items-center gap-2 px-3 py-2 bg-white rounded-lg border border-[#D1D5DB]">
-                  <Typography variant="body2" sx={{ color: "#374151" }}>
-                    Preview:
-                  </Typography>
-                  <Typography variant="body2" sx={{ color: "#1D4ED8", fontWeight: 600 }}>
-                    £{Number(add.basePrice).toFixed(2)} / {add.baseWeightKg} kg
-                  </Typography>
-                </Box>
-              )}
-            </Box>
-          )}
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <label style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+              <input
+                type="checkbox"
+                checked={add.numberOfBags}
+                onChange={(e) =>
+                  setAdd((prev) => ({ ...prev, numberOfBags: e.target.checked }))
+                }
+              />
+              Number of bags
+            </label>
+            <label style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+              <input
+                type="checkbox"
+                checked={add.numberOfItems}
+                onChange={(e) =>
+                  setAdd((prev) => ({ ...prev, numberOfItems: e.target.checked }))
+                }
+              />
+              Number of items
+            </label>
+            <label style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+              <input
+                type="checkbox"
+                checked={add.washBleedDisclaimerEnabled}
+                onChange={(e) =>
+                  setAdd((prev) => ({
+                    ...prev,
+                    washBleedDisclaimerEnabled: e.target.checked,
+                  }))
+                }
+              />
+              Mixed wash colour-bleed disclaimer
+            </label>
+          </div>
 
-          <Box className="flex flex-col gap-1">
-            <FormControlLabel
-              control={
-                <Switch
-                  checked={add.numberOfBags}
-                  onChange={(e) =>
-                    setAdd((prev) => ({
-                      ...prev,
-                      numberOfBags: e.target.checked,
-                    }))
-                  }
-                  color="primary"
-                />
-              }
-              label={
-                <Typography variant="body2" sx={{ color: "#374151", fontWeight: 500 }}>
-                  Number of bags
-                </Typography>
-              }
+          <Field label="Description" htmlFor="service-description">
+            <Textarea
+              id="service-description"
+              name="description"
+              value={add.description}
+              onChange={handleChange}
             />
-            <FormControlLabel
-              control={
-                <Switch
-                  checked={add.numberOfItems}
-                  onChange={(e) =>
-                    setAdd((prev) => ({
-                      ...prev,
-                      numberOfItems: e.target.checked,
-                    }))
-                  }
-                  color="primary"
-                />
-              }
-              label={
-                <Typography variant="body2" sx={{ color: "#374151", fontWeight: 500 }}>
-                  Number of items
-                </Typography>
-              }
-            />
-            <FormControlLabel
-              control={
-                <Switch
-                  checked={add.washBleedDisclaimerEnabled}
-                  onChange={(e) =>
-                    setAdd((prev) => ({
-                      ...prev,
-                      washBleedDisclaimerEnabled: e.target.checked,
-                    }))
-                  }
-                  color="primary"
-                />
-              }
-              label={
-                <Typography variant="body2" sx={{ color: "#374151", fontWeight: 500 }}>
-                  Mixed wash colour-bleed disclaimer
-                </Typography>
-              }
-            />
-          </Box>
+          </Field>
+        </div>
+      </Modal>
 
-          <TextareaField
-            title="Description"
-            name="description"
-            value={add.description}
-            onChange={handleChange}
-          />
-        </Box>
-      </ModalComponent>
-    </Box>
+      <ConfirmDeleteModal
+        open={Boolean(deleteTarget)}
+        title="Delete service"
+        description={
+          deleteTarget?.name
+            ? `Remove “${deleteTarget.name}” from the catalog? This cannot be undone.`
+            : "Remove this service from the catalog?"
+        }
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={handleDelete}
+        loading={deleteLoading}
+      />
+    </div>
   );
 }

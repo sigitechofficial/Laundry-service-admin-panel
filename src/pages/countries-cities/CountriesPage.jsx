@@ -1,24 +1,26 @@
-import { useState, useRef } from "react";
-import { Box, Typography } from "@mui/material";
-import { TbPlus, BsCardList } from "../../shared/icons/index";
-import DataTable from "../../components/ui/DataTable";
-import StatusPill from "../../components/ui/StatusPill";
-import ChangeStatus from "../../components/ui/Switch";
-import ActionButtons from "../../components/ui/ActionButtons";
-import StatCard from "../../components/ui/StatCard";
-import ButtonBlueLight from "../../components/ui/ButtonBlueLight";
-import ModalComponent from "../../components/shared/Modal";
-import InputFieldModal from "../../components/ui/InputFieldModal";
-import { useForm, Controller } from "react-hook-form";
-import { BASE_URL, googleApiKey } from "../../utilities/URL";
+import { useMemo, useState, useRef } from "react";
+import { Controller, useForm } from "react-hook-form";
+import { Autocomplete } from "@react-google-maps/api";
+import { Button, Field, Input, Modal, PageHeader, Table } from "../../design-system";
 import {
-  useGetAllCountriesQuery,
+  DirectoryActions,
+  DirectoryFlagIdentity,
+  DirectoryIdentity,
+  DirectoryMetrics,
+  DirectorySearch,
+  DirectoryStatusPill,
+  DirectoryTableWrap,
+  DirectoryToolbar,
+  DirectoryViewModal,
+} from "../directory-table/directoryTable";
+import { useGoogleMaps } from "../../utilities/googleMapsConfig";
+import CountryFlag from "../../components/CountryFlag";
+import {
   useAddCountryMutation,
-  useEditCountryMutation,
   useDeleteCountryMutation,
+  useEditCountryMutation,
+  useGetAllCountriesQuery,
 } from "../../store/services/api";
-import { Delay } from "../../components/shared/Loaders";
-import { useLoadScript, Autocomplete } from "@react-google-maps/api";
 import useToaster from "../../components/ui/Toaster";
 
 export default function CountriesPage() {
@@ -26,180 +28,100 @@ export default function CountriesPage() {
   const [countryModal, setCountryModal] = useState({ open: false, data: null, isEdit: false });
   const [deleteModal, setDeleteModal] = useState({ open: false, data: null });
   const [flagPreview, setFlagPreview] = useState(null);
+  const [viewRow, setViewRow] = useState(null);
+  const [searchTerm, setSearchTerm] = useState("");
 
-  // Google Places API
-  const libraries = ["places"];
-  const { isLoaded } = useLoadScript({
-    googleMapsApiKey: googleApiKey,
-    libraries,
-  });
+  const { isLoaded, mapsError } = useGoogleMaps();
 
   const countryAutocompleteRef = useRef(null);
   const countryInputRef = useRef(null);
 
-  // API calls
-  const { data: countriesResponse, isLoading: isLoadingCountries, refetch: refetchCountries } = useGetAllCountriesQuery();
+  const { data: countriesResponse, isLoading, isError, error, refetch } = useGetAllCountriesQuery();
   const [addCountry, { isLoading: isAddingCountry }] = useAddCountryMutation();
   const [editCountry, { isLoading: isEditingCountry }] = useEditCountryMutation();
   const [deleteCountry, { isLoading: isDeletingCountry }] = useDeleteCountryMutation();
 
-  const countries = countriesResponse?.data || [];
-
   const { control, handleSubmit, reset, setValue, formState: { errors } } = useForm({
-    defaultValues: {
-      name: "",
-      shortName: "",
-      flag: "",
-    },
+    defaultValues: { name: "", shortName: "", flag: "" },
   });
 
-  // Prepare countries data for table
-  const countriesData = Array.isArray(countries) ? countries.map((country, index) => ({
-    id: country.id,
-    sl: index + 1,
-    countryId: country.id,
-    countryName: country.name,
-    countryFlag: country.image || "",
-    status: country.status !== undefined && country.status !== null ? country.status : false,
-    changeStatus: country.status !== undefined && country.status !== null ? country.status : false,
-  })) : [];
+  const countriesData = useMemo(() => {
+    const list = countriesResponse?.data || [];
+    return Array.isArray(list)
+      ? list.map((country, index) => ({
+          id: country.id,
+          sl: index + 1,
+          countryId: country.id,
+          countryName: country.name,
+          countryCode: country.shortName || "",
+          countryFlag: country.image || "",
+          status: country.status !== undefined && country.status !== null ? country.status : false,
+        }))
+      : [];
+  }, [countriesResponse?.data]);
 
-  // Countries table columns
-  const countryColumns = [
-    {
-      field: "sl",
-      headerName: "Serial No",
-      flex: 0.1,
-      minWidth: 100,
-      sortable: true,
-    },
-    {
-      field: "countryId",
-      headerName: "Id",
-      flex: 0.1,
-      minWidth: 80,
-      sortable: true,
-    },
-    {
-      field: "countryName",
-      headerName: "Country Name",
-      flex: 0.2,
-      minWidth: 150,
-      sortable: true,
-    },
-    {
-      field: "countryFlag",
-      headerName: "Country Flag",
-      flex: 0.15,
-      minWidth: 120,
-      sortable: false,
-      renderCell: (row) => (
-        <Box sx={{ display: "flex", alignItems: "center" }}>
-          {row.countryFlag ? (
-            <img
-              src={row.countryFlag.startsWith('http') ? row.countryFlag : `${BASE_URL}${row.countryFlag}`}
-              alt={row.countryName}
-              style={{ width: "40px", height: "30px", objectFit: "cover", borderRadius: "4px" }}
-              onError={(e) => {
-                e.target.style.display = "none";
-              }}
-            />
-          ) : (
-            <Typography variant="body2" color="text.secondary">No Flag</Typography>
-          )}
-        </Box>
-      ),
-    },
-    {
-      field: "status",
-      headerName: "Status",
-      flex: 0.1,
-      minWidth: 100,
-      renderCell: (row) => (
-        <StatusPill status={row.status ? "active" : "block"} />
-      ),
-      sortable: false,
-    },
-    {
-      field: "actions",
-      headerName: "Action",
-      flex: 0.15,
-      minWidth: 150,
-      renderCell: (row) => (
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-          <ChangeStatus
-            width="45px"
-            checked={row.changeStatus}
-            onChange={(e) => handleToggleStatus(row.id, e.target.checked)}
-          />
-          <ActionButtons
-            showView={false}
-            onEdit={() => handleEditCountry(row)}
-            onDelete={() => setDeleteModal({ open: true, data: row })}
-          />
-        </Box>
-      ),
-      sortable: false,
-    },
-  ];
+  const visibleCountries = useMemo(() => {
+    const q = searchTerm.trim().toLowerCase();
+    if (!q) return countriesData;
+    return countriesData.filter((row) =>
+      [row.countryName, row.countryCode, row.countryId].some((value) =>
+        String(value ?? "").toLowerCase().includes(q)
+      )
+    );
+  }, [countriesData, searchTerm]);
+
+  const closeCountryModal = () => {
+    setCountryModal({ open: false, data: null, isEdit: false });
+    if (flagPreview) URL.revokeObjectURL(flagPreview);
+    setFlagPreview(null);
+    reset();
+  };
 
   const fetchCountryFlag = async (countryCode) => {
     try {
-      const flagUrl = `https://flagcdn.com/w320/${countryCode.toLowerCase()}.png`;
-      const response = await fetch(flagUrl);
+      const response = await fetch(`https://flagcdn.com/w320/${countryCode.toLowerCase()}.png`);
       if (response.ok) {
         const blob = await response.blob();
-        const file = new File([blob], `${countryCode.toLowerCase()}_flag.png`, { type: blob.type });
-        return file;
+        return new File([blob], `${countryCode.toLowerCase()}_flag.png`, { type: blob.type });
       }
-    } catch (error) {
-      console.error("Error fetching country flag:", error);
+    } catch (err) {
+      console.error("Error fetching country flag:", err);
     }
     return null;
   };
 
   const handleCountryPlaceChanged = async () => {
-    if (countryAutocompleteRef.current) {
-      const place = countryAutocompleteRef.current.getPlace();
-      if (place) {
-        let countryName = "";
-        let countryShortName = "";
-        let countryCode = "";
-        
-        if (place.address_components) {
-          const countryComponent = place.address_components.find(
-            (component) => component.types.includes("country")
-          );
-          if (countryComponent) {
-            countryName = countryComponent.long_name;
-            countryShortName = countryComponent.short_name;
-            countryCode = countryComponent.short_name.toLowerCase();
-          }
-        }
-        
-        if (!countryName) {
-          countryName = place.name;
-        }
-        
-        if (countryName) {
-          setValue("name", countryName);
-          if (countryInputRef.current) {
-            countryInputRef.current.value = countryName;
-          }
-        }
-        
-        if (countryShortName) {
-          setValue("shortName", countryShortName);
-        }
-        
-        if (countryCode) {
-          const flagFile = await fetchCountryFlag(countryCode);
-          if (flagFile) {
-            setValue("flag", flagFile);
-            const previewUrl = URL.createObjectURL(flagFile);
-            setFlagPreview(previewUrl);
-          }
-        }
+    if (!countryAutocompleteRef.current) return;
+    const place = countryAutocompleteRef.current.getPlace();
+    if (!place) return;
+
+    let countryName = "";
+    let countryShortName = "";
+    let countryCode = "";
+
+    if (place.address_components) {
+      const countryComponent = place.address_components.find((component) =>
+        component.types.includes("country")
+      );
+      if (countryComponent) {
+        countryName = countryComponent.long_name;
+        countryShortName = countryComponent.short_name;
+        countryCode = countryComponent.short_name.toLowerCase();
+      }
+    }
+
+    if (!countryName) countryName = place.name;
+
+    if (countryName) {
+      setValue("name", countryName);
+      if (countryInputRef.current) countryInputRef.current.value = countryName;
+    }
+    if (countryShortName) setValue("shortName", countryShortName);
+    if (countryCode) {
+      const flagFile = await fetchCountryFlag(countryCode);
+      if (flagFile) {
+        setValue("flag", flagFile);
+        setFlagPreview(URL.createObjectURL(flagFile));
       }
     }
   };
@@ -213,48 +135,32 @@ export default function CountriesPage() {
   const handleEditCountry = (country) => {
     reset({
       name: country.countryName,
+      shortName: country.countryCode,
       flag: country.countryFlag,
     });
-    if (country.countryFlag) {
-      setFlagPreview(country.countryFlag.startsWith('http') ? country.countryFlag : `${BASE_URL}${country.countryFlag}`);
-    }
+    if (country.countryFlag) setFlagPreview(country.countryFlag);
     setCountryModal({ open: true, data: country, isEdit: true });
   };
 
-  const handleToggleStatus = (id, newStatus) => {
-    refetchCountries();
-  };
-
-  const onSubmitCountry = async (data) => {
+  const onSubmitCountry = async (form) => {
     try {
       const formData = new FormData();
-      formData.append("name", data.name);
-      formData.append("shortName", data.shortName || "");
-      if (data.flag) {
-        formData.append("flagImg", data.flag);
-      }
-      
+      formData.append("name", form.name);
+      formData.append("shortName", form.shortName || "");
+      if (form.flag) formData.append("flagImg", form.flag);
+
       if (countryModal.isEdit) {
-        await editCountry({
-          id: countryModal.data.countryId,
-          body: formData,
-        }).unwrap();
+        await editCountry({ id: countryModal.data.countryId, body: formData }).unwrap();
         success("Country updated successfully!");
       } else {
         await addCountry(formData).unwrap();
         success("Country added successfully!");
       }
-      
-      refetchCountries();
-      setCountryModal({ open: false, data: null, isEdit: false });
-      if (flagPreview) {
-        URL.revokeObjectURL(flagPreview);
-      }
-      setFlagPreview(null);
-      reset();
-    } catch (error) {
-      console.error("Error saving country:", error);
-      showError(error?.data?.message || "Failed to add country. Please try again.");
+
+      refetch();
+      closeCountryModal();
+    } catch (err) {
+      showError(err?.data?.message || "Failed to add country. Please try again.");
     }
   };
 
@@ -262,247 +168,206 @@ export default function CountriesPage() {
     try {
       await deleteCountry(deleteModal.data.countryId).unwrap();
       success("Country deleted successfully!");
-      refetchCountries();
+      refetch();
       setDeleteModal({ open: false, data: null });
-    } catch (error) {
-      showError(error?.data?.message || "Failed to delete country. Please try again.");
+    } catch (err) {
+      showError(err?.data?.message || "Failed to delete country. Please try again.");
     }
   };
 
-  const totalCountries = countriesData.length;
+  const columns = [
+    {
+      key: "countryName",
+      header: "Country",
+      render: (row) => (
+        <DirectoryFlagIdentity
+          flag={
+            <CountryFlag
+              imagePath={row.countryFlag}
+              countryCode={row.countryCode}
+              countryName={row.countryName}
+            />
+          }
+        >
+          <DirectoryIdentity name={row.countryName} id={row.countryId} />
+        </DirectoryFlagIdentity>
+      ),
+    },
+    {
+      key: "status",
+      header: "Status",
+      render: (row) => <DirectoryStatusPill active={row.status} />,
+    },
+    {
+      key: "actions",
+      header: "Actions",
+      render: (row) => (
+        <DirectoryActions>
+          <Button size="sm" variant="secondary" onClick={() => setViewRow(row)}>
+            View
+          </Button>
+          <Button size="sm" variant="secondary" onClick={() => handleEditCountry(row)}>
+            Edit
+          </Button>
+          <Button size="sm" variant="danger" onClick={() => setDeleteModal({ open: true, data: row })}>
+            Delete
+          </Button>
+        </DirectoryActions>
+      ),
+    },
+  ];
+
+  if (isLoading) return <p style={{ color: "var(--muted)", margin: 0 }}>Loading…</p>;
+  if (isError) {
+    return (
+      <p style={{ color: "var(--danger-700)", margin: 0 }}>
+        {error?.data?.message || "Failed to load countries."}
+      </p>
+    );
+  }
 
   return (
-    <Box>
-          {/* Header Section with Title and Button */}
-          <Box className="flex items-center gap-x-5 justify-between" sx={{ mb: "44px" }}>
-            <Box className="flex items-center gap-x-5">
-              <Typography color="blue.50">
-                <BsCardList size="24px" color="blue.50" />
-              </Typography>
-              <Typography variant="h4" fontFamily={"Switzer"} color="grey.20">
-                Countries
-              </Typography>
-            </Box>
-
-            <Box className="flex items-center gap-x-3">
-              <ButtonBlueLight
-                variant="outlined"
-                bgColor="blue.200"
-                color="white"
-                radius="8px"
-                startIcon={<TbPlus size={"24px"} />}
-                onClick={handleAddCountry}
-              >
-                Add Country
-              </ButtonBlueLight>
-            </Box>
-          </Box>
-
-          {/* Stat Card */}
-          <Box sx={{ mb: 4 }}>
-            <StatCard
-              title="TOTAL COUNTRY"
-              value={totalCountries}
-              bgColor="bg-blue-100"
-              titleColor="#3B82F6"
+    <div>
+      <style>{`
+        .pac-container { z-index: 9999 !important; border-radius: 8px; margin-top: 4px; }
+      `}</style>
+      <PageHeader
+        title="Countries"
+        description="Countries available for shop and zone mapping."
+        actions={<Button onClick={handleAddCountry}>Add Country</Button>}
+      />
+      <DirectoryMetrics
+        items={[{ label: "Total countries", value: countriesData.length, tone: "brand" }]}
+      />
+      <DirectoryTableWrap
+        toolbar={
+          <DirectoryToolbar>
+            <DirectorySearch
+              id="country-search"
+              value={searchTerm}
+              onChange={setSearchTerm}
+              placeholder="Search by country name or code…"
             />
-          </Box>
+          </DirectoryToolbar>
+        }
+      >
+        <Table
+          columns={columns}
+          rows={visibleCountries}
+          rowKey={(row) => row.id}
+          empty="No countries yet"
+        />
+      </DirectoryTableWrap>
 
-          {/* Table */}
-          <Box>
-            {isLoadingCountries ? (
-              <Delay />
-            ) : (
-              <DataTable
-                data={countriesData}
-                columns={countryColumns}
-              />
-            )}
-          </Box>
+      <DirectoryViewModal
+        open={Boolean(viewRow)}
+        title={viewRow?.countryName || "Country"}
+        onClose={() => setViewRow(null)}
+        fields={[
+          { label: "Country ID", value: viewRow?.countryId },
+          { label: "Name", value: viewRow?.countryName },
+          { label: "Status", value: viewRow?.status ? "Active" : "Inactive" },
+        ]}
+      />
 
-          {/* Add/Edit Country Modal */}
-          <ModalComponent
-            open={countryModal.open}
-            title={countryModal.isEdit ? "Edit Country" : "Add Country"}
-            onClose={() => {
-              setCountryModal({ open: false, data: null, isEdit: false });
-              if (flagPreview) {
-                URL.revokeObjectURL(flagPreview);
-              }
-              setFlagPreview(null);
-              reset();
-            }}
-            primaryAction={{
-              label: countryModal.isEdit ? "Update" : "Add Country",
-              onClick: handleSubmit(onSubmitCountry),
-              isLoading: isAddingCountry || isEditingCountry,
-            }}
-            secondaryAction={{
-              label: "Cancel",
-              onClick: () => {
-                setCountryModal({ open: false, data: null, isEdit: false });
-                if (flagPreview) {
-                  URL.revokeObjectURL(flagPreview);
-                }
-                setFlagPreview(null);
-                reset();
-              },
-            }}
-          >
-            <Box className="flex flex-col gap-5">
-              <Box className="flex flex-col gap-y-3">
-                <label htmlFor="countryName" className="text-grey40">
-                  Country Name*
-                </label>
+      <Modal
+        open={countryModal.open}
+        title={countryModal.isEdit ? "Edit Country" : "Add Country"}
+        onClose={closeCountryModal}
+        primaryLabel={
+          isAddingCountry || isEditingCountry
+            ? countryModal.isEdit
+              ? "Updating…"
+              : "Adding…"
+            : countryModal.isEdit
+              ? "Update"
+              : "Add Country"
+        }
+        primaryDisabled={isAddingCountry || isEditingCountry}
+        onPrimary={handleSubmit(onSubmitCountry)}
+        secondaryLabel="Cancel"
+      >
+        <div style={{ display: "grid", gap: 16 }}>
+          <Controller
+            name="name"
+            control={control}
+            rules={{ required: "Country name is required" }}
+            render={({ field: { onChange, value } }) => (
+              <Field label="Country name" error={errors.name?.message}>
                 {isLoaded ? (
-                  <div className="relative">
-                    <style>
-                      {`
-                        .pac-container {
-                          z-index: 9999 !important;
-                          border-radius: 8px;
-                          margin-top: 4px;
-                          box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
-                        }
-                        .pac-item {
-                          padding: 12px;
-                          cursor: pointer;
-                        }
-                        .pac-item:hover {
-                          background-color: #f3f4f6;
-                        }
-                      `}
-                    </style>
-                    <Autocomplete
-                      onLoad={(autocomplete) => {
-                        countryAutocompleteRef.current = autocomplete;
-                        if (autocomplete) {
-                          autocomplete.setTypes(["country"]);
-                        }
+                  <Autocomplete
+                    onLoad={(autocomplete) => {
+                      countryAutocompleteRef.current = autocomplete;
+                      autocomplete?.setTypes(["country"]);
+                    }}
+                    onPlaceChanged={handleCountryPlaceChanged}
+                    types={["country"]}
+                  >
+                    <input
+                      ref={countryInputRef}
+                      id="countryName"
+                      className="jd-input"
+                      placeholder="Enter country name"
+                      defaultValue={value || ""}
+                      onChange={(e) => {
+                        onChange(e.target.value);
+                        if (countryInputRef.current) countryInputRef.current.value = e.target.value;
                       }}
-                      onPlaceChanged={handleCountryPlaceChanged}
-                      types={["country"]}
-                    >
-                      <div className="w-full relative">
-                        <Controller
-                          name="name"
-                          control={control}
-                          rules={{ required: "Country name is required" }}
-                          render={({ field: { onChange, value } }) => (
-                            <input
-                              ref={countryInputRef}
-                              id="countryName"
-                              type="text"
-                              placeholder="Enter country name"
-                              defaultValue={value || ""}
-                              onChange={(e) => {
-                                onChange(e.target.value);
-                                if (countryInputRef.current) {
-                                  countryInputRef.current.value = e.target.value;
-                                }
-                              }}
-                              className="w-full h-[52px] outline-none bg-[#F4F7FF] rounded-lg !px-4 font-[Switzer] !font-normal !text-base"
-                              autoComplete="off"
-                            />
-                          )}
-                        />
-                      </div>
-                    </Autocomplete>
-                  </div>
+                      autoComplete="off"
+                    />
+                  </Autocomplete>
                 ) : (
-                  <input
-                    id="countryName"
-                    type="text"
-                    placeholder="Loading Google Maps..."
-                    disabled
-                    className="w-full h-[52px] outline-none bg-[#F4F7FF] rounded-lg !px-4 font-[Switzer] !font-normal !text-base opacity-50"
-                  />
-                )}
-              </Box>
-              {errors.name && (
-                <Typography variant="caption" sx={{ color: "error.main", mt: -4 }}>
-                  {errors.name.message}
-                </Typography>
-              )}
-
-              <Controller
-                name="shortName"
-                control={control}
-                rules={{ required: "Country short name is required" }}
-                render={({ field: { onChange, value } }) => (
-                  <InputFieldModal
-                    title="Country Short Name*"
-                    placeholder="Auto-filled from Google Places"
+                  <Input
                     value={value || ""}
+                    placeholder={mapsError ? "Type country name (Maps unavailable)" : "Loading Google Maps..."}
+                    disabled={!mapsError && !isLoaded}
                     onChange={(e) => onChange(e.target.value)}
-                    disabled={true}
                   />
                 )}
-              />
-              {errors.shortName && (
-                <Typography variant="caption" sx={{ color: "error.main", mt: -4 }}>
-                  {errors.shortName.message}
-                </Typography>
-              )}
-
-              <Controller
-                name="flag"
-                control={control}
-                render={({ field: { onChange, value } }) => (
-                  <Box>
-                    <Typography variant="body2" sx={{ mb: "8px", color: "#374151" }}>
-                      Country Flag {value ? "(Auto-filled from Google Places)" : ""}
-                    </Typography>
-                    {flagPreview && (
-                      <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-                        <img
-                          src={flagPreview}
-                          alt="Country Flag"
-                          style={{
-                            width: "80px",
-                            height: "60px",
-                            objectFit: "cover",
-                            borderRadius: "8px",
-                            border: "1px solid #E5E7EB",
-                          }}
-                        />
-                        <Typography variant="caption" sx={{ color: "success.main" }}>
-                          Flag automatically fetched from Google Places API
-                        </Typography>
-                      </Box>
-                    )}
-                    {!flagPreview && (
-                      <Typography variant="caption" sx={{ color: "text.secondary" }}>
-                        Flag will be automatically fetched when you select a country
-                      </Typography>
-                    )}
-                  </Box>
-                )}
-              />
-            </Box>
-          </ModalComponent>
-
-          {/* Delete Confirmation Modal */}
-          <ModalComponent
-            open={deleteModal.open}
-            title="Delete Country"
-            onClose={() => setDeleteModal({ open: false, data: null })}
-            primaryAction={{
-              label: "Delete",
-              onClick: handleDelete,
-              isLoading: isDeletingCountry,
-              sx: { bgcolor: "error.main", "&:hover": { bgcolor: "error.dark" } },
-            }}
-            secondaryAction={{
-              label: "Cancel",
-              onClick: () => setDeleteModal({ open: false, data: null }),
-            }}
+              </Field>
+            )}
+          />
+          <Controller
+            name="shortName"
+            control={control}
+            rules={{ required: "Country short name is required" }}
+            render={({ field: { value } }) => (
+              <Field label="Country short name" hint="Auto-filled from Google Places" error={errors.shortName?.message}>
+                <Input value={value || ""} disabled placeholder="Auto-filled from Google Places" />
+              </Field>
+            )}
+          />
+          <Field
+            label={flagPreview ? "Country flag (auto-filled)" : "Country flag"}
+            hint={flagPreview ? "Flag automatically fetched from Google Places" : "Flag is fetched when you select a country"}
           >
-            <Typography>
-              Are you sure you want to delete this country? This action cannot be undone.
-            </Typography>
-          </ModalComponent>
-        </Box>
+            {flagPreview ? (
+              <CountryFlag
+                imagePath={flagPreview}
+                countryCode={countryModal.data?.countryCode}
+                countryName={countryModal.data?.countryName || "Selected country"}
+                width={80}
+                height={60}
+                borderRadius={8}
+              />
+            ) : (
+              <span style={{ color: "var(--muted)", fontSize: 13 }}>No flag yet</span>
+            )}
+          </Field>
+        </div>
+      </Modal>
+
+      <Modal
+        open={deleteModal.open}
+        title="Delete Country"
+        description="Are you sure you want to delete this country? This action cannot be undone."
+        onClose={() => setDeleteModal({ open: false, data: null })}
+        primaryLabel={isDeletingCountry ? "Deleting…" : "Delete"}
+        primaryDisabled={isDeletingCountry}
+        onPrimary={handleDelete}
+        secondaryLabel="Cancel"
+        danger
+      />
+    </div>
   );
 }
-

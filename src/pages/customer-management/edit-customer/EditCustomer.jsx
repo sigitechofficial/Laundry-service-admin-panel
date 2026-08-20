@@ -1,39 +1,28 @@
-import { Box, Typography } from "@mui/material";
 import { useParams, useNavigate } from "react-router-dom";
-import { useSelector } from "react-redux";
-import { IoChevronBackOutline } from "../../../shared/icons/index";
 import { useEffect } from "react";
 import {
   useEditCustomerMutation,
-  useGetAllCustomersQuery,
+  useGetCustomerByIdQuery,
 } from "../../../store/services/api";
 import useToaster from "../../../components/ui/Toaster";
-import ButtonBlue from "../../../components/ui/ButtonBlue";
-import ButtonWhite from "../../../components/ui/ButtonWhite";
+import { Button, Field, Input, PageHeader } from "../../../design-system";
 import { Delay } from "../../../components/shared/Loaders";
 import { useForm } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
-
 import { editCustomerDefaultValues, editCustomerSchema } from "../constants";
-import FormInputField from "../../../components/ui/FormInputField";
+import { DirectoryFormCard, DirectoryFormGrid, DirectoryStack } from "../../directory-table/directoryTable";
 
 export default function EditCustomer() {
   const { id } = useParams();
   const navigate = useNavigate();
 
-  const customer = useSelector((state) =>
-    state?.apiData?.customers?.find((item) => item.id == id)
-  );
-
-  const { isLoading: isFetchingCustomers } = useGetAllCustomersQuery(
-    undefined,
-    {
-      skip: !id || customer?.id,
-    }
-  );
+  const { data, isLoading: isFetchingCustomer } = useGetCustomerByIdQuery(id, {
+    skip: !id,
+  });
+  const userDetails = data?.data?.userDetails;
+  const customer = userDetails?.user;
 
   const [updateCustomer, { isLoading }] = useEditCustomerMutation();
-
   const { success, error } = useToaster();
 
   const {
@@ -57,11 +46,10 @@ export default function EditCustomer() {
       confirmPassword: data.confirmPassword,
     };
 
-    let res = await updateCustomer({ id, body });
+    const res = await updateCustomer({ id, body });
 
     if (res?.data?.status === "1") {
       success(res?.data?.message);
-      // window.history.back();
     } else {
       error(res?.data?.error || "Failed to update customer");
     }
@@ -76,117 +64,64 @@ export default function EditCustomer() {
         phoneNum: customer?.phoneNum || "",
         password: customer?.password || "",
         confirmPassword: customer?.confirmPassword || "",
-        status: customer?.status || "",
+        status: customer?.status || userDetails?.status || "",
       });
     }
-  }, [customer, reset]);
+  }, [customer, reset, userDetails?.status]);
 
-  if (isFetchingCustomers) return <Delay />;
+  if (isFetchingCustomer) return <Delay />;
 
   return (
-    <Box className="w-full">
-            <Box className="flex items-center gap-x-5 mb-6">
-              <button
-                type="button"
-                onClick={() => navigate(-1)}
-                aria-label="Go back"
-                className="flex items-center justify-center p-1 rounded-lg hover:bg-grey50 transition-colors"
-              >
-                <IoChevronBackOutline size={24} />
-              </button>
-              <Typography
-                variant="h4"
-                sx={{
-                  fontSize: "1.5rem",
-                  fontWeight: 700,
-                  fontFamily: "Switzer, sans-serif",
-                  color: "#101828",
-                  letterSpacing: "-0.02em",
-                }}
-              >
-                Customer Update
-              </Typography>
-            </Box>
+    <div>
+      <PageHeader
+        title="Customer update"
+        description="Update this customer account"
+        actions={
+          <Button variant="secondary" onClick={() => navigate(-1)}>
+            Back
+          </Button>
+        }
+      />
 
-            <form onSubmit={handleSubmit(onSubmit)}>
-              <Box className="w-full grid grid-cols-2 gap-5 !pt-10">
-                <Box className="bg-white rounded-xl !p-7 !space-y-5">
-                  <FormInputField
-                    title="First Name"
-                    label="First Name"
-                    placeholder="First Name"
-                    name="firstName"
-                    register={register}
-                    error={errors.firstName}
-                  />
+      <form onSubmit={handleSubmit(onSubmit)}>
+        <DirectoryFormGrid>
+          <DirectoryFormCard title="Profile">
+          <DirectoryStack>
+            <Field label="First name" error={errors.firstName?.message} htmlFor="edit-customer-first-name">
+              <Input id="edit-customer-first-name" placeholder="First name" {...register("firstName")} error={!!errors.firstName} />
+            </Field>
+            <Field label="Last name" error={errors.lastName?.message} htmlFor="edit-customer-last-name">
+              <Input id="edit-customer-last-name" placeholder="Last name" {...register("lastName")} error={!!errors.lastName} />
+            </Field>
+            <Field label="Phone number" error={errors.phoneNum?.message} htmlFor="edit-customer-phone">
+              <Input id="edit-customer-phone" placeholder="Phone number" {...register("phoneNum")} error={!!errors.phoneNum} />
+            </Field>
+          </DirectoryStack>
+          </DirectoryFormCard>
+          <DirectoryFormCard title="Account">
+          <DirectoryStack>
+            <Field label="Email" error={errors.email?.message} htmlFor="edit-customer-email">
+              <Input id="edit-customer-email" type="email" placeholder="Email" {...register("email")} error={!!errors.email} />
+            </Field>
+            <Field label="Password" error={errors.password?.message} htmlFor="edit-customer-password">
+              <Input id="edit-customer-password" type="password" placeholder="Password" {...register("password")} error={!!errors.password} />
+            </Field>
+            <Field label="Confirm password" error={errors.confirmPassword?.message} htmlFor="edit-customer-confirm">
+              <Input id="edit-customer-confirm" type="password" placeholder="Confirm password" {...register("confirmPassword")} error={!!errors.confirmPassword} />
+            </Field>
+          </DirectoryStack>
+          </DirectoryFormCard>
+        </DirectoryFormGrid>
 
-                  <FormInputField
-                    title="Last Name"
-                    label="Last Name"
-                    placeholder="Last Name"
-                    name="lastName"
-                    register={register}
-                    error={errors.lastName}
-                  />
-
-                  <FormInputField
-                    title="Phone Number"
-                    label="Phone Number"
-                    placeholder="Phone Number"
-                    name="phoneNum"
-                    register={register}
-                    error={errors.phoneNum}
-                  />
-                </Box>
-
-                <Box className="bg-white rounded-xl !p-7 !space-y-5">
-                  <FormInputField
-                    title="Email"
-                    label="Email"
-                    type="email"
-                    placeholder="Email"
-                    name="email"
-                    register={register}
-                    error={errors.email}
-                  />
-
-                  <FormInputField
-                    title="Password"
-                    label="Password"
-                    type="password"
-                    placeholder="Password"
-                    name="password"
-                    register={register}
-                    error={errors.password}
-                  />
-
-                  <FormInputField
-                    title="Confirm Password"
-                    label="Confirm Password"
-                    type="password"
-                    placeholder="Confirm Password"
-                    name="confirmPassword"
-                    register={register}
-                    error={errors.confirmPassword}
-                  />
-                </Box>
-              </Box>
-
-              <Box className="w-full flex justify-end gap-5 !pt-10 !pr-5">
-                <ButtonWhite
-                  text="Cancel"
-                  onClick={() => navigate(-1)}
-                  size="medium"
-                />
-
-                <ButtonBlue
-                  text="Update"
-                  type="submit"
-                  isLoading={isLoading}
-                  size="medium"
-                />
-              </Box>
-            </form>
-    </Box>
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 20 }}>
+          <Button type="button" variant="secondary" onClick={() => navigate(-1)}>
+            Cancel
+          </Button>
+          <Button type="submit" disabled={isLoading}>
+            {isLoading ? "Updating…" : "Update"}
+          </Button>
+        </div>
+      </form>
+    </div>
   );
 }
