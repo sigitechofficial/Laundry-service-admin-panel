@@ -25,13 +25,15 @@ function adminAuthHeaders() {
  * Authenticated Geocoding via the admin API (server key). Do not call
  * maps.googleapis.com Geocoding REST from the browser.
  *
- * @param {{ latlng?: string, address?: string }} query
+ * @param {{ latlng?: string, address?: string, country?: string, components?: string }} query
  * @returns {Promise<{ results: Array, status: string }>}
  */
-export async function adminGeocode({ latlng, address } = {}) {
+export async function adminGeocode({ latlng, address, country, components } = {}) {
   const params = new URLSearchParams();
   if (latlng) params.set("latlng", String(latlng));
   if (address) params.set("address", String(address));
+  if (country) params.set("country", String(country));
+  if (components) params.set("components", String(components));
 
   const res = await fetchWithTimeout(
     `${apiRoot()}/admin/maps/geocode?${params.toString()}`,

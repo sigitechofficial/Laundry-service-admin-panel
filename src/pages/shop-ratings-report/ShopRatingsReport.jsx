@@ -19,6 +19,7 @@ import {
   DirectoryViewModal,
 } from "../directory-table/directoryTable";
 import ReportToolbar from "../reports/ReportToolbar";
+import { useReportFilters } from "../reports/reportQueryUtils";
 import {
   downloadReportCsv,
   RatingHistogram,
@@ -101,10 +102,7 @@ function Section({ title, description, children }) {
 export default function ShopRatingsReport() {
   const [sort, setSort] = useState("avg_desc");
   const [minReviews, setMinReviews] = useState("5");
-  const [period, setPeriod] = useState("all");
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
-  const [zoneId, setZoneId] = useState("");
+  const f = useReportFilters({ paginated: false });
   const [viewRow, setViewRow] = useState(null);
   const [selectedReason, setSelectedReason] = useState(null);
 
@@ -114,23 +112,23 @@ export default function ShopRatingsReport() {
   );
   const insightsQuery = useMemo(
     () => ({
-      period,
-      ...(period === "custom" && startDate ? { startDate } : {}),
-      ...(period === "custom" && endDate ? { endDate } : {}),
-      ...(zoneId ? { zoneId } : {}),
+      period: f.period,
+      ...(f.period === "custom" && f.startDate ? { startDate: f.startDate } : {}),
+      ...(f.period === "custom" && f.endDate ? { endDate: f.endDate } : {}),
+      ...(f.zoneId ? { zoneId: f.zoneId } : {}),
     }),
-    [endDate, period, startDate, zoneId]
+    [f.endDate, f.period, f.startDate, f.zoneId]
   );
   const reasonShopsQuery = useMemo(
     () => ({
       reasonCode: selectedReason?.code,
-      period,
-      ...(period === "custom" && startDate ? { startDate } : {}),
-      ...(period === "custom" && endDate ? { endDate } : {}),
+      period: f.period,
+      ...(f.period === "custom" && f.startDate ? { startDate: f.startDate } : {}),
+      ...(f.period === "custom" && f.endDate ? { endDate: f.endDate } : {}),
       page: 1,
       limit: 50,
     }),
-    [endDate, period, selectedReason?.code, startDate]
+    [f.endDate, f.period, f.startDate, selectedReason?.code]
   );
 
   const ratings = useGetShopRatingsReportQuery(ratingsQuery);
@@ -359,33 +357,28 @@ export default function ShopRatingsReport() {
           <div style={{ marginBottom: 16 }}>
             <ReportToolbar
               hideSearch
-              period={period}
+              period={f.period}
               onPeriodChange={(next) => {
-                setPeriod(next);
+                f.setPeriod(next);
                 setSelectedReason(null);
               }}
-              startDate={startDate}
-              endDate={endDate}
+              startDate={f.startDate}
+              endDate={f.endDate}
               onStartDateChange={(value) => {
-                setStartDate(value);
-                setPeriod("custom");
+                f.setStartDate(value);
                 setSelectedReason(null);
               }}
               onEndDateChange={(value) => {
-                setEndDate(value);
-                setPeriod("custom");
+                f.setEndDate(value);
                 setSelectedReason(null);
               }}
-              zoneId={zoneId}
+              zoneId={f.zoneId}
               onZoneIdChange={(next) => {
-                setZoneId(next);
+                f.setZoneId(next);
                 setSelectedReason(null);
               }}
               onClear={() => {
-                setPeriod("all");
-                setStartDate("");
-                setEndDate("");
-                setZoneId("");
+                f.patchFilters({ period: "this_month", startDate: "", endDate: "", zoneId: "" });
                 setSelectedReason(null);
               }}
             />

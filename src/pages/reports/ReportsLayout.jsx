@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { PageHeader } from "../../design-system";
 import { ReportTabs } from "./ReportToolbar";
+import { preserveReportSearch } from "./reportQueryUtils";
 import TopServicesReport from "./TopServicesReport";
 import HourlyReport from "./HourlyReport";
 import OnHoldReport from "./OnHoldReport";
@@ -52,9 +53,12 @@ export default function ReportsLayout() {
 
   useEffect(() => {
     if (path === "/reports") {
-      navigate(REPORT_TABS[0].path, { replace: true });
+      navigate(
+        { pathname: REPORT_TABS[0].path, search: preserveReportSearch(location.search, { dropView: true }) },
+        { replace: true }
+      );
     }
-  }, [path, navigate]);
+  }, [path, navigate, location.search]);
 
   const ActivePanel = REPORT_PANELS[path] || null;
 
@@ -67,7 +71,17 @@ export default function ReportsLayout() {
       <ReportTabs
         tabs={REPORT_TABS}
         value={path}
-        onChange={(tab) => navigate(tab.path, { replace: true })}
+        onChange={(tab) =>
+          navigate(
+            {
+              pathname: tab.path,
+              search: preserveReportSearch(location.search, {
+                dropView: tab.path !== "/reports/daily-earning",
+              }),
+            },
+            { replace: true }
+          )
+        }
       />
       {ActivePanel ? <ActivePanel /> : null}
     </div>

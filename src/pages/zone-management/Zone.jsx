@@ -17,7 +17,21 @@ import { Delay } from "../../components/shared/Loaders";
 import { MapsUnavailableNotice } from "../../utilities/GoogleMapsProvider";
 import { adminGeocode } from "../../utilities/adminGeocode";
 import { triggerGoogleMapResize, useGoogleMaps } from "../../utilities/googleMapsConfig";
-import { formatMoney, resolveCurrencySymbol } from "../../utilities/formatters";
+import {
+  formatAmount,
+  formatMoney,
+  findCurrencyUnitForCountry,
+  currencyMetaForCountry,
+  resolveCurrencySymbol,
+  resolveDisplayCurrency,
+} from "../../utilities/formatters";
+import {
+  isUkCountry,
+  normalizeCountryIso,
+  postalCodePlaceholderForCountry,
+  validatePostalCodeForCountry,
+  validatePostalCodesForCountry,
+} from "../../utilities/postalCodeValidation";
 import {
   buildCurrencyUnitsList,
   uniqueCurrencyUnitsByName,
@@ -158,7 +172,26 @@ function formatZonePostcodesLabel(raw) {
   return `${list.slice(0, 3).join(", ")} +${list.length - 3}`;
 }
 
-function formatZoneCurrencyLabel(zone) {
+function zoneCountryRef(zone) {
+  return (
+    zone?.city?.country ||
+    zone?.country ||
+    zone?.city?.Country ||
+    null
+  );
+}
+
+function formatZoneCurrencyLabel(zone, currencyUnits = []) {
+  const resolved = resolveDisplayCurrency(zone, {
+    currencyUnits,
+    country: zoneCountryRef(zone),
+    countryId: zone?.city?.countryId ?? zoneCountryRef(zone)?.id,
+    applyDefault: false,
+  });
+  if (resolved.code && resolved.symbol) return `${resolved.code} (${resolved.symbol})`;
+  if (resolved.code) return resolved.code;
+  if (resolved.symbol) return resolved.symbol;
+
   const unit = zone?.currencyUnitZ;
   if (unit?.name && unit?.symbol) return `${unit.name} (${unit.symbol})`;
   if (unit?.name) return unit.name;
@@ -177,8 +210,28 @@ function formatZoneAdminLabel(zone) {
   return "Unassigned";
 }
 
-function formatMoneyCell(value, zone) {
-  return formatMoney(value, resolveCurrencySymbol(zone));
+function formatMoneyCell(value, zone, currencyUnits = []) {
+  return formatAmount(value, zone, {
+    currencyUnits,
+    country: zoneCountryRef(zone),
+    countryId: zone?.city?.countryId ?? zoneCountryRef(zone)?.id,
+  });
+}
+
+/** Fields to merge into zone form when country implies a currency (US→USD, GB→GBP, …). */
+function currencyFieldsForCountry(country, currencyUnits) {
+  const unit = findCurrencyUnitForCountry(country, currencyUnits);
+  if (!unit?.name) return null;
+  return {
+    zoneCurrency: unit.name,
+    currencyUnitId: unit.id != null && unit.id !== "" ? String(unit.id) : "",
+  };
+}
+
+function currencyMatchesCountry(currencyName, country) {
+  const meta = currencyMetaForCountry(country);
+  if (!meta) return true;
+  return String(currencyName || "").trim().toUpperCase() === meta.code;
 }
 
 function csvEscape(value) {
@@ -513,20 +566,84 @@ export default function ZoneManagement() {
     return opts;
   }, [countryCities, add.cityId, allCities, cities]);
 
+  const selectedCountry = useMemo(() => {
+    if (!add.countryId || !Array.isArray(countries)) return null;
+    return countries.find((c) => String(c.id) === String(add.countryId)) || null;
+  }, [countries, add.countryId]);
+
+  const selectedCountryIso = useMemo(
+    () => normalizeCountryIso(selectedCountry),
+    [selectedCountry]
+  );
+
+  const postcodeInputPlaceholder = useMemo(
+    () => postalCodePlaceholderForCountry(selectedCountry),
+    [selectedCountry]
+  );
+
   // In edit mode, if city is known but country isn't, derive country from full city list
+  // and align currency to that country when missing / mismatched (e.g. GBP on a US city).
   useEffect(() => {
     if (!add.open || !isEditMode || add.countryId || !add.cityId) return;
     const matchedCity = Array.isArray(allCities)
       ? allCities.find((city) => String(city.id) === String(add.cityId))
       : null;
     const derivedCountryId = matchedCity?.countryId || matchedCity?.country?.id;
-    if (derivedCountryId) {
-      setAdd((prev) => ({
+    if (!derivedCountryId) return;
+    const country =
+      Array.isArray(countries) &&
+      countries.find((c) => String(c.id) === String(derivedCountryId));
+    const currencyPatch =
+      country && !currencyMatchesCountry(add.zoneCurrency, country)
+        ? currencyFieldsForCountry(country, currenciesForSelect)
+        : null;
+    setAdd((prev) => ({
+      ...prev,
+      countryId: String(derivedCountryId),
+      ...(currencyPatch || {}),
+    }));
+  }, [
+    add.open,
+    isEditMode,
+    add.cityId,
+    add.countryId,
+    add.zoneCurrency,
+    allCities,
+    countries,
+    currenciesForSelect,
+  ]);
+
+  // After currency units load, fill currency when country is set but name/id still empty
+  // (does not overwrite a user-chosen ISO code).
+  useEffect(() => {
+    if (!add.open || !add.countryId || !currenciesForSelect.length) return;
+    const hasName = String(add.zoneCurrency || "").trim() !== "";
+    const hasId = String(add.currencyUnitId || "").trim() !== "";
+    if (hasName && hasId) return;
+    const country =
+      Array.isArray(countries) &&
+      countries.find((c) => String(c.id) === String(add.countryId));
+    if (!country) return;
+    const patch = currencyFieldsForCountry(country, currenciesForSelect);
+    if (!patch) return;
+    setAdd((prev) => {
+      const prevHasName = String(prev.zoneCurrency || "").trim() !== "";
+      const prevHasId = String(prev.currencyUnitId || "").trim() !== "";
+      if (prevHasName && prevHasId) return prev;
+      return {
         ...prev,
-        countryId: String(derivedCountryId),
-      }));
-    }
-  }, [add.open, isEditMode, add.cityId, add.countryId, allCities]);
+        zoneCurrency: prevHasName ? prev.zoneCurrency : patch.zoneCurrency,
+        currencyUnitId: prevHasId ? prev.currencyUnitId : patch.currencyUnitId,
+      };
+    });
+  }, [
+    add.open,
+    add.countryId,
+    add.zoneCurrency,
+    add.currencyUnitId,
+    countries,
+    currenciesForSelect,
+  ]);
 
   useEffect(() => {
     if (!editPendingMapCenter || !map || !add.open) return;
@@ -590,6 +707,11 @@ export default function ZoneManagement() {
       (zones?.zones || []).map((zone, index) => {
         const postcodes = normalizeZonePostcodeList(zone.postcodes);
         const isAssigned = Boolean(zone.zoneAdminId || zone.zoneAdmin);
+        const moneyOpts = {
+          currencyUnits: currencies,
+          country: zoneCountryRef(zone),
+          countryId: zone?.city?.countryId ?? zoneCountryRef(zone)?.id,
+        };
         return {
           id: zone.id,
           sl: index + 1,
@@ -598,8 +720,8 @@ export default function ZoneManagement() {
           city: zone?.city?.name || "—",
           postcodes: formatZonePostcodesLabel(postcodes),
           postcodeCount: postcodes.length,
-          currency: formatZoneCurrencyLabel(zone),
-          currencySymbol: resolveCurrencySymbol(zone),
+          currency: formatZoneCurrencyLabel(zone, currencies),
+          currencySymbol: resolveCurrencySymbol(zone, moneyOpts),
           paymentMethod: formatPaymentMethodsLabel(
             parseZonePaymentMethods(
               zone.paymentMethod ??
@@ -608,8 +730,8 @@ export default function ZoneManagement() {
                 zone.paymentMethods
             )
           ),
-          zoneMinimumAmount: formatMoneyCell(zone.zoneMinimumAmount, zone),
-          serviceFee: formatMoneyCell(zone.serviceCharge, zone),
+          zoneMinimumAmount: formatMoneyCell(zone.zoneMinimumAmount, zone, currencies),
+          serviceFee: formatMoneyCell(zone.serviceCharge, zone, currencies),
           zoneMinimumAmountRaw: zone.zoneMinimumAmount,
           serviceChargeRaw: zone.serviceCharge,
           noOfShops: (() => {
@@ -629,7 +751,7 @@ export default function ZoneManagement() {
           rawZone: zone,
         };
       }),
-    [zones?.zones]
+    [zones?.zones, currencies]
   );
 
   const zoneFilterCityOptions = useMemo(() => {
@@ -994,6 +1116,30 @@ export default function ZoneManagement() {
         cityFromAllCities?.country?.id ||
         "";
 
+      const countryForCurrency =
+        (Array.isArray(countries) &&
+          countries.find((c) => String(c.id) === String(derivedCountryId))) ||
+        zone?.city?.country ||
+        cityFromAllCities?.country ||
+        null;
+
+      let zoneCurrency = selectedCurrency?.name || "";
+      let currencyUnitId = zone.currencyUnitId ? String(zone.currencyUnitId) : "";
+      // Prefer country-default when stored currency is missing or does not match country (US≠GBP).
+      if (
+        countryForCurrency &&
+        (!zoneCurrency || !currencyMatchesCountry(zoneCurrency, countryForCurrency))
+      ) {
+        const patch = currencyFieldsForCountry(
+          countryForCurrency,
+          currenciesForSelect.length ? currenciesForSelect : currencies
+        );
+        if (patch) {
+          zoneCurrency = patch.zoneCurrency;
+          currencyUnitId = patch.currencyUnitId || currencyUnitId;
+        }
+      }
+
       setAdd((prev) => ({
         ...prev,
         countryId: derivedCountryId ? String(derivedCountryId) : "",
@@ -1005,8 +1151,8 @@ export default function ZoneManagement() {
           : "20",
         zoneMinimumAmount: zone.zoneMinimumAmount ?? "",
         zoneCommission: zone.agentCommissionPercent ?? (100 - (zone.zoneAdminComission ?? 20)),
-        zoneCurrency: selectedCurrency?.name || "",
-        currencyUnitId: zone.currencyUnitId ? String(zone.currencyUnitId) : "",
+        zoneCurrency,
+        currencyUnitId,
         paymentMethods: parseZonePaymentMethods(
           zone.paymentMethod ??
             zone.paymentMehtod ??
@@ -1060,7 +1206,10 @@ export default function ZoneManagement() {
 
       for (const postcode of uniquePostcodes) {
         try {
-          const boundaryData = await fetchPostalCodeBoundary(postcode);
+          const boundaryData = await fetchPostalCodeBoundary(postcode, {
+            countryIso: normalizeCountryIso(countryForCurrency) || selectedCountryIso,
+            cityName: cityFromAllCities?.name || zone?.city?.name || null,
+          });
           if (boundaryData) {
             lastCenterPoint = boundaryData.centerPoint;
             newPostcodeDataList.push({
@@ -1275,6 +1424,7 @@ export default function ZoneManagement() {
         open: true,
         distanceUnitId: "2",
         currencyUnitId: "",
+        zoneCurrency: "",
         serviceCharge: "20",
         deliveryCharges: "20",
       }));
@@ -1346,11 +1496,46 @@ export default function ZoneManagement() {
       // Extract postcodes array from addedPostcodes
       const postcodes = addedPostcodes.map((pc) => pc.postcode);
 
+      const countryForPostcodes =
+        Array.isArray(countries) &&
+        countries.find((c) => String(c.id) === String(add.countryId));
+      const postcodeBatch = validatePostalCodesForCountry(
+        postcodes,
+        countryForPostcodes
+      );
+      if (!postcodeBatch.ok && postcodeBatch.invalid.length) {
+        const first = postcodeBatch.invalid[0];
+        showError(
+          first.message ||
+            `One or more postal codes do not match ${
+              countryForPostcodes?.name || "the selected country"
+            }.`
+        );
+        return;
+      }
+
       // Find the selected currency to get its ID (canonical lowest id per name)
       const selectedCurrency = currenciesForSelect.find(
         (currency) => currency.name === add.zoneCurrency
       );
-      const currencyUnitId = selectedCurrency ? selectedCurrency.id : null;
+      const countryForCurrency = countryForPostcodes;
+      const countryCurrency = countryForCurrency
+        ? findCurrencyUnitForCountry(countryForCurrency, currenciesForSelect)
+        : null;
+      const fromSelect =
+        selectedCurrency?.id != null ? Number(selectedCurrency.id) : NaN;
+      const fromForm = add.currencyUnitId
+        ? parseInt(String(add.currencyUnitId), 10)
+        : NaN;
+      const fromCountry =
+        countryCurrency?.id != null ? Number(countryCurrency.id) : NaN;
+      const currencyUnitId = [fromSelect, fromForm, fromCountry].find(
+        (n) => Number.isFinite(n) && n > 0
+      );
+      if (!currencyUnitId) {
+        showError("Please select a valid zone currency for this country.");
+        return;
+      }
 
       // Keep existing distance unit in edit mode; default to 2 for new zones
       const distanceUnitId = parseInt(add.distanceUnitId) || 2;
@@ -1361,7 +1546,7 @@ export default function ZoneManagement() {
         postcodes: postcodes,
         cityId: parseInt(add.cityId, 10),
         zoneMinimumAmount: zoneMinimumNum,
-        currencyUnitId: currencyUnitId || parseInt(add.currencyUnitId) || 1,
+        currencyUnitId,
         distanceUnitId: distanceUnitId,
         serviceCharge: serviceFeeNum,
         agentCommissionPercent: zoneCommissionNum,
@@ -1424,10 +1609,46 @@ export default function ZoneManagement() {
   };
 
   const handelCountryChange = (selectedCountryId) => {
+    const country =
+      Array.isArray(countries) &&
+      countries.find((c) => String(c.id) === String(selectedCountryId));
+    const currencyPatch = country
+      ? currencyFieldsForCountry(country, currenciesForSelect)
+      : null;
+
+    // Drop postcodes that are invalid for the newly selected country (e.g. UK codes on US).
+    const kept = [];
+    const removed = [];
+    for (const pc of addedPostcodes) {
+      const code = pc?.postcode ?? pc;
+      const check = validatePostalCodeForCountry(code, country);
+      if (check.ok) kept.push(pc);
+      else removed.push(code);
+    }
+    if (removed.length) {
+      setAddedPostcodes(kept);
+      setMultiplePostcodeHighlights((prev) =>
+        prev.filter((h) =>
+          kept.some((k) => String(k.postcode) === String(h.postcode))
+        )
+      );
+      setPostalCodeMarkers((prev) =>
+        prev.filter((m) =>
+          kept.some((k) => String(k.postcode) === String(m.postcode))
+        )
+      );
+      showError(
+        `Removed ${removed.length} postal code(s) that do not match ${
+          country?.name || "the selected country"
+        }: ${removed.slice(0, 5).join(", ")}${removed.length > 5 ? "…" : ""}`
+      );
+    }
+
     setAdd((prev) => ({
       ...prev,
       countryId: selectedCountryId,
       cityId: "",
+      ...(currencyPatch || { zoneCurrency: "", currencyUnitId: "" }),
     }));
   };
 
@@ -1459,16 +1680,70 @@ export default function ZoneManagement() {
     return points;
   };
 
+  /** Google geocode with country bias; returns center + optional viewport polygon. */
+  const geocodePostalBoundary = async (postalCode, countryIso, cityName) => {
+    const addressParts = [String(postalCode).trim()];
+    if (cityName) addressParts.push(String(cityName).trim());
+    const geocodingData = await adminGeocode({
+      address: addressParts.join(", "),
+      country: countryIso || undefined,
+    });
+    if (!geocodingData.results?.length) return null;
+
+    const result = geocodingData.results[0];
+    const geometry = result.geometry;
+    if (!geometry?.location) return null;
+
+    const gCenter = {
+      lat: geometry.location.lat,
+      lng: geometry.location.lng,
+    };
+
+    const countryComp = (result.address_components || []).find(
+      (c) => Array.isArray(c.types) && c.types.includes("country")
+    );
+    const resultIso = normalizeCountryIso(countryComp?.short_name);
+    if (countryIso && resultIso && resultIso !== countryIso) {
+      return null;
+    }
+
+    const box = geometry.bounds || geometry.viewport;
+    let polygonPath = null;
+    if (box) {
+      polygonPath = [
+        { lat: box.northeast.lat, lng: box.southwest.lng },
+        { lat: box.northeast.lat, lng: box.northeast.lng },
+        { lat: box.southwest.lat, lng: box.northeast.lng },
+        { lat: box.southwest.lat, lng: box.southwest.lng },
+        { lat: box.northeast.lat, lng: box.southwest.lng },
+      ];
+    } else {
+      polygonPath = createHexagon(gCenter.lat, gCenter.lng, 0.005);
+    }
+
+    return {
+      centerPoint: gCenter,
+      polygonPath,
+      bounds: box || null,
+      postcode: String(postalCode).trim().toUpperCase(),
+      formattedAddress: result.formatted_address || "",
+      addressComponents: result.address_components || [],
+    };
+  };
+
   // Helper function to fetch postal code boundary for the map.
-  // UK full unit (e.g. SW1A 1AA): postcodes.io gives outcode SW1A + incode — open GeoJSON is **sector** SW1A
-  // (huge, wrong vs Google’s unit outline). Skip GeoJSON for those; use Geocoding viewport if tight enough,
-  // else a small hex at the official centroid.
-  //
-  // Sector-only / resolved without incode: keep GeoJSON sector polygon when available.
-  //
-  // Note: api.postcodes.io /postcodes/{pc}/boundary returns 404 — not used here.
-  const fetchPostalCodeBoundary = async (postalCode) => {
+  // UK: postcodes.io + optional sector GeoJSON; other countries: Google with country bias.
+  const fetchPostalCodeBoundary = async (postalCode, options = {}) => {
+    const countryIso =
+      normalizeCountryIso(options.countryIso || selectedCountryIso) || "";
+    const cityName = options.cityName || null;
+
     try {
+      // Non-UK: never hit postcodes.io (would accept RM8 for a US zone).
+      if (countryIso && !isUkCountry(countryIso)) {
+        return await geocodePostalBoundary(postalCode, countryIso, cityName);
+      }
+
       const cleanPostcode = postalCode.replace(/\s+/g, "");
 
       const centerRes = await fetchWithTimeout(
@@ -1526,38 +1801,24 @@ export default function ZoneManagement() {
         }
       }
 
-      // ── 2. Google Geocoding bounding-box (admin API; server key) ──
+      // ── 2. Google Geocoding bounding-box (admin API; country-biased) ──
       try {
-        const geocodingData = await adminGeocode({ address: postalCode });
-
-        if (geocodingData.results && geocodingData.results.length > 0) {
-            const result = geocodingData.results[0];
-            const geometry = result.geometry;
-            const gCenter = {
-              lat: geometry.location.lat,
-              lng: geometry.location.lng,
+        const geocoded = await geocodePostalBoundary(
+          postalCode,
+          countryIso || "GB",
+          cityName
+        );
+        if (geocoded?.polygonPath?.length) {
+          const diagKm = googleBoundsDiagonalKm(geocoded.bounds);
+          const viewportTooLooseForUnit =
+            hasFullUkUnit && diagKm > FULL_UNIT_MAX_VIEWPORT_DIAGONAL_KM;
+          if (!viewportTooLooseForUnit) {
+            return {
+              centerPoint: centerPoint || geocoded.centerPoint,
+              polygonPath: geocoded.polygonPath,
+              postcode: normalizedPostcode,
             };
-
-            const box = geometry.bounds || geometry.viewport;
-            if (box) {
-              const diagKm = googleBoundsDiagonalKm(box);
-              const viewportTooLooseForUnit =
-                hasFullUkUnit && diagKm > FULL_UNIT_MAX_VIEWPORT_DIAGONAL_KM;
-              if (!viewportTooLooseForUnit) {
-                const polygonPath = [
-                  { lat: box.northeast.lat, lng: box.southwest.lng },
-                  { lat: box.northeast.lat, lng: box.northeast.lng },
-                  { lat: box.southwest.lat, lng: box.northeast.lng },
-                  { lat: box.southwest.lat, lng: box.southwest.lng },
-                  { lat: box.northeast.lat, lng: box.southwest.lng },
-                ];
-                return {
-                  centerPoint: centerPoint || gCenter,
-                  polygonPath,
-                  postcode: normalizedPostcode,
-                };
-              }
-            }
+          }
         }
       } catch {
         // Geocoding failures fall back to the local polygon approximation.
@@ -1672,9 +1933,31 @@ export default function ZoneManagement() {
     return candidates.some((f) => f.includes(city) || city.includes(f));
   };
 
+  /** Soft city match from Google address_components / formatted_address. */
+  const googleResultBelongsToCity = (boundaryData, cityName) => {
+    if (!cityName || !boundaryData) return true;
+    const city = cityName.toLowerCase().trim();
+    if (!city) return true;
+    const haystacks = [];
+    if (boundaryData.formattedAddress) {
+      haystacks.push(String(boundaryData.formattedAddress).toLowerCase());
+    }
+    for (const comp of boundaryData.addressComponents || []) {
+      if (comp?.long_name) haystacks.push(String(comp.long_name).toLowerCase());
+      if (comp?.short_name) haystacks.push(String(comp.short_name).toLowerCase());
+    }
+    if (!haystacks.length) return true;
+    return haystacks.some((h) => h.includes(city) || city.includes(h));
+  };
+
   const handleAddPostcode = async () => {
     if (!newPostcodeInput.trim()) {
       showError("Please enter at least one postal code");
+      return;
+    }
+
+    if (!selectedCountryIso) {
+      showError("Please select a country before adding postal codes.");
       return;
     }
 
@@ -1702,6 +1985,7 @@ export default function ZoneManagement() {
           : null)
       : null;
     const selectedCityName = selectedCity?.name || null;
+    const useUkLookup = isUkCountry(selectedCountry);
 
     try {
       const newHighlights = [];
@@ -1709,74 +1993,115 @@ export default function ZoneManagement() {
       const newPostcodeDataList = [];
       let lastCenterPoint = null;
       let cityRejectedCount = 0;
-      let postcodesIoRejectedCount = 0;
+      let formatRejectedCount = 0;
+      let lookupRejectedCount = 0;
 
       // Validate and fetch each postal code
       for (const postcode of postcodes) {
         // Check if postal code already exists
-        if (addedPostcodes.some((pc) => pc.postcode === postcode)) {
+        if (
+          addedPostcodes.some(
+            (pc) =>
+              String(pc.postcode || "")
+                .replace(/\s+/g, "")
+                .toUpperCase() ===
+              String(postcode)
+                .replace(/\s+/g, "")
+                .toUpperCase()
+          )
+        ) {
           continue; // Skip already added postal codes
         }
 
-        const ioLookup = await lookupPostcodesIoStrict(postcode);
-        if (!ioLookup.ok) {
-          showError(ioLookup.message);
-          postcodesIoRejectedCount++;
+        // Country format gate — blocks UK RM8 on US, US ZIP on GB, etc.
+        const formatCheck = validatePostalCodeForCountry(postcode, selectedCountry);
+        if (!formatCheck.ok) {
+          showError(formatCheck.message || `"${postcode}" is not valid for the selected country.`);
+          formatRejectedCount++;
           continue;
         }
 
-        const ioResultForCity = selectedCityName
-          ? await enrichPostcodesIoResultForCityCheck(ioLookup.result)
-          : ioLookup.result;
+        if (useUkLookup) {
+          const ioLookup = await lookupPostcodesIoStrict(postcode);
+          if (!ioLookup.ok) {
+            showError(ioLookup.message);
+            lookupRejectedCount++;
+            continue;
+          }
 
-        if (selectedCityName && !postcodeResultBelongsToCity(ioResultForCity, selectedCityName)) {
-          showError(
-            `"${postcode}" is outside of ${selectedCityName}. Only postal codes within the selected city can be added.`
-          );
-          cityRejectedCount++;
-          continue;
+          const ioResultForCity = selectedCityName
+            ? await enrichPostcodesIoResultForCityCheck(ioLookup.result)
+            : ioLookup.result;
+
+          if (selectedCityName && !postcodeResultBelongsToCity(ioResultForCity, selectedCityName)) {
+            showError(
+              `"${postcode}" is outside of ${selectedCityName}. Only postal codes within the selected city can be added.`
+            );
+            cityRejectedCount++;
+            continue;
+          }
         }
 
         try {
-          // Use helper function to get actual boundary
-          const boundaryData = await fetchPostalCodeBoundary(postcode);
+          const boundaryData = await fetchPostalCodeBoundary(postcode, {
+            countryIso: selectedCountryIso,
+            cityName: selectedCityName,
+          });
 
-          if (boundaryData) {
-            lastCenterPoint = boundaryData.centerPoint; // Keep track of the last valid postcode
-
-            const newPostcodeData = {
-              postcode: boundaryData.postcode,
-              center: boundaryData.centerPoint,
-              paths: boundaryData.polygonPath,
-            };
-
-            newPostcodeDataList.push(newPostcodeData);
-            newHighlights.push({
-              paths: boundaryData.polygonPath,
-              postcode: boundaryData.postcode,
-              center: boundaryData.centerPoint,
-            });
-
-            newMarkers.push({
-              position: boundaryData.centerPoint,
-              postcode: boundaryData.postcode,
-              label: boundaryData.postcode,
-            });
+          if (!boundaryData) {
+            showError(
+              `"${postcode}" could not be located in ${
+                selectedCountry?.name || selectedCountryIso
+              }. Check the postal code and try again.`
+            );
+            lookupRejectedCount++;
+            continue;
           }
+
+          if (
+            !useUkLookup &&
+            selectedCityName &&
+            !googleResultBelongsToCity(boundaryData, selectedCityName)
+          ) {
+            showError(
+              `"${postcode}" is outside of ${selectedCityName}. Only postal codes within the selected city can be added.`
+            );
+            cityRejectedCount++;
+            continue;
+          }
+
+          lastCenterPoint = boundaryData.centerPoint;
+
+          const newPostcodeData = {
+            postcode: boundaryData.postcode,
+            center: boundaryData.centerPoint,
+            paths: boundaryData.polygonPath,
+          };
+
+          newPostcodeDataList.push(newPostcodeData);
+          newHighlights.push({
+            paths: boundaryData.polygonPath,
+            postcode: boundaryData.postcode,
+            center: boundaryData.centerPoint,
+          });
+
+          newMarkers.push({
+            position: boundaryData.centerPoint,
+            postcode: boundaryData.postcode,
+            label: boundaryData.postcode,
+          });
         } catch (error) {
           console.error(`Error fetching postal code ${postcode}:`, error);
+          showError(`Failed to map postal code "${postcode}". Please try again.`);
+          lookupRejectedCount++;
         }
       }
 
       if (newHighlights.length > 0) {
-        // Add to added postcodes list
         setAddedPostcodes((prev) => [...prev, ...newPostcodeDataList]);
-
-        // Add to highlights and markers
         setMultiplePostcodeHighlights((prev) => [...prev, ...newHighlights]);
         setPostalCodeMarkers((prev) => [...prev, ...newMarkers]);
 
-        // Navigate map to the last highlighted area
         if (map && lastCenterPoint) {
           map.setCenter(lastCenterPoint);
           map.setZoom(14);
@@ -1787,8 +2112,11 @@ export default function ZoneManagement() {
 
         setNewPostcodeInput("");
         success(`Successfully added ${newHighlights.length} postal code(s)`);
-      } else if (cityRejectedCount === 0 && postcodesIoRejectedCount === 0) {
-        // Generic fallback only when nothing was rejected with a specific toast above
+      } else if (
+        cityRejectedCount === 0 &&
+        formatRejectedCount === 0 &&
+        lookupRejectedCount === 0
+      ) {
         showError("No valid postal codes could be found or all are already added");
       }
     } catch (error) {
@@ -1861,6 +2189,13 @@ export default function ZoneManagement() {
 
     if (!add.zoneCurrency || String(add.zoneCurrency).trim() === "") return false;
 
+    const country =
+      Array.isArray(countries) &&
+      countries.find((c) => String(c.id) === String(add.countryId));
+    const codes = addedPostcodes.map((pc) => pc.postcode);
+    const batch = validatePostalCodesForCountry(codes, country);
+    if (!batch.ok) return false;
+
     return true;
   }, [
     add.countryId,
@@ -1871,7 +2206,8 @@ export default function ZoneManagement() {
     add.deliveryCharges,
     add.zoneCommission,
     add.zoneCurrency,
-    addedPostcodes.length,
+    addedPostcodes,
+    countries,
   ]);
 
   if (isLoading) return <Delay />;
@@ -2109,7 +2445,7 @@ export default function ZoneManagement() {
                   <Textarea
                     value={newPostcodeInput}
                     onChange={(e) => setNewPostcodeInput(e.target.value)}
-                    placeholder="Enter postal codes separated by comma: SW1A 1AA, SW1A 1AB, SW1A 1AC"
+                    placeholder={postcodeInputPlaceholder}
                     rows={4}
                   />
                   <div style={{ display: "flex", gap: 8 }}>

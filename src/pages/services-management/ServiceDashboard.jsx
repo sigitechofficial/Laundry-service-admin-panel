@@ -612,6 +612,14 @@ export default function ServiceDashboard() {
             ...sub,
             addOnCategories:
               full?.addOnCategories ?? sub?.addOnCategories ?? [],
+            excludedAddOnCategories:
+              full?.excludedAddOnCategories ??
+              sub?.excludedAddOnCategories ??
+              [],
+            inheritedAddOnCategories:
+              full?.inheritedAddOnCategories ??
+              sub?.inheritedAddOnCategories ??
+              [],
           };
         }
       );

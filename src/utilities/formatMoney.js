@@ -16,7 +16,7 @@ export const DEFAULT_CURRENCY = Object.freeze({
 });
 
 /** Soft fallback when a country has no zones with currency yet. */
-const COUNTRY_ISO_TO_CURRENCY = Object.freeze({
+export const COUNTRY_ISO_TO_CURRENCY = Object.freeze({
   GB: { code: "GBP", symbol: "£" },
   UK: { code: "GBP", symbol: "£" },
   US: { code: "USD", symbol: "$" },
@@ -31,6 +31,35 @@ const COUNTRY_ISO_TO_CURRENCY = Object.freeze({
   CA: { code: "CAD", symbol: "$" },
   AU: { code: "AUD", symbol: "$" },
 });
+
+/**
+ * ISO country → currency meta (code + symbol).
+ * Accepts a country row, shortName string, or any object with shortName/code/iso/iso2.
+ * @returns {{ code: string, symbol: string } | null}
+ */
+export function currencyMetaForCountry(countryLike) {
+  if (!countryLike) return null;
+  const short =
+    typeof countryLike === "string"
+      ? countryLike
+      : countryLike.shortName ?? countryLike.code ?? countryLike.iso ?? countryLike.iso2;
+  const key = trimStr(short).toUpperCase();
+  if (!key) return null;
+  const mapped = COUNTRY_ISO_TO_CURRENCY[key];
+  return mapped ? { code: mapped.code, symbol: mapped.symbol } : null;
+}
+
+/**
+ * Resolve a currency `units` row for a country (lowest-id match preferred by caller list).
+ * @returns {object|null} unit row from currencyUnits, or a synthetic { name, symbol, code } without id
+ */
+export function findCurrencyUnitForCountry(countryLike, currencyUnits = []) {
+  const meta = currencyMetaForCountry(countryLike);
+  if (!meta) return null;
+  const unit = lookupUnitByCode(meta.code, currencyUnits);
+  if (unit) return unit;
+  return { name: meta.code, symbol: meta.symbol, code: meta.code };
+}
 
 /** When API sends ISO code only (e.g. "GBP") and units list is unavailable. */
 const CODE_TO_SYMBOL = Object.freeze(
@@ -169,14 +198,7 @@ function countryIdFromSource(source, explicitCountryId) {
 }
 
 function currencyFromCountryIso(countryLike, currencyUnits = []) {
-  if (!countryLike) return null;
-  const short =
-    typeof countryLike === "string"
-      ? countryLike
-      : countryLike.shortName ?? countryLike.code ?? countryLike.iso ?? countryLike.iso2;
-  const key = trimStr(short).toUpperCase();
-  if (!key) return null;
-  const mapped = COUNTRY_ISO_TO_CURRENCY[key];
+  const mapped = currencyMetaForCountry(countryLike);
   if (!mapped) return null;
   const symbol =
     symbolForIsoCode(mapped.code, currencyUnits) || mapped.symbol || mapped.code;

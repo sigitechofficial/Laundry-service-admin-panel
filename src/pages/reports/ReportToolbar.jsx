@@ -9,7 +9,7 @@ import {
   DirectoryToolbar,
   DirectoryToolbarEnd,
 } from "../directory-table/directoryTable";
-import { REPORT_PERIOD_OPTIONS } from "./reportQueryUtils";
+import { DEFAULT_REPORT_PERIOD, REPORT_PERIOD_OPTIONS } from "./reportQueryUtils";
 
 const PAGE_SIZES = [
   { value: 10, label: "10 / page" },
@@ -137,7 +137,7 @@ export default function ReportToolbar({
 
   const hasFilters =
     Boolean(search) ||
-    (period && period !== "all") ||
+    (period && period !== DEFAULT_REPORT_PERIOD) ||
     startDate ||
     endDate ||
     zoneId ||
@@ -216,7 +216,7 @@ export default function ReportToolbar({
                 return;
               }
               onSearch?.("");
-              if (period && period !== "all") onPeriodChange?.("all");
+              if (period && period !== DEFAULT_REPORT_PERIOD) onPeriodChange?.(DEFAULT_REPORT_PERIOD);
               if (startDate) onStartDateChange?.("");
               if (endDate) onEndDateChange?.("");
               if (zoneId) onZoneIdChange?.("");

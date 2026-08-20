@@ -7,6 +7,8 @@ import {
   useAddSubCategoryMutation,
   useEditSubCategoryMutation,
   useGetAllAddOnCategoriesQuery,
+  useGetAllAddOnServicesQuery,
+  useGetSubCategoriesQuery,
 } from "../../../store/services/api";
 import {
   categorySubValidationSchema,
@@ -29,6 +31,33 @@ const normalizeEditorContent = (value = "") => {
   return text.replace(/\s+/g, " ").trim();
 };
 
+function parentInheritedList(categoryData, isUpdate) {
+  if (Array.isArray(categoryData?.parentAddOnCategories)) {
+    return categoryData.parentAddOnCategories;
+  }
+
+  // Reconstruct the parent pool when only active/excluded slices are present.
+  const active = Array.isArray(categoryData?.inheritedAddOnCategories)
+    ? categoryData.inheritedAddOnCategories
+    : [];
+  const excluded = Array.isArray(categoryData?.excludedAddOnCategories)
+    ? categoryData.excludedAddOnCategories
+    : [];
+  if (active.length || excluded.length) {
+    const byId = new Map();
+    for (const c of [...active, ...excluded]) {
+      const id = String(c?.id ?? c);
+      if (id && !byId.has(id)) byId.set(id, c);
+    }
+    return [...byId.values()];
+  }
+
+  if (!isUpdate && Array.isArray(categoryData?.addOnCategories)) {
+    return categoryData.addOnCategories;
+  }
+  return [];
+}
+
 export default function SubCategoryModal({
   open,
   onClose,
@@ -46,6 +75,17 @@ export default function SubCategoryModal({
   const { data: addOnCategoriesData } = useGetAllAddOnCategoriesQuery({
     includeServices: false,
   });
+  const { refetch: refetchSubCategories } = useGetSubCategoriesQuery(undefined, {
+    skip: !open,
+  });
+  const { refetch: refetchAddOns } = useGetAllAddOnServicesQuery(undefined, {
+    skip: !open,
+  });
+
+  const refreshLinkedAddOns = () => {
+    void refetchSubCategories();
+    void refetchAddOns();
+  };
 
   const addOnCategoryOptions = (() => {
     const list =
@@ -72,22 +112,37 @@ export default function SubCategoryModal({
   const isUpdate = open && type === "update";
   const saving = isAddSubCategoryLoading || isEditSubCategoryLoading;
 
+  const buildPayload = (data) => {
+    const parentIds = new Set(
+      parentInheritedList(categoryData, isUpdate).map((c) =>
+        Number(c.id ?? c)
+      )
+    );
+    return {
+      name: data.subCategory,
+      description: normalizeEditorContent(data.description),
+      price: parseFloat(data.price),
+      unitCount: Number.parseInt(String(data.unitCount || 1), 10) || 1,
+      status: true,
+      addOnCategoryIds: (data.addOnCategoryIds || []).map((id) => Number(id)),
+      // Only persist exclusions that still apply to parent inheritance.
+      excludedAddOnCategoryIds: (data.excludedAddOnCategoryIds || [])
+        .map((id) => Number(id))
+        .filter((id) => Number.isInteger(id) && id > 0 && parentIds.has(id)),
+    };
+  };
+
   const onSubmit = async (data) => {
     try {
-      const cleanDescription = normalizeEditorContent(data.description);
       const formData = {
-        name: data.subCategory,
-        description: cleanDescription,
-        price: parseFloat(data.price),
-        unitCount: Number.parseInt(String(data.unitCount || 1), 10) || 1,
-        status: true,
+        ...buildPayload(data),
         categoryId: categoryData?.id,
-        addOnCategoryIds: (data.addOnCategoryIds || []).map((id) => Number(id)),
       };
 
       const res = await addSubCategory([formData]).unwrap();
       if (res?.status === "1") {
         success("Sub-category added successfully!");
+        refreshLinkedAddOns();
         handleClose();
       } else {
         error(res?.message || "Something went wrong");
@@ -99,23 +154,14 @@ export default function SubCategoryModal({
 
   const UpdateSubCategory = async (data) => {
     try {
-      const cleanDescription = normalizeEditorContent(data.description);
-      const apiData = {
-        name: data.subCategory,
-        description: cleanDescription,
-        price: parseFloat(data.price),
-        unitCount: Number.parseInt(String(data.unitCount || 1), 10) || 1,
-        status: true,
-        addOnCategoryIds: (data.addOnCategoryIds || []).map((id) => Number(id)),
-      };
-
       const res = await editSubCategory({
         subCatId: categoryData?.subCatId || categoryData?.id,
-        body: apiData,
+        body: buildPayload(data),
       }).unwrap();
 
       if (res?.status === "1") {
         success("Sub-category updated successfully!");
+        refreshLinkedAddOns();
         handleClose();
       } else {
         error(res?.message || "Something went wrong");
@@ -154,6 +200,14 @@ export default function SubCategoryModal({
         ? linkedAddOnCategories.map((c) => String(c.id))
         : [];
       setValue("addOnCategoryIds", linkedIds);
+
+      const excludedList = isUpdate
+        ? categoryData?.excludedAddOnCategories
+        : null;
+      const excludedIds = Array.isArray(excludedList)
+        ? excludedList.map((c) => String(c.id ?? c))
+        : [];
+      setValue("excludedAddOnCategoryIds", excludedIds);
     }
   }, [categoryData, open, setValue, isUpdate]);
 
@@ -225,102 +279,119 @@ export default function SubCategoryModal({
         <Controller
           name="addOnCategoryIds"
           control={control}
-          render={({ field: { onChange, value } }) => {
-            const selected = Array.isArray(value) ? value : [];
-            const inherited = Array.isArray(categoryData?.parentAddOnCategories)
-              ? categoryData.parentAddOnCategories
-              : Array.isArray(categoryData?.inheritedAddOnCategories)
-                ? categoryData.inheritedAddOnCategories
-                : Array.isArray(categoryData?.addOnCategories) && !isUpdate
-                  ? categoryData.addOnCategories
+          render={({ field: { onChange, value } }) => (
+            <Controller
+              name="excludedAddOnCategoryIds"
+              control={control}
+              render={({
+                field: { onChange: onExcludedChange, value: excludedValue },
+              }) => {
+                const selected = Array.isArray(value) ? value : [];
+                const excluded = Array.isArray(excludedValue)
+                  ? excludedValue
                   : [];
-            const inheritedIds = new Set(
-              inherited.map((c) => String(c.id ?? c))
-            );
-            const inheritedOnly = inherited.filter(
-              (c) => !selected.includes(String(c.id ?? c))
-            );
-            return (
-              <Field
-                label="Add-on / Repair Categories"
-                hint={
-                  inheritedOnly.length
-                    ? "Gray rows come from the parent category and apply automatically."
-                    : undefined
-                }
-              >
-                {addOnCategoryOptions.length === 0 ? (
-                  <p style={{ color: "var(--muted)", margin: 0 }}>
-                    No add-on categories available
-                  </p>
-                ) : (
-                  <div
-                    style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: 8,
-                      maxHeight: 200,
-                      overflowY: "auto",
-                      padding: 12,
-                      background: "var(--canvas)",
-                      border: "1px solid var(--line)",
-                      borderRadius: "var(--r-md)",
-                    }}
+                const inherited = parentInheritedList(categoryData, isUpdate);
+                const inheritedIds = new Set(
+                  inherited.map((c) => String(c.id ?? c))
+                );
+                const hasInherited = inheritedIds.size > 0;
+
+                const toggle = (optValue) => {
+                  const isInherited = inheritedIds.has(optValue);
+                  const isDirect = selected.includes(optValue);
+                  const isExcluded = excluded.includes(optValue);
+                  const checked =
+                    isDirect || (isInherited && !isExcluded);
+
+                  if (checked) {
+                    onChange(selected.filter((id) => id !== optValue));
+                    if (isInherited && !isExcluded) {
+                      onExcludedChange([...excluded, optValue]);
+                    }
+                  } else if (isInherited) {
+                    onExcludedChange(
+                      excluded.filter((id) => id !== optValue)
+                    );
+                  } else {
+                    onChange([...selected, optValue]);
+                  }
+                };
+
+                return (
+                  <Field
+                    label="Add-on / Repair Categories"
+                    hint={
+                      hasInherited
+                        ? "Gray “From category” rows inherit from the parent. Uncheck to exclude for this item only."
+                        : undefined
+                    }
                   >
-                    {inheritedOnly.map((opt) => {
-                      const id = String(opt.id ?? opt);
-                      const label =
-                        opt.name ||
-                        addOnCategoryOptions.find((o) => o.value === id)
-                          ?.label ||
-                        id;
-                      return (
-                        <label
-                          key={`inherited-${id}`}
-                          style={{
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: 8,
-                            opacity: 0.85,
-                          }}
-                        >
-                          <input type="checkbox" checked disabled readOnly />
-                          <span>{label}</span>
-                          <Badge tone="neutral">From category</Badge>
-                        </label>
-                      );
-                    })}
-                    {addOnCategoryOptions.map((opt) => {
-                      if (inheritedIds.has(opt.value) && !selected.includes(opt.value)) {
-                        return null;
-                      }
-                      const checked = selected.includes(opt.value);
-                      return (
-                        <label
-                          key={opt.value}
-                          style={{ display: "inline-flex", alignItems: "center", gap: 8 }}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={() => {
-                              onChange(
-                                checked
-                                  ? selected.filter((id) => id !== opt.value)
-                                  : [...selected, opt.value]
-                              );
-                            }}
-                          />
-                          <span>{opt.label}</span>
-                          {checked ? <Badge tone="brand">Linked</Badge> : null}
-                        </label>
-                      );
-                    })}
-                  </div>
-                )}
-              </Field>
-            );
-          }}
+                    {addOnCategoryOptions.length === 0 ? (
+                      <p style={{ color: "var(--muted)", margin: 0 }}>
+                        No add-on categories available
+                      </p>
+                    ) : (
+                      <div
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: 8,
+                          maxHeight: 200,
+                          overflowY: "auto",
+                          padding: 12,
+                          background: "var(--canvas)",
+                          border: "1px solid var(--line)",
+                          borderRadius: "var(--r-md)",
+                        }}
+                      >
+                        {addOnCategoryOptions.map((opt) => {
+                          const isInherited = inheritedIds.has(opt.value);
+                          const isDirect = selected.includes(opt.value);
+                          const isExcluded = excluded.includes(opt.value);
+                          const checked =
+                            isDirect || (isInherited && !isExcluded);
+
+                          let badge = null;
+                          if (isExcluded && isInherited) {
+                            badge = <Badge tone="neutral">Excluded</Badge>;
+                          } else if (isInherited && !isDirect) {
+                            badge = (
+                              <Badge tone="neutral">From category</Badge>
+                            );
+                          } else if (checked) {
+                            badge = <Badge tone="brand">Linked</Badge>;
+                          }
+
+                          return (
+                            <label
+                              key={opt.value}
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: 8,
+                                opacity:
+                                  isInherited && !isDirect && !isExcluded
+                                    ? 0.85
+                                    : 1,
+                              }}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={() => toggle(opt.value)}
+                              />
+                              <span>{opt.label}</span>
+                              {badge}
+                            </label>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </Field>
+                );
+              }}
+            />
+          )}
         />
 
         <Controller

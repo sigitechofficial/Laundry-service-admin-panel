@@ -104,4 +104,5 @@ export const defaultSubCategoryValues = {
   price: "",
   unitCount: 1,
   addOnCategoryIds: [],
+  excludedAddOnCategoryIds: [],
 };

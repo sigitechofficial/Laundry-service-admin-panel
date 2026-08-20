@@ -319,10 +319,50 @@ const apiDataSlice = createSlice({
         );
 
         if (index !== -1) {
-          state.subCategories[index] = {
-            ...state.subCategories[index],
-            ...body,
-          };
+          const prev = state.subCategories[index];
+          const next = { ...prev, ...body };
+
+          if (Array.isArray(body?.addOnCategoryIds)) {
+            next.addOnCategories = body.addOnCategoryIds.map((id) => {
+              const existing = (prev.addOnCategories || []).find(
+                (c) => Number(c.id) === Number(id)
+              );
+              return existing || { id: Number(id) };
+            });
+          }
+
+          if (Array.isArray(body?.excludedAddOnCategoryIds)) {
+            next.excludedAddOnCategories = body.excludedAddOnCategoryIds.map(
+              (id) => {
+                const existing = (prev.excludedAddOnCategories || []).find(
+                  (c) => Number(c.id) === Number(id)
+                );
+                return existing || { id: Number(id) };
+              }
+            );
+            const directIds = new Set(
+              (next.addOnCategories || []).map((a) => Number(a.id))
+            );
+            const excludedIds = new Set(
+              body.excludedAddOnCategoryIds.map((id) => Number(id))
+            );
+            // Recompute active inheritance from the previous inherited+excluded set.
+            const parentPool = [
+              ...(prev.inheritedAddOnCategories || []),
+              ...(prev.excludedAddOnCategories || []),
+            ];
+            const seen = new Set();
+            next.inheritedAddOnCategories = parentPool.filter((a) => {
+              const id = Number(a.id);
+              if (!id || seen.has(id)) return false;
+              seen.add(id);
+              return !directIds.has(id) && !excludedIds.has(id);
+            });
+          }
+
+          delete next.addOnCategoryIds;
+          delete next.excludedAddOnCategoryIds;
+          state.subCategories[index] = next;
         }
       }
     );

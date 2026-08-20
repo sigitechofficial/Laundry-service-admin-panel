@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { Table } from "../../design-system";
 import {
   DirectoryIdentity,
@@ -13,7 +13,7 @@ import {
   useReportsDailyEarningsQuery,
 } from "../../store/services/api";
 import ReportToolbar, { ReportPagination, ReportTabs } from "./ReportToolbar";
-import { useReportFilters } from "./reportQueryUtils";
+import { useReportFilters, useReportView } from "./reportQueryUtils";
 import { downloadReportCsv, ReportInfo, reportMoney, ReportQueryState, unwrapReport } from "./reportUi.js";
 import { formatDate } from "../../utilities/formatters";
 
@@ -24,7 +24,7 @@ const EARNING_TABS = [
 ];
 
 export default function DailyEarningReport() {
-  const [activeTab, setActiveTab] = useState("daily");
+  const [activeTab, setActiveTab] = useReportView(["daily", "zone", "shop"], "daily");
   const f = useReportFilters();
 
   const dailyQ = useReportsDailyEarningsQuery(f.params, { skip: activeTab !== "daily" });
@@ -167,10 +167,7 @@ export default function DailyEarningReport() {
         <ReportTabs
           tabs={EARNING_TABS}
           value={activeTab}
-          onChange={(tab) => {
-            setActiveTab(tab.value);
-            f.setPage(1);
-          }}
+          onChange={(tab) => setActiveTab(tab.value)}
         />
         <DirectoryMetrics items={summaryItems} />
         <DirectoryTableWrap

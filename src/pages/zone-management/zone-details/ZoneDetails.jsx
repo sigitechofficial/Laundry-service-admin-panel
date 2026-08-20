@@ -38,13 +38,19 @@ export default function ZoneDetails() {
   const zone = useMemo(() => unwrapZoneFromApiResponse(data), [data]);
   const postcodes = useMemo(() => formatPostcodes(zone?.postcodes), [zone]);
 
-  const moneySymbol = resolveCurrencySymbol(zone);
-  const currency =
+  const moneySymbol = resolveCurrencySymbol(zone, {
+    country: zone?.city?.country,
+    countryId: zone?.city?.countryId ?? zone?.city?.country?.id,
+  });
+  const currencyCode =
     zone?.currencyUnitZ?.name ||
     zone?.currency ||
     zone?.zoneCurrency ||
-    moneySymbol ||
-    "—";
+    "";
+  const currency =
+    currencyCode && moneySymbol && currencyCode !== moneySymbol
+      ? `${currencyCode} (${moneySymbol})`
+      : currencyCode || moneySymbol || "—";
   const commission =
     zone?.agentCommissionPercent ??
     (zone?.zoneAdminComission != null ? 100 - zone.zoneAdminComission : "—");
