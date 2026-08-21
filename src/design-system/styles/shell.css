@@ -281,94 +281,28 @@
 
 .jd-ds .jd-foot {
   border-top: 1px solid var(--line);
-  padding: 12px 14px;
+  padding: 10px 14px;
 }
 
-.jd-ds .jd-profile {
+.jd-ds .jd-logout-btn {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 9px 10px;
-  border-radius: 12px;
-  min-width: 0;
-}
-
-.jd-ds .jd-profile .av {
-  width: 38px;
-  height: 38px;
-  border-radius: 50%;
-  background: linear-gradient(145deg, var(--brand-400), var(--brand-600));
-  color: var(--on-accent);
-  display: grid;
-  place-items: center;
-  font-weight: 700;
-  font-size: 14px;
-  flex: 0 0 auto;
-}
-
-.jd-ds .jd-profile .pi {
-  min-width: 0;
-  flex: 1;
-}
-
-.jd-ds .jd-profile b {
-  font-size: 15px;
-  font-weight: 700;
-  display: block;
-  line-height: 1.2;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.jd-ds .jd-profile span {
-  font-size: 13px;
-  color: var(--n-700);
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.jd-ds .jd-pact {
-  display: flex;
-  gap: 3px;
-  margin-left: auto;
-  flex: 0 0 auto;
-}
-
-.jd-ds .jd-pact button {
-  width: 32px;
-  height: 32px;
-  border: none;
-  background: none;
-  border-radius: 9px;
-  color: var(--n-400);
-  display: grid;
-  place-items: center;
-  cursor: pointer;
-}
-
-.jd-ds .jd-pact button:hover {
-  background: var(--canvas);
-  color: var(--ink);
-}
-
-.jd-ds .jd-priv {
-  display: block;
+  gap: 10px;
   width: 100%;
-  text-align: center;
-  font-size: 12.5px;
-  color: var(--n-400);
-  padding: 10px 0 2px;
-  font-weight: 500;
+  padding: 10px 12px;
   border: none;
   background: none;
+  border-radius: 10px;
+  color: var(--n-500);
+  font-size: 14px;
+  font-weight: 500;
   cursor: pointer;
+  transition: background 0.15s, color 0.15s;
 }
 
-.jd-ds .jd-priv:hover {
-  color: var(--ink-2);
+.jd-ds .jd-logout-btn:hover {
+  background: var(--canvas);
+  color: var(--danger, #c9403f);
 }
 
 .jd-ds.is-collapsed .jd-brand {
@@ -391,8 +325,7 @@
 .jd-ds.is-collapsed .jd-item .caret,
 .jd-ds.is-collapsed .jd-item .jd-count,
 .jd-ds.is-collapsed .jd-subs,
-.jd-ds.is-collapsed .jd-profile .pi,
-.jd-ds.is-collapsed .jd-priv {
+.jd-ds.is-collapsed .jd-logout-btn .lbl {
   display: none;
 }
 
@@ -407,15 +340,9 @@
   align-items: center;
 }
 
-.jd-ds.is-collapsed .jd-profile {
-  flex-direction: column;
+.jd-ds.is-collapsed .jd-logout-btn {
   justify-content: center;
-  gap: 6px;
-  padding: 8px 0;
-}
-
-.jd-ds.is-collapsed .jd-pact {
-  margin-left: 0;
+  padding: 10px 0;
 }
 
 .jd-ds .jd-stage {

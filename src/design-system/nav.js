@@ -135,6 +135,7 @@ export const DS_NAV = [
     items: [
       { label: "Delete Account Reasons", icon: "userx", path: "/delete-account-reasons" },
       { label: "Review Reason Codes", icon: "flag", path: "/review-reason-codes" },
+      { label: "Privacy Policy", icon: "file", path: "/privacy-policy" },
     ],
   },
 ];

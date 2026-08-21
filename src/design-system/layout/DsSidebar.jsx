@@ -284,20 +284,9 @@ export default function DsSidebar({ collapsed, onToggle, mobileOpen, searchRef }
         </nav>
 
         <div className="jd-foot">
-          <div className="jd-profile">
-            <div className="av">{initials(profile)}</div>
-            <div className="pi">
-              <b>{displayName(profile)}</b>
-              <span>{profile?.roleLabel || "Administrator"}</span>
-            </div>
-            <div className="jd-pact">
-              <button type="button" aria-label="Log out" title="Log out" onClick={handleLogout}>
-                <DsIcon name="logout" size={18} />
-              </button>
-            </div>
-          </div>
-          <button type="button" className="jd-priv" onClick={() => go("/privacy-policy")}>
-            Privacy Policy
+          <button type="button" className="jd-logout-btn" aria-label="Log out" onClick={handleLogout}>
+            <DsIcon name="logout" size={18} />
+            <span className="lbl">Log out</span>
           </button>
         </div>
       </aside>

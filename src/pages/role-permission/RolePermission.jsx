@@ -308,7 +308,7 @@ export default function RolePermission() {
             role?.isSystem ? "System" : null,
           ]
             .filter(Boolean)
-            .join(" · ") || `ID ${role?.id ?? "—"}`}
+            .join(" · ") || null}
           id={role?.id}
         />
       ),
