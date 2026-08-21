@@ -114,7 +114,7 @@ export default function ShopEmployeesPage() {
       key: "name",
       header: "Employee",
       render: (row) => (
-        <DirectoryIdentity name={row.name} meta={joinMeta(row.shopName, row.role)} id={row.id} />
+        <DirectoryIdentity name={row.name} meta={joinMeta(row.email !== "—" ? row.email : null, row.shopName, row.role)} id={row.id} />
       ),
     },
     {
