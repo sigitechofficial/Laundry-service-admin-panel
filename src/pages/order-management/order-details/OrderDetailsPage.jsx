@@ -465,6 +465,8 @@ export default function OrderDetailsPage() {
     (sum, proof) => sum + Number(proof?.noOfBags || 0),
     0
   );
+  // Customer-declared bags (from booking, preserved even after agent creates invoice).
+  const customerDeclaredBags = Number(orderData?.totalBags || orderData?.noOfBags || 0);
   const orderItemsTotal = Number(orderData?.totalItems || 0);
   const pickupItemsDisplayCount =
     pickupItemsCount > 0 ? pickupItemsCount : pickupProofs.length > 0 ? orderItemsTotal : 0;
@@ -922,7 +924,7 @@ export default function OrderDetailsPage() {
                 </p>
                 <div className={styles.proofGrid}>
                   <OdStatCell label="Items counted" value={pickupItemsDisplayCount || 0} warnZero />
-                  <OdStatCell label="Bags counted" value={pickupBagsCount || 0} warnZero />
+                  <OdStatCell label="Bags" value={pickupBagsCount > 0 ? pickupBagsCount : customerDeclaredBags} warnZero />
                 </div>
                 <div>
                   {pickupProofs.some((p) => p.note) && (
@@ -962,7 +964,7 @@ export default function OrderDetailsPage() {
                 </p>
                 <div className={styles.proofGrid}>
                   <OdStatCell label="Items counted" value={deliveryItemsDisplayCount || 0} warnZero />
-                  <OdStatCell label="Bags counted" value={deliveryBagsCount || 0} warnZero />
+                  <OdStatCell label="Bags" value={deliveryBagsCount > 0 ? deliveryBagsCount : customerDeclaredBags} warnZero />
                 </div>
                 <div>
                   {pickupItemsCount > deliveryItemsCount && (
