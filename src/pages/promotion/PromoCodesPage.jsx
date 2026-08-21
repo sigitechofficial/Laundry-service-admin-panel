@@ -179,7 +179,8 @@ function CreatePromoCodeForm({ form, errors, patch, discountHint }) {
               inputMode="decimal"
               placeholder={form.discountType === "percentage" ? "10" : "5.00"}
               value={form.discountValue}
-              onChange={(e) => patch("discountValue", e.target.value)}
+              onChange={(e) => patchPositive("discountValue", e.target.value)}
+              onKeyDown={blockNegativeKeys}
               min={0}
               step="0.01"
               error={Boolean(errors.discountValue)}
@@ -198,7 +199,8 @@ function CreatePromoCodeForm({ form, errors, patch, discountHint }) {
               inputMode="decimal"
               placeholder="No minimum"
               value={form.minOrderAmount}
-              onChange={(e) => patch("minOrderAmount", e.target.value)}
+              onChange={(e) => patchPositive("minOrderAmount", e.target.value)}
+              onKeyDown={blockNegativeKeys}
               min={0}
               step="0.01"
             />
@@ -210,7 +212,8 @@ function CreatePromoCodeForm({ form, errors, patch, discountHint }) {
               inputMode="decimal"
               placeholder="No cap"
               value={form.maxDiscountCap}
-              onChange={(e) => patch("maxDiscountCap", e.target.value)}
+              onChange={(e) => patchPositive("maxDiscountCap", e.target.value)}
+              onKeyDown={blockNegativeKeys}
               min={0}
               step="0.01"
             />
@@ -222,7 +225,8 @@ function CreatePromoCodeForm({ form, errors, patch, discountHint }) {
               inputMode="numeric"
               placeholder="0"
               value={form.usedCount}
-              onChange={(e) => patch("usedCount", e.target.value)}
+              onChange={(e) => patchPositive("usedCount", e.target.value)}
+              onKeyDown={blockNegativeKeys}
               min={0}
               step={1}
               error={Boolean(errors.usedCount)}
@@ -241,7 +245,8 @@ function CreatePromoCodeForm({ form, errors, patch, discountHint }) {
               inputMode="numeric"
               placeholder="Unlimited"
               value={form.usageLimit}
-              onChange={(e) => patch("usageLimit", e.target.value)}
+              onChange={(e) => patchPositive("usageLimit", e.target.value)}
+              onKeyDown={blockNegativeKeys}
               min={1}
               step={1}
               error={Boolean(errors.usageLimit)}
@@ -254,7 +259,8 @@ function CreatePromoCodeForm({ form, errors, patch, discountHint }) {
               inputMode="numeric"
               placeholder="1"
               value={form.perUserLimit}
-              onChange={(e) => patch("perUserLimit", e.target.value)}
+              onChange={(e) => patchPositive("perUserLimit", e.target.value)}
+              onKeyDown={blockNegativeKeys}
               min={1}
               step={1}
               error={Boolean(errors.perUserLimit)}
@@ -309,6 +315,15 @@ export default function PromoCodesPage() {
     if (form.discountType === "percentage") return "Percentage 0–100 (e.g. 10 for 10% off).";
     return "Fixed amount off the order (e.g. 5.00).";
   }, [form.discountType]);
+
+  const blockNegativeKeys = useCallback((e) => {
+    if (["-", "+", "e", "E"].includes(e.key)) e.preventDefault();
+  }, []);
+
+  const patchPositive = useCallback((key, value) => {
+    if (value !== "" && Number(value) < 0) return;
+    setForm((prev) => ({ ...prev, [key]: value }));
+  }, []);
 
   const patch = useCallback((key, value) => {
     setForm((prev) => ({ ...prev, [key]: value }));

@@ -373,7 +373,11 @@ export default function CustomerDetails() {
               <Input
                 id="settings-phone"
                 value={settingsForm.phoneNum}
-                onChange={(e) => setSettingsForm((p) => ({ ...p, phoneNum: e.target.value }))}
+                inputMode="tel"
+                onChange={(e) => {
+                  const val = e.target.value.replace(/[^0-9+\-() ]/g, "");
+                  setSettingsForm((p) => ({ ...p, phoneNum: val }));
+                }}
               />
             </Field>
             <Field label="Street address" htmlFor="settings-street">
