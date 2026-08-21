@@ -465,17 +465,14 @@ export default function OrderDetailsPage() {
     (sum, proof) => sum + Number(proof?.noOfBags || 0),
     0
   );
-  // Customer-declared bags (from booking, preserved even after agent creates invoice).
+  // Customer-declared bags/items (from booking, preserved even after agent creates invoice).
   const customerDeclaredBags = Number(orderData?.totalBags || orderData?.noOfBags || 0);
-  const orderItemsTotal = Number(orderData?.totalItems || 0);
+  // Always use customer-declared total as fallback (same pattern as bags).
+  const customerDeclaredItems = Number(orderData?.totalItems || 0);
   const pickupItemsDisplayCount =
-    pickupItemsCount > 0 ? pickupItemsCount : pickupProofs.length > 0 ? orderItemsTotal : 0;
+    pickupItemsCount > 0 ? pickupItemsCount : customerDeclaredItems;
   const deliveryItemsDisplayCount =
-    deliveryItemsCount > 0
-      ? deliveryItemsCount
-      : deliveryProofs.length > 0
-      ? orderItemsTotal
-      : 0;
+    deliveryItemsCount > 0 ? deliveryItemsCount : customerDeclaredItems;
 
   const addOnsTotalAmount = useMemo(() => {
     return selectedServiceGroups.reduce(
