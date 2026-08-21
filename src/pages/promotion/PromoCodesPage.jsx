@@ -119,6 +119,13 @@ function extractCouponsData(response) {
 }
 
 function CreatePromoCodeForm({ form, errors, patch, discountHint }) {
+  const blockNegativeKeys = (e) => {
+    if (["-", "+", "e", "E"].includes(e.key)) e.preventDefault();
+  };
+  const patchPositive = (key, value) => {
+    if (value !== "" && Number(value) < 0) return;
+    patch(key, value);
+  };
   return (
     <div style={{ display: "grid", gap: 20 }}>
       <p style={{ margin: 0, color: "var(--muted)", fontSize: 13 }}>
@@ -315,15 +322,6 @@ export default function PromoCodesPage() {
     if (form.discountType === "percentage") return "Percentage 0–100 (e.g. 10 for 10% off).";
     return "Fixed amount off the order (e.g. 5.00).";
   }, [form.discountType]);
-
-  const blockNegativeKeys = useCallback((e) => {
-    if (["-", "+", "e", "E"].includes(e.key)) e.preventDefault();
-  }, []);
-
-  const patchPositive = useCallback((key, value) => {
-    if (value !== "" && Number(value) < 0) return;
-    setForm((prev) => ({ ...prev, [key]: value }));
-  }, []);
 
   const patch = useCallback((key, value) => {
     setForm((prev) => ({ ...prev, [key]: value }));
