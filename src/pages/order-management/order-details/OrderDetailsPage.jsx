@@ -457,6 +457,14 @@ export default function OrderDetailsPage() {
     (sum, proof) => sum + Number(proof?.noOfItems || 0),
     0
   );
+  const pickupBagsCount = pickupProofs.reduce(
+    (sum, proof) => sum + Number(proof?.noOfBags || 0),
+    0
+  );
+  const deliveryBagsCount = deliveryProofs.reduce(
+    (sum, proof) => sum + Number(proof?.noOfBags || 0),
+    0
+  );
   const orderItemsTotal = Number(orderData?.totalItems || 0);
   const pickupItemsDisplayCount =
     pickupItemsCount > 0 ? pickupItemsCount : pickupProofs.length > 0 ? orderItemsTotal : 0;
@@ -914,7 +922,7 @@ export default function OrderDetailsPage() {
                 </p>
                 <div className={styles.proofGrid}>
                   <OdStatCell label="Items counted" value={pickupItemsDisplayCount || 0} warnZero />
-                  <OdStatCell label="Proof images" value={pickupProofs.length || 0} warnZero />
+                  <OdStatCell label="Bags counted" value={pickupBagsCount || 0} warnZero />
                 </div>
                 <div>
                   {pickupProofs.some((p) => p.note) && (
@@ -954,7 +962,7 @@ export default function OrderDetailsPage() {
                 </p>
                 <div className={styles.proofGrid}>
                   <OdStatCell label="Items counted" value={deliveryItemsDisplayCount || 0} warnZero />
-                  <OdStatCell label="Proof images" value={deliveryProofs.length || 0} warnZero />
+                  <OdStatCell label="Bags counted" value={deliveryBagsCount || 0} warnZero />
                 </div>
                 <div>
                   {pickupItemsCount > deliveryItemsCount && (
