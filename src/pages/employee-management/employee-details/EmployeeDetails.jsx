@@ -3,6 +3,8 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useGetAdminEmployeesQuery } from "../../../store/services/api";
 import { Delay } from "../../../components/shared/Loaders";
 import { extractAdminEmployees } from "../extractAdminEmployees";
+import { useState, useEffect } from "react";
+import { BlockUserButton, AnonymizeDeleteModal } from "../../user-management/UserBlockActions";
 
 const PANEL = {
   padding: 16,
@@ -15,12 +17,18 @@ const PANEL = {
 export default function EmployeeDetails() {
   const navigate = useNavigate();
   const { id } = useParams();
+  const [anonymizeModal, setAnonymizeModal] = useState(false);
+  const [isBlocked, setIsBlocked] = useState(false);
 
   const { data, currentData, isLoading, isFetching, isUninitialized, isError, refetch } =
     useGetAdminEmployeesQuery(undefined, { skip: !id, refetchOnMountOrArgChange: true });
   const payload = currentData ?? data;
   const adminEmployees = extractAdminEmployees(payload);
   const employee = adminEmployees.find((e) => String(e.id) === String(id));
+
+  useEffect(() => {
+    if (employee?.status !== undefined) setIsBlocked(!employee.status);
+  }, [employee?.status]);
   const showInitialLoader =
     Boolean(id) &&
     payload == null &&
@@ -76,6 +84,13 @@ export default function EmployeeDetails() {
             <Button variant="secondary" onClick={() => navigate(-1)}>
               Back
             </Button>
+            <BlockUserButton
+              userId={employee.id}
+              userType="admin_employee"
+              isBlocked={isBlocked}
+              onSuccess={(blocked) => { setIsBlocked(blocked); refetch(); }}
+            />
+            <Button variant="danger" onClick={() => setAnonymizeModal(true)}>Delete & anonymize</Button>
             <Button onClick={() => navigate(`/employee-management/edit/${employee.id}`)}>
               Edit
             </Button>
@@ -95,12 +110,20 @@ export default function EmployeeDetails() {
             <p className="jd-field__hint" style={{ margin: 0 }}>Status</p>
             <div style={{ marginTop: 6 }}>
               <Badge tone={employee.status ? "success" : "danger"}>
-                {employee.status ? "active" : "block"}
+                {employee.status ? "Active" : "Blocked"}
               </Badge>
             </div>
           </div>
         </div>
       </div>
+
+      <AnonymizeDeleteModal
+        open={anonymizeModal}
+        onClose={() => setAnonymizeModal(false)}
+        userId={employee.id}
+        userType="admin_employee"
+        onSuccess={() => navigate("/employee-management")}
+      />
     </div>
   );
 }

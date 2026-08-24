@@ -27,6 +27,7 @@ import {
   DirectoryToolbar,
 } from "../../directory-table/directoryTable";
 import { directoryStatusTone } from "../../directory-table/directoryTableUtils";
+import { BlockUserButton, AnonymizeDeleteModal } from "../../user-management/UserBlockActions";
 
 const PANEL = {
   padding: 16,
@@ -43,6 +44,9 @@ export default function CustomerDetails() {
   const [activeTab, setActiveTab] = useState("overview");
   const [searchOrders, setSearchOrders] = useState("");
   const [deleteModal, setDeleteModal] = useState({ open: false, orderId: null });
+  const [blockModal, setBlockModal] = useState(false);
+  const [anonymizeModal, setAnonymizeModal] = useState(false);
+  const [isBlocked, setIsBlocked] = useState(false);
   const [settingsForm, setSettingsForm] = useState({
     firstName: "",
     lastName: "",
@@ -60,6 +64,11 @@ export default function CustomerDetails() {
     [data?.data?.bookingDetails]
   );
   const user = userDetails?.user;
+
+  // Sync blocked state from API data
+  useEffect(() => {
+    if (user?.status !== undefined) setIsBlocked(!user.status);
+  }, [user?.status]);
 
   useEffect(() => {
     setSettingsForm({
@@ -238,6 +247,13 @@ export default function CustomerDetails() {
             <Button variant="secondary" onClick={() => navigate("/customer-management")}>
               Back
             </Button>
+            <BlockUserButton
+              userId={user?.id || id}
+              userType="customer"
+              isBlocked={isBlocked}
+              onSuccess={(blocked) => { setIsBlocked(blocked); refetch(); }}
+            />
+            <Button variant="danger" onClick={() => setAnonymizeModal(true)}>Delete & anonymize</Button>
             <Button onClick={() => navigate(`/customer-management/edit/${id}`)}>Edit customer</Button>
           </>
         }
@@ -408,6 +424,14 @@ export default function CustomerDetails() {
         orderId={deleteModal.orderId}
         onClose={() => setDeleteModal({ open: false, orderId: null })}
         onSuccess={() => refetch()}
+      />
+
+      <AnonymizeDeleteModal
+        open={anonymizeModal}
+        onClose={() => setAnonymizeModal(false)}
+        userId={user?.id || id}
+        userType="customer"
+        onSuccess={() => navigate("/customer-management")}
       />
     </div>
   );

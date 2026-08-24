@@ -19,9 +19,15 @@ const COUNTRY_OPTIONS = [
   { value: "+971", label: "+971" },
 ];
 
+const ROLE_OPTIONS = [
+  { value: "6", label: "Laundry Shop Driver" },
+  { value: "8", label: "Laundry Shop Manager" },
+];
+
 const createDriverSchema = (isEditMode = false) =>
   yup.object().shape({
     laundaryShopId: isEditMode ? yup.string() : yup.string().required("Shop is required"),
+    roleId: yup.string().required("Role is required"),
     firstName: yup.string().required("First name is required").min(2, "First name must be at least 2 characters"),
     lastName: yup.string().required("Last name is required").min(2, "Last name must be at least 2 characters"),
     email: yup.string().required("Email is required").email("Please enter a valid email address"),
@@ -45,6 +51,7 @@ const createDriverSchema = (isEditMode = false) =>
 
 const defaultValues = {
   laundaryShopId: "",
+  roleId: "6",
   firstName: "",
   lastName: "",
   email: "",
@@ -106,6 +113,7 @@ export default function NewDriverModal({ open, onClose, onDriverAdded, driverDat
           driverData.laundaryShopId ||
           driverData.shopId ||
           (driverData.classifiedAsId ? String(driverData.classifiedAsId) : ""),
+        roleId: driverData.roleId ? String(driverData.roleId) : "6",
         firstName: driverData.firstName || "",
         lastName: driverData.lastName || "",
         email: driverData.email || "",
@@ -133,6 +141,7 @@ export default function NewDriverModal({ open, onClose, onDriverAdded, driverDat
         phoneNum: data.phoneNumber,
         countryCode: data.countryCode,
         laundaryShopId: data.laundaryShopId,
+        roleId: data.roleId || "6",
       };
 
       if (data.password && data.password.trim() !== "") {
@@ -196,6 +205,21 @@ export default function NewDriverModal({ open, onClose, onDriverAdded, driverDat
                 options={shopOptions}
                 placeholder="Select shop"
                 disabled={shopsLoading}
+              />
+            </Field>
+          )}
+        />
+        <Controller
+          name="roleId"
+          control={control}
+          render={({ field }) => (
+            <Field label="Role" error={errors.roleId?.message}>
+              <Select
+                aria-label="Role"
+                value={field.value}
+                onChange={field.onChange}
+                options={ROLE_OPTIONS}
+                placeholder="Select role"
               />
             </Field>
           )}

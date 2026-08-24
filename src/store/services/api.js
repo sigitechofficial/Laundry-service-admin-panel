@@ -563,6 +563,31 @@ export const api = createApi({
       }),
     }),
 
+    blockUser: builder.mutation({
+      query: ({ userId, userType, reason }) => ({
+        url: "admin/block-user",
+        method: "PATCH",
+        body: { userId, userType, reason },
+      }),
+      invalidatesTags: ["Customers", "Drivers", "Employees"],
+    }),
+
+    unblockUser: builder.mutation({
+      query: ({ userId, userType }) => ({
+        url: "admin/unblock-user",
+        method: "PATCH",
+        body: { userId, userType },
+      }),
+      invalidatesTags: ["Customers", "Drivers", "Employees"],
+    }),
+
+    getUserBlockStatus: builder.query({
+      query: (userId) => ({
+        url: `admin/user-block-status/${userId}`,
+        method: "GET",
+      }),
+    }),
+
     getCustomerById: builder.query({
       query: (id) => ({
         url: `admin/specificCustomerDetails/${id}`,
@@ -2158,4 +2183,7 @@ export const {
   useGetAllBannersQuery,
   useUpdateBannerMutation,
   useDeleteBannerMutation,
+  useBlockUserMutation,
+  useUnblockUserMutation,
+  useGetUserBlockStatusQuery,
 } = api;

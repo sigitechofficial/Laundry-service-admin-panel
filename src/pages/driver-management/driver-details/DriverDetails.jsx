@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { Button, PageHeader, Table } from "../../../design-system";
 import { useNavigate, useParams } from "react-router-dom";
 import { useGetSpecificDriverDetailQuery } from "../../../store/services/api";
@@ -16,6 +16,7 @@ import {
   DirectoryToolbar,
 } from "../../directory-table/directoryTable";
 import { directoryStatusTone, joinMeta } from "../../directory-table/directoryTableUtils";
+import { BlockUserButton, AnonymizeDeleteModal } from "../../user-management/UserBlockActions";
 
 const PANEL = {
   padding: 24,
@@ -35,13 +36,19 @@ export default function DriverDetails() {
   const navigate = useNavigate();
   const { id } = useParams();
   const [searchTerm, setSearchTerm] = useState("");
+  const [anonymizeModal, setAnonymizeModal] = useState(false);
+  const [isBlocked, setIsBlocked] = useState(false);
 
-  const { data, isLoading, isError } = useGetSpecificDriverDetailQuery(id, { skip: !id });
+  const { data, isLoading, isError, refetch } = useGetSpecificDriverDetailQuery(id, { skip: !id });
 
   const driverInfo = data?.data?.userInformation;
   const driverDetails = driverInfo?.driverInZone;
   const shopInfo = driverInfo?.laundaryDriver;
   const addressInfo = shopInfo?.addressDb;
+
+  useEffect(() => {
+    if (driverDetails?.status !== undefined) setIsBlocked(!driverDetails.status);
+  }, [driverDetails?.status]);
   const bookings = useMemo(
     () => data?.data?.driverBookings || [],
     [data?.data?.driverBookings]
@@ -183,9 +190,18 @@ export default function DriverDetails() {
         title={fullName}
         description={`Driver ID #${driverDetails?.id || id}`}
         actions={
-          <Button variant="secondary" onClick={() => navigate("/driver-management")}>
-            Back
-          </Button>
+          <>
+            <Button variant="secondary" onClick={() => navigate("/driver-management")}>
+              Back
+            </Button>
+            <BlockUserButton
+              userId={driverDetails?.id || id}
+              userType="driver"
+              isBlocked={isBlocked}
+              onSuccess={(blocked) => { setIsBlocked(blocked); refetch(); }}
+            />
+            <Button variant="danger" onClick={() => setAnonymizeModal(true)}>Delete & anonymize</Button>
+          </>
         }
       />
 
@@ -215,6 +231,14 @@ export default function DriverDetails() {
           empty="No bookings found for this driver"
         />
       </DirectoryTableWrap>
+
+      <AnonymizeDeleteModal
+        open={anonymizeModal}
+        onClose={() => setAnonymizeModal(false)}
+        userId={driverDetails?.id || id}
+        userType="driver"
+        onSuccess={() => navigate("/driver-management")}
+      />
     </div>
   );
 }
