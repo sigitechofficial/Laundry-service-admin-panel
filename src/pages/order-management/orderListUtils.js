@@ -133,6 +133,25 @@ export function resolveCustomerId(booking) {
   );
 }
 
+/** Display name + phone for order list rows (matches Action Required / Payment Failures). */
+export function resolveCustomerDisplay(booking) {
+  const customer = booking?.customer;
+  if (!customer) {
+    return { name: "—", phone: "—" };
+  }
+  const fromParts = [customer.firstName, customer.lastName]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+  const name =
+    customer.name ||
+    fromParts ||
+    customer.email ||
+    "—";
+  const phone = customer.phoneNum || "—";
+  return { name, phone };
+}
+
 /**
  * Shop details id from booking FK / joined laundryShop.
  * Never use laundryShop.userId — that is the agent account, not the shop.
@@ -255,6 +274,8 @@ export function mapBookingToOrderListRow(booking) {
   const schedulePhase = resolveOrderSchedulePhase(booking, statusTitle);
   const paymentDeliveryGate = booking?.paymentDeliveryGate || null;
   const paymentWaitingAdmin = paymentDeliveryGate === "waiting_admin";
+  const { name: customerName, phone: customerPhone } =
+    resolveCustomerDisplay(booking);
 
   return {
     id: booking?.id,
@@ -266,6 +287,8 @@ export function mapBookingToOrderListRow(booking) {
     shopName: shopLabel,
     laundryShopId: resolveLaundryShopId(booking),
     customerId: resolveCustomerId(booking),
+    customer: customerName,
+    phone: customerPhone,
     totalItems,
     pickupAt: booking?.collectionDate ? dayjs(booking.collectionDate).valueOf() : 0,
     pickupDateTime,
@@ -285,6 +308,8 @@ export function mapBookingToOrderListRow(booking) {
     _export: {
       orderId: orderDisplayId,
       orderDateTime: createdRaw ? formatDate(createdRaw, DATE_TIME_FORMAT) : "",
+      customerName,
+      customerPhone,
       serviceType,
       totalItems,
       pickupDateTime,
@@ -305,7 +330,18 @@ function csvEscape(value) {
 }
 
 export function downloadOrderListCsv(rows = [], filename = "orders_export.csv") {
-  const head = ["Order", "Placed", "Shop", "Services", "Items", "Pickup", "Delivery", "Status"];
+  const head = [
+    "Order",
+    "Placed",
+    "Customer",
+    "Phone",
+    "Shop",
+    "Services",
+    "Items",
+    "Pickup",
+    "Delivery",
+    "Status",
+  ];
   const lines = [head.join(",")];
   rows.forEach((row) => {
     const x = row._export || {};
@@ -313,6 +349,8 @@ export function downloadOrderListCsv(rows = [], filename = "orders_export.csv") 
       [
         x.orderId || row.orderId || "",
         x.orderDateTime || row.orderDateTime || "",
+        csvEscape(x.customerName || row.customer || ""),
+        csvEscape(x.customerPhone || row.phone || ""),
         csvEscape(x.shopName || row.shopName || ""),
         csvEscape(x.serviceType || row.serviceType || ""),
         x.totalItems ?? row.totalItems ?? "",

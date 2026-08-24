@@ -5,6 +5,7 @@ import {
   DirectoryActionView,
 } from "../directory-table/DirectoryActionIcon";
 import {
+  CustomerNamePhone,
   DateTimeStack,
   DotPill,
   EntityNameLink,
@@ -14,7 +15,11 @@ import {
   ServicePills,
   StatusDotPill,
 } from "./orderListTable";
-import { resolveLaundryShopId, shopDetailsPath } from "./orderListUtils";
+import {
+  customerDetailsPath,
+  resolveLaundryShopId,
+  shopDetailsPath,
+} from "./orderListUtils";
 
 export function useOrderListColumns({
   navigate,
@@ -41,12 +46,25 @@ export function useOrderListColumns({
           }),
       },
       {
+        key: "customer",
+        header: "Customer",
+        render: (row) =>
+          h(CustomerNamePhone, {
+            name: row.customer,
+            phone: row.phone,
+            nameTo: customerDetailsPath(row.customerId),
+          }),
+      },
+      {
         key: "shopName",
         header: "Shop & service",
         render: (row) =>
           h(
             "div",
-            { className: "min-w-0 max-w-[280px]", title: [row.shopName, row.serviceType].filter(Boolean).join("\n") },
+            {
+              className: "min-w-0 max-w-[280px] leading-snug",
+              title: [row.shopName, row.serviceType].filter(Boolean).join("\n"),
+            },
             row.shopName
               ? h(
                   EntityNameLink,

@@ -234,11 +234,11 @@ export function ServicePills({ names = [], shopName }) {
   }
 
   return (
-    <div className="mt-1.5 flex flex-nowrap items-center gap-1 overflow-hidden" title={full}>
+    <div className="mt-1.5 flex max-w-[280px] flex-wrap items-center gap-1" title={full}>
       {visible.map((item) => (
         <span
           key={item}
-          className="max-w-[132px] truncate whitespace-nowrap rounded-md border border-[#e6e9f0] bg-[#f4f5f8] px-2 py-px text-[11px] font-medium text-[#38424f]"
+          className="max-w-full truncate whitespace-nowrap rounded-md border border-[#e6e9f0] bg-[#f4f5f8] px-2 py-px text-[11px] font-medium text-[#38424f]"
         >
           {item}
         </span>

@@ -250,7 +250,7 @@
 
 .table {
   width: 100%;
-  min-width: 940px;
+  min-width: 1120px;
   border-collapse: collapse;
 }
 
@@ -306,8 +306,8 @@
 .tableLayout td:nth-child(1),
 .tableLayout th:nth-child(2),
 .tableLayout td:nth-child(2),
-.tableLayout th:nth-child(5),
-.tableLayout td:nth-child(5) {
+.tableLayout th:nth-child(6),
+.tableLayout td:nth-child(6) {
   white-space: nowrap;
 }
 
@@ -319,12 +319,18 @@
 
 .tableLayout th:nth-child(3),
 .tableLayout td:nth-child(3) {
-  min-width: 180px;
-  max-width: 280px;
+  min-width: 160px;
+  max-width: 220px;
 }
 
 .tableLayout th:nth-child(4),
 .tableLayout td:nth-child(4) {
+  min-width: 180px;
+  max-width: 280px;
+}
+
+.tableLayout th:nth-child(5),
+.tableLayout td:nth-child(5) {
   width: 72px;
   text-align: center;
 }

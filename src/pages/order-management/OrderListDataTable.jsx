@@ -41,7 +41,7 @@ export default function OrderListDataTable({
   searchInput,
   onSearchInputChange,
   isTableLoading = false,
-  searchPlaceholder = "Search by order ID, shop or service…",
+  searchPlaceholder = "Search by order ID, customer, shop or service…",
   onDownload,
   emptyText,
   lead,
