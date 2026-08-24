@@ -40,6 +40,7 @@ import {
   invoicePrintHtml,
   printHtmlDocument,
 } from "../invoice/invoiceView";
+import { customerDetailsPath } from "../orderListUtils";
 import {
   OdCard,
   OdEmptyInvoice,
@@ -1673,6 +1674,30 @@ export default function OrderDetailsPage() {
         </div>
 
         <div className={styles.stack}>
+          <div style={CARD}>
+            <OdSectionTitle>Customer</OdSectionTitle>
+            <div className="space-y-3" style={{ padding: 20 }}>
+              {orderData?.customer ? (
+                <>
+                  <OdMetaRow
+                    label="Name"
+                    value={
+                      [orderData.customer.firstName, orderData.customer.lastName]
+                        .filter(Boolean)
+                        .join(" ")
+                        .trim() || "—"
+                    }
+                    valueTo={customerDetailsPath(orderData.customer.id)}
+                  />
+                  <OdMetaRow label="Email" value={orderData.customer.email || "—"} />
+                  <OdMetaRow label="Phone" value={orderData.customer.phoneNum || "—"} />
+                </>
+              ) : (
+                <p style={{ margin: 0, fontSize: 13, color: "#64748B" }}>No customer linked</p>
+              )}
+            </div>
+          </div>
+
           <div style={CARD}>
             <OdSectionTitle>Payment</OdSectionTitle>
             <div className="space-y-3" style={{ padding: 20 }}>

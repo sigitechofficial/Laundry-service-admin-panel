@@ -1,4 +1,5 @@
 import { Button } from "../../../design-system";
+import { Link } from "react-router-dom";
 import styles from "./orderDetails.module.css";
 
 export function OdSectionTitle({ children }) {
@@ -13,11 +14,21 @@ export function OdCard({ children, className = "" }) {
   return <div className={`${styles.card} ${className}`.trim()}>{children}</div>;
 }
 
-export function OdMetaRow({ label, value }) {
+export function OdMetaRow({ label, value, valueTo }) {
   return (
     <div className={styles.metaRow}>
       <p className={styles.metaLabel}>{label}</p>
-      <p className={styles.metaValue}>{value}</p>
+      {valueTo ? (
+        <Link
+          to={valueTo}
+          className={styles.metaValue}
+          style={{ color: "#2563EB", textDecoration: "none", fontWeight: 500 }}
+        >
+          {value}
+        </Link>
+      ) : (
+        <p className={styles.metaValue}>{value}</p>
+      )}
     </div>
   );
 }
