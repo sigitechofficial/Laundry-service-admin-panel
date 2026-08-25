@@ -1,4 +1,4 @@
-const VARIANTS = ["primary", "secondary", "ghost", "danger"];
+const VARIANTS = ["primary", "secondary", "ghost", "danger", "warning"];
 const TYPES = ["button", "submit", "reset"];
 
 export default function Button({

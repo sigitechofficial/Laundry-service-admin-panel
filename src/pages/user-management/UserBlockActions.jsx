@@ -38,7 +38,7 @@ export function BlockUserModal({ open, onClose, userId, userType, isBlocked, onS
       onClose={onClose}
       title={isBlocked ? "Unblock user" : "Block user"}
       primaryLabel={loading ? (isBlocked ? "Unblocking…" : "Blocking…") : isBlocked ? "Yes, unblock" : "Yes, block"}
-      primaryTone={isBlocked ? "brand" : "danger"}
+      primaryTone={isBlocked ? "primary" : "warning"}
       secondaryLabel="Cancel"
       onPrimary={handleConfirm}
     >
@@ -63,8 +63,7 @@ export function BlockUserButton({ userId, userType, isBlocked, onSuccess }) {
   return (
     <>
       <Button
-        variant={isBlocked ? "secondary" : "danger"}
-        size="sm"
+        variant={isBlocked ? "secondary" : "warning"}
         onClick={() => setOpen(true)}
       >
         {isBlocked ? "Unblock" : "Block"}

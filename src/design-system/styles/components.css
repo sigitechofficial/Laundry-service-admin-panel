@@ -60,6 +60,18 @@
   background: var(--danger-700);
 }
 
+/* Warning — amber, reversible actions like Block */
+.jd-ds .jd-btn--warning {
+  background: #fff7ed;
+  color: #c2410c;
+  border-color: #fdba74;
+}
+
+.jd-ds .jd-btn--warning:hover:not(:disabled) {
+  background: #ffedd5;
+  border-color: #fb923c;
+}
+
 .jd-ds .jd-btn--sm {
   height: var(--ctrl-h-sm);
   padding: 0 12px;

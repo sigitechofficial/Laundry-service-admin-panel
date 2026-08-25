@@ -35,6 +35,7 @@ export default function Modal({
   secondaryLabel = "Cancel",
   onPrimary,
   danger,
+  primaryTone,
   hideFooter = false,
   hideHeader = false,
   primaryDisabled = false,
@@ -221,7 +222,7 @@ export default function Modal({
               {secondaryLabel}
             </Button>
             <Button
-              variant={danger ? "danger" : "primary"}
+              variant={primaryTone || (danger ? "danger" : "primary")}
               onClick={onPrimary || onClose}
               disabled={primaryDisabled}
             >
