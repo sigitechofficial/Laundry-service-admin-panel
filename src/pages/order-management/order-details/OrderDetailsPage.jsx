@@ -470,18 +470,19 @@ export default function OrderDetailsPage() {
   const customerDeclaredBags = Number(orderData?.totalBags || orderData?.noOfBags || 0);
   // Always use customer-declared total as fallback (same pattern as bags).
   const customerDeclaredItems = Number(orderData?.totalItems || 0);
-  const pickupItemsDisplayCount =
-    pickupItemsCount > 0 ? pickupItemsCount : customerDeclaredItems;
-  const deliveryItemsDisplayCount =
-    deliveryItemsCount > 0 ? deliveryItemsCount : customerDeclaredItems;
+  // "Items counted" / "Bags" cells show agent-confirmed counts only.
+  // When no proof exists yet, show 0 (warnZero will flag it red) so admin
+  // can clearly see no agent has counted yet — not the customer's estimate.
+  const pickupItemsDisplayCount = pickupItemsCount;
+  const deliveryItemsDisplayCount = deliveryItemsCount;
   // Delivery bag fallback: prefer pickup-confirmed count (driver picked up X bags,
-  // should return X bags), then fall back to customer-declared.
+  // should return X bags), then 0 (not customer-declared) when delivery hasn't happened.
   const deliveryBagsDisplayCount =
     deliveryBagsCount > 0
       ? deliveryBagsCount
       : pickupBagsCount > 0
       ? pickupBagsCount
-      : customerDeclaredBags;
+      : 0;
 
   const addOnsTotalAmount = useMemo(() => {
     return selectedServiceGroups.reduce(
@@ -930,7 +931,7 @@ export default function OrderDetailsPage() {
                 </p>
                 <div className={styles.proofGrid}>
                   <OdStatCell label="Items counted" value={pickupItemsDisplayCount || 0} warnZero />
-                  <OdStatCell label="Bags" value={pickupBagsCount > 0 ? pickupBagsCount : customerDeclaredBags} warnZero />
+                  <OdStatCell label="Bags" value={pickupBagsCount} warnZero />
                 </div>
                 <div>
                   {pickupProofs.some((p) => p.note) && (
