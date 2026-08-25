@@ -474,6 +474,14 @@ export default function OrderDetailsPage() {
     pickupItemsCount > 0 ? pickupItemsCount : customerDeclaredItems;
   const deliveryItemsDisplayCount =
     deliveryItemsCount > 0 ? deliveryItemsCount : customerDeclaredItems;
+  // Delivery bag fallback: prefer pickup-confirmed count (driver picked up X bags,
+  // should return X bags), then fall back to customer-declared.
+  const deliveryBagsDisplayCount =
+    deliveryBagsCount > 0
+      ? deliveryBagsCount
+      : pickupBagsCount > 0
+      ? pickupBagsCount
+      : customerDeclaredBags;
 
   const addOnsTotalAmount = useMemo(() => {
     return selectedServiceGroups.reduce(
@@ -962,7 +970,7 @@ export default function OrderDetailsPage() {
                 </p>
                 <div className={styles.proofGrid}>
                   <OdStatCell label="Items counted" value={deliveryItemsDisplayCount || 0} warnZero />
-                  <OdStatCell label="Bags" value={deliveryBagsCount > 0 ? deliveryBagsCount : customerDeclaredBags} warnZero />
+                  <OdStatCell label="Bags" value={deliveryBagsDisplayCount} warnZero />
                 </div>
                 <div>
                   {pickupItemsCount > deliveryItemsCount && (
