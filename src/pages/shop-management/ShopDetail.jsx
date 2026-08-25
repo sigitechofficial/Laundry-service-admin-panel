@@ -35,6 +35,7 @@ import {
   DirectoryTableWrap,
 } from "../directory-table/directoryTable";
 import { directoryStatusTone, joinMeta } from "../directory-table/directoryTableUtils";
+import { BlockUserButton, AnonymizeDeleteModal } from "../user-management/UserBlockActions";
 
 const CARD = {
   padding: 16,
@@ -176,6 +177,8 @@ export default function ShopDetails() {
     maxActiveOrders: 50,
   });
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [isBlocked, setIsBlocked] = useState(false);
+  const [anonymizeModal, setAnonymizeModal] = useState(false);
   const [adminNotes, setAdminNotes] = useState("");
   const [openingHours, setOpeningHours] = useState(buildOpeningHours());
   const [financeSettings, setFinanceSettings] = useState({
@@ -373,6 +376,7 @@ export default function ShopDetails() {
 
   useEffect(() => {
     if (!shop) return;
+    setIsBlocked(biz?.status === false);
     setSettingsForm({
       shopName: shop?.shopName || shop?.name || "",
       status: shop?.status === false ? "inactive" : "active",
@@ -700,9 +704,29 @@ export default function ShopDetails() {
             >
               Back to shops
             </Button>
+            <BlockUserButton
+              userId={biz?.id}
+              userType="agent"
+              isBlocked={isBlocked}
+              onSuccess={(blocked) => {
+                setIsBlocked(blocked);
+                refetch();
+              }}
+            />
+            <Button variant="danger" onClick={() => setAnonymizeModal(true)}>
+              Delete &amp; Anonymize
+            </Button>
             <Button onClick={() => setActiveTab("settings")}>Edit Shop</Button>
           </>
         }
+      />
+
+      <AnonymizeDeleteModal
+        open={anonymizeModal}
+        onClose={() => setAnonymizeModal(false)}
+        userId={biz?.id}
+        userType="agent"
+        onSuccess={() => navigate("/shop-management/shops")}
       />
 
       <div
