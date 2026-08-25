@@ -48,6 +48,8 @@ export default function RuntimeChecks() {
   const [intervalSeconds, setIntervalSeconds] = useState("60");
   const [maxAttempts, setMaxAttempts] = useState("3");
   const [retryGapMinutes, setRetryGapMinutes] = useState("30");
+  const [preferredShopEnabled, setPreferredShopEnabled] = useState(true);
+  const [preferredShopWindowMinutes, setPreferredShopWindowMinutes] = useState("10");
 
   useEffect(() => {
     const next = data?.data?.settings;
@@ -69,6 +71,12 @@ export default function RuntimeChecks() {
     }
     if (next.invoiceAutoChargeRetryGapMs) {
       setRetryGapMinutes(msToMinutes(next.invoiceAutoChargeRetryGapMs.value));
+    }
+    if (next.preferredShopEnabled != null) {
+      setPreferredShopEnabled(Boolean(next.preferredShopEnabled.value));
+    }
+    if (next.preferredShopWindowMinutes != null) {
+      setPreferredShopWindowMinutes(String(next.preferredShopWindowMinutes.value ?? 10));
     }
   }, [data]);
 
@@ -96,6 +104,12 @@ export default function RuntimeChecks() {
       return;
     }
 
+    const windowMins = Number(preferredShopWindowMinutes);
+    if (!Number.isInteger(windowMins) || windowMins < 1 || windowMins > 60) {
+      showError("Preferred shop window must be between 1 and 60 minutes");
+      return;
+    }
+
     try {
       await updateSettings({
         geofenceBypassEnabled: geofenceBypass,
@@ -104,6 +118,8 @@ export default function RuntimeChecks() {
         invoiceAutoChargeJobIntervalMs: intervalMs,
         invoiceAutoChargeMaxAttempts: attempts,
         invoiceAutoChargeRetryGapMs: retryGapMs,
+        preferredShopEnabled,
+        preferredShopWindowMinutes: windowMins,
       }).unwrap();
       success("Runtime checks saved. They apply without a server restart.");
       refetch();
@@ -206,6 +222,36 @@ export default function RuntimeChecks() {
                 />
               </Field>
             </div>
+          </DirectoryFormCard>
+
+          <DirectoryFormCard
+            title="Preferred shop assignment"
+            hint="When a returning customer places a new order, the shop that last completed a job for them gets a private head-start window. If they don't accept in time, the booking opens to all shops in the zone."
+          >
+            <Toggle
+              checked={preferredShopEnabled}
+              onChange={(e) => setPreferredShopEnabled(e.target.checked)}
+              label="Send new bookings to preferred shop first"
+            />
+            {preferredShopEnabled && (
+              <div style={{ marginTop: 16 }}>
+                <Field
+                  label="Head-start window (minutes)"
+                  htmlFor="rc-preferred-window"
+                  hint="How long the preferred shop has exclusive access before the booking broadcasts to all shops. Min 1, max 60."
+                >
+                  <Input
+                    id="rc-preferred-window"
+                    type="number"
+                    min={1}
+                    max={60}
+                    value={preferredShopWindowMinutes}
+                    onChange={(e) => setPreferredShopWindowMinutes(e.target.value)}
+                    style={{ maxWidth: 120 }}
+                  />
+                </Field>
+              </div>
+            )}
           </DirectoryFormCard>
 
           <Button onClick={handleSave} disabled={saving}>
