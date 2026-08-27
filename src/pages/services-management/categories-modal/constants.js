@@ -95,6 +95,7 @@ export const defaultCategoryValues = {
   description: "",
   image: "",
   serviceId: "",
+  status: true,
 };
 
 export const defaultSubCategoryValues = {
@@ -105,4 +106,5 @@ export const defaultSubCategoryValues = {
   unitCount: 1,
   addOnCategoryIds: [],
   excludedAddOnCategoryIds: [],
+  status: true,
 };

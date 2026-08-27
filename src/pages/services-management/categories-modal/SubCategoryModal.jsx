@@ -123,7 +123,7 @@ export default function SubCategoryModal({
       description: normalizeEditorContent(data.description),
       price: parseFloat(data.price),
       unitCount: Number.parseInt(String(data.unitCount || 1), 10) || 1,
-      status: true,
+      status: Boolean(data.status),
       addOnCategoryIds: (data.addOnCategoryIds || []).map((id) => Number(id)),
       // Only persist exclusions that still apply to parent inheritance.
       excludedAddOnCategoryIds: (data.excludedAddOnCategoryIds || [])
@@ -192,6 +192,7 @@ export default function SubCategoryModal({
           ? categoryData?.unitCount ?? categoryData?.unit_count ?? 1
           : 1
       );
+      setValue("status", isUpdate ? categoryData?.status !== false : true);
 
       const linkedAddOnCategories = isUpdate
         ? categoryData?.addOnCategories
@@ -430,6 +431,23 @@ export default function SubCategoryModal({
                 onChange={(e) => onChange(e.target.value)}
                 error={!!errors.unitCount}
               />
+            </Field>
+          )}
+        />
+
+        <Controller
+          name="status"
+          control={control}
+          render={({ field: { onChange, value } }) => (
+            <Field label="Availability">
+              <label style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                <input
+                  type="checkbox"
+                  checked={Boolean(value)}
+                  onChange={(e) => onChange(e.target.checked)}
+                />
+                Enabled in customer/agent apps
+              </label>
             </Field>
           )}
         />

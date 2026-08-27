@@ -3,6 +3,8 @@ import { TbChevronDown } from "../../shared/icons/index";
 import {
   useDeleteCategoryMutation,
   useDeleteSubCategoryMutation,
+  useEditCategoryMutation,
+  useEditSubCategoryMutation,
   useGetCategoriesQuery,
   useGetSubCategoriesQuery,
   useGetAllServicesQuery,
@@ -53,6 +55,8 @@ export default function ItemCategoriesCard({ triggerAdd }) {
   const [deleteCategory, { isLoading: deleteLoading }] =
     useDeleteCategoryMutation();
   const [deleteSubCategory] = useDeleteSubCategoryMutation();
+  const [editCategory] = useEditCategoryMutation();
+  const [editSubCategory] = useEditSubCategoryMutation();
   const [expandedCategories, setExpandedCategories] = useState({});
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedServiceId, setSelectedServiceId] = useState("");
@@ -123,6 +127,50 @@ export default function ItemCategoriesCard({ triggerAdd }) {
       error(getApiErrorMessage(err, "Could not delete sub-category."));
     } finally {
       setSubToDelete(null);
+    }
+  };
+
+  const handleToggleCategoryStatus = async (category) => {
+    try {
+      const formData = new FormData();
+      formData.append("status", String(!(category?.status === true)));
+      const res = await editCategory({
+        categoryId: category.id,
+        body: formData,
+      }).unwrap();
+      if (res?.status === "1") {
+        success(
+          category?.status === true
+            ? "Category disabled successfully."
+            : "Category enabled successfully."
+        );
+        void refetch();
+      } else {
+        error(res?.message || "Could not update category status.");
+      }
+    } catch (err) {
+      error(getApiErrorMessage(err, "Could not update category status."));
+    }
+  };
+
+  const handleToggleSubCategoryStatus = async (item) => {
+    try {
+      const res = await editSubCategory({
+        subCatId: item.id,
+        body: { status: !(item?.status === true) },
+      }).unwrap();
+      if (res?.status === "1") {
+        success(
+          item?.status === true
+            ? "Sub-category disabled successfully."
+            : "Sub-category enabled successfully."
+        );
+        void refetch();
+      } else {
+        error(res?.message || "Could not update sub-category status.");
+      }
+    } catch (err) {
+      error(getApiErrorMessage(err, "Could not update sub-category status."));
     }
   };
 
@@ -280,6 +328,13 @@ export default function ItemCategoriesCard({ triggerAdd }) {
                 >
                   <Button
                     size="sm"
+                    variant={category?.status ? "warning" : "secondary"}
+                    onClick={() => handleToggleCategoryStatus(category)}
+                  >
+                    {category?.status ? "Disable" : "Enable"}
+                  </Button>
+                  <Button
+                    size="sm"
                     variant="secondary"
                     onClick={() => {
                       setIsModalOpen({
@@ -367,6 +422,13 @@ export default function ItemCategoriesCard({ triggerAdd }) {
                             <DirectoryMoney>{formatAmount(item?.price, null, { applyDefault: true })}</DirectoryMoney>
                           </div>
                           <DirectoryActions>
+                            <Button
+                              size="sm"
+                              variant={item?.status ? "warning" : "secondary"}
+                              onClick={() => handleToggleSubCategoryStatus(item)}
+                            >
+                              {item?.status ? "Disable" : "Enable"}
+                            </Button>
                             <DirectoryActionEdit
                               onClick={() => {
                                 setIsModalOpen({

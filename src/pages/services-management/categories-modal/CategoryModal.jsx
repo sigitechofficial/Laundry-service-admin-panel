@@ -46,6 +46,7 @@ const buildCategoryFormValues = (categoryData) => ({
   name: categoryData?.name || "",
   description: normalizeEditorContent(categoryData?.description || ""),
   serviceId: categoryData?.serviceId ?? categoryData?.service?.id ?? "",
+  status: categoryData?.status !== false,
   image: resolveCategoryImageUrl(
     categoryData?.CategoryImg ||
       categoryData?.categoryImg ||
@@ -189,6 +190,7 @@ export default function CategoryModal({ open, onClose, type, categoryData }) {
       formdata.append("name", data.name || "");
       formdata.append("description", cleanDescription);
       formdata.append("serviceId", String(data.serviceId));
+      formdata.append("status", String(Boolean(data.status)));
 
       if (isUpdate) {
         if (data.image instanceof File) {
@@ -294,6 +296,23 @@ export default function CategoryModal({ open, onClose, type, categoryData }) {
                 onChange={(e) => onChange(e.target.value)}
                 error={!!errors.name}
               />
+            </Field>
+          )}
+        />
+
+        <Controller
+          name="status"
+          control={control}
+          render={({ field: { onChange, value } }) => (
+            <Field label="Availability">
+              <label style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                <input
+                  type="checkbox"
+                  checked={Boolean(value)}
+                  onChange={(e) => onChange(e.target.checked)}
+                />
+                Enabled in customer/agent apps
+              </label>
             </Field>
           )}
         />

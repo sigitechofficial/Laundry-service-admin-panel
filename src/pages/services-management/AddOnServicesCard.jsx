@@ -35,6 +35,7 @@ const emptyServiceForm = {
   name: "",
   price: "",
   addOnCategoryId: "",
+  status: true,
   type: "add",
 };
 
@@ -42,6 +43,7 @@ const emptyCategoryForm = {
   open: false,
   id: "",
   name: "",
+  status: true,
 };
 
 const UNCATEGORIZED_KEY = "uncategorized";
@@ -178,7 +180,12 @@ export default function AddOnServicesCard({ triggerAdd }) {
     const byId = new Map();
     const orderedCats = categoryDragOrder ?? categories;
     orderedCats.forEach((c) =>
-      byId.set(String(c.id), { id: String(c.id), name: c.name, items: [] })
+      byId.set(String(c.id), {
+        id: String(c.id),
+        name: c.name,
+        status: c.status !== false,
+        items: [],
+      })
     );
     const uncategorized = {
       id: UNCATEGORIZED_KEY,
@@ -241,6 +248,7 @@ export default function AddOnServicesCard({ triggerAdd }) {
       price: item.price ?? "",
       addOnCategoryId:
         item.addOnCategoryId != null ? String(item.addOnCategoryId) : "",
+      status: item.status !== false,
       type: "update",
     });
 
@@ -363,7 +371,12 @@ export default function AddOnServicesCard({ triggerAdd }) {
       if (serviceForm.type === "update" && serviceForm.id) {
         const res = await updateAddOnService({
           addOnServiceId: serviceForm.id,
-          body: { name: trimmedName, price, addOnCategoryId },
+          body: {
+            name: trimmedName,
+            price,
+            addOnCategoryId,
+            status: Boolean(serviceForm.status),
+          },
         }).unwrap();
         if (!isExplicitFailure(res)) {
           success("Add-on service updated.");
@@ -379,6 +392,7 @@ export default function AddOnServicesCard({ triggerAdd }) {
         name: trimmedName,
         price,
         addOnCategoryId,
+        status: Boolean(serviceForm.status),
       }).unwrap();
       if (!isExplicitFailure(res)) {
         success("Add-on service created.");
@@ -416,7 +430,7 @@ export default function AddOnServicesCard({ triggerAdd }) {
     try {
       const res = await updateCategory({
         addOnCategoryId: categoryForm.id,
-        body: { name: trimmed },
+        body: { name: trimmed, status: Boolean(categoryForm.status) },
       }).unwrap();
       if (!isExplicitFailure(res)) {
         success("Category updated.");
@@ -440,6 +454,44 @@ export default function AddOnServicesCard({ triggerAdd }) {
         void refetch();
       } else {
         error(res?.message || "Could not delete category.");
+      }
+    } catch {
+      error("Request failed. Please try again.");
+    }
+  };
+
+  const handleToggleServiceStatus = async (item) => {
+    try {
+      const res = await updateAddOnService({
+        addOnServiceId: item.id,
+        body: { status: !(item?.status === true) },
+      }).unwrap();
+      if (!isExplicitFailure(res)) {
+        success(item?.status === true ? "Add-on disabled." : "Add-on enabled.");
+        void refetch();
+      } else {
+        error(res?.message || "Could not update add-on status.");
+      }
+    } catch {
+      error("Request failed. Please try again.");
+    }
+  };
+
+  const handleToggleCategoryStatus = async (group) => {
+    try {
+      const res = await updateCategory({
+        addOnCategoryId: group.id,
+        body: { status: !(group?.status === true) },
+      }).unwrap();
+      if (!isExplicitFailure(res)) {
+        success(
+          group?.status === true
+            ? "Add-on category disabled."
+            : "Add-on category enabled."
+        );
+        void refetchCategories();
+      } else {
+        error(res?.message || "Could not update category status.");
       }
     } catch {
       error("Request failed. Please try again.");
@@ -508,6 +560,11 @@ export default function AddOnServicesCard({ triggerAdd }) {
                 <DirectoryDotPills
                   items={[
                     {
+                      key: "status",
+                      tone: item?.status === false ? "neutral" : "success",
+                      label: item?.status === false ? "Disabled" : "Active",
+                    },
+                    {
                       key: "items",
                       tone: links.itemCount ? "info" : "neutral",
                       label: `${links.itemCount} ${links.itemCount === 1 ? "item" : "items"}`,
@@ -525,6 +582,14 @@ export default function AddOnServicesCard({ triggerAdd }) {
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <DirectoryMoney>{formatAmount(item.price, null, { applyDefault: true })}</DirectoryMoney>
+          <Button
+            size="sm"
+            variant={item?.status === false ? "secondary" : "warning"}
+            disabled={updating || reorderBusy}
+            onClick={() => handleToggleServiceStatus(item)}
+          >
+            {item?.status === false ? "Enable" : "Disable"}
+          </Button>
           <DirectoryActionEdit
             disabled={updating || reorderBusy}
             onClick={() => openEditService(item)}
@@ -635,6 +700,9 @@ export default function AddOnServicesCard({ triggerAdd }) {
                         {group.items.length} service
                         {group.items.length === 1 ? "" : "s"}
                       </div>
+                      <div style={{ fontSize: 12, color: "var(--muted)" }}>
+                        {group?.status === false ? "Disabled" : "Active"}
+                      </div>
                     </div>
                   </div>
 
@@ -652,6 +720,16 @@ export default function AddOnServicesCard({ triggerAdd }) {
                       </Button>
                     ) : null}
                     {!isUncategorized ? (
+                      <Button
+                        size="sm"
+                        variant={group?.status === false ? "secondary" : "warning"}
+                        disabled={categoryUpdating || reorderBusy}
+                        onClick={() => handleToggleCategoryStatus(group)}
+                      >
+                        {group?.status === false ? "Enable" : "Disable"}
+                      </Button>
+                    ) : null}
+                    {!isUncategorized ? (
                       <DirectoryActionEdit
                         disabled={categoryUpdating || reorderBusy}
                         onClick={() =>
@@ -659,6 +737,7 @@ export default function AddOnServicesCard({ triggerAdd }) {
                             open: true,
                             id: group.id,
                             name: group.name,
+                            status: group?.status !== false,
                           })
                         }
                       />
@@ -765,6 +844,21 @@ export default function AddOnServicesCard({ triggerAdd }) {
               placeholder="No category"
             />
           </Field>
+          <Field label="Availability">
+            <label style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+              <input
+                type="checkbox"
+                checked={Boolean(serviceForm.status)}
+                onChange={(e) =>
+                  setServiceForm((prev) => ({
+                    ...prev,
+                    status: e.target.checked,
+                  }))
+                }
+              />
+              Enabled in customer/agent apps
+            </label>
+          </Field>
         </div>
       </Modal>
 
@@ -789,6 +883,21 @@ export default function AddOnServicesCard({ triggerAdd }) {
               setCategoryForm((prev) => ({ ...prev, name: e.target.value }))
             }
           />
+        </Field>
+        <Field label="Availability">
+          <label style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+            <input
+              type="checkbox"
+              checked={Boolean(categoryForm.status)}
+              onChange={(e) =>
+                setCategoryForm((prev) => ({
+                  ...prev,
+                  status: e.target.checked,
+                }))
+              }
+            />
+            Enabled in customer/agent apps
+          </label>
         </Field>
       </Modal>
 

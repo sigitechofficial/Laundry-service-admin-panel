@@ -133,6 +133,7 @@ export default function ServicesCard({ triggerAdd }) {
     numberOfBags: false,
     numberOfItems: false,
     washBleedDisclaimerEnabled: false,
+    status: true,
   };
 
   const [add, setAdd] = useState(emptyForm);
@@ -167,6 +168,7 @@ export default function ServicesCard({ triggerAdd }) {
       "washBleedDisclaimerEnabled",
       String(Boolean(add.washBleedDisclaimerEnabled))
     );
+    formData.append("status", String(Boolean(add.status)));
   };
 
   useEffect(() => {
@@ -198,6 +200,7 @@ export default function ServicesCard({ triggerAdd }) {
           washBleedDisclaimerEnabled: parseServiceFlag(
             serviceToEdit.washBleedDisclaimerEnabled
           ),
+          status: parseServiceFlag(serviceToEdit.status ?? true),
         }));
       }
     }
@@ -317,6 +320,7 @@ export default function ServicesCard({ triggerAdd }) {
       washBleedDisclaimerEnabled: parseServiceFlag(
         service.washBleedDisclaimerEnabled
       ),
+      status: parseServiceFlag(service.status ?? true),
     });
   };
 
@@ -430,6 +434,26 @@ export default function ServicesCard({ triggerAdd }) {
     }
   };
 
+  const handleToggleStatus = async (serviceItem) => {
+    try {
+      const formData = new FormData();
+      formData.append("status", String(!(serviceItem?.status === true)));
+      const res = await editService({ id: serviceItem.id, body: formData }).unwrap();
+      if (res?.status === "1") {
+        success(
+          serviceItem?.status === true
+            ? "Service disabled successfully."
+            : "Service enabled successfully."
+        );
+        void refetch();
+      } else {
+        error(res?.message || "Could not update service status.");
+      }
+    } catch (err) {
+      error(getApiErrorMessage(err, "Could not update service status."));
+    }
+  };
+
   const saving = addServiceLoading || editServiceLoading;
   const totalServices = services?.length ?? 0;
   const weightPriced = (services || []).filter(
@@ -516,12 +540,23 @@ export default function ServicesCard({ triggerAdd }) {
               <DirectoryDotPill tone={pricedByWeight ? "info" : "neutral"}>
                 {pricedByWeight ? "By weight" : "By item"}
               </DirectoryDotPill>
+              <DirectoryDotPill tone={service.status ? "success" : "neutral"}>
+                {service.status ? "Active" : "Disabled"}
+              </DirectoryDotPill>
               {pricedByWeight && service.basePrice != null ? (
                 <DirectoryMoney>{formatAmount(service.basePrice, null, { applyDefault: true })}</DirectoryMoney>
               ) : null}
             </div>
 
             <DirectoryActions>
+              <Button
+                size="sm"
+                variant={service.status ? "warning" : "secondary"}
+                disabled={editServiceLoading || reorderLoading}
+                onClick={() => handleToggleStatus(service)}
+              >
+                {service.status ? "Disable" : "Enable"}
+              </Button>
               <DirectoryActionEdit
                 disabled={editServiceLoading || reorderLoading}
                 onClick={() => handleUpdateClick(service)}
@@ -686,6 +721,19 @@ export default function ServicesCard({ triggerAdd }) {
                 }
               />
               Mixed wash colour-bleed disclaimer
+            </label>
+            <label style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+              <input
+                type="checkbox"
+                checked={Boolean(add.status)}
+                onChange={(e) =>
+                  setAdd((prev) => ({
+                    ...prev,
+                    status: e.target.checked,
+                  }))
+                }
+              />
+              Enabled in customer/agent apps
             </label>
           </div>
 

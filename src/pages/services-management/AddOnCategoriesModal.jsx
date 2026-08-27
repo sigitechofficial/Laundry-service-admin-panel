@@ -30,6 +30,7 @@ export default function AddOnCategoriesModal({ open, onClose }) {
     useDeleteAddOnCategoryMutation();
 
   const [name, setName] = useState("");
+  const [status, setStatus] = useState(true);
   const [editingId, setEditingId] = useState(null);
 
   const categories = (() => {
@@ -39,6 +40,7 @@ export default function AddOnCategoriesModal({ open, onClose }) {
 
   const resetForm = () => {
     setName("");
+    setStatus(true);
     setEditingId(null);
   };
 
@@ -58,7 +60,7 @@ export default function AddOnCategoriesModal({ open, onClose }) {
       if (editingId) {
         const res = await updateCategory({
           addOnCategoryId: editingId,
-          body: { name: trimmed },
+          body: { name: trimmed, status },
         }).unwrap();
         if (!isExplicitFailure(res)) {
           success("Category updated.");
@@ -70,7 +72,7 @@ export default function AddOnCategoriesModal({ open, onClose }) {
         return;
       }
 
-      const res = await createCategory({ name: trimmed }).unwrap();
+      const res = await createCategory({ name: trimmed, status }).unwrap();
       if (!isExplicitFailure(res)) {
         success("Category created.");
         resetForm();
@@ -86,6 +88,7 @@ export default function AddOnCategoriesModal({ open, onClose }) {
   const handleEdit = (item) => {
     setEditingId(item.id);
     setName(item.name || "");
+    setStatus(item?.status !== false);
   };
 
   const handleDelete = async (id) => {
@@ -129,6 +132,16 @@ export default function AddOnCategoriesModal({ open, onClose }) {
             onChange={(e) => setName(e.target.value)}
           />
         </Field>
+        <Field label="Availability">
+          <label style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+            <input
+              type="checkbox"
+              checked={Boolean(status)}
+              onChange={(e) => setStatus(e.target.checked)}
+            />
+            Enabled in customer/agent apps
+          </label>
+        </Field>
 
         {editingId ? (
           <Button variant="ghost" size="sm" onClick={resetForm}>
@@ -169,7 +182,7 @@ export default function AddOnCategoriesModal({ open, onClose }) {
                 }}
               >
                 <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>
-                  {item.name}
+                  {item.name} {item?.status === false ? "(Disabled)" : ""}
                 </span>
                 <div style={{ display: "flex", gap: 6 }}>
                   <DirectoryActionEdit
