@@ -353,6 +353,9 @@ export default function OrderDetailsPage() {
   const selectedServiceGroups = useMemo(() => {
     const rows = Array.isArray(orderData?.customerSelectedServices)
       ? orderData.customerSelectedServices.filter((it) => {
+          // Skip deactivated lines — an edited invoice marks removed lines
+          // status:false; counting them inflates item/qty totals (e.g. 9 vs 5).
+          if (it?.status === false) return false;
           if (Number(it?.items) > 0) return true;
           // Agent used serviceLines (multi-line add-on flow) — items may be 0 on the parent row.
           if (
