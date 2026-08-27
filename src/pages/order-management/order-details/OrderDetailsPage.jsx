@@ -470,11 +470,29 @@ export default function OrderDetailsPage() {
   const customerDeclaredBags = Number(orderData?.totalBags || orderData?.noOfBags || 0);
   // Always use customer-declared total as fallback (same pattern as bags).
   const customerDeclaredItems = Number(orderData?.totalItems || 0);
-  // "Items counted" / "Bags" cells show agent-confirmed counts only.
-  // When no proof exists yet, show 0 (warnZero will flag it red) so admin
-  // can clearly see no agent has counted yet — not the customer's estimate.
+  // Total items on the agent invoice (sum of every service line qty). Populated
+  // once the agent creates/updates the invoice — this is what should drive the
+  // Delivery count when the agent didn't record a separate delivery-proof count.
+  const invoiceGenerated = ["draft", "finalized"].includes(
+    String(orderData?.invoiceStatus || "").toLowerCase()
+  );
+  const invoiceItemsTotal = selectedServiceGroups.reduce(
+    (sum, group) =>
+      sum +
+      group.items.reduce((itemSum, item) => itemSum + (Number(item?.qty) || 0), 0),
+    0
+  );
+  // Collection "Items counted" = agent pickup-proof count (0 until an agent counts).
   const pickupItemsDisplayCount = pickupItemsCount;
-  const deliveryItemsDisplayCount = deliveryItemsCount;
+  // Delivery "Items counted": prefer the agent's delivery-proof count; when the
+  // agent skipped it (proof count 0) fall back to the finalized/draft invoice item
+  // total so the card reflects the items actually invoiced instead of showing 0.
+  const deliveryItemsDisplayCount =
+    deliveryItemsCount > 0
+      ? deliveryItemsCount
+      : invoiceGenerated
+      ? invoiceItemsTotal
+      : 0;
   // Delivery bag fallback: prefer pickup-confirmed count (driver picked up X bags,
   // should return X bags), then 0 (not customer-declared) when delivery hasn't happened.
   const deliveryBagsDisplayCount =
@@ -974,7 +992,9 @@ export default function OrderDetailsPage() {
                   <OdStatCell label="Bags" value={deliveryBagsDisplayCount} warnZero />
                 </div>
                 <div>
-                  {pickupItemsCount > deliveryItemsCount && (
+                  {pickupItemsCount > 0 &&
+                    deliveryItemsDisplayCount > 0 &&
+                    pickupItemsCount > deliveryItemsDisplayCount && (
                     <div
                       style={{ marginTop: 8, padding: 9, background: "var(--danger-bg)", border: "1px solid #FECACA", borderRadius: "var(--r-md)" }}
                     >
@@ -1525,6 +1545,33 @@ export default function OrderDetailsPage() {
                         Customer Selected
                       </p>
                     </div>
+                    {comparisonData?.customerOriginal?.packing && (() => {
+                      const packing = comparisonData.customerOriginal.packing;
+                      const allInOne = packing.sameBagForAllServices !== false;
+                      return (
+                        <div style={{ marginBottom: 12, display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6 }}>
+                          <div style={{ paddingLeft: 8, paddingRight: 8, paddingTop: 2.4, paddingBottom: 2.4, borderRadius: "999px", background: "#FEF3C7", border: "1px solid #FDE68A" }}>
+                            <p style={{ margin: 0, fontSize: 12, color: "#92400E", fontWeight: 700 }}>
+                              {allInOne ? "All in one bag" : "One bag per service"}
+                            </p>
+                          </div>
+                          {packing.totalBags != null && (
+                            <div style={{ paddingLeft: 8, paddingRight: 8, paddingTop: 2.4, paddingBottom: 2.4, borderRadius: "999px", background: "#FFFBEB", border: "1px solid #FDE68A" }}>
+                              <p style={{ margin: 0, fontSize: 12, color: "#92400E", fontWeight: 600 }}>
+                                Bags: <b>{packing.totalBags}</b>
+                              </p>
+                            </div>
+                          )}
+                          {packing.totalItems != null && (
+                            <div style={{ paddingLeft: 8, paddingRight: 8, paddingTop: 2.4, paddingBottom: 2.4, borderRadius: "999px", background: "#FFFBEB", border: "1px solid #FDE68A" }}>
+                              <p style={{ margin: 0, fontSize: 12, color: "#92400E", fontWeight: 600 }}>
+                                Items: <b>{packing.totalItems}</b>
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
                     {(!comparisonData?.customerOriginal?.services?.length) ? (
                       <p style={{ margin: 0, color: "var(--muted)",  fontSize: 12 }}>No snapshot available</p>
                     ) : (() => {
@@ -1553,6 +1600,10 @@ export default function OrderDetailsPage() {
                                     <div className="flex items-center gap-3 mt-0.5 flex-wrap">
                                       {svc.items != null && (
                                         <p style={{ margin: 0, fontSize: 11, color: "#475569" }}>Qty: <b>{svc.items}</b></p>
+                                      )}
+                                      {Number(svc.bags) > 0 &&
+                                        comparisonData?.customerOriginal?.packing?.sameBagForAllServices === false && (
+                                        <p style={{ margin: 0, fontSize: 11, color: "#475569" }}>Bags: <b>{svc.bags}</b></p>
                                       )}
                                       {svc.categoryPrice != null && (
                                         <p style={{ margin: 0, fontSize: 11, color: "#475569" }}>{formatMoney(svc.categoryPrice, paymentCurrencySymbol)}/pc</p>
