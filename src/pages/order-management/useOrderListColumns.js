@@ -103,14 +103,28 @@ export function useOrderListColumns({
         render: (row) =>
           h(StatusDotPill, {
             title: row.OrderStatus,
-            extra: row.paymentWaitingAdmin
-              ? h(DotPill, {
-                  as: "button",
-                  tone: "danger",
-                  label: "Payment hold",
-                  onClick: () => navigate("/orders/payment-failures"),
-                })
-              : null,
+            extra:
+              row.paymentWaitingAdmin || row.isRecurringAutoCreated
+                ? h(
+                    "div",
+                    { className: "flex flex-wrap items-center gap-1.5" },
+                    row.paymentWaitingAdmin
+                      ? h(DotPill, {
+                          as: "button",
+                          tone: "danger",
+                          label: "Payment hold",
+                          onClick: () => navigate("/orders/payment-failures"),
+                        })
+                      : null,
+                    row.isRecurringAutoCreated
+                      ? h(DotPill, {
+                          tone: "info",
+                          label: "Recurring",
+                          title: "Auto-created from recurring frequency plan",
+                        })
+                      : null
+                  )
+                : null,
           }),
       },
       ...extraColumns,

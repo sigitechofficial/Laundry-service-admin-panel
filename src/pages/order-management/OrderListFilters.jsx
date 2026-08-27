@@ -24,6 +24,12 @@ const DATE_PRESETS = [
   { days: 14, label: "Last 14 days" },
 ];
 
+const RECURRING_OPTIONS = [
+  { value: "", label: "All orders" },
+  { value: "recurring", label: "Recurring only" },
+  { value: "manual", label: "Manual only" },
+];
+
 function presetFromRange(dateRange) {
   if (!dateRange?.startDate || !dateRange?.endDate) return "";
   const start = dayjs(dateRange.startDate).startOf("day");
@@ -50,6 +56,8 @@ export default function OrderListFilters({
   onZoneIdChange,
   statusId,
   onStatusIdChange,
+  recurringType,
+  onRecurringTypeChange,
   orderStatuses = [],
   statusOptions: statusOptionsProp,
   showStatusFilter = false,
@@ -106,7 +114,9 @@ export default function OrderListFilters({
     activePreset === "custom"
       ? "Date range"
       : DATE_PRESETS.find((p) => p.days === activePreset)?.label || "All dates";
-  const advancedCount = showStatusFilter && statusId ? 1 : 0;
+  const advancedCount =
+    (showStatusFilter && statusId ? 1 : 0) +
+    (showStatusFilter && recurringType ? 1 : 0);
   const sortIsCustom =
     String(sortBy || defaultSortBy) !== String(defaultSortBy) ||
     String(sortDir || DEFAULT_ORDER_LIST_SORT_DIR) !== DEFAULT_ORDER_LIST_SORT_DIR;
@@ -245,6 +255,15 @@ export default function OrderListFilters({
               onChange={(value) => onStatusIdChange?.(value)}
               options={statusOptions}
               placeholder="All statuses"
+            />
+          </Field>
+          <Field label="Type">
+            <Select
+              aria-label="Order type"
+              value={recurringType || ""}
+              onChange={(value) => onRecurringTypeChange?.(value)}
+              options={RECURRING_OPTIONS}
+              placeholder="All orders"
             />
           </Field>
           {hasActiveFilters && onClearFilters ? (

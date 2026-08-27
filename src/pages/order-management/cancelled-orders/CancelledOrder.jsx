@@ -99,6 +99,8 @@ export default function CancelledOrders() {
           onZoneIdChange={tableFilters.setZoneId}
           statusId={tableFilters.statusId}
           onStatusIdChange={tableFilters.setStatusId}
+          recurringType={tableFilters.recurringType}
+          onRecurringTypeChange={tableFilters.setRecurringType}
           dateRange={tableFilters.dateRange}
           onDateRangeChange={tableFilters.setDateRange}
           orderStatuses={orderStatuses}

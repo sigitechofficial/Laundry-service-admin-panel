@@ -32,6 +32,8 @@ export default function OrderListDataTable({
   onZoneIdChange,
   statusId,
   onStatusIdChange,
+  recurringType,
+  onRecurringTypeChange,
   dateRange,
   onDateRangeChange,
   orderStatuses,
@@ -89,6 +91,8 @@ export default function OrderListDataTable({
           onZoneIdChange={onZoneIdChange}
           statusId={statusId}
           onStatusIdChange={onStatusIdChange}
+          recurringType={recurringType}
+          onRecurringTypeChange={onRecurringTypeChange}
           orderStatuses={orderStatuses}
           showStatusFilter={showStatusFilter}
           dateRange={dateRange}

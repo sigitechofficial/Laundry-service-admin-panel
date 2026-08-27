@@ -49,6 +49,7 @@ export const api = createApi({
         startDate,
         endDate,
         search,
+        recurringType,
         includeCounts,
         sortBy,
         sortDir,
@@ -59,6 +60,9 @@ export const api = createApi({
       if (startDate) q.startDate = startDate;
       if (endDate) q.endDate = endDate;
       if (search != null && String(search).trim() !== "") q.search = String(search).trim();
+      if (recurringType != null && String(recurringType).trim() !== "") {
+        q.recurringType = String(recurringType).trim();
+      }
       if (includeCounts === true || includeCounts === 1 || includeCounts === "1") {
         q.includeCounts = 1;
       }

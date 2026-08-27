@@ -582,6 +582,14 @@ export default function OrderDetailsPage() {
       .filter(Boolean)
       .join(" ")
       .trim() || "Customer";
+  const isRecurringAutoCreated = orderData?.isRecurringAutoCreated === true;
+  const recurringSourceBookingId = orderData?.recurringSourceBookingId || null;
+  const recurringNextBookingId = orderData?.recurringNextBookingId || null;
+  const recurringCycleDate = orderData?.recurringCycleDate || null;
+  const hasRecurringPlan =
+    String(orderData?.frequency || "")
+      .trim()
+      .toLowerCase() !== "just once" || isRecurringAutoCreated;
 
   useEffect(() => {
     if (!selectedServiceGroups.length) {
@@ -1790,6 +1798,42 @@ export default function OrderDetailsPage() {
               ) : (
                 <p style={{ margin: 0, fontSize: 13, color: "#64748B" }}>No customer linked</p>
               )}
+            </div>
+          </div>
+
+          <div style={CARD}>
+            <OdSectionTitle>Recurring</OdSectionTitle>
+            <div className="space-y-3" style={{ padding: 20 }}>
+              <OdMetaRow
+                label="Plan"
+                value={hasRecurringPlan ? (orderData?.frequency || "Recurring") : "Just Once"}
+              />
+              <OdMetaRow
+                label="Auto-created"
+                value={isRecurringAutoCreated ? "Yes" : "No"}
+              />
+              <OdMetaRow
+                label="Cycle Date"
+                value={recurringCycleDate ? formatDate(recurringCycleDate, "DD MMM YYYY") : "—"}
+              />
+              <OdMetaRow
+                label="Source Order"
+                value={recurringSourceBookingId ? `#${recurringSourceBookingId}` : "—"}
+                valueTo={
+                  recurringSourceBookingId
+                    ? `/orders/details/${recurringSourceBookingId}`
+                    : undefined
+                }
+              />
+              <OdMetaRow
+                label="Next Order"
+                value={recurringNextBookingId ? `#${recurringNextBookingId}` : "—"}
+                valueTo={
+                  recurringNextBookingId
+                    ? `/orders/details/${recurringNextBookingId}`
+                    : undefined
+                }
+              />
             </div>
           </div>
 

@@ -14,12 +14,14 @@ export function useOrderListPageQueries({
       buildOrderStatsQueryParams({
         zoneId: tableFilters.zoneId,
         statusId: tableFilters.statusId,
+        recurringType: tableFilters.recurringType,
         dateRange: tableFilters.dateRange,
         search: tableFilters.debouncedSearch,
       }),
     [
       tableFilters.zoneId,
       tableFilters.statusId,
+      tableFilters.recurringType,
       tableFilters.dateRange,
       tableFilters.debouncedSearch,
     ]
@@ -38,6 +40,7 @@ export function useOrderListPageQueries({
       [
         tableFilters.zoneId,
         tableFilters.statusId,
+        tableFilters.recurringType,
         tableFilters.debouncedSearch,
         tableFilters.dateRange?.startDate?.valueOf?.() ??
           tableFilters.dateRange?.startDate,
@@ -47,6 +50,7 @@ export function useOrderListPageQueries({
     [
       tableFilters.zoneId,
       tableFilters.statusId,
+      tableFilters.recurringType,
       tableFilters.debouncedSearch,
       tableFilters.dateRange,
     ]

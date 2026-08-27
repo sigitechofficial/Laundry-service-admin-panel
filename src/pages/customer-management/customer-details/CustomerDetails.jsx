@@ -97,6 +97,37 @@ export default function CustomerDetails() {
   const completedCount = bookingDetails.filter((b) =>
     String(b?.bookingStatus?.title || "").toLowerCase().includes("complete")
   ).length;
+  const recurringSummary = useMemo(() => {
+    const recurringOrders = bookingDetails.filter((order) => {
+      const label = String(order?.frequency || "")
+        .trim()
+        .toLowerCase();
+      return label && label !== "just once";
+    });
+    const autoCreatedOrders = bookingDetails.filter(
+      (order) => order?.isRecurringAutoCreated === true
+    );
+    const activeFrequencies = Array.from(
+      new Set(
+        recurringOrders
+          .map((order) => String(order?.frequency || "").trim())
+          .filter(Boolean)
+      )
+    );
+    return {
+      recurringOrdersCount: recurringOrders.length,
+      autoCreatedOrdersCount: autoCreatedOrders.length,
+      activeFrequencies,
+      lastAutoCreated:
+        [...autoCreatedOrders]
+          .sort(
+            (a, b) =>
+              new Date(b?.createdAt || 0).getTime() -
+              new Date(a?.createdAt || 0).getTime()
+          )
+          .at(0) || null,
+    };
+  }, [bookingDetails]);
 
   const currencySymbol = useMemo(() => {
     for (const booking of bookingDetails) {
@@ -210,7 +241,14 @@ export default function CustomerDetails() {
       header: "Status",
       render: (row) => {
         const status = row.bookingStatus?.title || "Pending";
-        return <DirectoryDotPill tone={directoryStatusTone(status)}>{status}</DirectoryDotPill>;
+        return (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, justifyContent: "flex-end" }}>
+            <DirectoryDotPill tone={directoryStatusTone(status)}>{status}</DirectoryDotPill>
+            {row?.isRecurringAutoCreated ? (
+              <DirectoryDotPill tone="brand">Recurring</DirectoryDotPill>
+            ) : null}
+          </div>
+        );
       },
     },
     {
@@ -333,6 +371,36 @@ export default function CustomerDetails() {
               <Info label="Primary address" value={fullAddress} />
               <Info label="Registered on" value={formatDate(user?.createdAt)} />
               <Info label="Preferred shop" value={bookingDetails?.[0]?.laundryShop?.name || "—"} />
+            </div>
+          </div>
+
+          <div style={PANEL}>
+            <h2 style={{ margin: "0 0 16px", fontSize: 16, fontWeight: 700 }}>Recurring summary</h2>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 16 }}>
+              <Info
+                label="Recurring orders"
+                value={String(recurringSummary.recurringOrdersCount || 0)}
+              />
+              <Info
+                label="Auto-created orders"
+                value={String(recurringSummary.autoCreatedOrdersCount || 0)}
+              />
+              <Info
+                label="Frequencies"
+                value={
+                  recurringSummary.activeFrequencies.length
+                    ? recurringSummary.activeFrequencies.join(", ")
+                    : "None"
+                }
+              />
+              <Info
+                label="Latest auto-created"
+                value={
+                  recurringSummary.lastAutoCreated?.id
+                    ? `#${recurringSummary.lastAutoCreated.orderTrackId || recurringSummary.lastAutoCreated.id}`
+                    : "—"
+                }
+              />
             </div>
           </div>
 

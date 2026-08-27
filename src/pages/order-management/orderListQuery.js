@@ -58,6 +58,7 @@ export function buildOrderListApiParams({
   limit,
   zoneId,
   statusId,
+  recurringType,
   dateRange,
   search,
   includeCounts = true,
@@ -74,6 +75,9 @@ export function buildOrderListApiParams({
   }
   if (statusId != null && String(statusId).trim() !== "") {
     params.status = String(statusId);
+  }
+  if (recurringType != null && String(recurringType).trim() !== "") {
+    params.recurringType = String(recurringType);
   }
   if (dateRange?.startDate && dateRange?.endDate) {
     params.startDate = dayjs(dateRange.startDate).format("YYYY-MM-DD");
@@ -92,6 +96,7 @@ export function buildOrderListApiParams({
 export function buildOrderStatsQueryParams({
   zoneId,
   statusId,
+  recurringType,
   dateRange,
   search,
 }) {
@@ -100,6 +105,7 @@ export function buildOrderStatsQueryParams({
     limit: 1,
     zoneId,
     statusId,
+    recurringType,
     dateRange,
     search,
     includeCounts: false,
@@ -117,12 +123,14 @@ export function buildOrderStatsQueryParams({
 export function orderListHasActiveFilters({
   zoneId,
   statusId,
+  recurringType,
   dateRange,
   search,
 }) {
   return Boolean(
     (zoneId != null && String(zoneId).trim() !== "") ||
       (statusId != null && String(statusId).trim() !== "") ||
+      (recurringType != null && String(recurringType).trim() !== "") ||
       (dateRange?.startDate && dateRange?.endDate) ||
       (search != null && String(search).trim() !== "")
   );

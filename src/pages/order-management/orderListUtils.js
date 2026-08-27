@@ -274,6 +274,7 @@ export function mapBookingToOrderListRow(booking) {
   const schedulePhase = resolveOrderSchedulePhase(booking, statusTitle);
   const paymentDeliveryGate = booking?.paymentDeliveryGate || null;
   const paymentWaitingAdmin = paymentDeliveryGate === "waiting_admin";
+  const isRecurringAutoCreated = booking?.isRecurringAutoCreated === true;
   const { name: customerName, phone: customerPhone } =
     resolveCustomerDisplay(booking);
 
@@ -301,6 +302,11 @@ export function mapBookingToOrderListRow(booking) {
     OrderStatus: statusTitle,
     paymentWaitingAdmin,
     paymentDeliveryGate,
+    isRecurringAutoCreated,
+    recurringPlanId: booking?.recurringPlanId ?? null,
+    recurringSourceBookingId: booking?.recurringSourceBookingId ?? null,
+    recurringNextBookingId: booking?.recurringNextBookingId ?? null,
+    recurringCycleDate: booking?.recurringCycleDate || null,
     zoneId: booking?.zoneId ?? null,
     _booking: booking,
     canAdminAssign: canAdminAssignOrReassignFromBooking(booking),
@@ -321,6 +327,7 @@ export function mapBookingToOrderListRow(booking) {
       cost: formatOrderMoney(costAmount, booking),
       status: statusTitle,
       paymentHold: paymentWaitingAdmin ? "Payment hold — admin" : "",
+      type: isRecurringAutoCreated ? "Recurring" : "Manual",
     },
   };
 }
@@ -337,6 +344,7 @@ export function downloadOrderListCsv(rows = [], filename = "orders_export.csv") 
     "Phone",
     "Shop",
     "Services",
+    "Type",
     "Items",
     "Pickup",
     "Delivery",
@@ -353,6 +361,7 @@ export function downloadOrderListCsv(rows = [], filename = "orders_export.csv") 
         csvEscape(x.customerPhone || row.phone || ""),
         csvEscape(x.shopName || row.shopName || ""),
         csvEscape(x.serviceType || row.serviceType || ""),
+        x.type || (row.isRecurringAutoCreated ? "Recurring" : "Manual"),
         x.totalItems ?? row.totalItems ?? "",
         csvEscape(x.pickupDateTime || row.pickupDateTime || ""),
         csvEscape(x.deliveryDateTime || row.deliveryDateTime || ""),

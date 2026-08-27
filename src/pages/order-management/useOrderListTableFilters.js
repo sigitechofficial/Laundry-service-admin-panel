@@ -15,6 +15,7 @@ export function useOrderListTableFilters(initialPageSize = 25) {
   const [pageSize, setPageSizeState] = useState(initialPageSize);
   const [zoneId, setZoneIdState] = useState("");
   const [statusId, setStatusIdState] = useState("");
+  const [recurringType, setRecurringTypeState] = useState("");
   const [dateRange, setDateRangeState] = useState(null);
   const [searchInput, setSearchInputState] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -62,6 +63,14 @@ export function useOrderListTableFilters(initialPageSize = 25) {
     setSearchInputState(value);
   }, []);
 
+  const setRecurringType = useCallback(
+    (value) => {
+      setRecurringTypeState(value);
+      resetPage();
+    },
+    [resetPage]
+  );
+
   const setPageSize = useCallback((size) => {
     setPageSizeState(size);
     setPage(1);
@@ -80,6 +89,7 @@ export function useOrderListTableFilters(initialPageSize = 25) {
   const clearFilters = useCallback(() => {
     setZoneIdState("");
     setStatusIdState("");
+    setRecurringTypeState("");
     setDateRangeState(null);
     setSearchInputState("");
     setDebouncedSearch("");
@@ -93,12 +103,13 @@ export function useOrderListTableFilters(initialPageSize = 25) {
         limit: pageSize,
         zoneId,
         statusId,
+        recurringType,
         dateRange,
         search: debouncedSearch,
         sortBy,
         sortDir,
       }),
-    [page, pageSize, zoneId, statusId, dateRange, debouncedSearch, sortBy, sortDir]
+    [page, pageSize, zoneId, statusId, recurringType, dateRange, debouncedSearch, sortBy, sortDir]
   );
 
   const hasActiveFilters = useMemo(
@@ -106,10 +117,11 @@ export function useOrderListTableFilters(initialPageSize = 25) {
       orderListHasActiveFilters({
         zoneId,
         statusId,
+        recurringType,
         dateRange,
         search: debouncedSearch || searchInput,
       }),
-    [zoneId, statusId, dateRange, debouncedSearch, searchInput]
+    [zoneId, statusId, recurringType, dateRange, debouncedSearch, searchInput]
   );
 
   const isSearchPending =
@@ -124,6 +136,8 @@ export function useOrderListTableFilters(initialPageSize = 25) {
     setZoneId,
     statusId,
     setStatusId,
+    recurringType,
+    setRecurringType,
     dateRange,
     setDateRange,
     searchInput,
