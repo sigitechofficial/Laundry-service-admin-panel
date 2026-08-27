@@ -3,6 +3,7 @@ import {
   Button,
   Field,
   Input,
+  Modal,
   PageHeader,
   Table,
 } from "../../../design-system";
@@ -44,7 +45,7 @@ export default function CustomerDetails() {
   const [activeTab, setActiveTab] = useState("overview");
   const [searchOrders, setSearchOrders] = useState("");
   const [deleteModal, setDeleteModal] = useState({ open: false, orderId: null });
-  const [blockModal, setBlockModal] = useState(false);
+  const [contactModal, setContactModal] = useState(false);
   const [anonymizeModal, setAnonymizeModal] = useState(false);
   const [isBlocked, setIsBlocked] = useState(false);
   const [settingsForm, setSettingsForm] = useState({
@@ -64,6 +65,10 @@ export default function CustomerDetails() {
     [data?.data?.bookingDetails]
   );
   const user = userDetails?.user;
+  const customerPhone = user?.phoneNum || "";
+  const normalizedTel = String(customerPhone).replace(/[^+\d]/g, "");
+  const normalizedWhatsApp = normalizedTel.replace(/\D/g, "");
+  const canCallCustomer = Boolean(normalizedTel);
 
   // Sync blocked state from API data
   useEffect(() => {
@@ -142,6 +147,23 @@ export default function CustomerDetails() {
     } catch (err) {
       showError(getApiErrorMessage(err, "Failed to update customer."));
     }
+  };
+
+  const openContactModal = () => {
+    if (!canCallCustomer) return;
+    setContactModal(true);
+  };
+
+  const handleDirectCall = () => {
+    if (!normalizedTel) return;
+    window.location.href = `tel:${normalizedTel}`;
+    setContactModal(false);
+  };
+
+  const handleWhatsAppCall = () => {
+    if (!normalizedWhatsApp) return;
+    window.open(`https://wa.me/${normalizedWhatsApp}`, "_blank", "noopener,noreferrer");
+    setContactModal(false);
   };
 
   const orderColumns = [
@@ -246,6 +268,13 @@ export default function CustomerDetails() {
           <>
             <Button variant="secondary" onClick={() => navigate("/customer-management")}>
               Back
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={openContactModal}
+              disabled={!canCallCustomer}
+            >
+              Call customer
             </Button>
             <BlockUserButton
               userId={user?.id || id}
@@ -433,6 +462,48 @@ export default function CustomerDetails() {
         userType="customer"
         onSuccess={() => navigate("/customer-management")}
       />
+
+      <Modal
+        open={contactModal}
+        title="Contact customer"
+        description={fullName}
+        onClose={() => setContactModal(false)}
+        hideFooter
+      >
+        <div style={{ display: "grid", gap: 12 }}>
+          <div
+            style={{
+              border: "1px solid var(--line)",
+              borderRadius: 12,
+              background: "var(--canvas)",
+              padding: 12,
+              color: "var(--ink-2)",
+              fontWeight: 600,
+            }}
+          >
+            {customerPhone || "No phone number"}
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            <Button
+              variant="primary"
+              onClick={handleDirectCall}
+              disabled={!canCallCustomer}
+            >
+              Direct call
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={handleWhatsAppCall}
+              disabled={!normalizedWhatsApp}
+            >
+              WhatsApp
+            </Button>
+            <Button variant="ghost" onClick={() => setContactModal(false)}>
+              Close
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

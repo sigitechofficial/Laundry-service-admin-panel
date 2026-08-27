@@ -1,4 +1,6 @@
+import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { Button, Modal } from "../../design-system";
 import { formatDate } from "../../utilities/formatters";
 import styles from "./orderList.module.css";
 
@@ -139,12 +141,95 @@ export function CustomerNamePhone({ name, phone, title, nameTo }) {
     undefined;
   const linkTo =
     nameTo && displayName && !PLACEHOLDER_NAMES.has(displayName) ? nameTo : null;
+  const [contactOpen, setContactOpen] = useState(false);
+  const hasPhone = Boolean(displayPhone && displayPhone !== "—");
+
+  const { telPhone, whatsappPhone } = useMemo(() => {
+    const raw = String(displayPhone || "");
+    const trimmed = raw.trim();
+    const tel = trimmed.replace(/[^+\d]/g, "");
+    const wa = tel.replace(/\D/g, "");
+    return {
+      telPhone: tel,
+      whatsappPhone: wa,
+    };
+  }, [displayPhone]);
+
+  const handleOpenContact = () => {
+    if (!hasPhone) return;
+    setContactOpen(true);
+  };
+
+  const handleCall = () => {
+    if (!telPhone) return;
+    window.location.href = `tel:${telPhone}`;
+    setContactOpen(false);
+  };
+
+  const handleWhatsApp = () => {
+    if (!whatsappPhone) return;
+    // wa.me opens WhatsApp app when installed, otherwise falls back to web.
+    window.open(`https://wa.me/${whatsappPhone}`, "_blank", "noopener,noreferrer");
+    setContactOpen(false);
+  };
 
   return (
-    <div className="min-w-0 max-w-[200px] leading-snug" title={hover}>
-      <EntityNameLink to={linkTo}>{displayName}</EntityNameLink>
-      <div className="mt-0.5 truncate text-[14px] text-[var(--ink-2)]">{displayPhone}</div>
-    </div>
+    <>
+      <div className="min-w-0 max-w-[200px] leading-snug" title={hover}>
+        <EntityNameLink to={linkTo}>{displayName}</EntityNameLink>
+        {hasPhone ? (
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              handleOpenContact();
+            }}
+            className="mt-0.5 truncate border-0 bg-transparent p-0 text-[14px] text-[var(--ink-2)] hover:underline"
+          >
+            {displayPhone}
+          </button>
+        ) : (
+          <div className="mt-0.5 truncate text-[14px] text-[var(--ink-2)]">
+            {displayPhone}
+          </div>
+        )}
+      </div>
+      <Modal
+        open={contactOpen}
+        title="Contact customer"
+        description={displayName !== "—" ? displayName : undefined}
+        onClose={() => setContactOpen(false)}
+        hideFooter
+      >
+        <div className="space-y-3">
+          <div className="rounded-lg border border-[var(--line)] bg-[var(--canvas)] p-3 text-sm text-[var(--ink-2)]">
+            {displayPhone}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="primary"
+              onClick={handleCall}
+              disabled={!telPhone}
+            >
+              Direct Call
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={handleWhatsApp}
+              disabled={!whatsappPhone}
+            >
+              WhatsApp
+            </Button>
+            <Button
+              variant="ghost"
+              onClick={() => setContactOpen(false)}
+            >
+              Close
+            </Button>
+          </div>
+        </div>
+      </Modal>
+    </>
   );
 }
 

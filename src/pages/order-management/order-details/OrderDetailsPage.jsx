@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Badge, Button, PageHeader, Select } from "../../../design-system";
+import { Badge, Button, Modal, PageHeader, Select } from "../../../design-system";
 import dayjs from "dayjs";
 import { Delay } from "../../../components/shared/Loaders";
 import {
@@ -570,8 +570,18 @@ export default function OrderDetailsPage() {
   const [invoiceDetails, setInvoiceDetails] = useState(null);
   const [assignModalOpen, setAssignModalOpen] = useState(false);
   const [customerCompareExpanded, setCustomerCompareExpanded] = useState(false);
+  const [contactModal, setContactModal] = useState(false);
   const selectedItemsServiceIdResolved =
     selectedItemsServiceId || selectedServiceGroups?.[0]?.serviceId || "";
+  const customerPhone = orderData?.customer?.phoneNum || "";
+  const normalizedTel = String(customerPhone).replace(/[^+\d]/g, "");
+  const normalizedWhatsApp = normalizedTel.replace(/\D/g, "");
+  const canCallCustomer = Boolean(normalizedTel);
+  const customerFullName =
+    [orderData?.customer?.firstName, orderData?.customer?.lastName]
+      .filter(Boolean)
+      .join(" ")
+      .trim() || "Customer";
 
   useEffect(() => {
     if (!selectedServiceGroups.length) {
@@ -654,6 +664,23 @@ export default function OrderDetailsPage() {
   const handlePrintInvoice = () => {
     if (!invoiceView) return;
     printHtmlDocument(invoicePrintHtml(invoiceView, invoiceModal.format));
+  };
+
+  const openContactModal = () => {
+    if (!canCallCustomer) return;
+    setContactModal(true);
+  };
+
+  const handleDirectCall = () => {
+    if (!normalizedTel) return;
+    window.location.href = `tel:${normalizedTel}`;
+    setContactModal(false);
+  };
+
+  const handleWhatsAppCall = () => {
+    if (!normalizedWhatsApp) return;
+    window.open(`https://wa.me/${normalizedWhatsApp}`, "_blank", "noopener,noreferrer");
+    setContactModal(false);
   };
 
   const pickupPrimaryProof = pickupProofs[0] || {};
@@ -1745,15 +1772,20 @@ export default function OrderDetailsPage() {
                   <OdMetaRow
                     label="Name"
                     value={
-                      [orderData.customer.firstName, orderData.customer.lastName]
-                        .filter(Boolean)
-                        .join(" ")
-                        .trim() || "—"
+                      customerFullName || "—"
                     }
                     valueTo={customerDetailsPath(orderData.customer.id)}
                   />
                   <OdMetaRow label="Email" value={orderData.customer.email || "—"} />
                   <OdMetaRow label="Phone" value={orderData.customer.phoneNum || "—"} />
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={openContactModal}
+                    disabled={!canCallCustomer}
+                  >
+                    Call customer
+                  </Button>
                 </>
               ) : (
                 <p style={{ margin: 0, fontSize: 13, color: "#64748B" }}>No customer linked</p>
@@ -2110,6 +2142,47 @@ export default function OrderDetailsPage() {
       onClose={() => setAssignModalOpen(false)}
       onSuccess={() => refetchOrder()}
     />
+    <Modal
+      open={contactModal}
+      title="Contact customer"
+      description={customerFullName}
+      onClose={() => setContactModal(false)}
+      hideFooter
+    >
+      <div style={{ display: "grid", gap: 12 }}>
+        <div
+          style={{
+            border: "1px solid var(--line)",
+            borderRadius: 12,
+            background: "var(--canvas)",
+            padding: 12,
+            color: "var(--ink-2)",
+            fontWeight: 600,
+          }}
+        >
+          {customerPhone || "No phone number"}
+        </div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+          <Button
+            variant="primary"
+            onClick={handleDirectCall}
+            disabled={!canCallCustomer}
+          >
+            Direct call
+          </Button>
+          <Button
+            variant="secondary"
+            onClick={handleWhatsAppCall}
+            disabled={!normalizedWhatsApp}
+          >
+            WhatsApp
+          </Button>
+          <Button variant="ghost" onClick={() => setContactModal(false)}>
+            Close
+          </Button>
+        </div>
+      </div>
+    </Modal>
     </>
   );
 }
