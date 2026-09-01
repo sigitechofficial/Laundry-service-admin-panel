@@ -6,7 +6,7 @@ export const api = createApi({
   baseQuery: baseQueryWithReauth,
   // setupListeners(store.dispatch) + window "online" → refetch subscribed queries.
   refetchOnReconnect: true,
-  tagTypes: ["ServiceConfig", "SupportContact", "PlatformOperationalHours", "RuntimeSettings", "Orders", "Coupons", "Banners", "AccountDeletionReasons", "ReviewReasonCodes", "ShopReviews", "ShopRatingsReport", "PendingAgents", "RejectedAgents", "AgentSettlement", "NotifyLogs", "PaymentFailures", "AdminNotificationPreferences", "ActionRequiredOrders", "RepairGarments", "RepairOptions", "Zones", "FailAttemptInstructions", "FailAttemptReasons", "Shops", "ComplianceReport", "ComplianceEvents"],
+  tagTypes: ["ServiceConfig", "SupportContact", "PlatformOperationalHours", "RuntimeSettings", "Orders", "Coupons", "Banners", "AccountDeletionReasons", "ReviewReasonCodes", "ShopReviews", "ShopRatingsReport", "PendingAgents", "RejectedAgents", "AgentSettlement", "NotifyLogs", "PaymentFailures", "AdminNotificationPreferences", "ActionRequiredOrders", "RepairGarments", "RepairOptions", "Zones", "FailAttemptInstructions", "FailAttemptReasons", "Shops", "ShopAssignmentPolicy", "ComplianceReport", "ComplianceEvents"],
 
   endpoints: (builder) => {
     const reportQueryString = (params = {}) => {
@@ -774,6 +774,23 @@ export const api = createApi({
         url: `admin/singleShopData/${id}`,
         method: "GET",
       }),
+    }),
+
+    getShopAssignmentPolicy: builder.query({
+      query: (shopUserId) => ({
+        url: `admin/shopAssignmentPolicy/${shopUserId}`,
+        method: "GET",
+      }),
+      providesTags: ["ShopAssignmentPolicy"],
+    }),
+
+    updateShopAssignmentPolicy: builder.mutation({
+      query: ({ shopUserId, ...body }) => ({
+        url: `admin/shopAssignmentPolicy/${shopUserId}`,
+        method: "PATCH",
+        body,
+      }),
+      invalidatesTags: ["ShopAssignmentPolicy", "Shops"],
     }),
 
     // Agent registration flow (sequence: 1 register, 2 address, 3 business info)
@@ -2190,4 +2207,6 @@ export const {
   useBlockUserMutation,
   useUnblockUserMutation,
   useGetUserBlockStatusQuery,
+  useGetShopAssignmentPolicyQuery,
+  useUpdateShopAssignmentPolicyMutation,
 } = api;

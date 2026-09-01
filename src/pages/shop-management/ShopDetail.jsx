@@ -36,6 +36,7 @@ import {
 } from "../directory-table/directoryTable";
 import { directoryStatusTone, joinMeta } from "../directory-table/directoryTableUtils";
 import { BlockUserButton, AnonymizeDeleteModal } from "../user-management/UserBlockActions";
+import ShopRoutingPolicyCard from "./ShopRoutingPolicyCard";
 
 const CARD = {
   padding: 16,
@@ -1350,6 +1351,8 @@ export default function ShopDetails() {
                 </Field>
               </div>
             </div>
+
+            <ShopRoutingPolicyCard shopUserId={biz?.id} />
 
             <div style={{ ...CARD, borderColor: "var(--danger)" }}>
               <strong style={{ color: "var(--danger)" }}>Danger zone</strong>
