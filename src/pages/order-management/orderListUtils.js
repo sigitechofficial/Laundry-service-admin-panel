@@ -35,6 +35,44 @@ export function formatOrderMoney(amount, source) {
   return formatMoney(amount, symbol, code || undefined);
 }
 
+function titleCasePaymentMethod(value) {
+  const key = String(value ?? "").trim().toLowerCase();
+  if (key === "card") return "Card";
+  if (key === "cash") return "Cash";
+  return null;
+}
+
+/**
+ * Human label for how an order is/was paid. When the balance ended up being
+ * collected differently from how the order was booked (cash→card switch at
+ * delivery), show both so admins are not misled by the booking-time method.
+ */
+function resolvePaymentMethodLabel(booking) {
+  const booked = titleCasePaymentMethod(booking?.paymentType);
+  const collected = titleCasePaymentMethod(
+    booking?.balanceCollectedVia ?? booking?.balancePaymentMethod
+  );
+  if (booked && collected && collected !== booked) {
+    return `${booked} → ${collected}`;
+  }
+  return booked || collected || "—";
+}
+
+function resolveBillingDetail(booking) {
+  return (
+    booking?.billingDetail ||
+    booking?.billingDetails ||
+    (Array.isArray(booking?.billingDetails) ? booking.billingDetails[0] : null) ||
+    null
+  );
+}
+
+function toAmount(value) {
+  if (value == null || value === "") return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
 function normalizeStatusKey(value) {
   return String(value ?? "")
     .toLowerCase()
@@ -170,6 +208,22 @@ export function shopDetailsPath(id) {
   return resolved ? `/shop-management/details/${resolved}` : null;
 }
 
+/**
+ * bussinessInformation.id for the shop-details route. The detail page
+ * (`getSingleShopData`) resolves bussinessInformation.id first, so linking with
+ * laundryShopId (an addressDb.id) can open the wrong shop or 404. Use the
+ * business-info id joined on the booking; fall back to laundryShopId only when
+ * the join is missing.
+ */
+export function resolveShopBusinessInfoId(booking) {
+  const shop = booking?.laundryShop;
+  const bizId =
+    shop?.bussinessInformation?.id ??
+    shop?.bussinessInformations?.[0]?.id ??
+    null;
+  return toEntityId(bizId);
+}
+
 /** Shop label from booking.laundryShop (same join All Orders uses). */
 export function resolveShopName(booking) {
   const shop = booking?.laundryShop;
@@ -263,6 +317,15 @@ export function mapBookingToOrderListRow(booking) {
   const onHoldCount = booking?.OnHoldConfirmations?.length ?? 0;
   const costAmount =
     booking?.orderAmount != null ? Number(booking.orderAmount) : null;
+  const billing = resolveBillingDetail(booking);
+  const paymentMethod = resolvePaymentMethodLabel(booking);
+  const upfrontAmount = toAmount(billing?.upfrontAmount);
+  // Final = persisted invoice total once finalized, else the running order amount.
+  const finalAmount = toAmount(billing?.total) ?? costAmount;
+  const upfrontLabel =
+    upfrontAmount != null ? formatOrderMoney(upfrontAmount, booking) : "—";
+  const finalLabel =
+    finalAmount != null ? formatOrderMoney(finalAmount, booking) : "—";
   const shopLabel = resolveShopName(booking);
   const pickupDateTime = booking?.collectionDate
     ? formatDate(booking.collectionDate, DATE_TIME_FORMAT)
@@ -287,6 +350,7 @@ export function mapBookingToOrderListRow(booking) {
     serviceNames: services,
     shopName: shopLabel,
     laundryShopId: resolveLaundryShopId(booking),
+    shopBusinessInfoId: resolveShopBusinessInfoId(booking),
     customerId: resolveCustomerId(booking),
     customer: customerName,
     phone: customerPhone,
@@ -299,6 +363,11 @@ export function mapBookingToOrderListRow(booking) {
     deliveryDriver,
     schedulePhase,
     costAmount,
+    paymentMethod,
+    upfrontAmount,
+    finalAmount,
+    upfrontLabel,
+    finalLabel,
     OrderStatus: statusTitle,
     paymentWaitingAdmin,
     paymentDeliveryGate,
@@ -325,6 +394,9 @@ export function mapBookingToOrderListRow(booking) {
       deliveryDriver: deliveryDriver || "",
       shopName: shopLabel || "",
       cost: formatOrderMoney(costAmount, booking),
+      paymentMethod,
+      upfront: upfrontLabel,
+      finalAmount: finalLabel,
       status: statusTitle,
       paymentHold: paymentWaitingAdmin ? "Payment hold — admin" : "",
       type: isRecurringAutoCreated ? "Recurring" : "Manual",
@@ -348,6 +420,9 @@ export function downloadOrderListCsv(rows = [], filename = "orders_export.csv") 
     "Items",
     "Pickup",
     "Delivery",
+    "Payment method",
+    "Upfront",
+    "Final amount",
     "Status",
   ];
   const lines = [head.join(",")];
@@ -365,6 +440,9 @@ export function downloadOrderListCsv(rows = [], filename = "orders_export.csv") 
         x.totalItems ?? row.totalItems ?? "",
         csvEscape(x.pickupDateTime || row.pickupDateTime || ""),
         csvEscape(x.deliveryDateTime || row.deliveryDateTime || ""),
+        csvEscape(x.paymentMethod || row.paymentMethod || ""),
+        csvEscape(x.upfront || row.upfrontLabel || ""),
+        csvEscape(x.finalAmount || row.finalLabel || ""),
         x.status || row.OrderStatus || row.status || "",
       ].join(",")
     );

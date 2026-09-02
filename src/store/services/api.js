@@ -45,6 +45,7 @@ export const api = createApi({
         page = 1,
         limit = 25,
         zoneId,
+        shopId,
         status,
         startDate,
         endDate,
@@ -56,6 +57,7 @@ export const api = createApi({
       } = params;
       const q = { page, limit };
       if (zoneId != null && String(zoneId).trim() !== "") q.zoneId = zoneId;
+      if (shopId != null && String(shopId).trim() !== "") q.shopId = shopId;
       if (status != null && String(status).trim() !== "") q.status = status;
       if (startDate) q.startDate = startDate;
       if (endDate) q.endDate = endDate;

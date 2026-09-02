@@ -136,9 +136,13 @@ export default function Shops() {
     setDeleteModalOpen(true);
   }, []);
 
-  const handleViewClick = useCallback((row) => {
-    setViewRow(row);
-  }, []);
+  const handleViewClick = useCallback(
+    (row) => {
+      if (!row?.id) return;
+      navigate(`/shop-management/details/${row.id}`);
+    },
+    [navigate]
+  );
 
   const handleEditClick = useCallback((row) => {
     setEditData({

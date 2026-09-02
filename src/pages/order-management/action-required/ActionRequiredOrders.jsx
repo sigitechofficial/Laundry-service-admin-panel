@@ -33,6 +33,7 @@ import {
   resolveCustomerId,
   resolveLaundryShopId,
   resolveOrderSchedulePhase,
+  resolveShopBusinessInfoId,
   resolveShopName,
   shopDetailsPath,
 } from "../orderListUtils";
@@ -202,6 +203,7 @@ export default function ActionRequiredOrders() {
           phone: row.customer?.phoneNum || "—",
           shopName: resolveShopName(row),
           laundryShopId: resolveLaundryShopId(row),
+          shopBusinessInfoId: resolveShopBusinessInfoId(row),
           zone: row.zoneName || "—",
           status: row.bookingStatusTitle || `Status ${row.bookingStatusId}`,
           OrderStatus: row.bookingStatusTitle || `Status ${row.bookingStatusId}`,
@@ -281,7 +283,7 @@ export default function ActionRequiredOrders() {
             name={row.shopName || "No shop assigned"}
             phone={row.zone}
             title={[row.shopName, row.zone].filter((value) => value && value !== "—").join("\n")}
-            nameTo={shopDetailsPath(row.laundryShopId)}
+            nameTo={shopDetailsPath(row.shopBusinessInfoId)}
           />
         ),
       },

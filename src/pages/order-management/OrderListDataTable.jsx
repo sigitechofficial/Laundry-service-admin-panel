@@ -30,6 +30,8 @@ export default function OrderListDataTable({
   onPageSizeChange,
   zoneId,
   onZoneIdChange,
+  shopId,
+  onShopIdChange,
   statusId,
   onStatusIdChange,
   recurringType,
@@ -89,6 +91,8 @@ export default function OrderListDataTable({
           searchPlaceholder={searchPlaceholder}
           zoneId={zoneId}
           onZoneIdChange={onZoneIdChange}
+          shopId={shopId}
+          onShopIdChange={onShopIdChange}
           statusId={statusId}
           onStatusIdChange={onStatusIdChange}
           recurringType={recurringType}

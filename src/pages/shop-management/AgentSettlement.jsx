@@ -182,8 +182,9 @@ export default function AgentSettlement() {
         id: agent.agentUserId,
         rowKey: `cash-${agent.agentUserId ?? "unknown"}-${index}`,
         sl: index + 1,
-        name: agent.agentName || "-",
+        name: agent.shopName || agent.agentName || "-",
         email: agent.agentEmail || "-",
+        shopName: agent.shopName || "-",
         shopAddress: agent.shopAddress || "-",
         currency: agent.currency,
         cashDue: Number(agent.cashDueToPlatform || 0),
@@ -193,6 +194,7 @@ export default function AgentSettlement() {
         platformOwes: Number(agent.platformOwesAgent || 0),
         platformOwesLabel: formatAgentMoney(agent.platformOwesAgent, agent),
         totalCashCollected: formatAgentMoney(agent.totalCashCollected, agent),
+        totalCashCollectedRaw: Number(agent.totalCashCollected || 0),
         totalCashRemitted: formatAgentMoney(agent.totalCashRemitted, agent),
       })),
     [cashDueAgents]
@@ -380,9 +382,19 @@ export default function AgentSettlement() {
         sortKey: "name",
         render: (row) => (
           <DirectoryIdentity
-            name={row.name}
+            name={row.shopName && row.shopName !== "-" ? row.shopName : row.name}
             email={row.email}
-            meta={row.shopAddress}
+            meta={[
+              row.shopName &&
+              row.shopName !== "-" &&
+              row.name &&
+              row.name !== row.shopName
+                ? row.name
+                : null,
+              row.shopAddress,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
           />
         ),
       },
@@ -392,6 +404,13 @@ export default function AgentSettlement() {
         sortable: true,
         sortKey: "cashDue",
         render: (row) => <DirectoryMoney>{row.cashDueLabel}</DirectoryMoney>,
+      },
+      {
+        key: "totalCashCollected",
+        header: "Cash collected",
+        sortable: true,
+        sortKey: "totalCashCollectedRaw",
+        render: (row) => <DirectoryMoney>{row.totalCashCollected}</DirectoryMoney>,
       },
       {
         key: "platformOwesLabel",
@@ -563,7 +582,7 @@ export default function AgentSettlement() {
 
       <p className="jd-lead" style={{ margin: "0 0 16px" }}>
         {tab === "cash-due"
-          ? "Cash bookings show under Cash Due after agent records payment at delivery. Card bookings show under Payable (platform owes agent). If empty, run Sync from paid bookings once."
+          ? "Cash due is the platform share the shop still holds after collecting cash from the customer. New shops appear here automatically after cash collect; if a row is missing, tap Sync from paid bookings."
           : "Agent-submitted cash remittances awaiting your confirmation."}
       </p>
 

@@ -14,6 +14,7 @@ export function useOrderListTableFilters(initialPageSize = 25) {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSizeState] = useState(initialPageSize);
   const [zoneId, setZoneIdState] = useState("");
+  const [shopId, setShopIdState] = useState("");
   const [statusId, setStatusIdState] = useState("");
   const [recurringType, setRecurringTypeState] = useState("");
   const [dateRange, setDateRangeState] = useState(null);
@@ -38,6 +39,14 @@ export function useOrderListTableFilters(initialPageSize = 25) {
   const setZoneId = useCallback(
     (value) => {
       setZoneIdState(value);
+      resetPage();
+    },
+    [resetPage]
+  );
+
+  const setShopId = useCallback(
+    (value) => {
+      setShopIdState(value);
       resetPage();
     },
     [resetPage]
@@ -88,6 +97,7 @@ export function useOrderListTableFilters(initialPageSize = 25) {
 
   const clearFilters = useCallback(() => {
     setZoneIdState("");
+    setShopIdState("");
     setStatusIdState("");
     setRecurringTypeState("");
     setDateRangeState(null);
@@ -102,6 +112,7 @@ export function useOrderListTableFilters(initialPageSize = 25) {
         page,
         limit: pageSize,
         zoneId,
+        shopId,
         statusId,
         recurringType,
         dateRange,
@@ -109,19 +120,20 @@ export function useOrderListTableFilters(initialPageSize = 25) {
         sortBy,
         sortDir,
       }),
-    [page, pageSize, zoneId, statusId, recurringType, dateRange, debouncedSearch, sortBy, sortDir]
+    [page, pageSize, zoneId, shopId, statusId, recurringType, dateRange, debouncedSearch, sortBy, sortDir]
   );
 
   const hasActiveFilters = useMemo(
     () =>
       orderListHasActiveFilters({
         zoneId,
+        shopId,
         statusId,
         recurringType,
         dateRange,
         search: debouncedSearch || searchInput,
       }),
-    [zoneId, statusId, recurringType, dateRange, debouncedSearch, searchInput]
+    [zoneId, shopId, statusId, recurringType, dateRange, debouncedSearch, searchInput]
   );
 
   const isSearchPending =
@@ -134,6 +146,8 @@ export function useOrderListTableFilters(initialPageSize = 25) {
     setPageSize,
     zoneId,
     setZoneId,
+    shopId,
+    setShopId,
     statusId,
     setStatusId,
     recurringType,

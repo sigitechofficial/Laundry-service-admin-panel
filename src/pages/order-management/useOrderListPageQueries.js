@@ -13,6 +13,7 @@ export function useOrderListPageQueries({
     () =>
       buildOrderStatsQueryParams({
         zoneId: tableFilters.zoneId,
+        shopId: tableFilters.shopId,
         statusId: tableFilters.statusId,
         recurringType: tableFilters.recurringType,
         dateRange: tableFilters.dateRange,
@@ -20,6 +21,7 @@ export function useOrderListPageQueries({
       }),
     [
       tableFilters.zoneId,
+      tableFilters.shopId,
       tableFilters.statusId,
       tableFilters.recurringType,
       tableFilters.dateRange,
@@ -39,6 +41,7 @@ export function useOrderListPageQueries({
     () =>
       [
         tableFilters.zoneId,
+        tableFilters.shopId,
         tableFilters.statusId,
         tableFilters.recurringType,
         tableFilters.debouncedSearch,
@@ -49,6 +52,7 @@ export function useOrderListPageQueries({
       ].join("|"),
     [
       tableFilters.zoneId,
+      tableFilters.shopId,
       tableFilters.statusId,
       tableFilters.recurringType,
       tableFilters.debouncedSearch,

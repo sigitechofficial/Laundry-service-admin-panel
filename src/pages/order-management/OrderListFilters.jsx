@@ -3,6 +3,7 @@ import dayjs from "dayjs";
 import { Field, Input, Select } from "../../design-system";
 import FilterDetails from "./FilterDetails";
 import OrderZoneFilter from "./OrderZoneFilter";
+import OrderShopFilter from "./OrderShopFilter";
 import {
   DEFAULT_ORDER_LIST_SORT_BY,
   DEFAULT_ORDER_LIST_SORT_DIR,
@@ -54,6 +55,8 @@ export default function OrderListFilters({
   searchPlaceholder = "Search by order ID, shop or service…",
   zoneId,
   onZoneIdChange,
+  shopId,
+  onShopIdChange,
   statusId,
   onStatusIdChange,
   recurringType,
@@ -141,6 +144,8 @@ export default function OrderListFilters({
       ) : null}
 
       {onZoneIdChange ? <OrderZoneFilter value={zoneId} onChange={onZoneIdChange} /> : null}
+
+      {onShopIdChange ? <OrderShopFilter value={shopId} onChange={onShopIdChange} /> : null}
 
       {onDateRangeChange ? (
         <FilterDetails

@@ -126,11 +126,35 @@ function getStatusBadge(status) {
   return { bg: "#E5E7EB", color: "#374151", label: status || "Unknown" };
 }
 
+/** Normalize a DB TIME value ("09:00:00") to a clean "HH:mm" clock label. */
+function toSlotTime(value) {
+  if (value == null || value === "") return "";
+  const str = String(value).trim();
+  const hm = str.match(/^(\d{1,2}):(\d{2})/);
+  if (hm) return `${hm[1].padStart(2, "0")}:${hm[2]}`;
+  const parsed = dayjs(value);
+  return parsed.isValid() ? parsed.format("HH:mm") : str;
+}
+
 function formatDateTime(date, timeFrom, timeTo, fallback = "N/A") {
   if (!date) return fallback;
   const formattedDate = formatDate(date, "ddd DD MMM");
-  if (timeFrom && timeTo) return `${formattedDate}, ${timeFrom} - ${timeTo}`;
+  const from = toSlotTime(timeFrom);
+  const to = toSlotTime(timeTo);
+  if (from && to) return `${formattedDate}, ${from} - ${to}`;
+  if (from) return `${formattedDate}, ${from}`;
   return formattedDate || fallback;
+}
+
+/**
+ * Actual event timestamp (proof capture, completion). Only formats a real
+ * datetime — never falls back to a date-only field, which would fabricate a
+ * midnight time and make every row look identical.
+ */
+function formatEventTimestamp(value, fallback = "Not captured") {
+  if (value == null || value === "") return fallback;
+  const parsed = dayjs(value);
+  return parsed.isValid() ? parsed.format("ddd DD MMM · HH:mm") : fallback;
 }
 
 /** Prefer subcategory (e.g. 3kg / 5kg) over bare category name. */
@@ -639,6 +663,14 @@ export default function OrderDetailsPage() {
     paymentSummary ?? orderData,
     { applyDefault: true }
   ).symbol;
+  const commercialTerms = orderData?.commercialTerms;
+  const appliedRatesLabel = (() => {
+    if (!commercialTerms) return null;
+    if (!commercialTerms.locked) return "Live zone — not accepted yet";
+    if (commercialTerms.source === "assigned") return "Frozen when admin assigned shop";
+    if (commercialTerms.source === "backfill") return "Frozen on accepted order";
+    return "Frozen when shop accepted";
+  })();
   const amountDueNow = Number(
     paymentSummary?.amountDueNow ??
       (String(orderData?.billingDetail?.paymentStatus || "").toLowerCase() === "paid"
@@ -693,32 +725,16 @@ export default function OrderDetailsPage() {
 
   const pickupPrimaryProof = pickupProofs[0] || {};
   const deliveryPrimaryProof = deliveryProofs[0] || {};
-  const pickupProofTime = dayjs(
+  const pickupProofTime = formatEventTimestamp(
     pickupPrimaryProof?.createdAt ||
       pickupPrimaryProof?.created_at ||
-      orderData?.collectionDate
-  ).isValid()
-    ? dayjs(
-        pickupPrimaryProof?.createdAt ||
-          pickupPrimaryProof?.created_at ||
-          orderData?.collectionDate
-      ).format(
-        "ddd DD MMM · HH:mm"
-      )
-    : "Not captured";
-  const deliveryProofTime = dayjs(
+      orderData?.pickupCompletedAt
+  );
+  const deliveryProofTime = formatEventTimestamp(
     deliveryPrimaryProof?.createdAt ||
       deliveryPrimaryProof?.created_at ||
-      orderData?.deliveryDate
-  ).isValid()
-    ? dayjs(
-        deliveryPrimaryProof?.createdAt ||
-          deliveryPrimaryProof?.created_at ||
-          orderData?.deliveryDate
-      ).format(
-        "ddd DD MMM · HH:mm"
-      )
-    : "Not captured";
+      orderData?.deliveryCompletedAt
+  );
 
   const shopOwnerUserId =
     orderData?.shopOwnerUserId ?? orderData?.laundryShop?.userId ?? null;
@@ -817,22 +833,26 @@ export default function OrderDetailsPage() {
     ...assignmentActivityRows,
     {
       text: `Order ${statusBadge.label.toLowerCase()}`,
-      time: formatDateTime(
-        orderData?.deliveryDate,
-        orderData?.deliveryTimeFrom,
-        orderData?.deliveryTimeTo
-      ),
+      time: orderData?.deliveryCompletedAt
+        ? formatEventTimestamp(orderData.deliveryCompletedAt)
+        : formatDateTime(
+            orderData?.deliveryDate,
+            orderData?.deliveryTimeFrom,
+            orderData?.deliveryTimeTo
+          ),
       tone: String(statusBadge.label || "").toLowerCase().includes("complete")
         ? "completed"
         : "system",
     },
     {
       text: `Items collected (${pickupItemsCount || 0})`,
-      time: formatDateTime(
-        orderData?.collectionDate,
-        orderData?.collectionTimeFrom,
-        orderData?.collectionTimeTo
-      ),
+      time: orderData?.pickupCompletedAt
+        ? formatEventTimestamp(orderData.pickupCompletedAt)
+        : formatDateTime(
+            orderData?.collectionDate,
+            orderData?.collectionTimeFrom,
+            orderData?.collectionTimeTo
+          ),
       tone: pickupItemsCount > 0 ? "completed" : "system",
     },
     {
@@ -977,8 +997,8 @@ export default function OrderDetailsPage() {
                   </div>
                 </div>
                 <p style={{ margin: 0, fontFamily: "Switzer", fontWeight: 700, fontSize: 20, color: "#0F172A", lineHeight: 1.2 }}>
-                  {orderData.collectionTimeFrom || "N/A"} -{" "}
-                  {orderData.collectionTimeTo || "N/A"}
+                  {toSlotTime(orderData.collectionTimeFrom) || "N/A"} -{" "}
+                  {toSlotTime(orderData.collectionTimeTo) || "N/A"}
                 </p>
                 <p style={{ margin: 0, color: "var(--muted)",  fontSize: 12, marginTop: 4 }}>
                   {orderData.collectionDate
@@ -1017,8 +1037,8 @@ export default function OrderDetailsPage() {
                   </div>
                 </div>
                 <p style={{ margin: 0, fontFamily: "Switzer", fontWeight: 700, fontSize: 20, color: "#0F172A", lineHeight: 1.2 }}>
-                  {orderData.deliveryTimeFrom || "N/A"} -{" "}
-                  {orderData.deliveryTimeTo || "N/A"}
+                  {toSlotTime(orderData.deliveryTimeFrom) || "N/A"} -{" "}
+                  {toSlotTime(orderData.deliveryTimeTo) || "N/A"}
                 </p>
                 <p style={{ margin: 0, color: "var(--muted)",  fontSize: 12, marginTop: 4 }}>
                   {orderData.deliveryDate
@@ -1850,6 +1870,50 @@ export default function OrderDetailsPage() {
                 label="Method"
                 value={formatPaymentType(paymentSummary?.paymentType ?? orderData?.paymentType)}
               />
+              {commercialTerms ? (
+                <>
+                  <OdMetaRow label="Applied rates" value={appliedRatesLabel} />
+                  {commercialTerms.lockedAt ? (
+                    <OdMetaRow
+                      label="Locked at"
+                      value={formatDate(commercialTerms.lockedAt, "DD MMM YYYY · HH:mm")}
+                    />
+                  ) : null}
+                  <OdMetaRow
+                    label="Zone minimum"
+                    value={formatMoney(
+                      commercialTerms.zoneMinimumAmount,
+                      paymentCurrencySymbol
+                    )}
+                  />
+                  <OdMetaRow
+                    label="Service fee"
+                    value={formatMoney(
+                      commercialTerms.serviceCharge,
+                      paymentCurrencySymbol
+                    )}
+                  />
+                  <OdMetaRow
+                    label="Agent commission"
+                    value={`${Number(commercialTerms.agentCommissionPercent || 0)}%`}
+                  />
+                  <OdMetaRow
+                    label="Platform commission"
+                    value={`${Number(commercialTerms.platformCommissionPercent || 0)}%`}
+                  />
+                  {commercialTerms.differsFromLiveZone ? (
+                    <p style={{ margin: 0, fontSize: 11, color: "#64748B" }}>
+                      Current zone is now{" "}
+                      {formatMoney(
+                        commercialTerms.liveZone?.zoneMinimumAmount,
+                        paymentCurrencySymbol
+                      )}{" "}
+                      min, {Number(commercialTerms.liveZone?.agentCommissionPercent || 0)}%
+                      agent — this order still uses the frozen rates.
+                    </p>
+                  ) : null}
+                </>
+              ) : null}
               <div className="flex justify-between gap-3 items-center">
                 <p style={{ margin: 0, color: "var(--muted)",  fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em" }}>
                   Status

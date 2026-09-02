@@ -82,6 +82,40 @@ function legTone(leg) {
   return { label: leg || "N/A", tone: "neutral" };
 }
 
+function outcomeTone(outcome) {
+  const k = String(outcome || "").toLowerCase();
+  if (["completed", "answered"].includes(k)) return { label: outcome, tone: "success" };
+  if (["no answer", "busy", "failed", "canceled"].includes(k))
+    return { label: outcome, tone: "danger" };
+  if (["replaced", "expired (no call)", "booking missing"].includes(k))
+    return { label: outcome, tone: "warning" };
+  return { label: outcome || "N/A", tone: "neutral" };
+}
+
+function formatDuration(seconds) {
+  if (seconds == null || seconds === "" || Number.isNaN(Number(seconds))) return "N/A";
+  const total = Math.max(0, Math.trunc(Number(seconds)));
+  const m = Math.floor(total / 60);
+  const s = total % 60;
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
+
+function humanCloseReason(reason) {
+  if (!reason) return "N/A";
+  const map = {
+    call_completed: "Call completed",
+    call_no_answer: "No answer",
+    call_busy: "Busy",
+    call_failed: "Failed",
+    call_canceled: "Canceled",
+    call_cancelled: "Canceled",
+    replaced: "Replaced by newer call",
+    ttl_expired: "Expired (no call placed)",
+    booking_missing: "Booking missing",
+  };
+  return map[String(reason).toLowerCase()] || String(reason);
+}
+
 function StatusBadge({ label, tone }) {
   return <DirectoryDotPill tone={tone}>{label}</DirectoryDotPill>;
 }
@@ -171,11 +205,12 @@ const LEG_OPTIONS = [
   { value: "pickup", label: "Pickup" },
   { value: "delivery", label: "Delivery" },
 ];
+// Calls live in the "Dialer Call Sessions" tab, so the notifications channel
+// filter only covers messaging channels (push / SMS).
 const CHANNEL_OPTIONS = [
   { value: "", label: "All" },
   { value: "push", label: "Push" },
   { value: "sms", label: "SMS" },
-  { value: "call", label: "Call" },
 ];
 const SESSION_STATUS_OPTIONS = [
   { value: "", label: "All" },
@@ -269,6 +304,8 @@ export default function NotifyLogs() {
         orderTrackId: row.orderTrackId || "—",
         leg: row.leg || "—",
         status: row.status || "—",
+        outcome: row.outcome || "—",
+        duration: formatDuration(row.callDurationSec),
         agent: userLabel(row.agent),
         customer: userLabel(row.customer),
         customerPhone: fullPhone(row.customerCountryCode, row.customerPhone),
@@ -294,6 +331,11 @@ export default function NotifyLogs() {
           meta={row.orderTrackId !== "—" ? row.orderTrackId : undefined}
         />
       ),
+    },
+    {
+      key: "leg",
+      header: "Leg",
+      render: (row) => <StatusBadge {...legTone(row.leg !== "—" ? row.leg : null)} />,
     },
     {
       key: "twilioStatus",
@@ -332,6 +374,30 @@ export default function NotifyLogs() {
           name={row.bookingId !== "—" ? `#${row.bookingId}` : "—"}
           meta={row.orderTrackId !== "—" ? row.orderTrackId : undefined}
         />
+      ),
+    },
+    {
+      key: "leg",
+      header: "Leg",
+      render: (row) => <StatusBadge {...legTone(row.leg !== "—" ? row.leg : null)} />,
+    },
+    {
+      key: "outcome",
+      header: "Outcome",
+      render: (row) =>
+        row.outcome !== "—" ? (
+          <StatusBadge {...outcomeTone(row.outcome)} />
+        ) : (
+          <span style={{ color: "var(--muted)" }}>—</span>
+        ),
+    },
+    {
+      key: "duration",
+      header: "Duration",
+      render: (row) => (
+        <span style={{ fontVariantNumeric: "tabular-nums" }}>
+          {row.duration !== "N/A" ? row.duration : "—"}
+        </span>
       ),
     },
     {
@@ -612,6 +678,7 @@ export default function NotifyLogs() {
                   <InfoRow label="Twilio SID"   value={detail.twilioSid} />
                   <InfoRow label="Twilio status" badge={<StatusBadge {...twilioTone(detail.twilioStatus)} />} />
                   <InfoRow label="Sent at"      value={fmt(detail.sentAt)} />
+                  <InfoRow label="Delivered at" value={fmt(detail.deliveredAt)} />
                   <InfoRow label="Created at"   value={fmt(detail.createdAt)} />
                 </SectionCard>
                 {detail.bodyPreview && detail.bodyPreview !== "N/A" && (
@@ -639,11 +706,20 @@ export default function NotifyLogs() {
                 <ModalSectionHeader title="Call Session" />
                 <SectionCard>
                   <InfoRow label="Status"           badge={<StatusBadge {...sessionStatusTone(detail.status)} />} />
+                  {detail.outcome ? (
+                    <InfoRow label="Outcome"        badge={<StatusBadge {...outcomeTone(detail.outcome)} />} />
+                  ) : (
+                    <InfoRow label="Outcome"        value="N/A" />
+                  )}
+                  <InfoRow label="Duration"         value={formatDuration(detail.callDurationSec)} />
                   <InfoRow label="Agent phone"      value={detail.agentPhoneE164} />
+                  <InfoRow label="Created at"       value={fmt(detail.createdAt)} />
+                  <InfoRow label="Connected at"     value={fmt(detail.connectedAt)} />
+                  <InfoRow label="Ended at"         value={fmt(detail.endedAt)} />
                   <InfoRow label="Expires at"       value={fmt(detail.expiresAt)} />
                   <InfoRow label="Closed at"        value={fmt(detail.closedAt)} />
-                  <InfoRow label="Close reason"     value={detail.closeReason} />
-                  <InfoRow label="Created at"       value={fmt(detail.createdAt)} />
+                  <InfoRow label="Close reason"     value={humanCloseReason(detail.closeReason)} />
+                  <InfoRow label="Call SID"         value={detail.callSid} />
                   <InfoRow label="Updated at"       value={fmt(detail.updatedAt)} />
                 </SectionCard>
               </>

@@ -118,9 +118,10 @@ const buildOpeningHours = (workingHours = []) => {
 
   return DAY_ORDER.map((day, index) => {
     const hit = byDay.get(day.toLowerCase());
+    const enabled = Boolean(hit) && hit.status !== false;
     return {
       day,
-      enabled: Boolean(hit),
+      enabled,
       start: toHourMinute(hit?.openTime, index === 5 ? "09:00" : "08:00"),
       end: toHourMinute(hit?.closeTime, index === 5 ? "15:00" : "18:00"),
     };
@@ -204,7 +205,14 @@ export default function ShopDetails() {
   const { data: employeesResponse } = useGetAllEmployeesWithShopInfoQuery();
   const [editShop, { isLoading: isSavingSettings }] = useEditShopMutation();
 
-  const shop = shopResponse?.data ?? shopResponse;
+  const shopPayload = shopResponse?.data;
+  const shop =
+    shopPayload &&
+    typeof shopPayload === "object" &&
+    !Array.isArray(shopPayload) &&
+    (shopPayload.id != null || shopPayload.shopName)
+      ? shopPayload
+      : null;
   const biz = shop?.businessInfo;
   const businessInfoId = biz?.id || shop?.businessInfoId || shop?.id;
   const { data: shopReviewsResponse } = useGetShopReviewsQuery(
@@ -389,7 +397,7 @@ export default function ShopDetails() {
       addressLine2: addr?.district || "",
       city: addr?.city?.name || "",
       country: addr?.country?.name || "",
-      postcode: addr?.postalCode || "",
+      postcode: addr?.postalCode || addr?.postalcode || "",
       description: shop?.description || "",
     });
     setDeliverySettings((prev) => ({
@@ -429,6 +437,7 @@ export default function ShopDetails() {
     addr?.country?.name,
     addr?.district,
     addr?.postalCode,
+    addr?.postalcode,
     addr?.streetAddress,
     biz?.bussinessWorkingHours,
     biz?.email,
@@ -508,7 +517,7 @@ export default function ShopDetails() {
       addressLine2: addr?.district || "",
       city: addr?.city?.name || "",
       country: addr?.country?.name || "",
-      postcode: addr?.postalCode || "",
+      postcode: addr?.postalCode || addr?.postalcode || "",
       description: shop?.description || "",
     });
     setDeliverySettings({

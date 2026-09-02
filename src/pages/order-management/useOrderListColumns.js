@@ -17,7 +17,7 @@ import {
 } from "./orderListTable";
 import {
   customerDetailsPath,
-  resolveLaundryShopId,
+  resolveShopBusinessInfoId,
   shopDetailsPath,
 } from "./orderListUtils";
 
@@ -70,7 +70,8 @@ export function useOrderListColumns({
                   EntityNameLink,
                   {
                     to: shopDetailsPath(
-                      row.laundryShopId ?? resolveLaundryShopId(row._booking)
+                      row.shopBusinessInfoId ??
+                        resolveShopBusinessInfoId(row._booking)
                     ),
                   },
                   row.shopName
@@ -126,6 +127,30 @@ export function useOrderListColumns({
                   )
                 : null,
           }),
+      },
+      {
+        key: "payment",
+        header: "Payment",
+        render: (row) =>
+          h(
+            "div",
+            { className: "min-w-[132px] leading-snug" },
+            h(
+              "div",
+              { className: "text-[13px] font-semibold text-[#0e131c]" },
+              row.paymentMethod || "—"
+            ),
+            h(
+              "div",
+              { className: "mt-0.5 text-[12px] text-[#5c6673]" },
+              `Upfront: ${row.upfrontLabel ?? "—"}`
+            ),
+            h(
+              "div",
+              { className: "text-[12px] font-medium text-[#20307f]" },
+              `Final: ${row.finalLabel ?? "—"}`
+            )
+          ),
       },
       ...extraColumns,
       {

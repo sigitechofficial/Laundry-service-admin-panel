@@ -57,6 +57,7 @@ export function buildOrderListApiParams({
   page,
   limit,
   zoneId,
+  shopId,
   statusId,
   recurringType,
   dateRange,
@@ -72,6 +73,9 @@ export function buildOrderListApiParams({
   params.sortDir = normalizeOrderListSortDir(sortDir);
   if (zoneId != null && String(zoneId).trim() !== "") {
     params.zoneId = String(zoneId);
+  }
+  if (shopId != null && String(shopId).trim() !== "") {
+    params.shopId = String(shopId);
   }
   if (statusId != null && String(statusId).trim() !== "") {
     params.status = String(statusId);
@@ -95,6 +99,7 @@ export function buildOrderListApiParams({
 /** Filter-only params for ordersCount (zone, status, dates, search — no pagination). */
 export function buildOrderStatsQueryParams({
   zoneId,
+  shopId,
   statusId,
   recurringType,
   dateRange,
@@ -104,6 +109,7 @@ export function buildOrderStatsQueryParams({
     page: 1,
     limit: 1,
     zoneId,
+    shopId,
     statusId,
     recurringType,
     dateRange,
@@ -122,6 +128,7 @@ export function buildOrderStatsQueryParams({
 
 export function orderListHasActiveFilters({
   zoneId,
+  shopId,
   statusId,
   recurringType,
   dateRange,
@@ -129,6 +136,7 @@ export function orderListHasActiveFilters({
 }) {
   return Boolean(
     (zoneId != null && String(zoneId).trim() !== "") ||
+      (shopId != null && String(shopId).trim() !== "") ||
       (statusId != null && String(statusId).trim() !== "") ||
       (recurringType != null && String(recurringType).trim() !== "") ||
       (dateRange?.startDate && dateRange?.endDate) ||

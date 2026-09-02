@@ -104,6 +104,8 @@ export default function ShopManagement() {
           onPageSizeChange={tableFilters.setPageSize}
           zoneId={tableFilters.zoneId}
           onZoneIdChange={tableFilters.setZoneId}
+          shopId={tableFilters.shopId}
+          onShopIdChange={tableFilters.setShopId}
           statusId={tableFilters.statusId}
           onStatusIdChange={tableFilters.setStatusId}
           recurringType={tableFilters.recurringType}
