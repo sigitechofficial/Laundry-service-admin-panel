@@ -322,13 +322,17 @@ const META_CLAMP_CLASS = {
  * Optional multi-line meta clamp with Show more / Show less when content overflows.
  * Opt-in via `metaClamp` (1–6). Default remains single-line ellipsis.
  */
-export function DirectoryIdentity({ name, meta, id, onClick, title, metaClamp }) {
+export function DirectoryIdentity({ name, email, meta, id, onClick, title, metaClamp }) {
   const Tag = onClick ? "button" : "div";
   const lines = Number(metaClamp);
   const clampEnabled = Number.isFinite(lines) && lines >= 1 && lines <= 6;
   const [expanded, setExpanded] = useState(false);
   const [needsToggle, setNeedsToggle] = useState(false);
   const metaRef = useRef(null);
+  const emailText =
+    email != null && String(email).trim() !== "" && String(email).trim() !== "-"
+      ? String(email).trim()
+      : "";
 
   useLayoutEffect(() => {
     setExpanded(false);
@@ -371,6 +375,7 @@ export function DirectoryIdentity({ name, meta, id, onClick, title, metaClamp })
       title={title}
     >
       <span className={styles.name}>{name || "—"}</span>
+      {emailText ? <span className={styles.email}>{emailText}</span> : null}
       {meta ? (
         <span ref={clampEnabled ? metaRef : undefined} className={clampClass}>
           {meta}

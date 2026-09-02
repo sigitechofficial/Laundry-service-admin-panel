@@ -48,6 +48,11 @@ function cellClass(layout) {
   return `jd-tbl--${layout.align} jd-tbl--${layout.role}`;
 }
 
+function sortIndicator(active, sortDir) {
+  if (!active) return "↕";
+  return sortDir === "asc" ? "↑" : "↓";
+}
+
 export default function Table({
   columns = [],
   rows = [],
@@ -56,6 +61,9 @@ export default function Table({
   stickyLeft = 0,
   stickyRight = false,
   embedded = false,
+  sortBy = null,
+  sortDir = "asc",
+  onSort = null,
 }) {
   const wrapRef = useRef(null);
   const count = stickyCount(stickyLeft);
@@ -103,11 +111,42 @@ export default function Table({
         </colgroup>
         <thead>
           <tr>
-            {columns.map((c, i) => (
-              <th key={c.key} scope="col" className={cellClass(layouts[i])}>
-                {c.header}
-              </th>
-            ))}
+            {columns.map((c, i) => {
+              const sortKey = c.sortKey || c.key;
+              const sortable = Boolean(c.sortable && onSort && sortKey);
+              const active = sortable && sortBy === sortKey;
+              return (
+                <th
+                  key={c.key}
+                  scope="col"
+                  className={cellClass(layouts[i])}
+                  aria-sort={
+                    active
+                      ? sortDir === "asc"
+                        ? "ascending"
+                        : "descending"
+                      : sortable
+                        ? "none"
+                        : undefined
+                  }
+                >
+                  {sortable ? (
+                    <button
+                      type="button"
+                      className={`jd-tbl__sort${active ? " is-active" : ""}`}
+                      onClick={() => onSort(sortKey)}
+                    >
+                      <span>{c.header}</span>
+                      <span className="jd-tbl__sort-icon" aria-hidden="true">
+                        {sortIndicator(active, sortDir)}
+                      </span>
+                    </button>
+                  ) : (
+                    c.header
+                  )}
+                </th>
+              );
+            })}
           </tr>
         </thead>
         <tbody>

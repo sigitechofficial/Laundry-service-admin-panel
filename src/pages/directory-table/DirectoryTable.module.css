@@ -32,6 +32,16 @@
   white-space: nowrap;
 }
 
+.email {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: #334155;
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .meta {
   font-size: 12.5px;
   color: #5c6673;

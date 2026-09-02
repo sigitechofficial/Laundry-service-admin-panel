@@ -326,6 +326,49 @@
   text-align: center;
 }
 
+.jd-ds .jd-tbl__sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  cursor: pointer;
+}
+
+.jd-ds .jd-tbl__sort:hover,
+.jd-ds .jd-tbl__sort.is-active {
+  color: var(--accent-ink, var(--ink));
+}
+
+.jd-ds .jd-tbl__sort:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.jd-ds .jd-tbl__sort-icon {
+  font-size: 11px;
+  line-height: 1;
+  opacity: 0.55;
+}
+
+.jd-ds .jd-tbl__sort.is-active .jd-tbl__sort-icon {
+  opacity: 1;
+}
+
+.jd-ds .jd-tbl--right .jd-tbl__sort {
+  justify-content: flex-end;
+  width: 100%;
+}
+
 /*
  * Modal overlay is portaled to document.body.
  * DsScope puts .jd-ds on the SAME node as .jd-modal-scrim, so a descendant

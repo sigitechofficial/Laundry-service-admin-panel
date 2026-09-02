@@ -82,10 +82,27 @@ function matchesSearch(row, term) {
   });
 }
 
+function compareSettlementRows(a, b, sortBy, sortDir) {
+  const dir = sortDir === "asc" ? 1 : -1;
+  const av = a?.[sortBy];
+  const bv = b?.[sortBy];
+  if (typeof av === "number" && typeof bv === "number") {
+    return (av - bv) * dir;
+  }
+  return (
+    String(av ?? "").localeCompare(String(bv ?? ""), undefined, {
+      sensitivity: "base",
+      numeric: true,
+    }) * dir
+  );
+}
+
 export default function AgentSettlement() {
   const { success, error: showError } = useToaster();
   const [tab, setTab] = useState("cash-due");
   const [searchTerm, setSearchTerm] = useState("");
+  const [sortBy, setSortBy] = useState("cashDue");
+  const [sortDir, setSortDir] = useState("desc");
   const [remittancePage, setRemittancePage] = useState(1);
   const [actionModal, setActionModal] = useState(emptyActionModal);
   const [viewRow, setViewRow] = useState(null);
@@ -195,19 +212,51 @@ export default function AgentSettlement() {
         amountLabel: formatAgentMoney(row.amount, row),
         description: row.description || "-",
         submittedAt: formatDate(row.createdAt, DATE_TIME_FORMAT),
+        submittedAtMs: row.createdAt ? new Date(row.createdAt).getTime() || 0 : 0,
       })),
     [remittances, remittancePage]
   );
 
-  const visibleCashDue = useMemo(
-    () => cashDueTableData.filter((row) => matchesSearch(row, searchTerm)),
-    [cashDueTableData, searchTerm]
-  );
+  const visibleCashDue = useMemo(() => {
+    const filtered = cashDueTableData.filter((row) =>
+      matchesSearch(row, searchTerm)
+    );
+    return [...filtered].sort((a, b) =>
+      compareSettlementRows(a, b, sortBy, sortDir)
+    );
+  }, [cashDueTableData, searchTerm, sortBy, sortDir]);
 
-  const visibleRemittances = useMemo(
-    () => remittanceTableData.filter((row) => matchesSearch(row, searchTerm)),
-    [remittanceTableData, searchTerm]
-  );
+  const visibleRemittances = useMemo(() => {
+    const filtered = remittanceTableData.filter((row) =>
+      matchesSearch(row, searchTerm)
+    );
+    return [...filtered].sort((a, b) =>
+      compareSettlementRows(a, b, sortBy, sortDir)
+    );
+  }, [remittanceTableData, searchTerm, sortBy, sortDir]);
+
+  const handleSort = useCallback((key) => {
+    setSortBy((prev) => {
+      if (prev === key) {
+        setSortDir((dir) => (dir === "asc" ? "desc" : "asc"));
+        return prev;
+      }
+      setSortDir(key === "name" || key === "email" ? "asc" : "desc");
+      return key;
+    });
+  }, []);
+
+  const switchTab = useCallback((nextTab) => {
+    setTab(nextTab);
+    setSearchTerm("");
+    if (nextTab === "cash-due") {
+      setSortBy("cashDue");
+      setSortDir("desc");
+    } else {
+      setSortBy("submittedAtMs");
+      setSortDir("desc");
+    }
+  }, []);
 
   const openActionModal = useCallback((type, row) => {
     const maxAmount =
@@ -327,18 +376,28 @@ export default function AgentSettlement() {
       {
         key: "name",
         header: "Agent",
+        sortable: true,
+        sortKey: "name",
         render: (row) => (
-          <DirectoryIdentity name={row.name} meta={row.shopAddress} />
+          <DirectoryIdentity
+            name={row.name}
+            email={row.email}
+            meta={row.shopAddress}
+          />
         ),
       },
       {
         key: "cashDueLabel",
         header: "Cash due",
+        sortable: true,
+        sortKey: "cashDue",
         render: (row) => <DirectoryMoney>{row.cashDueLabel}</DirectoryMoney>,
       },
       {
         key: "platformOwesLabel",
         header: "Payable",
+        sortable: true,
+        sortKey: "platformOwes",
         render: (row) => <DirectoryMoney>{row.platformOwesLabel}</DirectoryMoney>,
       },
       {
@@ -374,14 +433,25 @@ export default function AgentSettlement() {
       {
         key: "name",
         header: "Agent",
+        sortable: true,
+        sortKey: "name",
         render: (row) => (
-          <DirectoryIdentity name={row.name} meta={row.submittedAt} />
+          <DirectoryIdentity name={row.name} email={row.email} />
         ),
       },
       {
         key: "amountLabel",
         header: "Amount",
+        sortable: true,
+        sortKey: "amount",
         render: (row) => <DirectoryMoney>{row.amountLabel}</DirectoryMoney>,
+      },
+      {
+        key: "submittedAt",
+        header: "Submitted",
+        sortable: true,
+        sortKey: "submittedAtMs",
+        render: (row) => row.submittedAt,
       },
       {
         key: "actions",
@@ -464,20 +534,14 @@ export default function AgentSettlement() {
           <Button
             size="sm"
             variant={tab === "cash-due" ? "primary" : "secondary"}
-            onClick={() => {
-              setTab("cash-due");
-              setSearchTerm("");
-            }}
+            onClick={() => switchTab("cash-due")}
           >
             Agent settlements
           </Button>
           <Button
             size="sm"
             variant={tab === "remittances" ? "primary" : "secondary"}
-            onClick={() => {
-              setTab("remittances");
-              setSearchTerm("");
-            }}
+            onClick={() => switchTab("remittances")}
           >
             Pending remittances
             {remittancePagination.total
@@ -529,7 +593,7 @@ export default function AgentSettlement() {
                 id="cash-due-search"
                 value={searchTerm}
                 onChange={setSearchTerm}
-                placeholder="Search agents…"
+                placeholder="Search name, email, address…"
               />
             </DirectoryToolbar>
           }
@@ -539,6 +603,9 @@ export default function AgentSettlement() {
             rows={visibleCashDue}
             rowKey={(row) => row.rowKey}
             empty="No agents with cash due"
+            sortBy={sortBy}
+            sortDir={sortDir}
+            onSort={handleSort}
           />
         </DirectoryTableWrap>
       ) : (
@@ -550,7 +617,7 @@ export default function AgentSettlement() {
                   id="remittance-search"
                   value={searchTerm}
                   onChange={setSearchTerm}
-                  placeholder="Search remittances…"
+                  placeholder="Search name, email…"
                 />
               </DirectoryToolbar>
             }
@@ -584,6 +651,9 @@ export default function AgentSettlement() {
               rows={visibleRemittances}
               rowKey={(row) => row.rowKey}
               empty="No pending remittances"
+              sortBy={sortBy}
+              sortDir={sortDir}
+              onSort={handleSort}
             />
           </DirectoryTableWrap>
         </>
