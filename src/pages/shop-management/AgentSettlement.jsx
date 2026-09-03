@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Button,
   Field,
@@ -98,6 +99,7 @@ function compareSettlementRows(a, b, sortBy, sortDir) {
 }
 
 export default function AgentSettlement() {
+  const navigate = useNavigate();
   const { success, error: showError } = useToaster();
   const [tab, setTab] = useState("cash-due");
   const [searchTerm, setSearchTerm] = useState("");
@@ -424,7 +426,9 @@ export default function AgentSettlement() {
         header: "Actions",
         render: (row) => (
           <DirectoryActions>
-            <DirectoryActionView onClick={() => setViewRow({ kind: "cash", ...row })} />
+            <DirectoryActionView
+              onClick={() => navigate(`/shop-management/agent-settlement/${row.id}`)}
+            />
             <Button
               size="sm"
               disabled={row.cashDue <= 0 || isActing}
@@ -737,26 +741,13 @@ export default function AgentSettlement() {
         open={Boolean(viewRow)}
         title={viewRow?.name || "Settlement"}
         onClose={() => setViewRow(null)}
-        fields={
-          viewRow?.kind === "remit"
-            ? [
-                { label: "Agent", value: viewRow?.name },
-                { label: "Email", value: viewRow?.email },
-                { label: "Amount", value: viewRow?.amountLabel },
-                { label: "Note", value: viewRow?.description },
-                { label: "Submitted", value: viewRow?.submittedAt },
-              ]
-            : [
-                { label: "Agent", value: viewRow?.name },
-                { label: "Email", value: viewRow?.email },
-                { label: "Shop", value: viewRow?.shopAddress },
-                { label: "Cash due", value: viewRow?.cashDueLabel },
-                { label: "Pending remittance", value: viewRow?.pendingLabel },
-                { label: "Payable", value: viewRow?.platformOwesLabel },
-                { label: "Collected", value: viewRow?.totalCashCollected },
-                { label: "Remitted", value: viewRow?.totalCashRemitted },
-              ]
-        }
+        fields={[
+          { label: "Agent", value: viewRow?.name },
+          { label: "Email", value: viewRow?.email },
+          { label: "Amount", value: viewRow?.amountLabel },
+          { label: "Note", value: viewRow?.description },
+          { label: "Submitted", value: viewRow?.submittedAt },
+        ]}
       />
     </div>
   );

@@ -6,7 +6,7 @@ export const api = createApi({
   baseQuery: baseQueryWithReauth,
   // setupListeners(store.dispatch) + window "online" → refetch subscribed queries.
   refetchOnReconnect: true,
-  tagTypes: ["ServiceConfig", "SupportContact", "PlatformOperationalHours", "RuntimeSettings", "Orders", "Coupons", "Banners", "AccountDeletionReasons", "ReviewReasonCodes", "ShopReviews", "ShopRatingsReport", "PendingAgents", "RejectedAgents", "AgentSettlement", "NotifyLogs", "PaymentFailures", "AdminNotificationPreferences", "ActionRequiredOrders", "RepairGarments", "RepairOptions", "Zones", "FailAttemptInstructions", "FailAttemptReasons", "Shops", "ShopAssignmentPolicy", "ComplianceReport", "ComplianceEvents"],
+  tagTypes: ["ServiceConfig", "SupportContact", "PlatformOperationalHours", "RuntimeSettings", "Orders", "Coupons", "Banners", "AccountDeletionReasons", "ReviewReasonCodes", "ShopReviews", "ShopRatingsReport", "PendingAgents", "RejectedAgents", "AgentSettlement", "NotifyLogs", "PaymentFailures", "AdminNotificationPreferences", "ActionRequiredOrders", "RepairGarments", "RepairOptions", "Zones", "FailAttemptInstructions", "FailAttemptReasons", "Shops", "ShopAssignmentPolicy", "ComplianceReport", "ComplianceEvents", "Customers"],
 
   endpoints: (builder) => {
     const reportQueryString = (params = {}) => {
@@ -553,6 +553,7 @@ export const api = createApi({
         url: `admin/getAllCustomers`,
         method: "GET",
       }),
+      providesTags: ["Customers"],
     }),
 
     getAllCustomersCount: builder.query({
@@ -851,6 +852,15 @@ export const api = createApi({
       query: (agentId) => ({
         url: `admin/agents/${agentId}/settlement`,
         method: "GET",
+      }),
+      providesTags: ["AgentSettlement"],
+    }),
+
+    getAgentSettlementDetail: builder.query({
+      query: ({ agentId, ...params } = {}) => ({
+        url: `admin/agents/${agentId}/settlement-detail`,
+        method: "GET",
+        params,
       }),
       providesTags: ["AgentSettlement"],
     }),
@@ -2066,6 +2076,7 @@ export const {
   useGetAgentsCashDueQuery,
   useGetPendingRemittancesQuery,
   useGetAgentSettlementQuery,
+  useGetAgentSettlementDetailQuery,
   useGetNotifyLogsQuery,
   useLazySearchNotificationRecipientsQuery,
   usePreviewAdminNotificationMutation,

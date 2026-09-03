@@ -1,4 +1,4 @@
-import { LuEye, LuPencil, LuTrash2 } from "react-icons/lu";
+import { LuEye, LuPencil, LuTrash2, LuBan, LuUserCheck } from "react-icons/lu";
 
 const BASE_CLASS =
   "grid h-[34px] w-[34px] shrink-0 place-items-center rounded-[9px] border border-[#e6e9f0] bg-white text-[#5c6673] disabled:cursor-not-allowed disabled:opacity-50";
@@ -85,6 +85,29 @@ export function DirectoryActionDelete({
       {...rest}
     >
       <LuTrash2 size={16} aria-hidden />
+    </DirectoryActionIcon>
+  );
+}
+
+export function DirectoryActionBlock({
+  isBlocked = false,
+  title,
+  "aria-label": ariaLabel,
+  ...rest
+}) {
+  const label = title || (isBlocked ? "Unblock" : "Block");
+  return (
+    <DirectoryActionIcon
+      tone={isBlocked ? "default" : "danger"}
+      title={label}
+      aria-label={ariaLabel || label}
+      {...rest}
+    >
+      {isBlocked ? (
+        <LuUserCheck size={16} aria-hidden />
+      ) : (
+        <LuBan size={16} aria-hidden />
+      )}
     </DirectoryActionIcon>
   );
 }

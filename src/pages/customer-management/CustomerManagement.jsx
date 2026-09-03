@@ -1,9 +1,10 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { Button, Modal, PageHeader, Table } from "../../design-system";
 import { formatDate, formatAmount, resolveCurrencySymbol } from "../../utilities/formatters";
 import {
+  DirectoryActionBlock,
   DirectoryActionDelete,
   DirectoryActionEdit,
   DirectoryActions,
@@ -19,9 +20,9 @@ import {
   DirectoryTableWrap,
   DirectoryToolbar,
   DirectoryToolbarEnd,
-  DirectoryViewModal,
 } from "../directory-table/directoryTable";
 import { joinMeta } from "../directory-table/directoryTableUtils";
+import { BlockUserModal } from "../user-management/UserBlockActions";
 import {
   useGetAllCustomersCountQuery,
   useGetAllCustomersQuery,
@@ -30,6 +31,24 @@ import {
 import { Delay } from "../../components/shared/Loaders";
 import useToaster from "../../components/ui/Toaster";
 import { getApiErrorMessage } from "../../store/services/apiErrors";
+
+function compareCustomerRows(a, b, sortBy, sortDir) {
+  const dir = sortDir === "asc" ? 1 : -1;
+  const av = a?.[sortBy];
+  const bv = b?.[sortBy];
+  if (typeof av === "number" && typeof bv === "number") {
+    return (av - bv) * dir;
+  }
+  if (typeof av === "boolean" || typeof bv === "boolean") {
+    return ((av ? 1 : 0) - (bv ? 1 : 0)) * dir;
+  }
+  return (
+    String(av ?? "").localeCompare(String(bv ?? ""), undefined, {
+      sensitivity: "base",
+      numeric: true,
+    }) * dir
+  );
+}
 
 function matchesSearch(row, term) {
   if (!term) return true;
@@ -63,7 +82,9 @@ export default function CustomerManagement() {
   const [dateRange, setDateRange] = useState({ startDate: "", endDate: "" });
   const [searchTerm, setSearchTerm] = useState("");
   const [modalData, setModalData] = useState({ open: false, data: "" });
-  const [viewRow, setViewRow] = useState(null);
+  const [blockRow, setBlockRow] = useState(null);
+  const [sortBy, setSortBy] = useState("name");
+  const [sortDir, setSortDir] = useState("asc");
 
   const { isLoading, isError, error: customersError, refetch } = useGetAllCustomersQuery();
   const { data } = useGetAllCustomersCountQuery();
@@ -92,13 +113,12 @@ export default function CustomerManagement() {
     [customers]
   );
 
-  const visibleRows = useMemo(
-    () =>
-      customersData.filter(
-        (row) => matchesSearch(row, searchTerm) && matchesDateRange(row, dateRange)
-      ),
-    [customersData, dateRange, searchTerm]
-  );
+  const visibleRows = useMemo(() => {
+    const filtered = customersData.filter(
+      (row) => matchesSearch(row, searchTerm) && matchesDateRange(row, dateRange)
+    );
+    return [...filtered].sort((a, b) => compareCustomerRows(a, b, sortBy, sortDir));
+  }, [customersData, dateRange, searchTerm, sortBy, sortDir]);
 
   const handleDateChange = (part, value) => {
     setDateRange((prev) => ({ ...prev, [part]: value }));
@@ -107,6 +127,17 @@ export default function CustomerManagement() {
   const handleSearchChange = (value) => {
     setSearchTerm(value);
   };
+
+  const handleSort = useCallback((key) => {
+    setSortBy((prev) => {
+      if (prev === key) {
+        setSortDir((dir) => (dir === "asc" ? "desc" : "asc"));
+        return prev;
+      }
+      setSortDir(key === "name" ? "asc" : "desc");
+      return key;
+    });
+  }, []);
 
   const closeDeleteModal = () => setModalData({ open: false, data: "" });
 
@@ -126,6 +157,7 @@ export default function CustomerManagement() {
     {
       key: "name",
       header: "Customer",
+      sortable: true,
       render: (row) => (
         <DirectoryIdentity
           name={row.name}
@@ -138,11 +170,13 @@ export default function CustomerManagement() {
     {
       key: "status",
       header: "Status",
+      sortable: true,
       render: (row) => <DirectoryStatusPill active={row.status} />,
     },
     {
       key: "totalOrders",
       header: "Orders",
+      sortable: true,
       render: (row) => (
         <DirectoryMetric
           value={row.totalOrders ?? 0}
@@ -153,6 +187,7 @@ export default function CustomerManagement() {
     {
       key: "amountSpent",
       header: "Spent",
+      sortable: true,
       render: (row) => (
         <DirectoryMoney>
           {formatAmount(row.amountSpent, row, { applyDefault: true })}
@@ -164,7 +199,13 @@ export default function CustomerManagement() {
       header: "Actions",
       render: (row) => (
         <DirectoryActions>
-          <DirectoryActionView onClick={() => setViewRow(row)} />
+          <DirectoryActionView
+            onClick={() => navigate(`/customer-management/details/${row.id}`)}
+          />
+          <DirectoryActionBlock
+            isBlocked={!row.status}
+            onClick={() => setBlockRow(row)}
+          />
           <DirectoryActionEdit
             onClick={() => navigate(`/customer-management/edit/${row?.id}`)}
           />
@@ -248,33 +289,22 @@ export default function CustomerManagement() {
           rows={visibleRows}
           rowKey={(row) => row.id}
           empty="No customers found"
+          sortBy={sortBy}
+          sortDir={sortDir}
+          onSort={handleSort}
         />
       </DirectoryTableWrap>
 
-      <DirectoryViewModal
-        open={Boolean(viewRow)}
-        title={viewRow?.name || "Customer"}
-        onClose={() => setViewRow(null)}
-        primaryLabel="Open details"
-        onPrimary={() => {
-          if (!viewRow?.id) return;
-          navigate(`/customer-management/details/${viewRow.id}`);
+      <BlockUserModal
+        open={Boolean(blockRow)}
+        onClose={() => setBlockRow(null)}
+        userId={blockRow?.id}
+        userType="customer"
+        isBlocked={!blockRow?.status}
+        onSuccess={() => {
+          setBlockRow(null);
+          refetch();
         }}
-        fields={[
-          { label: "Customer ID", value: viewRow?.customerId },
-          { label: "Email", value: viewRow?.email },
-          { label: "Phone", value: viewRow?.phoneNumber },
-          { label: "Address", value: viewRow?.address },
-          { label: "Orders", value: viewRow?.totalOrders },
-          { label: "Last order", value: formatDate(viewRow?.lastOrderDate) },
-          {
-            label: "Spent",
-            value: formatAmount(viewRow?.amountSpent, viewRow, { applyDefault: true }),
-          },
-          { label: "Status", value: viewRow?.status ? "Active" : "Inactive" },
-          { label: "Created", value: formatDate(viewRow?.createdAt) },
-          { label: "Updated", value: formatDate(viewRow?.updatedAt) },
-        ]}
       />
 
       <Modal

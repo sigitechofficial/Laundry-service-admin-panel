@@ -449,6 +449,7 @@ export {
   DirectoryActionView,
   DirectoryActionEdit,
   DirectoryActionDelete,
+  DirectoryActionBlock,
 } from "./DirectoryActionIcon";
 
 export function DirectoryViewFields({ fields = [] }) {
