@@ -1895,11 +1895,17 @@ export default function OrderDetailsPage() {
                   />
                   <OdMetaRow
                     label="Agent commission"
-                    value={`${Number(commercialTerms.agentCommissionPercent || 0)}%`}
+                    value={`${Number(commercialTerms.agentCommissionPercent || 0)}% (${formatMoney(
+                      commercialTerms.agentCommissionAmount,
+                      paymentCurrencySymbol
+                    )})`}
                   />
                   <OdMetaRow
                     label="Platform commission"
-                    value={`${Number(commercialTerms.platformCommissionPercent || 0)}%`}
+                    value={`${Number(commercialTerms.platformCommissionPercent || 0)}% (${formatMoney(
+                      commercialTerms.platformCommissionAmount,
+                      paymentCurrencySymbol
+                    )})`}
                   />
                   {commercialTerms.differsFromLiveZone ? (
                     <p style={{ margin: 0, fontSize: 11, color: "#64748B" }}>
