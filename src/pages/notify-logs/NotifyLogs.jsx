@@ -318,9 +318,12 @@ export default function NotifyLogs() {
     {
       key: "sentAt",
       header: "Sent",
-      render: (row) => (
-        <DirectoryIdentity name={row.sentAt} meta={row.channel !== "—" ? row.channel : row.leg} />
-      ),
+      render: (row) => {
+        const parts = [];
+        if (row.channel && row.channel !== "—") parts.push(row.channel);
+        if (row.leg && row.leg !== "—") parts.push(legTone(row.leg).label);
+        return <DirectoryIdentity name={row.sentAt} meta={parts.join(" · ") || undefined} />;
+      },
     },
     {
       key: "bookingId",

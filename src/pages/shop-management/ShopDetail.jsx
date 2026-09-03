@@ -102,6 +102,13 @@ const TABS = [
   { value: "services", label: "Services" },
 ];
 
+// Canonical "pending" bucket — mirrors backend constants/bookingStatusIds.js
+// (PENDING_EXCLUDED: Completed, On-Hold customer, Cancelled, On-Hold agent).
+// Keep in sync with the shop-list pending count and admin order sidebar.
+const PENDING_EXCLUDED_STATUS_IDS = [17, 18, 19, 24];
+const isPendingOrder = (order) =>
+  !PENDING_EXCLUDED_STATUS_IDS.includes(Number(order?.bookingStatus?.id));
+
 const toHourMinute = (value, fallback) => {
   if (!value || typeof value !== "string") return fallback;
   const [hh = "00", mm = "00"] = value.split(":");
@@ -149,6 +156,7 @@ export default function ShopDetails() {
   const navigate = useNavigate();
   const { id } = useParams();
   const [activeTab, setActiveTab] = useState("overview");
+  const [orderFilter, setOrderFilter] = useState("all");
 
   const [controls, setControls] = useState({
     visible: true,
@@ -303,6 +311,17 @@ export default function ShopDetails() {
   const allOrders = [...orders].sort(
     (a, b) => dayjs(b?.createdAt).valueOf() - dayjs(a?.createdAt).valueOf()
   );
+  const pendingOrdersList = useMemo(
+    () => allOrders.filter(isPendingOrder),
+    [allOrders]
+  );
+  // Backend aggregate is the source of truth; fall back to the fetched list.
+  const pendingOrdersCount =
+    addr?.PendingBookingCount != null
+      ? Number(addr.PendingBookingCount) || 0
+      : pendingOrdersList.length;
+  const visibleOrders =
+    orderFilter === "pending" ? pendingOrdersList : allOrders;
 
   const shopServices = useMemo(() => {
     const rows = Array.isArray(biz?.agentServices) ? biz.agentServices : [];
@@ -802,6 +821,7 @@ export default function ShopDetails() {
             hint: shopRatingSummary.count ? `${shopRatingSummary.count} reviews` : undefined,
           },
           { label: "Orders", value: orders.length, tone: "brand" },
+          { label: "Pending", value: pendingOrdersCount, tone: "warning" },
           { label: "Revenue", value: formatMoney(totalRevenue, shopCurrencySymbol), tone: "navy" },
           { label: "Completion", value: `${completionRate}%`, tone: "success" },
         ]}
@@ -959,16 +979,44 @@ export default function ShopDetails() {
 
       {activeTab === "orders" && (
         <div>
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
-            <strong>Orders</strong>
-            <Badge tone="neutral">{`${allOrders.length} total`}</Badge>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              gap: 12,
+              flexWrap: "wrap",
+              marginBottom: 16,
+            }}
+          >
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <Button
+                size="sm"
+                variant={orderFilter === "all" ? "primary" : "secondary"}
+                onClick={() => setOrderFilter("all")}
+              >
+                {`All (${allOrders.length})`}
+              </Button>
+              <Button
+                size="sm"
+                variant={orderFilter === "pending" ? "primary" : "secondary"}
+                onClick={() => setOrderFilter("pending")}
+              >
+                {`Pending (${pendingOrdersCount})`}
+              </Button>
+            </div>
+            <Badge tone="neutral">{`${visibleOrders.length} shown`}</Badge>
           </div>
           <DirectoryTableWrap>
             <Table
               columns={orderColumns}
-              rows={allOrders}
+              rows={visibleOrders}
               rowKey={(row) => row.id}
-              empty="No orders found for this shop."
+              empty={
+                orderFilter === "pending"
+                  ? "No pending orders for this shop."
+                  : "No orders found for this shop."
+              }
             />
           </DirectoryTableWrap>
         </div>
