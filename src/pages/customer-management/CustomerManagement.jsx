@@ -164,6 +164,7 @@ export default function CustomerManagement() {
           meta={joinMeta(row.email, row.phoneNumber)}
           id={row.customerId}
           title={joinMeta(row.name, row.email, row.phoneNumber, row.address)}
+          onClick={() => navigate(`/customer-management/details/${row.id}`)}
         />
       ),
     },

@@ -6,7 +6,7 @@ export default function NotifyLogsPage() {
     <div>
       <PageHeader
         title="Notify / Call Logs"
-        description="Push, SMS, and dialer session history for bookings."
+        description="Every push, SMS and call — with time and whether it was for pickup or delivery."
       />
       <NotifyLogs />
     </div>

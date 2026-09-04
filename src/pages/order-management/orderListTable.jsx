@@ -349,13 +349,13 @@ function compactSlot(raw, timeFrom) {
   if (raw == null || raw === "" || raw === "—") return "—";
   const datePart = formatDate(raw, "DD MMM");
   if (datePart === "—") return String(raw);
+  // Prefer the dedicated TIME slot. Never invent HH:mm from a date-only value
+  // (midnight UTC → local "05:00" in PK, which made every row look identical).
   if (timeFrom) {
     const hm = String(timeFrom).trim().slice(0, 5);
-    const stamp = `${formatDate(raw, "YYYY-MM-DD")} ${hm}`;
-    const withTime = formatDate(stamp, "HH:mm");
-    return withTime === "—" ? `${datePart} · ${hm}` : `${datePart} · ${withTime}`;
+    return hm ? `${datePart} · ${hm}` : datePart;
   }
-  return formatDate(raw, "DD MMM · HH:mm");
+  return datePart;
 }
 
 export function PickupDropCell({ pickup, drop, pickupTime, dropTime, title }) {

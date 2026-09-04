@@ -216,7 +216,9 @@ export default function ActionRequiredOrders() {
           deliveryDateTime,
           collectionDate: row.collectionDate,
           deliveryDate: row.deliveryDate,
+          collectionTimeFrom: row.collectionTimeFrom,
           collectionTimeTo: row.collectionTimeTo,
+          deliveryTimeFrom: row.deliveryTimeFrom,
           deliveryTimeTo: row.deliveryTimeTo,
           schedulePhase: schedulePhaseForRow(row),
           updatedAt: updatedRaw
@@ -293,9 +295,9 @@ export default function ActionRequiredOrders() {
         render: (row) => (
           <PickupDropCell
             pickup={row.collectionDate || row.pickupDateTime}
-            pickupTime={row.collectionTimeTo}
+            pickupTime={row.collectionTimeFrom}
             drop={row.deliveryDate || row.deliveryDateTime}
-            dropTime={row.deliveryTimeTo}
+            dropTime={row.deliveryTimeFrom}
             title={`Pickup: ${row.pickupDateTime}\nDelivery: ${row.deliveryDateTime}`}
           />
         ),

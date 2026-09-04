@@ -40,7 +40,7 @@ import {
   invoicePrintHtml,
   printHtmlDocument,
 } from "../invoice/invoiceView";
-import { customerDetailsPath } from "../orderListUtils";
+import { customerDetailsPath, resolveShopBusinessInfoId, shopDetailsPath } from "../orderListUtils";
 import {
   OdCard,
   OdEmptyInvoice,
@@ -594,18 +594,62 @@ export default function OrderDetailsPage() {
   const [invoiceDetails, setInvoiceDetails] = useState(null);
   const [assignModalOpen, setAssignModalOpen] = useState(false);
   const [customerCompareExpanded, setCustomerCompareExpanded] = useState(false);
-  const [contactModal, setContactModal] = useState(false);
+  // null | "customer" | "shop" — which party's contact modal is open.
+  const [contactModal, setContactModal] = useState(null);
   const selectedItemsServiceIdResolved =
     selectedItemsServiceId || selectedServiceGroups?.[0]?.serviceId || "";
   const customerPhone = orderData?.customer?.phoneNum || "";
-  const normalizedTel = String(customerPhone).replace(/[^+\d]/g, "");
-  const normalizedWhatsApp = normalizedTel.replace(/\D/g, "");
-  const canCallCustomer = Boolean(normalizedTel);
+  const normalizedCustomerTel = String(customerPhone).replace(/[^+\d]/g, "");
+  const normalizedCustomerWhatsApp = normalizedCustomerTel.replace(/\D/g, "");
+  const canCallCustomer = Boolean(normalizedCustomerTel);
   const customerFullName =
     [orderData?.customer?.firstName, orderData?.customer?.lastName]
       .filter(Boolean)
       .join(" ")
       .trim() || "Customer";
+
+  // Shop identity + agent contact — powers the "Call shop" action and the
+  // richer Shop card (address, zone, agent) on Order Details.
+  const shopBusinessInfo = orderData?.laundryShop?.bussinessInformations?.[0] || null;
+  const shopAgent = shopBusinessInfo?.businessInfo || null;
+  const shopBusinessInfoId = resolveShopBusinessInfoId(orderData);
+  const shopAgentName =
+    [shopAgent?.firstName, shopAgent?.lastName].filter(Boolean).join(" ").trim() || "";
+  const shopEmail = shopAgent?.email || "";
+  const shopPhone = shopAgent?.phoneNum || "";
+  const normalizedShopTel = String(shopPhone).replace(/[^+\d]/g, "");
+  const normalizedShopWhatsApp = normalizedShopTel.replace(/\D/g, "");
+  const canCallShop = Boolean(normalizedShopTel);
+  const shopAddress = [
+    orderData?.laundryShop?.streetAddress,
+    orderData?.laundryShop?.district,
+    orderData?.laundryShop?.province,
+    orderData?.laundryShop?.postalcode,
+  ]
+    .filter(Boolean)
+    .join(", ");
+  const shopZoneName = orderData?.zoneName || orderData?.zone?.name || "";
+
+  // Whichever contact modal is currently open — keeps the tel:/WhatsApp
+  // handlers and the Modal markup shared between customer and shop.
+  const activeContact =
+    contactModal === "shop"
+      ? {
+          title: "Contact shop",
+          name: shopAgentName || shopName || "Shop",
+          phone: shopPhone,
+          tel: normalizedShopTel,
+          whatsapp: normalizedShopWhatsApp,
+        }
+      : contactModal === "customer"
+        ? {
+            title: "Contact customer",
+            name: customerFullName,
+            phone: customerPhone,
+            tel: normalizedCustomerTel,
+            whatsapp: normalizedCustomerWhatsApp,
+          }
+        : null;
   const isRecurringAutoCreated = orderData?.isRecurringAutoCreated === true;
   const recurringSourceBookingId = orderData?.recurringSourceBookingId || null;
   const recurringNextBookingId = orderData?.recurringNextBookingId || null;
@@ -708,19 +752,24 @@ export default function OrderDetailsPage() {
 
   const openContactModal = () => {
     if (!canCallCustomer) return;
-    setContactModal(true);
+    setContactModal("customer");
+  };
+
+  const openShopContactModal = () => {
+    if (!canCallShop) return;
+    setContactModal("shop");
   };
 
   const handleDirectCall = () => {
-    if (!normalizedTel) return;
-    window.location.href = `tel:${normalizedTel}`;
-    setContactModal(false);
+    if (!activeContact?.tel) return;
+    window.location.href = `tel:${activeContact.tel}`;
+    setContactModal(null);
   };
 
   const handleWhatsAppCall = () => {
-    if (!normalizedWhatsApp) return;
-    window.open(`https://wa.me/${normalizedWhatsApp}`, "_blank", "noopener,noreferrer");
-    setContactModal(false);
+    if (!activeContact?.whatsapp) return;
+    window.open(`https://wa.me/${activeContact.whatsapp}`, "_blank", "noopener,noreferrer");
+    setContactModal(null);
   };
 
   const pickupPrimaryProof = pickupProofs[0] || {};
@@ -1990,22 +2039,34 @@ export default function OrderDetailsPage() {
               </div>
             </div>
             <div className="space-y-3" style={{ padding: 20 }}>
-              <div className="flex justify-between gap-3">
-                <p style={{ margin: 0, color: "var(--muted)",  fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em" }}>
-                  Shop Name
-                </p>
-                <p style={{ margin: 0, textAlign: "right", fontSize: 13, fontWeight: 500, color: "#475569" }}>
-                  {shopName || "Not assigned"}
-                </p>
-              </div>
-              <div className="flex justify-between gap-3">
-                <p style={{ margin: 0, color: "var(--muted)",  fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em" }}>
-                  Frequency
-                </p>
-                <p style={{ margin: 0, textAlign: "right", fontSize: 13, fontWeight: 500, color: "#475569" }}>
-                  {orderData?.frequency || "Just Once"}
-                </p>
-              </div>
+              {orderData?.laundryShop ? (
+                <>
+                  <OdMetaRow
+                    label="Shop Name"
+                    value={shopName || "Not assigned"}
+                    valueTo={shopDetailsPath(shopBusinessInfoId) || undefined}
+                  />
+                  <OdMetaRow label="Agent" value={shopAgentName || "—"} />
+                  <OdMetaRow label="Email" value={shopEmail || "—"} />
+                  <OdMetaRow label="Phone" value={shopPhone || "—"} />
+                  <OdMetaRow label="Address" value={shopAddress || "—"} />
+                  <OdMetaRow label="Zone" value={shopZoneName || "—"} />
+                  <OdMetaRow label="Frequency" value={orderData?.frequency || "Just Once"} />
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={openShopContactModal}
+                    disabled={!canCallShop}
+                  >
+                    Call shop
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <OdMetaRow label="Shop Name" value="Not assigned" />
+                  <OdMetaRow label="Frequency" value={orderData?.frequency || "Just Once"} />
+                </>
+              )}
             </div>
           </div>
 
@@ -2257,10 +2318,10 @@ export default function OrderDetailsPage() {
       onSuccess={() => refetchOrder()}
     />
     <Modal
-      open={contactModal}
-      title="Contact customer"
-      description={customerFullName}
-      onClose={() => setContactModal(false)}
+      open={Boolean(contactModal)}
+      title={activeContact?.title || "Contact"}
+      description={activeContact?.name}
+      onClose={() => setContactModal(null)}
       hideFooter
     >
       <div style={{ display: "grid", gap: 12 }}>
@@ -2274,24 +2335,24 @@ export default function OrderDetailsPage() {
             fontWeight: 600,
           }}
         >
-          {customerPhone || "No phone number"}
+          {activeContact?.phone || "No phone number"}
         </div>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
           <Button
             variant="primary"
             onClick={handleDirectCall}
-            disabled={!canCallCustomer}
+            disabled={!activeContact?.tel}
           >
             Direct call
           </Button>
           <Button
             variant="secondary"
             onClick={handleWhatsAppCall}
-            disabled={!normalizedWhatsApp}
+            disabled={!activeContact?.whatsapp}
           >
             WhatsApp
           </Button>
-          <Button variant="ghost" onClick={() => setContactModal(false)}>
+          <Button variant="ghost" onClick={() => setContactModal(null)}>
             Close
           </Button>
         </div>

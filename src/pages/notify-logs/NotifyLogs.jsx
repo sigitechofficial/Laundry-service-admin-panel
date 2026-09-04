@@ -77,8 +77,8 @@ function twilioTone(status) {
 
 function legTone(leg) {
   const k = String(leg || "").toLowerCase();
-  if (k === "pickup") return { label: "Pickup", tone: "info" };
-  if (k === "delivery") return { label: "Delivery", tone: "info" };
+  if (k === "pickup") return { label: "Pickup", tone: "warning" };
+  if (k === "delivery") return { label: "Delivery", tone: "success" };
   return { label: leg || "N/A", tone: "neutral" };
 }
 
@@ -201,16 +201,15 @@ function SectionCard({ children }) {
 
 const PAGE_SIZES = [10, 25, 50, 100].map((n) => ({ value: n, label: String(n) }));
 const LEG_OPTIONS = [
-  { value: "", label: "All" },
-  { value: "pickup", label: "Pickup" },
-  { value: "delivery", label: "Delivery" },
+  { value: "", label: "All (pickup + delivery)" },
+  { value: "pickup", label: "Pickup only" },
+  { value: "delivery", label: "Delivery only" },
 ];
-// Calls live in the "Dialer Call Sessions" tab, so the notifications channel
-// filter only covers messaging channels (push / SMS).
 const CHANNEL_OPTIONS = [
-  { value: "", label: "All" },
+  { value: "", label: "All channels" },
   { value: "push", label: "Push" },
   { value: "sms", label: "SMS" },
+  { value: "call", label: "Call" },
 ];
 const SESSION_STATUS_OPTIONS = [
   { value: "", label: "All" },
@@ -289,6 +288,7 @@ export default function NotifyLogs() {
         customer: userLabel(row.customer),
         customerPhone: fullPhone(row.customerCountryCode, row.customerPhone),
         twilioStatus: row.twilioStatus || "—",
+        bodyPreview: row.bodyPreview || "",
         raw: row,
       })),
     [notifications, page, limit]
@@ -300,6 +300,7 @@ export default function NotifyLogs() {
         id: `s-${row.id}`,
         sl: (page - 1) * limit + i + 1,
         createdAt: fmt(row.createdAt),
+        endedAt: fmt(row.endedAt || row.closedAt),
         bookingId: row.bookingId ?? "—",
         orderTrackId: row.orderTrackId || "—",
         leg: row.leg || "—",
@@ -317,13 +318,22 @@ export default function NotifyLogs() {
   const notifCols = [
     {
       key: "sentAt",
-      header: "Sent",
-      render: (row) => {
-        const parts = [];
-        if (row.channel && row.channel !== "—") parts.push(row.channel);
-        if (row.leg && row.leg !== "—") parts.push(legTone(row.leg).label);
-        return <DirectoryIdentity name={row.sentAt} meta={parts.join(" · ") || undefined} />;
-      },
+      header: "Time",
+      render: (row) => <DirectoryIdentity name={row.sentAt} />,
+    },
+    {
+      key: "channel",
+      header: "Type",
+      render: (row) => (
+        <StatusBadge {...channelTone(row.channel !== "—" ? row.channel : null)} />
+      ),
+    },
+    {
+      key: "leg",
+      header: "Pickup / Delivery",
+      render: (row) => (
+        <StatusBadge {...legTone(row.leg !== "—" ? row.leg : null)} />
+      ),
     },
     {
       key: "bookingId",
@@ -336,11 +346,6 @@ export default function NotifyLogs() {
       ),
     },
     {
-      key: "leg",
-      header: "Leg",
-      render: (row) => <StatusBadge {...legTone(row.leg !== "—" ? row.leg : null)} />,
-    },
-    {
       key: "twilioStatus",
       header: "Status",
       render: (row) => <StatusBadge {...twilioTone(row.twilioStatus)} />,
@@ -348,7 +353,16 @@ export default function NotifyLogs() {
     {
       key: "customer",
       header: "Customer",
-      render: (row) => <DirectoryIdentity name={row.customer} meta={row.agent !== "N/A" ? row.agent : undefined} />,
+      render: (row) => (
+        <DirectoryIdentity
+          name={row.customer}
+          meta={
+            [row.customerPhone !== "N/A" ? row.customerPhone : null, row.agent !== "N/A" ? `Agent: ${row.agent}` : null]
+              .filter(Boolean)
+              .join(" · ") || undefined
+          }
+        />
+      ),
     },
     {
       key: "actions",
@@ -364,9 +378,19 @@ export default function NotifyLogs() {
   const sessionCols = [
     {
       key: "createdAt",
-      header: "Created",
+      header: "Started",
       render: (row) => (
-        <DirectoryIdentity name={row.createdAt} meta={row.leg !== "—" ? row.leg : undefined} />
+        <DirectoryIdentity
+          name={row.createdAt}
+          meta={row.endedAt !== "N/A" ? `Ended ${row.endedAt}` : "In progress"}
+        />
+      ),
+    },
+    {
+      key: "leg",
+      header: "Pickup / Delivery",
+      render: (row) => (
+        <StatusBadge {...legTone(row.leg !== "—" ? row.leg : null)} />
       ),
     },
     {
@@ -378,11 +402,6 @@ export default function NotifyLogs() {
           meta={row.orderTrackId !== "—" ? row.orderTrackId : undefined}
         />
       ),
-    },
-    {
-      key: "leg",
-      header: "Leg",
-      render: (row) => <StatusBadge {...legTone(row.leg !== "—" ? row.leg : null)} />,
     },
     {
       key: "outcome",
@@ -405,13 +424,22 @@ export default function NotifyLogs() {
     },
     {
       key: "status",
-      header: "Status",
+      header: "Session",
       render: (row) => <StatusBadge {...sessionStatusTone(row.status)} />,
     },
     {
       key: "customer",
       header: "Customer",
-      render: (row) => <DirectoryIdentity name={row.customer} meta={row.agent !== "N/A" ? row.agent : undefined} />,
+      render: (row) => (
+        <DirectoryIdentity
+          name={row.customer}
+          meta={
+            [row.customerPhone !== "N/A" ? row.customerPhone : null, row.agent !== "N/A" ? `Agent: ${row.agent}` : null]
+              .filter(Boolean)
+              .join(" · ") || undefined
+          }
+        />
+      ),
     },
     {
       key: "actions",
@@ -450,7 +478,7 @@ export default function NotifyLogs() {
           variant={tab === "notifications" ? "primary" : "ghost"}
           onClick={() => { setTab("notifications"); resetPage(); }}
         >
-          Push / SMS Notifications
+          All Notify Logs
         </Button>
         <Button
           variant={tab === "sessions" ? "primary" : "ghost"}
@@ -463,7 +491,7 @@ export default function NotifyLogs() {
       <DirectoryMetrics
         items={[
           {
-            label: tab === "sessions" ? "Call sessions" : "Notifications",
+            label: tab === "sessions" ? "Call sessions" : "All notify logs",
             value: totalRows,
             tone: "brand",
           },
@@ -611,7 +639,7 @@ export default function NotifyLogs() {
             columns={tab === "sessions" ? sessionCols : notifCols}
             rows={tab === "sessions" ? sessionRows : notificationRows}
             rowKey={(row) => row.id}
-            empty={tab === "sessions" ? "No call sessions" : "No notification logs"}
+            empty={tab === "sessions" ? "No call sessions" : "No notify logs"}
             stickyLeft={2}
           />
         </DirectoryTableWrap>
@@ -642,9 +670,23 @@ export default function NotifyLogs() {
                     <StatusBadge {...twilioTone(detail.twilioStatus)} />
                   </>
                 ) : (
-                  <StatusBadge {...sessionStatusTone(detail.status)} />
+                  <>
+                    <StatusBadge {...sessionStatusTone(detail.status)} />
+                    {detail.outcome ? (
+                      <StatusBadge {...outcomeTone(detail.outcome)} />
+                    ) : null}
+                  </>
                 )}
               </div>
+              <p className="jd-field__hint" style={{ margin: "10px 0 0" }}>
+                {detailModal.kind === "notification"
+                  ? `${channelTone(detail.channel).label} for ${legTone(detail.leg).label} · ${fmt(detail.sentAt)}`
+                  : `Call for ${legTone(detail.leg).label} · started ${fmt(detail.createdAt)}${
+                      detail.endedAt || detail.closedAt
+                        ? ` · ended ${fmt(detail.endedAt || detail.closedAt)}`
+                        : ""
+                    }`}
+              </p>
             </div>
 
             <ModalSectionHeader title="Agent" />
@@ -674,8 +716,9 @@ export default function NotifyLogs() {
               <>
                 <ModalSectionHeader title="Notification Details" />
                 <SectionCard>
-                  <InfoRow label="Channel"    badge={<StatusBadge {...channelTone(detail.channel)} />} />
-                  <InfoRow label="Attempt #"  value={detail.attemptId} />
+                  <InfoRow label="Type"         badge={<StatusBadge {...channelTone(detail.channel)} />} />
+                  <InfoRow label="For"          badge={<StatusBadge {...legTone(detail.leg)} />} />
+                  <InfoRow label="Attempt #"    value={detail.attemptId} />
                   <InfoRow label="To (masked)"  value={detail.toMasked} />
                   <InfoRow label="From number"  value={detail.fromNumber} />
                   <InfoRow label="Twilio SID"   value={detail.twilioSid} />
@@ -708,6 +751,7 @@ export default function NotifyLogs() {
               <>
                 <ModalSectionHeader title="Call Session" />
                 <SectionCard>
+                  <InfoRow label="For"              badge={<StatusBadge {...legTone(detail.leg)} />} />
                   <InfoRow label="Status"           badge={<StatusBadge {...sessionStatusTone(detail.status)} />} />
                   {detail.outcome ? (
                     <InfoRow label="Outcome"        badge={<StatusBadge {...outcomeTone(detail.outcome)} />} />
@@ -716,7 +760,7 @@ export default function NotifyLogs() {
                   )}
                   <InfoRow label="Duration"         value={formatDuration(detail.callDurationSec)} />
                   <InfoRow label="Agent phone"      value={detail.agentPhoneE164} />
-                  <InfoRow label="Created at"       value={fmt(detail.createdAt)} />
+                  <InfoRow label="Started at"       value={fmt(detail.createdAt)} />
                   <InfoRow label="Connected at"     value={fmt(detail.connectedAt)} />
                   <InfoRow label="Ended at"         value={fmt(detail.endedAt)} />
                   <InfoRow label="Expires at"       value={fmt(detail.expiresAt)} />
