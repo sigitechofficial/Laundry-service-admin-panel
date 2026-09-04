@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
-import { Button, Modal, PageHeader, Table } from "../../design-system";
+import { Button, Modal, PageHeader, Select, Table } from "../../design-system";
 import { formatDate, formatAmount, resolveCurrencySymbol } from "../../utilities/formatters";
 import {
   DirectoryActionBlock,
@@ -18,6 +18,7 @@ import {
   DirectorySearch,
   DirectoryStatusPill,
   DirectoryTableWrap,
+  DirectoryToolSelect,
   DirectoryToolbar,
   DirectoryToolbarEnd,
 } from "../directory-table/directoryTable";
@@ -32,22 +33,46 @@ import { Delay } from "../../components/shared/Loaders";
 import useToaster from "../../components/ui/Toaster";
 import { getApiErrorMessage } from "../../store/services/apiErrors";
 
+const NAME_SORT_OPTIONS = [
+  { value: "asc", label: "A → Z" },
+  { value: "desc", label: "Z → A" },
+];
+
 function compareCustomerRows(a, b, sortBy, sortDir) {
   const dir = sortDir === "asc" ? 1 : -1;
   const av = a?.[sortBy];
   const bv = b?.[sortBy];
+
+  if (sortBy === "name") {
+    const an = String(av ?? "").trim();
+    const bn = String(bv ?? "").trim();
+    // Blank / "—" names always sink to the bottom, either direction.
+    const aBlank = !an || an === "—";
+    const bBlank = !bn || bn === "—";
+    if (aBlank && bBlank) return (Number(a?.id) || 0) - (Number(b?.id) || 0);
+    if (aBlank) return 1;
+    if (bBlank) return -1;
+    const byName = an.localeCompare(bn, undefined, {
+      sensitivity: "base",
+      numeric: true,
+      ignorePunctuation: true,
+    });
+    if (byName !== 0) return byName * dir;
+    return ((Number(a?.id) || 0) - (Number(b?.id) || 0)) * dir;
+  }
+
   if (typeof av === "number" && typeof bv === "number") {
     return (av - bv) * dir;
   }
   if (typeof av === "boolean" || typeof bv === "boolean") {
     return ((av ? 1 : 0) - (bv ? 1 : 0)) * dir;
   }
-  return (
-    String(av ?? "").localeCompare(String(bv ?? ""), undefined, {
-      sensitivity: "base",
-      numeric: true,
-    }) * dir
-  );
+  const byText = String(av ?? "").localeCompare(String(bv ?? ""), undefined, {
+    sensitivity: "base",
+    numeric: true,
+  });
+  if (byText !== 0) return byText * dir;
+  return ((Number(a?.id) || 0) - (Number(b?.id) || 0)) * dir;
 }
 
 function matchesSearch(row, term) {
@@ -129,14 +154,18 @@ export default function CustomerManagement() {
   };
 
   const handleSort = useCallback((key) => {
-    setSortBy((prev) => {
-      if (prev === key) {
-        setSortDir((dir) => (dir === "asc" ? "desc" : "asc"));
-        return prev;
-      }
-      setSortDir(key === "name" ? "asc" : "desc");
-      return key;
-    });
+    if (key === sortBy) {
+      setSortDir((dir) => (dir === "asc" ? "desc" : "asc"));
+      return;
+    }
+    setSortBy(key);
+    // Name defaults A→Z; numeric/status columns default high→low.
+    setSortDir(key === "name" ? "asc" : "desc");
+  }, [sortBy]);
+
+  const handleNameSortDir = useCallback((value) => {
+    setSortBy("name");
+    setSortDir(value === "desc" ? "desc" : "asc");
   }, []);
 
   const closeDeleteModal = () => setModalData({ open: false, data: "" });
@@ -258,6 +287,14 @@ export default function CustomerManagement() {
               onChange={handleSearchChange}
               placeholder="Search by customer ID, name, email…"
             />
+            <DirectoryToolSelect>
+              <Select
+                aria-label="Sort customers by name"
+                value={sortBy === "name" ? sortDir : "asc"}
+                onChange={handleNameSortDir}
+                options={NAME_SORT_OPTIONS}
+              />
+            </DirectoryToolSelect>
             <DirectoryDateInput
               id="customer-start-date"
               value={dateRange.startDate}
