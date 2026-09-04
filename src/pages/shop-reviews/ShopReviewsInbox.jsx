@@ -19,7 +19,6 @@ import {
   DirectoryActionView,
   DirectoryClearButton,
   DirectoryDotPill,
-  DirectoryDotPills,
   DirectoryIdentity,
   DirectoryMetric,
   DirectoryMetrics,
@@ -33,18 +32,18 @@ import useToaster from "../../components/ui/Toaster";
 import { DATE_TIME_FORMAT, formatDate } from "../../utilities/formatters";
 
 const VISIBILITY_OPTIONS = [
-  { value: "", label: "All" },
+  { value: "", label: "All statuses" },
   { value: "published", label: "Published" },
   { value: "hidden", label: "Hidden" },
 ];
 
 const RATING_OPTIONS = [
-  { value: "", label: "All" },
+  { value: "", label: "All ratings" },
   ...[5, 4, 3, 2, 1].map((n) => ({ value: String(n), label: `${n} stars` })),
 ];
 
 const SENTIMENT_OPTIONS = [
-  { value: "", label: "All" },
+  { value: "", label: "All sentiments" },
   { value: "positive", label: "Has positive" },
   { value: "negative", label: "Has negative" },
 ];
@@ -62,15 +61,17 @@ function Stars({ value }) {
 function ReasonBadges({ reasons, limit }) {
   const items = Array.isArray(reasons) ? reasons : [];
   if (!items.length) return "—";
+  const visible = limit ? items.slice(0, limit) : items;
+  const extra = items.length - visible.length;
   return (
-    <DirectoryDotPills
-      maxVisible={limit || items.length}
-      items={items.map((r) => ({
-        key: r.code,
-        label: limit ? r.label || r.code : `${r.label}${r.otherText ? `: ${r.otherText}` : ""}`,
-        tone: r.sentiment === "positive" ? "success" : "danger",
-      }))}
-    />
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 4 }}>
+      {visible.map((r) => (
+        <DirectoryDotPill key={r.code} tone={r.sentiment === "positive" ? "success" : "danger"}>
+          {limit ? r.label || r.code : `${r.label}${r.otherText ? `: ${r.otherText}` : ""}`}
+        </DirectoryDotPill>
+      ))}
+      {extra > 0 ? <DirectoryDotPill tone="neutral">+{extra}</DirectoryDotPill> : null}
+    </div>
   );
 }
 
@@ -214,9 +215,9 @@ export default function ShopReviewsInbox() {
       <DirectoryTableWrap
         toolbar={
           <DirectoryToolbar>
-            <DirectoryToolSelect>
+            <DirectoryToolSelect label="Status">
               <Select
-                aria-label="Visibility"
+                aria-label="Status"
                 value={visibility}
                 onChange={(value) => {
                   setVisibility(value);
@@ -225,7 +226,7 @@ export default function ShopReviewsInbox() {
                 options={VISIBILITY_OPTIONS}
               />
             </DirectoryToolSelect>
-            <DirectoryToolSelect>
+            <DirectoryToolSelect label="Rating">
               <Select
                 aria-label="Rating"
                 value={rating}
@@ -236,7 +237,7 @@ export default function ShopReviewsInbox() {
                 options={RATING_OPTIONS}
               />
             </DirectoryToolSelect>
-            <DirectoryToolSelect>
+            <DirectoryToolSelect label="Sentiment">
               <Select
                 aria-label="Sentiment"
                 value={sentiment}

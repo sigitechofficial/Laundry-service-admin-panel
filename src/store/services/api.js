@@ -1952,6 +1952,15 @@ export const api = createApi({
       invalidatesTags: ["Coupons"],
     }),
 
+    updateCoupon: builder.mutation({
+      query: ({ id, ...body }) => ({
+        url: `admin/updateCoupon/${id}`,
+        method: "PUT",
+        body,
+      }),
+      invalidatesTags: ["Coupons"],
+    }),
+
     // ─── Banners & Offers ───────────────────────────────────────────────────
     // body is always FormData (multipart) — browser sets Content-Type + boundary automatically
     createBanner: builder.mutation({
@@ -2213,6 +2222,7 @@ export const {
   useAssignBookingToShopMutation,
   useGetAllCouponsQuery,
   useAddCouponMutation,
+  useUpdateCouponMutation,
   useCreateBannerMutation,
   useGetAllBannersQuery,
   useUpdateBannerMutation,

@@ -12,16 +12,21 @@ import {
 import { PaginationBar, Toggle } from "../misc-kit";
 import {
   DirectoryActions,
+  DirectoryActionEdit,
   DirectoryActionView,
+  DirectoryDotPill,
   DirectoryIdentity,
   DirectoryMetric,
   DirectoryMetrics,
-  DirectoryStatusPill,
   DirectoryTableWrap,
   DirectoryViewModal,
 } from "../directory-table/directoryTable";
 import useToaster from "../../components/ui/Toaster";
-import { useAddCouponMutation, useGetAllCouponsQuery } from "../../store/services/api";
+import {
+  useAddCouponMutation,
+  useGetAllCouponsQuery,
+  useUpdateCouponMutation,
+} from "../../store/services/api";
 import { TbPlus } from "../../shared/icons/index";
 import { formatDate, formatAmount } from "../../utilities/formatters";
 
@@ -58,14 +63,65 @@ function money(amount, source) {
   return formatAmount(amount, source, { applyDefault: true });
 }
 
+function toDateOnly(value) {
+  if (value == null || value === "") return null;
+  const match = String(value).trim().match(/^(\d{4}-\d{2}-\d{2})/);
+  if (match) return match[1];
+  const parsed = dayjs(value);
+  return parsed.isValid() ? parsed.format("YYYY-MM-DD") : null;
+}
+
+function couponLifecycle(coupon) {
+  const fromApi = coupon?.status;
+  if (fromApi === "active" || fromApi === "scheduled" || fromApi === "expired" || fromApi === "disabled") {
+    return fromApi;
+  }
+  if (!coupon?.isActive) return "disabled";
+  const today = dayjs().format("YYYY-MM-DD");
+  const start = toDateOnly(coupon.startDate);
+  const expiry = toDateOnly(coupon.expiryDate);
+  if (start && start > today) return "scheduled";
+  if (expiry && expiry < today) return "expired";
+  return "active";
+}
+
+const LIFECYCLE_PILL = {
+  active: { label: "Active", tone: "success" },
+  scheduled: { label: "Scheduled", tone: "info" },
+  expired: { label: "Expired", tone: "danger" },
+  disabled: { label: "Off", tone: "neutral" },
+};
+
+function formFromRow(row) {
+  return {
+    code: row.code || "",
+    description: !row.description || row.description === "—" ? "" : row.description,
+    discountType: row.discountType || "percentage",
+    discountValue: row.discountValue != null ? String(row.discountValue) : "",
+    minOrderAmount: row.minOrderAmount != null ? String(row.minOrderAmount) : "",
+    maxDiscountCap: row.maxDiscountCap != null ? String(row.maxDiscountCap) : "",
+    usageLimit: row.usageLimit != null ? String(row.usageLimit) : "",
+    usedCount: row.usedCount != null ? String(row.usedCount) : "0",
+    perUserLimit: row.perUserLimit != null ? String(row.perUserLimit) : "1",
+    startDate: toDateOnly(row.startDateRaw) || "",
+    expiryDate: toDateOnly(row.expiryDateRaw) || "",
+    isActive: row.isActive !== false,
+  };
+}
+
 function rowFromPayload(body, id) {
   const usageLimit = body.usageLimit;
+  const status = couponLifecycle(body);
   return {
     id,
     code: body.code,
     description: body.description || "—",
     discountType: body.discountType,
     discountValue: body.discountValue,
+    minOrderAmount: body.minOrderAmount,
+    maxDiscountCap: body.maxDiscountCap,
+    usageLimit: body.usageLimit,
+    perUserLimit: body.perUserLimit,
     discountLabel: body.discountType === "percentage" ? "Percentage" : "Flat",
     discountDisplay:
       body.discountType === "percentage"
@@ -78,8 +134,10 @@ function rowFromPayload(body, id) {
     perUser: String(body.perUserLimit ?? 1),
     startDate: formatDate(body.startDate),
     expiryDate: formatDate(body.expiryDate),
+    startDateRaw: body.startDate,
     expiryDateRaw: body.expiryDate,
     isActive: body.isActive,
+    status,
   };
 }
 
@@ -287,7 +345,12 @@ function CreatePromoCodeForm({ form, errors, patch, discountHint }) {
               onChange={(e) => patch("startDate", e.target.value)}
             />
           </Field>
-          <Field label="Expiry date" htmlFor="promo-expiry" error={errors.expiryDate}>
+          <Field
+            label="Expiry date"
+            htmlFor="promo-expiry"
+            error={errors.expiryDate}
+            hint="Last day this code works at checkout. Leave blank for no expiry."
+          >
             <Input
               id="promo-expiry"
               type="date"
@@ -304,6 +367,7 @@ function CreatePromoCodeForm({ form, errors, patch, discountHint }) {
 
 export default function PromoCodesPage() {
   const [createOpen, setCreateOpen] = useState(false);
+  const [editingId, setEditingId] = useState(null);
   const [viewRow, setViewRow] = useState(null);
   const [form, setForm] = useState(initialPromoForm);
   const [errors, setErrors] = useState({});
@@ -316,7 +380,9 @@ export default function PromoCodesPage() {
       limit,
       isActive: true,
     });
-  const [addCoupon, { isLoading }] = useAddCouponMutation();
+  const [addCoupon, { isLoading: isCreating }] = useAddCouponMutation();
+  const [updateCoupon, { isLoading: isUpdating }] = useUpdateCouponMutation();
+  const isSaving = isCreating || isUpdating;
 
   const discountHint = useMemo(() => {
     if (form.discountType === "percentage") return "Percentage 0–100 (e.g. 10 for 10% off).";
@@ -340,7 +406,21 @@ export default function PromoCodesPage() {
 
   const closeModal = () => {
     setCreateOpen(false);
+    setEditingId(null);
     resetForm();
+  };
+
+  const openCreate = () => {
+    setEditingId(null);
+    resetForm();
+    setCreateOpen(true);
+  };
+
+  const openEdit = (row) => {
+    setEditingId(row.id);
+    setForm(formFromRow(row));
+    setErrors({});
+    setCreateOpen(true);
   };
 
   const { coupons, total } = useMemo(
@@ -357,17 +437,18 @@ export default function PromoCodesPage() {
   );
 
   const stats = useMemo(() => {
-    const active = tableRows.filter((r) => r.isActive).length;
+    const active = tableRows.filter((r) => r.status === "active").length;
+    const expired = tableRows.filter((r) => r.status === "expired").length;
     const now = dayjs();
     const expiringSoon = tableRows.filter((r) => {
-      if (!r.expiryDateRaw || r.expiryDate === "—") return false;
-      const exp = dayjs(r.expiryDateRaw);
+      if (r.status !== "active" || !r.expiryDateRaw || r.expiryDate === "—") return false;
+      const exp = dayjs(toDateOnly(r.expiryDateRaw));
       if (!exp.isValid()) return false;
       const days = exp.diff(now, "day");
       return days >= 0 && days <= 7;
     }).length;
-    const disabled = tableRows.filter((r) => !r.isActive).length;
-    return { total, active, expiringSoon, disabled };
+    const disabled = tableRows.filter((r) => r.status === "disabled").length;
+    return { total, active, expired, expiringSoon, disabled };
   }, [tableRows, total]);
 
   const tableData = useMemo(
@@ -429,8 +510,13 @@ export default function PromoCodesPage() {
     if (!validate()) return;
     const body = buildPayload();
     try {
-      await addCoupon(body).unwrap();
-      success(`Coupon "${body.code}" was created.`);
+      if (editingId) {
+        await updateCoupon({ id: editingId, ...body }).unwrap();
+        success(`Coupon "${body.code}" was updated.`);
+      } else {
+        await addCoupon(body).unwrap();
+        success(`Coupon "${body.code}" was created.`);
+      }
       refetch();
       closeModal();
     } catch (err) {
@@ -441,8 +527,12 @@ export default function PromoCodesPage() {
         (typeof err?.data === "string" ? err.data : null);
       if (msg) toastError(String(msg));
       else {
-        info("Confirm admin/addCoupon with your backend if this request should succeed.");
-        toastError("Could not create coupon.");
+        info(
+          editingId
+            ? "Confirm admin/updateCoupon with your backend if this request should succeed."
+            : "Confirm admin/addCoupon with your backend if this request should succeed."
+        );
+        toastError(editingId ? "Could not update coupon." : "Could not create coupon.");
       }
     }
   };
@@ -456,17 +546,28 @@ export default function PromoCodesPage() {
       ),
     },
     {
-      key: "isActive",
+      key: "status",
       header: "Status",
-      render: (row) => (
-        <DirectoryStatusPill active={row.isActive} activeLabel="Active" inactiveLabel="Off" />
-      ),
+      render: (row) => {
+        const pill = LIFECYCLE_PILL[row.status] || LIFECYCLE_PILL.disabled;
+        return <DirectoryDotPill tone={pill.tone}>{pill.label}</DirectoryDotPill>;
+      },
     },
     {
       key: "discountDisplay",
       header: "Discount",
       render: (row) => (
         <DirectoryMetric value={row.discountDisplay} hint={row.discountLabel} />
+      ),
+    },
+    {
+      key: "expiryDate",
+      header: "Expiry",
+      render: (row) => (
+        <DirectoryMetric
+          value={row.expiryDate}
+          hint={row.startDate !== "—" ? `Start ${row.startDate}` : undefined}
+        />
       ),
     },
     {
@@ -482,6 +583,7 @@ export default function PromoCodesPage() {
       render: (row) => (
         <DirectoryActions>
           <DirectoryActionView onClick={() => setViewRow(row)} />
+          <DirectoryActionEdit onClick={() => openEdit(row)} />
         </DirectoryActions>
       ),
     },
@@ -493,7 +595,7 @@ export default function PromoCodesPage() {
         title="Coupons"
         description="Create and review promo codes used at checkout."
         actions={
-          <Button onClick={() => setCreateOpen(true)}>
+          <Button onClick={openCreate}>
             <TbPlus size={18} />
             Create code
           </Button>
@@ -503,8 +605,15 @@ export default function PromoCodesPage() {
       <DirectoryMetrics
         items={[
           { label: "Total codes", value: stats.total, tone: "brand" },
-          { label: "Active", value: stats.active, tone: "success" },
-          { label: "Expiring soon", value: stats.expiringSoon, tone: "warning" },
+          {
+            label: "Active",
+            value: stats.active,
+            tone: "success",
+            hint: stats.expiringSoon
+              ? `${stats.expiringSoon} expiring within 7 days`
+              : "Usable at checkout today",
+          },
+          { label: "Expired", value: stats.expired, tone: "danger", hint: "Toggle on, end date passed" },
           { label: "Disabled", value: stats.disabled, tone: "neutral" },
         ]}
       />
@@ -551,18 +660,18 @@ export default function PromoCodesPage() {
           { label: "Per user", value: viewRow?.perUser },
           { label: "Start", value: viewRow?.startDate },
           { label: "Expiry", value: viewRow?.expiryDate },
-          { label: "Status", value: viewRow?.isActive ? "Active" : "Off" },
+          { label: "Status", value: LIFECYCLE_PILL[viewRow?.status]?.label || "—" },
         ]}
       />
 
       <Modal
         open={createOpen}
         onClose={closeModal}
-        title="Create coupon"
-        primaryLabel="Create coupon"
+        title={editingId ? "Edit coupon" : "Create coupon"}
+        primaryLabel={editingId ? "Save changes" : "Create coupon"}
         onPrimary={handleCreateSubmit}
-        primaryDisabled={isLoading || isCouponsLoading}
-        secondaryDisabled={isLoading || isCouponsLoading}
+        primaryDisabled={isSaving || isCouponsLoading}
+        secondaryDisabled={isSaving || isCouponsLoading}
         size="xl"
       >
         <CreatePromoCodeForm form={form} errors={errors} patch={patch} discountHint={discountHint} />

@@ -131,8 +131,15 @@ export function DirectoryTool({ children, active = false, as: Tag = "div", class
   );
 }
 
-export function DirectoryToolSelect({ children, className = "" }) {
-  return <div className={`${chrome.tool} ${chrome.toolSelect} ${className}`.trim()}>{children}</div>;
+export function DirectoryToolSelect({ children, className = "", label }) {
+  return (
+    <div
+      className={`${chrome.tool} ${chrome.toolSelect} ${label ? chrome.toolSelectLabeled : ""} ${className}`.trim()}
+    >
+      {label ? <span className={chrome.toolSelectLabel}>{label}</span> : null}
+      {children}
+    </div>
+  );
 }
 
 export function DirectoryDateInput({ id, value, onChange, "aria-label": ariaLabel, title }) {

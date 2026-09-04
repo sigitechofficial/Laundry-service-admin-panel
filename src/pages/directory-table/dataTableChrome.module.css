@@ -230,6 +230,30 @@ button.tool {
   min-width: 160px;
 }
 
+.toolSelectLabeled {
+  height: auto;
+  min-height: 40px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+  padding: 5px 12px 6px;
+}
+
+.toolSelectLabeled :global(.jd-sel),
+.toolSelectLabeled :global(.jd-sel__trigger) {
+  height: auto;
+  min-height: 22px;
+}
+
+.toolSelectLabel {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #8a94a6;
+  line-height: 1.2;
+}
+
 .toolSelect:focus-within {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-tint);
@@ -511,11 +535,11 @@ button.tool {
 
 .dotPills {
   display: flex;
-  max-width: 280px;
-  flex-wrap: nowrap;
-  align-items: center;
+  max-width: 360px;
+  flex-wrap: wrap;
+  align-items: flex-start;
   gap: 4px;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .dotPill {
@@ -548,8 +572,8 @@ button.tool {
 
 .dotPillLabel {
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow: visible;
+  text-overflow: unset;
 }
 
 .dotPillSuccess {
