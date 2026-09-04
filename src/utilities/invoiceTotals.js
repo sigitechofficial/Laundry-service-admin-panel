@@ -38,6 +38,27 @@ export function resolveServicesSubtotal(source, items = []) {
   return 0;
 }
 
+/** Booking-time tip vs post-complete extra tip. Extra tip is not part of invoice totals. */
+export function splitAdminTips(source) {
+  const extra = source?.extraTip;
+  if (extra && (extra.bookingTipAmount != null || extra.extraTipAmount != null)) {
+    return {
+      bookingTip: Number(extra.bookingTipAmount || 0),
+      extraTip: Number(extra.extraTipAmount || 0),
+    };
+  }
+  const tips = Array.isArray(source?.tips) ? source.tips : [];
+  let bookingTip = 0;
+  let extraTip = 0;
+  for (const row of tips) {
+    const n = Number(row?.amount || 0);
+    if (!Number.isFinite(n)) continue;
+    if (String(row?.source || "").toLowerCase() === "post_complete") extraTip += n;
+    else bookingTip += n;
+  }
+  return { bookingTip, extraTip };
+}
+
 /** Full order subTotal (services + fees, before discount adjustments). */
 export function resolveOrderSubtotal(source, feeContext = {}) {
   const fromApi = Number(source?.subTotal ?? source?.subtotal);
@@ -50,7 +71,7 @@ export function resolveOrderSubtotal(source, feeContext = {}) {
     feeContext.serviceCharge ?? Number(source?.billingDetail?.serviceCharge ?? 0);
   const minimumOrderFee =
     feeContext.minimumOrderFee ?? Number(source?.billingDetail?.upfrontAmount ?? 0);
-  const tip = feeContext.tip ?? Number(source?.tips?.[0]?.amount ?? 0);
+  const tip = feeContext.tip ?? splitAdminTips(source).bookingTip;
   return parseFloat((servicesSubtotal + serviceCharge + minimumOrderFee + tip).toFixed(2));
 }
 

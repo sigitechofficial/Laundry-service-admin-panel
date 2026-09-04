@@ -40,6 +40,7 @@ const LEDGER_TONE = {
   cash_collected: "warning",
   cash_remitted: "success",
   booking_commission: "navy",
+  extra_tip: "success",
   admin_settlement: "neutral",
   agent_payout: "success",
   agent_withdrawal: "warning",
@@ -134,6 +135,27 @@ export default function AgentSettlementDetail() {
             ) : null}
           </DirectoryMoney>
         ),
+      },
+      {
+        key: "extraTipAmount",
+        header: "Extra tip",
+        render: (row) =>
+          Number(row.extraTipAmount || 0) > 0 ? (
+            <DirectoryMoney>
+              {money(row.extraTipAmount, summary)}
+              {row.extraTipCreditedAt ? (
+                <span style={{ display: "block", fontSize: 11, color: "#8a94a6", fontWeight: 400 }}>
+                  After delivery · {formatDate(row.extraTipCreditedAt, DATE_TIME_FORMAT)}
+                </span>
+              ) : (
+                <span style={{ display: "block", fontSize: 11, color: "#8a94a6", fontWeight: 400 }}>
+                  After delivery
+                </span>
+              )}
+            </DirectoryMoney>
+          ) : (
+            "—"
+          ),
       },
       {
         key: "cashCollectedAmount",
@@ -269,9 +291,9 @@ export default function AgentSettlementDetail() {
       <DirectoryMetrics
         items={[
           { label: "Commission earned (all time)", value: money(summary.totalEarning, summary), tone: "navy" },
+          { label: "Extra tips (after delivery)", value: money(summary.totalExtraTips, summary), tone: "success" },
           { label: "Platform owes agent (payable)", value: money(summary.platformOwesAgent, summary), tone: "success" },
           { label: "Already paid out to agent", value: money(summary.totalAgentPayouts, summary), tone: "neutral" },
-          { label: "Available balance", value: money(summary.availableBalance, summary), tone: "warning" },
         ]}
       />
 
@@ -297,6 +319,12 @@ export default function AgentSettlementDetail() {
             <span>= Net balance still due to platform</span>
             <span>{money(Math.max(derivedCashDue, 0), summary)}</span>
           </div>
+          <p style={{ margin: "8px 0 0", fontSize: 12, color: "#8a94a6", lineHeight: 1.5 }}>
+            Formula: <strong>Cash collected − Commission earned − Cash remitted</strong>.
+            Commission includes laundry share + booking-time tip only. Extra tips after delivery
+            ({money(summary.totalExtraTips, summary)}) are card credits and increase{" "}
+            <strong>Platform owes agent</strong>, not cash due.
+          </p>
           <p style={{ margin: "8px 0 0", fontSize: 12, color: "#8a94a6" }}>
             Authoritative figure (includes any admin adjustments — see Ledger tab below):{" "}
             <strong>{money(summary.cashDueToPlatform, summary)}</strong>

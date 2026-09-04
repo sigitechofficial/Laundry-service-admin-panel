@@ -72,6 +72,15 @@ const PAGE_ROW = {
   marginTop: 16,
 };
 
+const FORMULA_CARD = {
+  padding: 16,
+  border: "1px solid #e6e9f0",
+  borderRadius: 16,
+  background: "#fff",
+  boxShadow: "0 1px 2px rgba(16, 21, 31, 0.04)",
+  marginBottom: 16,
+};
+
 function matchesSearch(row, term) {
   if (!term) return true;
   const q = term.toLowerCase();
@@ -551,6 +560,20 @@ export default function AgentSettlement() {
           },
         ]}
       />
+
+      <div style={FORMULA_CARD} title="Cash settlement formula">
+        <p style={{ margin: "0 0 8px", fontWeight: 700, fontSize: 13, textTransform: "uppercase", letterSpacing: "0.03em", color: "#5c6673" }}>
+          How cash due is calculated
+        </p>
+        <p style={{ margin: "0 0 8px", fontSize: 14, color: "#333", fontWeight: 600 }}>
+          Cash due = Cash collected − Commission earned − Cash remitted
+        </p>
+        <p style={{ margin: 0, fontSize: 12, color: "#8a94a6", lineHeight: 1.5 }}>
+          Commission earned is the shop&apos;s laundry share plus the booking-time driver tip.
+          Service fee stays with the platform. Extra tips added after delivery are card charges
+          to the platform and increase <strong>Platform owes agents</strong> — they do not change cash due.
+        </p>
+      </div>
 
       <div style={{ ...TAB_ROW, justifyContent: "space-between" }}>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>

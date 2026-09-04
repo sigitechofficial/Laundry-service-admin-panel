@@ -30,6 +30,7 @@ import {
   mergeInvoiceDetailsFromResponse,
   resolveOrderSubtotal,
   resolveServicesSubtotal,
+  splitAdminTips,
 } from "../../../utilities/invoiceTotals";
 import AssignOrderModal from "../order-modals/AssignOrderModal";
 import OrderAssignActionButton from "../order-modals/OrderAssignActionButton";
@@ -572,7 +573,7 @@ export default function OrderDetailsPage() {
   );
   const serviceChargeAmount = toNumber(orderData?.billingDetail?.serviceCharge ?? 0);
   const deliveryFeeAmount = toNumber(orderData?.deliveryFee ?? 0);
-  const tipAmount = toNumber(orderData?.tips?.[0]?.amount ?? 0);
+  const { bookingTip: tipAmount, extraTip: extraTipAmount } = splitAdminTips(orderData);
   const orderSubtotalAmount = toNumber(
     resolveOrderSubtotal(orderData, {
       servicesSubtotal: servicesSubtotalAmount,
@@ -1579,6 +1580,16 @@ export default function OrderDetailsPage() {
                   {formatMoney(tipAmount, paymentCurrencySymbol)}
                 </p>
               </div>
+              {Number(extraTipAmount) > 0 ? (
+                <div className="flex items-center justify-between" style={{ paddingTop: 7.2, paddingBottom: 7.2 }}>
+                  <p style={{ margin: 0, color: "var(--muted)", fontSize: 14 }}>
+                    Extra tip (after delivery)
+                  </p>
+                  <p style={{ margin: 0, color: "var(--muted)", fontSize: 14 }}>
+                    {formatMoney(extraTipAmount, paymentCurrencySymbol)}
+                  </p>
+                </div>
+              ) : null}
               <div className="flex items-center justify-between" style={{ paddingTop: 7.2, paddingBottom: 7.2 }}>
                 <p style={{ margin: 0, color: "var(--muted)", fontSize: 14 }}>
                   Payment Status

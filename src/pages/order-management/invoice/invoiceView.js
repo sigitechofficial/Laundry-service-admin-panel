@@ -6,6 +6,7 @@ import {
 import {
   resolveOrderSubtotal,
   resolveServicesSubtotal,
+  splitAdminTips,
 } from "../../../utilities/invoiceTotals";
 
 function formatDay(value) {
@@ -112,7 +113,7 @@ export function buildInvoiceView(invoiceDetails, fallbackShopName = "") {
   const pickupWindow = `${invoiceDetails?.collectionTimeFrom || "N/A"}-${invoiceDetails?.collectionTimeTo || "N/A"}`;
   const deliveryWindow = `${invoiceDetails?.deliveryTimeFrom || "N/A"}-${invoiceDetails?.deliveryTimeTo || "N/A"}`;
   const computedTotalItems = items.reduce((sum, item) => sum + (Number(item.qty) || 0), 0);
-  const tip = Number(invoiceDetails?.tips?.[0]?.amount ?? invoiceDetails?.billingDetail?.tip ?? 0);
+  const tip = splitAdminTips(invoiceDetails).bookingTip || Number(invoiceDetails?.billingDetail?.tip ?? 0);
   return {
     invoiceNo,
     customerName,
