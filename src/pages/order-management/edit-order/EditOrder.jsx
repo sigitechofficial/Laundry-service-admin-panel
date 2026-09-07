@@ -964,7 +964,15 @@ export default function EditOrder() {
     printHtmlDocument(invoicePrintHtml(invoiceView, invoiceModal.format));
   };
 
-  const serviceIdsOrdered = useMemo(() => Object.keys(serviceItems), [serviceItems]);
+  const serviceIdsOrdered = useMemo(() => {
+    const ids = Object.keys(serviceItems);
+    return ids.sort((a, b) => {
+      const aQty = selectedItemsCountByService[a] || 0;
+      const bQty = selectedItemsCountByService[b] || 0;
+      if (Boolean(aQty) !== Boolean(bQty)) return aQty ? -1 : 1;
+      return 0;
+    });
+  }, [serviceItems, selectedItemsCountByService]);
 
   useEffect(() => {
     if (!serviceIdsOrdered.length) {
@@ -993,21 +1001,35 @@ export default function EditOrder() {
     const seen = new Map();
     list.forEach((it) => {
       const k = editOrderItemCategoryKey(it);
+      const qty = Number(it.quantity) || 0;
       if (!seen.has(k)) {
         seen.set(k, {
           key: k,
           label: editOrderCategoryTabLabel(it, sid, allServices),
+          addedCount: 0,
         });
       }
+      if (qty > 0) seen.get(k).addedCount += qty;
     });
-    return Array.from(seen.values());
+    return Array.from(seen.values()).sort((a, b) => {
+      if (Boolean(a.addedCount) !== Boolean(b.addedCount)) return a.addedCount ? -1 : 1;
+      return 0;
+    });
   }, [selectedItemsServiceId, serviceItems, allServices]);
 
   const visibleOrderItems = useMemo(() => {
     const sid = selectedItemsServiceId;
     const list = sid ? serviceItems[sid]?.items ?? [] : [];
-    if (selectedItemsCategoryKey === "all") return list;
-    return list.filter((it) => editOrderItemCategoryKey(it) === selectedItemsCategoryKey);
+    const filtered =
+      selectedItemsCategoryKey === "all"
+        ? list
+        : list.filter((it) => editOrderItemCategoryKey(it) === selectedItemsCategoryKey);
+    return [...filtered].sort((a, b) => {
+      const aQty = Number(a.quantity) || 0;
+      const bQty = Number(b.quantity) || 0;
+      if (Boolean(aQty) !== Boolean(bQty)) return aQty ? -1 : 1;
+      return 0;
+    });
   }, [selectedItemsServiceId, selectedItemsCategoryKey, serviceItems]);
 
   const serviceImageById = useMemo(() => {
@@ -1312,24 +1334,31 @@ export default function EditOrder() {
                   <div className={styles.cardBody} style={{ paddingBottom: 12 }}>
                     <p className={styles.fieldLabel}>Select service</p>
                     <div className={styles.serviceRail}>
-                      {Object.entries(serviceItems).map(([serviceId, serviceData]) => {
+                      {serviceIdsOrdered.map((serviceId) => {
+                        const serviceData = serviceItems[serviceId];
+                        if (!serviceData) return null;
                         const active = String(serviceId) === String(selectedItemsServiceId);
                         const imgUrl = serviceImageById[String(serviceId)] || "";
-                        const isSelected = selectedServiceIdsSet.has(String(serviceId));
+                        const addedCount = selectedItemsCountByService[String(serviceId)] || 0;
+                        const isOnInvoice = addedCount > 0;
                         const initial = (serviceData.serviceName || "?").trim().charAt(0).toUpperCase();
                         return (
                           <button
                             key={serviceId}
                             type="button"
-                            className={`${styles.serviceChip}${active ? ` ${styles.serviceChipActive}` : ""}`}
+                            className={[
+                              styles.serviceChip,
+                              active ? styles.serviceChipActive : "",
+                              isOnInvoice ? styles.serviceChipOnInvoice : "",
+                            ].filter(Boolean).join(" ")}
                             onClick={() => {
                               setSelectedItemsServiceId(String(serviceId));
-                              if (isSelected) {
+                              if (isOnInvoice || selectedServiceIdsSet.has(String(serviceId))) {
                                 openServiceDrawer(serviceId);
                               }
                             }}
                           >
-                            {isSelected ? <span className={styles.serviceCheck}>✓</span> : null}
+                            {isOnInvoice ? <span className={styles.serviceCheck}>✓</span> : null}
                             <div className={styles.serviceThumb}>
                               <p className={styles.serviceInitial}>{initial}</p>
                               {imgUrl ? (
@@ -1344,7 +1373,7 @@ export default function EditOrder() {
                             </div>
                             <p className={styles.serviceName}>{serviceData.serviceName}</p>
                             <p className={styles.serviceCount}>
-                              {selectedItemsCountByService[String(serviceId)] || 0} item(s)
+                              {addedCount} item(s)
                             </p>
                           </button>
                         );
@@ -1366,10 +1395,17 @@ export default function EditOrder() {
                         <button
                           key={tab.key}
                           type="button"
-                          className={`${styles.tab}${selectedItemsCategoryKey === tab.key ? ` ${styles.tabActive}` : ""}`}
+                          className={[
+                            styles.tab,
+                            selectedItemsCategoryKey === tab.key ? styles.tabActive : "",
+                            tab.addedCount > 0 ? styles.tabOnInvoice : "",
+                          ].filter(Boolean).join(" ")}
                           onClick={() => setSelectedItemsCategoryKey(tab.key)}
                         >
                           {tab.label}
+                          {tab.addedCount > 0 ? (
+                            <span className={styles.tabCount}>{tab.addedCount}</span>
+                          ) : null}
                         </button>
                       ))}
                     </div>
@@ -1404,13 +1440,23 @@ export default function EditOrder() {
                             selectedItemsServiceId;
                           const amount = editOrderItemLineTotal(item);
                           const svcName = serviceItems[String(rowServiceId)]?.serviceName || "";
+                          const qty = Number(item.quantity) || 0;
+                          const onInvoice = qty > 0;
                           const addOnLabels = (item.addOnServices || [])
                             .map((a) => a.name)
                             .filter(Boolean);
                           return (
-                            <div key={item.id || index} className={styles.itemRow}>
+                            <div
+                              key={item.id || index}
+                              className={`${styles.itemRow}${onInvoice ? ` ${styles.itemRowOnInvoice}` : ""}`}
+                            >
                               <div>
-                                <p className={styles.itemTitle}>{item.itemName || "Item"}</p>
+                                <p className={styles.itemTitle}>
+                                  {item.itemName || "Item"}
+                                  {onInvoice ? (
+                                    <span className={styles.addedPill}>Added</span>
+                                  ) : null}
+                                </p>
                                 <p className={styles.itemMeta}>{svcName || "Service"}</p>
                                 <div style={{ marginTop: 8 }}>
                                   <Button
@@ -1422,9 +1468,13 @@ export default function EditOrder() {
                                     Add-ons
                                   </Button>
                                   {addOnLabels.length > 0 ? (
-                                    <p className={styles.itemMeta}>
-                                      Add-ons: {addOnLabels.join(", ")}
-                                    </p>
+                                    <div className={styles.addOnPills}>
+                                      {addOnLabels.map((name) => (
+                                        <span key={name} className={styles.addOnPill}>
+                                          {name}
+                                        </span>
+                                      ))}
+                                    </div>
                                   ) : null}
                                 </div>
                               </div>
