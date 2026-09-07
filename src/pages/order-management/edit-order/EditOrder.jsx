@@ -18,7 +18,10 @@ import { TbTrash } from "../../../shared/icons/index";
 import { useParams, useNavigate } from "react-router-dom";
 import AddItemModal from "./AddItemModal";
 import { TbPlus } from "../../../shared/icons/index";
-import { canEditOrderFromBooking } from "../../../shared/orderEditStatusGate";
+import {
+  canEditOrderFromBooking,
+  isEditGatePending,
+} from "../../../shared/orderEditStatusGate";
 import { formatMoney, joinMediaUrl, resolveDisplayCurrency } from "../../../utilities/formatters";
 import { mergeInvoiceDetailsFromResponse } from "../../../utilities/invoiceTotals";
 import InvoiceDetailModal from "../invoice/InvoiceDetailModal";
@@ -389,14 +392,11 @@ export default function EditOrder() {
 
   useEffect(() => {
     if (isLoading || !orderData || editStatusRedirected.current) return;
-    const statusesReady =
-      orderStatusOptions.length > 0 ||
-      Boolean(orderData?.bookingStatus?.title ?? orderData?.bookingStatusId);
-    if (!statusesReady) return;
+    if (isEditGatePending(orderData, orderStatusOptions)) return;
     if (!canEditOrderFromBooking(orderData, orderStatusOptions)) {
       editStatusRedirected.current = true;
       showError(
-        "This order can only be edited after the status reaches Invoice Generated."
+        "This order can only be edited after the agent has added services (or the invoice is generated)."
       );
       navigate(`/orders/details/${id}`, { replace: true });
     }

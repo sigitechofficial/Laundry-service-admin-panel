@@ -1,6 +1,10 @@
 /**
- * When to show **Edit** on order rows: from **Invoice Generated** onward (same as dropdown order).
- * Uses status **title** (flexible matching) and optionally **bookingStatusId** + API status list order.
+ * When admin can open **Edit invoice**: from **Agent Added the Services** (9)
+ * onward — that is when invoice lines / add-ons exist — plus any booking that
+ * already has an invoice draft or finalized invoice.
+ *
+ * Seed IDs: 9 Agent Added, 10 Invoice Generated … 17 Completed.
+ * Side statuses (on hold / issue) stay editable if an invoice already exists.
  */
 
 function normalizeStatusTitle(value) {
@@ -31,12 +35,17 @@ export function resolveOrderStatusTitle(booking) {
     .trim();
 }
 
-/** Pre-invoice steps — block edit only on **exact** normalized titles (no substring on "not in transit…"). */
+const AGENT_ADDED_SERVICES_ID = 9;
+const COMPLETED_ID = 17;
+const CANCELLED_ID = 19;
+const REFUNDED_ID = 21;
+const RETURN_TO_PROCESSING_ID = 20;
+
+/** Pickup / transit — invoice lines are not ready yet. */
 const PRE_INVOICE_EXACT = new Set(
   [
     "in transit to facility",
     "delivered laundry to shop",
-    "agent added the services",
   ].map((s) => normalizeStatusTitle(s))
 );
 
@@ -44,16 +53,14 @@ function isExplicitlyPreInvoiceExact(key) {
   if (PRE_INVOICE_EXACT.has(key)) return true;
   if (key === "in transit" || key.startsWith("in transit ")) return true;
   if (key === "pending" || key === "new" || key === "order created") return true;
+  if (key === "confirmed" || key === "awaiting collection") return true;
   return false;
 }
 
-/**
- * Liberal match for "invoice generated **or later**" stages when API wording varies
- * (e.g. "Completed", "Order Complete", "Processing at facility").
- */
 function isInvoiceOrLaterByKeywords(key) {
   if (!key) return false;
 
+  if (key.includes("agent added")) return true;
   if (key.includes("invoice generated")) return true;
   if (key.includes("invoice") && key.includes("generat")) return true;
 
@@ -62,6 +69,7 @@ function isInvoiceOrLaterByKeywords(key) {
   if (key.includes("out for delivery")) return true;
   if (key.includes("driver reached")) return true;
   if (key.includes("delivery failed")) return true;
+  if (key === "delivered" || key.startsWith("delivered ")) return true;
 
   if (key.includes("at facility")) return true;
   if (/\bcompleted\b/.test(key)) return true;
@@ -70,7 +78,6 @@ function isInvoiceOrLaterByKeywords(key) {
   return false;
 }
 
-/** Exact pipeline (normalized) — tertiary fallback. */
 const STATUS_GROUPS = [
   ["in transit to facility"],
   ["delivered laundry to shop"],
@@ -81,9 +88,10 @@ const STATUS_GROUPS = [
   ["out for delivery"],
   ["driver reached"],
   ["delivery failed"],
+  ["delivered"],
 ];
 
-const PIPELINE_INDEX_FIRST_EDITABLE = 3;
+const PIPELINE_INDEX_FIRST_EDITABLE = 2;
 
 function rankByExactPipeline(key) {
   for (let i = 0; i < STATUS_GROUPS.length; i++) {
@@ -92,6 +100,20 @@ function rankByExactPipeline(key) {
     }
   }
   return -1;
+}
+
+function hasInvoiceRecord(booking) {
+  const invoiceStatus = String(booking?.invoiceStatus || "").toLowerCase();
+  return invoiceStatus === "draft" || invoiceStatus === "finalized";
+}
+
+function canEditByStatusId(sid) {
+  const n = Number(sid);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  if (n === CANCELLED_ID || n === REFUNDED_ID) return false;
+  if (n >= AGENT_ADDED_SERVICES_ID && n <= COMPLETED_ID) return true;
+  if (n === RETURN_TO_PROCESSING_ID) return true;
+  return null;
 }
 
 /**
@@ -112,16 +134,17 @@ export function canEditOrderByStatusTitle(statusTitle) {
 }
 
 /**
- * Index of first "Invoice Generated" (or closest) in `admin/allOrderStatuses` array order.
+ * Index of first editable status (Agent Added / Invoice Generated) in the API list.
  */
 export function getFirstEditableStatusIndexFromApi(statuses) {
   const arr = Array.isArray(statuses) ? statuses : [];
   let idx = arr.findIndex((s) => {
     const t = normalizeStatusTitle(s?.title);
-    return t.includes("invoice generated") || (t.includes("invoice") && t.includes("generat"));
+    return t.includes("agent added") || t.includes("invoice generated") ||
+      (t.includes("invoice") && t.includes("generat"));
   });
   if (idx === -1) {
-    idx = arr.findIndex((s) => normalizeStatusTitle(s?.title) === "invoice generated");
+    idx = arr.findIndex((s) => Number(s?.id) === AGENT_ADDED_SERVICES_ID);
   }
   return idx;
 }
@@ -130,7 +153,32 @@ export function getFirstEditableStatusIndexFromApi(statuses) {
  * @param {object} booking raw booking from list/detail API
  * @param {Array<{ id: unknown, title?: string }>} [statuses] from `useGetAllOrderStatusesQuery` → `.data`
  */
+/** True when the page should wait (status list / title not loaded yet). */
+export function isEditGatePending(booking, statuses) {
+  if (!booking) return true;
+  if (hasInvoiceRecord(booking)) return false;
+  if (resolveOrderStatusTitle(booking)) return false;
+  const sid =
+    booking?.bookingStatusId ??
+    booking?.bookingStatus?.id ??
+    booking?.booking_status_id;
+  if (canEditByStatusId(sid) !== null) return false;
+  return !Array.isArray(statuses) || statuses.length === 0;
+}
+
 export function canEditOrderFromBooking(booking, statuses) {
+  if (!booking) return false;
+
+  if (hasInvoiceRecord(booking)) {
+    const sid =
+      booking?.bookingStatusId ??
+      booking?.bookingStatus?.id ??
+      booking?.booking_status_id;
+    const blocked = canEditByStatusId(sid);
+    if (blocked === false) return false;
+    return true;
+  }
+
   const title = resolveOrderStatusTitle(booking);
   if (title && canEditOrderByStatusTitle(title)) return true;
 
@@ -138,6 +186,10 @@ export function canEditOrderFromBooking(booking, statuses) {
     booking?.bookingStatusId ??
     booking?.bookingStatus?.id ??
     booking?.booking_status_id;
+  const byId = canEditByStatusId(sid);
+  if (byId === true) return true;
+  if (byId === false) return false;
+
   if (sid == null || sid === "") return false;
   if (!Array.isArray(statuses) || statuses.length === 0) return false;
 
