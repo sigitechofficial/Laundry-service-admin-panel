@@ -54,6 +54,18 @@ const PRODUCTION_ENV_ALIASES = {
 // Last working Amplify production values (commit 89df315). Console env vars
 // override these. Amplify app dkuj4lgqcrq22 never had VITE_* set, so a hard
 // throw here takes the live admin host down.
+//
+// API host follows the same rule as deploy-admin.yml:
+//   Amplify `dev` / `stage` → stage API (Zone Catalog lives here first)
+//   Amplify `main` / unknown → prod API
+function amplifyApiDefault(branch) {
+  const name = String(branch || "").trim().toLowerCase();
+  if (name === "dev" || name === "stage") {
+    return "https://stagelaundry.sigisolutions.net/";
+  }
+  return "https://prodlaundry.sigisolutions.net/";
+}
+
 const AMPLIFY_PRODUCTION_DEFAULTS = {
   VITE_API_BASE_URL: "https://prodlaundry.sigisolutions.net/",
   VITE_GOOGLE_MAPS_KEY: "AIzaSyADTqd6DhbPp9HHY93FzP4ySblD4fx-bBE",
@@ -72,6 +84,30 @@ function envValue(env, key) {
 }
 
 function applyProductionEnv(env) {
+  const branch =
+    envValue(env, "VITE_APP_BRANCH") ||
+    envValue(env, "AWS_BRANCH") ||
+    String(process.env.AWS_BRANCH || "").trim();
+  const defaults = {
+    ...AMPLIFY_PRODUCTION_DEFAULTS,
+    VITE_API_BASE_URL: amplifyApiDefault(branch),
+  };
+
+  // Amplify `dev`/`stage` is the staging admin. A leftover prodlaundry URL
+  // (console or baked default) makes Zone Catalog 404 on this host.
+  const configuredApi =
+    envValue(env, "VITE_API_BASE_URL") || envValue(env, "LAUNDRY_API_BASE_URL");
+  if (
+    (branch === "dev" || branch === "stage") &&
+    /prodlaundry/i.test(configuredApi)
+  ) {
+    env.VITE_API_BASE_URL = defaults.VITE_API_BASE_URL;
+    process.env.VITE_API_BASE_URL = defaults.VITE_API_BASE_URL;
+    console.warn(
+      `[vite] ${branch} branch was pointed at prodlaundry; forcing ${defaults.VITE_API_BASE_URL}`
+    );
+  }
+
   for (const key of REQUIRED_PRODUCTION_ENV) {
     if (envValue(env, key)) continue;
     const aliasHit = (PRODUCTION_ENV_ALIASES[key] || []).find((alias) =>
@@ -79,7 +115,7 @@ function applyProductionEnv(env) {
     );
     const value = aliasHit
       ? envValue(env, aliasHit)
-      : AMPLIFY_PRODUCTION_DEFAULTS[key];
+      : defaults[key];
     if (!value) continue;
     env[key] = value;
     process.env[key] = value;

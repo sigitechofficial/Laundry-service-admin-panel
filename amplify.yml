@@ -15,6 +15,9 @@ frontend:
         - node scripts/write-release-info.mjs
     build:
       commands:
+        - export VITE_APP_COMMIT="${AWS_COMMIT_ID:-local}"
+        - export VITE_APP_BRANCH="${AWS_BRANCH:-unknown}"
+        - export VITE_APP_DEPLOYED_AT="${VITE_APP_DEPLOYED_AT:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}"
         - npm run build
   artifacts:
     baseDirectory: dist

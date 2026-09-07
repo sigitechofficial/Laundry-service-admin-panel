@@ -10,7 +10,40 @@ import {
   useResetZoneCatalogOverrideMutation,
   useCopyZoneCatalogOverridesMutation,
 } from "../../store/services/api";
+import { getApiErrorMessage } from "../../store/services/apiErrors";
+import { BASE_URL } from "../../utilities/URL";
 import { zonesArrayFromGetZonesResponse } from "../../utilities/zonesList";
+
+const STAGE_ADMIN_URL = "https://stagelaundryadmin.sigisolutions.net";
+
+function apiHostLabel() {
+  try {
+    return new URL(BASE_URL, typeof window !== "undefined" ? window.location.origin : undefined)
+      .host;
+  } catch {
+    return String(BASE_URL || "").replace(/\/$/, "") || "this API";
+  }
+}
+
+function zoneCatalogLoadCopy(error) {
+  const host = apiHostLabel();
+  const status = Number(error?.status);
+  const hittingProd = /prodlaundry/i.test(host);
+  const missingOnThisApi =
+    hittingProd && (status === 404 || status === 403 || status === 401);
+
+  if (missingOnThisApi) {
+    return {
+      title: "Zone Catalog is not on this API yet",
+      detail: `This admin build talks to ${host}. Overlay routes live on stage until backend main is deployed. Open ${STAGE_ADMIN_URL} to test RMB / Amersham overlays.`,
+    };
+  }
+
+  return {
+    title: "Could not load this zone catalog.",
+    detail: getApiErrorMessage(error, `Request failed${Number.isFinite(status) ? ` (${status})` : ""} on ${host}.`),
+  };
+}
 
 const CARD = {
   padding: 16,
@@ -30,9 +63,11 @@ export default function ZoneCatalog() {
     () => zonesArrayFromGetZonesResponse(zonesRes),
     [zonesRes]
   );
-  const { data, isLoading, isError, refetch } = useGetZoneCatalogQuery(zoneId, {
-    skip: !zoneId,
-  });
+  const { data, isLoading, isError, error: catalogError, refetch } =
+    useGetZoneCatalogQuery(zoneId, {
+      skip: !zoneId,
+    });
+  const loadCopy = isError ? zoneCatalogLoadCopy(catalogError) : null;
   const [upsert, { isLoading: saving }] = useUpsertZoneCatalogOverrideMutation();
   const [reset, { isLoading: resetting }] = useResetZoneCatalogOverrideMutation();
   const [copyFrom, { isLoading: copying }] = useCopyZoneCatalogOverridesMutation();
@@ -129,10 +164,25 @@ export default function ZoneCatalog() {
         <Delay />
       ) : isError ? (
         <div>
-          <p className="jd-lead">Could not load this zone catalog.</p>
-          <Button variant="secondary" onClick={() => refetch()}>
-            Retry
-          </Button>
+          <p className="jd-lead">{loadCopy.title}</p>
+          <p className="jd-lead" style={{ marginTop: 8 }}>
+            {loadCopy.detail}
+          </p>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 12 }}>
+            <Button variant="secondary" onClick={() => refetch()}>
+              Retry
+            </Button>
+            {/prodlaundry/i.test(apiHostLabel()) ? (
+              <Button
+                variant="primary"
+                onClick={() => {
+                  window.location.assign(STAGE_ADMIN_URL);
+                }}
+              >
+                Open stage admin
+              </Button>
+            ) : null}
+          </div>
         </div>
       ) : (
         <>
