@@ -474,9 +474,11 @@ export default function IssueRefundModal({
         ) : null}
 
         <p style={{ margin: 0, fontSize: 12, color: "#6b7280" }}>
-          Card refunds go back through Stripe to the customer’s card. Cash refunds are
-          recorded here only — return cash to the customer in person. Agent commission and
-          cash settlement are adjusted by the same refund share so earnings stay accurate.
+          Card refunds go back through Stripe to the customer’s card. Full remaining is
+          every captured charge — pickup prepaid (minimum + service fee) plus invoice
+          balance — not the invoice line alone. Cash refunds are recorded here only —
+          return cash to the customer in person. Agent commission and cash settlement
+          follow the same refund share.
         </p>
       </div>
     </Modal>
