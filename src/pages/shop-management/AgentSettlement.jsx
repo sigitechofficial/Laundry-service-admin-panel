@@ -176,6 +176,14 @@ export default function AgentSettlement() {
       (sum, row) => sum + Number(row.platformOwesAgent || 0),
       0
     );
+    const totalRemitted = cashDueAgents.reduce(
+      (sum, row) => sum + Number(row.totalCashRemitted || 0),
+      0
+    );
+    const totalReleased = cashDueAgents.reduce(
+      (sum, row) => sum + Number(row.totalAgentPayouts || 0),
+      0
+    );
     const symbols = new Set(
       cashDueAgents.map((agent) => resolveCurrencySymbol(agent, { applyDefault: true }))
     );
@@ -183,6 +191,8 @@ export default function AgentSettlement() {
       totalCashDue,
       totalPending,
       totalPayable,
+      totalRemitted,
+      totalReleased,
       currencySymbol: symbols.size === 1 ? [...symbols][0] : "",
     };
   }, [cashDueAgents]);
@@ -207,6 +217,16 @@ export default function AgentSettlement() {
         totalCashCollected: formatAgentMoney(agent.totalCashCollected, agent),
         totalCashCollectedRaw: Number(agent.totalCashCollected || 0),
         totalCashRemitted: formatAgentMoney(agent.totalCashRemitted, agent),
+        totalCashRemittedRaw: Number(agent.totalCashRemitted || 0),
+        totalPaidOut: formatAgentMoney(agent.totalAgentPayouts, agent),
+        totalPaidOutRaw: Number(agent.totalAgentPayouts || 0),
+        totalWithdrawn: formatAgentMoney(agent.totalWithdrawn, agent),
+        lastCashRemittedAt: agent.lastCashRemittedAt
+          ? formatDate(agent.lastCashRemittedAt, DATE_TIME_FORMAT)
+          : "—",
+        lastCashRemittedAtMs: agent.lastCashRemittedAt
+          ? new Date(agent.lastCashRemittedAt).getTime() || 0
+          : 0,
       })),
     [cashDueAgents]
   );
@@ -424,11 +444,32 @@ export default function AgentSettlement() {
         render: (row) => <DirectoryMoney>{row.totalCashCollected}</DirectoryMoney>,
       },
       {
+        key: "totalCashRemitted",
+        header: "Cash already sent",
+        sortable: true,
+        sortKey: "totalCashRemittedRaw",
+        render: (row) => <DirectoryMoney>{row.totalCashRemitted}</DirectoryMoney>,
+      },
+      {
         key: "platformOwesLabel",
-        header: "Payable",
+        header: "Still payable",
         sortable: true,
         sortKey: "platformOwes",
         render: (row) => <DirectoryMoney>{row.platformOwesLabel}</DirectoryMoney>,
+      },
+      {
+        key: "totalPaidOut",
+        header: "Already released",
+        sortable: true,
+        sortKey: "totalPaidOutRaw",
+        render: (row) => <DirectoryMoney>{row.totalPaidOut}</DirectoryMoney>,
+      },
+      {
+        key: "lastCashRemittedAt",
+        header: "Last cash sent",
+        sortable: true,
+        sortKey: "lastCashRemittedAtMs",
+        render: (row) => row.lastCashRemittedAt,
       },
       {
         key: "actions",
@@ -544,18 +585,23 @@ export default function AgentSettlement() {
       <DirectoryMetrics
         items={[
           {
-            label: "Total cash due",
+            label: "Still to collect",
             value: formatMoney(summary.totalCashDue, summary.currencySymbol),
             tone: "warning",
           },
           {
-            label: "Pending remittances",
-            value: formatMoney(summary.totalPending, summary.currencySymbol),
+            label: "Already collected from agents",
+            value: formatMoney(summary.totalRemitted, summary.currencySymbol),
             tone: "navy",
           },
           {
-            label: "Platform owes agents",
+            label: "Still payable",
             value: formatMoney(summary.totalPayable, summary.currencySymbol),
+            tone: "success",
+          },
+          {
+            label: "Already released to wallets",
+            value: formatMoney(summary.totalReleased, summary.currencySymbol),
             tone: "success",
           },
         ]}
@@ -563,15 +609,17 @@ export default function AgentSettlement() {
 
       <div style={FORMULA_CARD} title="Cash settlement formula">
         <p style={{ margin: "0 0 8px", fontWeight: 700, fontSize: 13, textTransform: "uppercase", letterSpacing: "0.03em", color: "#5c6673" }}>
-          How cash due is calculated
+          How the two rails work
         </p>
         <p style={{ margin: "0 0 8px", fontSize: 14, color: "#333", fontWeight: 600 }}>
-          Cash due = Cash collected − Commission earned − Cash remitted
+          Still to collect = cash collected − refunds − commission credited − cash already sent
         </p>
         <p style={{ margin: 0, fontSize: 12, color: "#8a94a6", lineHeight: 1.5 }}>
-          Commission earned is the shop&apos;s laundry share plus the booking-time driver tip.
-          Service fee stays with the platform. Extra tips added after delivery are card charges
-          to the platform and increase <strong>Platform owes agents</strong> — they do not change cash due.
+          After you tap Record, <strong>Still to collect</strong> can become £0. That is expected —
+          the money moved into <strong>Already collected from agents</strong>. Open the agent for
+          the full split (tips, refunds, clawbacks, payouts). Pending remittances from the agent
+          app sit in the other tab ({formatMoney(summary.totalPending, summary.currencySymbol)}).
+          Extra tips after delivery increase payable, not cash due.
         </p>
       </div>
 
@@ -609,7 +657,7 @@ export default function AgentSettlement() {
 
       <p className="jd-lead" style={{ margin: "0 0 16px" }}>
         {tab === "cash-due"
-          ? "Cash due is the platform share the shop still holds after collecting cash from the customer. New shops appear here automatically after cash collect; if a row is missing, tap Sync from paid bookings."
+          ? "Live due can be £0 after you record cash — remitted and released columns keep the lifetime trail. Open an agent for order-by-order split, refunds, and tips."
           : "Agent-submitted cash remittances awaiting your confirmation."}
       </p>
 
@@ -648,7 +696,7 @@ export default function AgentSettlement() {
             columns={cashDueColumns}
             rows={visibleCashDue}
             rowKey={(row) => row.rowKey}
-            empty="No agents with cash due"
+            empty="No agents with settlement activity yet"
             sortBy={sortBy}
             sortDir={sortDir}
             onSort={handleSort}

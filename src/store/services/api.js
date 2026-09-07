@@ -857,10 +857,25 @@ export const api = createApi({
     }),
 
     getAgentSettlementDetail: builder.query({
-      query: ({ agentId, ...params } = {}) => ({
+      query: ({
+        agentId,
+        ordersPage,
+        ordersLimit,
+        ledgerPage,
+        ledgerLimit,
+        ledgerRail,
+        ledgerType,
+      } = {}) => ({
         url: `admin/agents/${agentId}/settlement-detail`,
         method: "GET",
-        params,
+        params: {
+          ordersPage,
+          ordersLimit,
+          ledgerPage,
+          ledgerLimit,
+          ledgerRail,
+          ledgerType,
+        },
       }),
       providesTags: ["AgentSettlement"],
     }),
