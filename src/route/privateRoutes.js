@@ -19,6 +19,7 @@ import {
   DriverDetails,
   ZoneManagement,
   ZoneDetails,
+  ZoneCatalog,
   EmployeeManagement,
   EmployeeDetails,
   EditEmployee,
@@ -177,6 +178,11 @@ export const privateRoutes = [
     path: "/zone-management/details/:id",
     element: ZoneDetails,
     resourceKey: "zone_details_Page",
+  },
+  {
+    path: "/zone-management/catalog",
+    element: ZoneCatalog,
+    resourceKey: "zone_management_Page",
   },
   {
     path: "/employee-management",

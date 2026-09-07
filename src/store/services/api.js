@@ -6,7 +6,7 @@ export const api = createApi({
   baseQuery: baseQueryWithReauth,
   // setupListeners(store.dispatch) + window "online" → refetch subscribed queries.
   refetchOnReconnect: true,
-  tagTypes: ["ServiceConfig", "SupportContact", "PlatformOperationalHours", "RuntimeSettings", "Orders", "Coupons", "Banners", "AccountDeletionReasons", "ReviewReasonCodes", "ShopReviews", "ShopRatingsReport", "PendingAgents", "RejectedAgents", "AgentSettlement", "NotifyLogs", "PaymentFailures", "AdminNotificationPreferences", "ActionRequiredOrders", "RepairGarments", "RepairOptions", "Zones", "FailAttemptInstructions", "FailAttemptReasons", "Shops", "ShopAssignmentPolicy", "ComplianceReport", "ComplianceEvents", "Customers"],
+  tagTypes: ["ServiceConfig", "SupportContact", "PlatformOperationalHours", "RuntimeSettings", "Orders", "Coupons", "Banners", "AccountDeletionReasons", "ReviewReasonCodes", "ShopReviews", "ShopRatingsReport", "PendingAgents", "RejectedAgents", "AgentSettlement", "NotifyLogs", "PaymentFailures", "AdminNotificationPreferences", "ActionRequiredOrders", "RepairGarments", "RepairOptions", "Zones", "ZoneCatalog", "FailAttemptInstructions", "FailAttemptReasons", "Shops", "ShopAssignmentPolicy", "ComplianceReport", "ComplianceEvents", "Customers"],
 
   endpoints: (builder) => {
     const reportQueryString = (params = {}) => {
@@ -1063,6 +1063,49 @@ export const api = createApi({
       // Normalize cache key so number/string ids share one entry + matching tags.
       serializeQueryArgs: ({ queryArgs }) => String(queryArgs),
       providesTags: (result, error, id) => [{ type: "Zones", id: String(id) }],
+    }),
+    getZoneCatalog: builder.query({
+      query: (zoneId) => ({
+        url: `admin/zones/${zoneId}/catalog`,
+        method: "GET",
+        credentials: "include",
+      }),
+      providesTags: (result, error, zoneId) => [
+        { type: "ZoneCatalog", id: String(zoneId) },
+      ],
+    }),
+    upsertZoneCatalogOverride: builder.mutation({
+      query: ({ zoneId, body }) => ({
+        url: `admin/zones/${zoneId}/catalog/overrides`,
+        method: "POST",
+        body,
+        credentials: "include",
+      }),
+      invalidatesTags: (result, error, { zoneId }) => [
+        { type: "ZoneCatalog", id: String(zoneId) },
+      ],
+    }),
+    resetZoneCatalogOverride: builder.mutation({
+      query: ({ zoneId, body }) => ({
+        url: `admin/zones/${zoneId}/catalog/overrides/reset`,
+        method: "POST",
+        body,
+        credentials: "include",
+      }),
+      invalidatesTags: (result, error, { zoneId }) => [
+        { type: "ZoneCatalog", id: String(zoneId) },
+      ],
+    }),
+    copyZoneCatalogOverrides: builder.mutation({
+      query: ({ zoneId, body }) => ({
+        url: `admin/zones/${zoneId}/catalog/overrides/copy`,
+        method: "POST",
+        body,
+        credentials: "include",
+      }),
+      invalidatesTags: (result, error, { zoneId }) => [
+        { type: "ZoneCatalog", id: String(zoneId) },
+      ],
     }),
     getAllCountries: builder.query({
       query: () => ({
@@ -2186,6 +2229,10 @@ export const {
   useUpdateAdminEmployeeMutation,
   useDeleteAdminEmployeeMutation,
   useGetAllZonesQuery,
+  useGetZoneCatalogQuery,
+  useUpsertZoneCatalogOverrideMutation,
+  useResetZoneCatalogOverrideMutation,
+  useCopyZoneCatalogOverridesMutation,
   useGetZoneByIdQuery,
   useLazyGetZoneByIdQuery,
   useGetAllCountriesQuery,

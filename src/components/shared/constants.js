@@ -161,6 +161,18 @@ export const sidebarList = [
     Icon: LuUsersRound,
     path: "/zone-management",
     size: "24px",
+    children: [
+      {
+        label: "Zones",
+        path: "/zone-management",
+        size: "24px",
+      },
+      {
+        label: "Zone Catalog",
+        path: "/zone-management/catalog",
+        size: "24px",
+      },
+    ],
   },
   {
     label: "Countries and Cities",

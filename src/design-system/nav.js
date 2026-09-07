@@ -60,7 +60,15 @@ export const DS_NAV = [
           { label: "Cash Settlement", path: "/shop-management/agent-settlement", icon: "ticket" },
         ],
       },
-      { label: "Zone Record", icon: "pin", path: "/zone-management" },
+      {
+        label: "Zone Record",
+        icon: "pin",
+        path: "/zone-management",
+        children: [
+          { label: "Zones", path: "/zone-management", icon: "pin" },
+          { label: "Zone Catalog", path: "/zone-management/catalog", icon: "book" },
+        ],
+      },
       {
         label: "Countries and Cities",
         icon: "globe",
