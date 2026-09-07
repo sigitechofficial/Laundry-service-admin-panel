@@ -124,29 +124,101 @@ function resolveEditOrderItemServiceId(item, serviceItemsMap) {
   return "";
 }
 
-function buildEditBillingData(orderData, formData) {
-  const oldServiceCharge = Number(orderData?.billingDetail?.serviceCharge ?? 0);
-  const oldMinimum = Number(orderData?.billingDetail?.upfrontAmount ?? 0);
-  const oldTotal = Number(
-    orderData?.billingDetail?.total ?? orderData?.orderAmount ?? 0
+/** Map API `addOns` (agent invoice) into EditOrder UI shape `addOnServices`. */
+function mapSelectedAddOnsToUi(selected) {
+  const raw = Array.isArray(selected?.addOns)
+    ? selected.addOns
+    : Array.isArray(selected?.addOnServices)
+      ? selected.addOnServices
+      : [];
+  return raw
+    .map((a) => {
+      const id = a?.addOnServiceId ?? a?.addOnService?.id ?? a?.id;
+      if (id == null) return null;
+      return {
+        id: Number(id),
+        name: a?.addOnService?.name || a?.name || "Add-on",
+        price: Number(a?.price ?? a?.addOnService?.price ?? 0) || 0,
+        items: Number(a?.items) > 0 ? Number(a.items) : 1,
+      };
+    })
+    .filter(Boolean);
+}
+
+function editOrderItemLineTotal(item) {
+  const qty = Number(item?.quantity) || 0;
+  const base = qty * (Number(item?.unitPrice) || 0);
+  const addOns = (item?.addOnServices || []).reduce((sum, a) => {
+    const aQty = Number(a?.items) > 0 ? Number(a.items) : qty || 1;
+    return sum + aQty * (Number(a?.price) || 0);
+  }, 0);
+  return base + addOns;
+}
+
+function isPersistedSelectedServiceId(id) {
+  if (id == null || id === "") return false;
+  const raw = String(id);
+  if (raw.startsWith("new-") || raw.startsWith("catalog-") || raw.startsWith("selected-")) {
+    return false;
+  }
+  return Number.isFinite(Number(raw));
+}
+
+function mapFrequencyToUi(value) {
+  if (value === "Weekly") return "Every week";
+  return value || "Just Once";
+}
+
+function buildEditBillingData(orderData, formData, servicesSubtotal) {
+  const storedLaundry = Number(orderData?.billingDetail?.categoryCharge ?? 0);
+  const laundry = Number(
+    servicesSubtotal != null ? servicesSubtotal : storedLaundry
   );
-  const oldTip = Number(orderData?.tips?.[0]?.amount ?? 0);
   const newServiceCharge = parseFloat(formData.serviceCharge) || 0;
   const newMinimum = parseFloat(formData.minimumOrderFee) || 0;
   const newTip = parseFloat(formData.driverTip) || 0;
   const discount = Number(orderData?.billingDetail?.discount ?? 0);
-  const total = parseFloat(
-    (
-      oldTotal +
-      (newServiceCharge - oldServiceCharge) +
-      (newMinimum - oldMinimum) +
-      (newTip - oldTip)
-    ).toFixed(2)
-  );
+  const isCash = String(orderData?.paymentType || "").toLowerCase() === "cash";
+
+  // Before line items hydrate, keep the stored invoice total so the footer does not flash £0.
+  if (servicesSubtotal == null) {
+    const oldServiceCharge = Number(orderData?.billingDetail?.serviceCharge ?? 0);
+    const oldMinimum = Number(orderData?.billingDetail?.upfrontAmount ?? 0);
+    const oldTotal = Number(
+      orderData?.billingDetail?.total ?? orderData?.orderAmount ?? 0
+    );
+    const oldTip = Number(orderData?.tips?.[0]?.amount ?? 0);
+    return {
+      upfrontAmount: newMinimum,
+      serviceCharge: newServiceCharge,
+      discount,
+      categoryCharge: laundry,
+      total: parseFloat(
+        (
+          oldTotal +
+          (newServiceCharge - oldServiceCharge) +
+          (newMinimum - oldMinimum) +
+          (newTip - oldTip)
+        ).toFixed(2)
+      ),
+    };
+  }
+
+  // Match backend calculateInvoiceTotals / payment summary.
+  const total = isCash
+    ? Math.max(
+        0,
+        parseFloat(
+          (Math.max(laundry, newMinimum) + newServiceCharge + newTip - discount).toFixed(2)
+        )
+      )
+    : Math.max(0, parseFloat((laundry - newMinimum - discount).toFixed(2)));
+
   return {
     upfrontAmount: newMinimum,
     serviceCharge: newServiceCharge,
     discount,
+    categoryCharge: laundry,
     total,
   };
 }
@@ -382,7 +454,7 @@ export default function EditOrder() {
           orderData?.bookingStatusId !== null
             ? String(orderData.bookingStatusId)
             : "",
-        frequency: orderData?.frequency || "Just Once",
+        frequency: mapFrequencyToUi(orderData?.frequency),
         collectionMethod: coerceSelectValue(
           orderData?.driverInstructionOptions,
           COLLECTION_METHOD_OPTIONS,
@@ -478,16 +550,45 @@ export default function EditOrder() {
         });
       });
 
-      // Build services array from confirmed selections.
-      const services = Array.from(confirmedServiceIds).map((serviceId) => ({
-        serviceId: parseInt(serviceId),
-      }));
+      // Full invoice lines (qty + add-ons) — matches agent syncInvoiceDraftServiceLines shape
+      const services = [];
+      Object.entries(serviceItems).forEach(([serviceId, serviceData]) => {
+        (serviceData.items || []).forEach((item) => {
+          const qty = Number(item.quantity) || 0;
+          if (qty <= 0) return;
+          const line = {
+            serviceId: parseInt(serviceId, 10),
+            categoryId: item.categoryId,
+            subCategoryId: item.subCategoryId,
+            items: qty,
+            categoryCharge: Number(item.unitPrice) || 0,
+            addOns: (item.addOnServices || []).map((a) => ({
+              addOnServiceId: a.id,
+              items: Number(a.items) > 0 ? Number(a.items) : qty,
+            })),
+          };
+          if (isPersistedSelectedServiceId(item.id)) {
+            line.id = Number(item.id);
+          }
+          services.push(line);
+        });
+      });
 
       // Calculate total items
       const totalItems = Object.values(serviceItems).reduce(
         (sum, serviceData) =>
           sum +
           serviceData.items.reduce((itemSum, item) => itemSum + (item.quantity || 0), 0),
+        0
+      );
+
+      const liveSubtotal = Object.values(serviceItems).reduce(
+        (sum, serviceData) =>
+          sum +
+          (serviceData.items || []).reduce(
+            (itemSum, item) => itemSum + editOrderItemLineTotal(item),
+            0
+          ),
         0
       );
 
@@ -548,11 +649,11 @@ export default function EditOrder() {
         dropOffSamePickUp: orderData?.pickupAddresId === orderData?.dropOffAddressId,
         dropOffAddressId: orderData?.dropOffAddressId || null,
         pickUpAddressId: orderData?.pickupAddresId || null,
-        preferencesArray: preferencesArray,
-        services: services,
         totalItems: totalItems,
         tipAmount: formData.driverTip || "0.00",
-        billingData: buildEditBillingData(orderData, formData),
+        billingData: buildEditBillingData(orderData, formData, liveSubtotal),
+        ...(preferencesArray.length > 0 ? { preferencesArray } : {}),
+        ...(services.length > 0 ? { services } : {}),
         ...(dropdowns.status
           ? { bookingStatusId: Number(dropdowns.status) }
           : {}),
@@ -674,7 +775,8 @@ export default function EditOrder() {
 
   // Initialize service items from orderData (only once when orderData is first loaded)
   useEffect(() => {
-    if (!serviceDetailsList.length || isInitialized.current) return;
+    if (isInitialized.current) return;
+    if (!serviceDetailsList.length && !bookingSelectedServices.length) return;
     const items = {};
 
     serviceDetailsList.forEach((serviceRow) => {
@@ -736,6 +838,7 @@ export default function EditOrder() {
         categoryId: selected?.categoryId,
         subCategoryId: selected?.subCategoryId,
         preferences: { preferenceIds: selectedPrefIds },
+        addOnServices: mapSelectedAddOnsToUi(selected),
       };
 
       if (existingIndex >= 0) {
@@ -868,10 +971,17 @@ export default function EditOrder() {
       setSelectedItemsServiceId("");
       return;
     }
-    setSelectedItemsServiceId((prev) =>
-      prev && serviceIdsOrdered.includes(String(prev)) ? prev : serviceIdsOrdered[0]
-    );
-  }, [serviceIdsOrdered]);
+    setSelectedItemsServiceId((prev) => {
+      if (prev && serviceIdsOrdered.includes(String(prev))) {
+        const prevCount = selectedItemsCountByService[String(prev)] || 0;
+        if (prevCount > 0) return prev;
+      }
+      const withItems = serviceIdsOrdered.find(
+        (sid) => (selectedItemsCountByService[sid] || 0) > 0
+      );
+      return withItems || serviceIdsOrdered[0];
+    });
+  }, [serviceIdsOrdered, selectedItemsCountByService]);
 
   useEffect(() => {
     setSelectedItemsCategoryKey("all");
@@ -917,7 +1027,7 @@ export default function EditOrder() {
     (sum, serviceData) =>
       sum +
       serviceData.items.reduce(
-        (itemSum, item) => itemSum + (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0),
+        (itemSum, item) => itemSum + editOrderItemLineTotal(item),
         0
       ),
     0
@@ -989,12 +1099,14 @@ export default function EditOrder() {
       );
       if (itemIndex === -1) return prev;
       const nextItems = [...service.items];
+      const parentQty = Number(nextItems[itemIndex]?.quantity) || 0;
       nextItems[itemIndex] = {
         ...nextItems[itemIndex],
         addOnServices: selected.map((s) => ({
           id: s.id,
           name: s.name,
           price: Number(s.price) || 0,
+          items: parentQty > 0 ? parentQty : 1,
         })),
       };
       newState[sid] = { ...service, items: nextItems };
@@ -1009,7 +1121,11 @@ export default function EditOrder() {
     "Every two weeks",
     "Every four weeks",
   ];
-  const billingPreview = buildEditBillingData(orderData, formData);
+  const billingPreview = buildEditBillingData(
+    orderData,
+    formData,
+    Object.keys(serviceItems).length ? subtotal : null
+  );
   const customerName = `${orderData?.customer?.firstName || ""} ${orderData?.customer?.lastName || ""}`.trim();
   const statusTitle =
     orderStatusOptions.find((option) => String(option.id) === String(dropdowns.status))?.title ||
@@ -1286,9 +1402,11 @@ export default function EditOrder() {
                           const rowServiceId =
                             resolveEditOrderItemServiceId(item, serviceItems) ||
                             selectedItemsServiceId;
-                          const amount =
-                            (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0);
+                          const amount = editOrderItemLineTotal(item);
                           const svcName = serviceItems[String(rowServiceId)]?.serviceName || "";
+                          const addOnLabels = (item.addOnServices || [])
+                            .map((a) => a.name)
+                            .filter(Boolean);
                           return (
                             <div key={item.id || index} className={styles.itemRow}>
                               <div>
@@ -1303,10 +1421,9 @@ export default function EditOrder() {
                                     <TbPlus size={14} />
                                     Add-ons
                                   </Button>
-                                  {(item.addOnServices || []).length > 0 ? (
+                                  {addOnLabels.length > 0 ? (
                                     <p className={styles.itemMeta}>
-                                      {(item.addOnServices || []).length} add-on
-                                      {(item.addOnServices || []).length === 1 ? "" : "s"} selected
+                                      Add-ons: {addOnLabels.join(", ")}
                                     </p>
                                   ) : null}
                                 </div>
