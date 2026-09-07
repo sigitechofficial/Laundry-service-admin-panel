@@ -1207,6 +1207,42 @@ export const api = createApi({
         url: `admin/getOrderForEdit/${orderId}`,
         method: "GET",
       }),
+      providesTags: (_r, _e, orderId) => [{ type: "Orders", id: orderId }],
+    }),
+
+    getRefundPreview: builder.query({
+      query: ({ bookingId, amount }) => {
+        const q =
+          amount != null && amount !== ""
+            ? `?amount=${encodeURIComponent(amount)}`
+            : "";
+        return {
+          url: `admin/bookings/${bookingId}/refund-preview${q}`,
+          method: "GET",
+        };
+      },
+      providesTags: (_r, _e, arg) => [{ type: "Orders", id: arg.bookingId }],
+    }),
+
+    listBookingRefunds: builder.query({
+      query: (bookingId) => ({
+        url: `admin/bookings/${bookingId}/refunds`,
+        method: "GET",
+      }),
+      providesTags: (_r, _e, bookingId) => [{ type: "Orders", id: bookingId }],
+    }),
+
+    issueBookingRefund: builder.mutation({
+      query: ({ bookingId, body }) => ({
+        url: `admin/bookings/${bookingId}/refund`,
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: (_r, _e, arg) => [
+        "Orders",
+        "AgentSettlement",
+        { type: "Orders", id: arg.bookingId },
+      ],
     }),
 
     getServiceDetailWithBookingSelection: builder.query({
@@ -2156,6 +2192,10 @@ export const {
   useGetSpecificDriverDetailQuery,
   useDeleteDriverMutation,
   useGetOrderForEditQuery,
+  useGetRefundPreviewQuery,
+  useLazyGetRefundPreviewQuery,
+  useListBookingRefundsQuery,
+  useIssueBookingRefundMutation,
   useGetServiceDetailWithBookingSelectionQuery,
   useGetOrderItemsSheetQuery,
   useLazyInvoiceCreationQuery,

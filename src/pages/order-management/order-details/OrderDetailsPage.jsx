@@ -36,6 +36,7 @@ import AssignOrderModal from "../order-modals/AssignOrderModal";
 import OrderAssignActionButton from "../order-modals/OrderAssignActionButton";
 import { canAdminAssignOrReassignFromBooking } from "../../../shared/adminAssignGate";
 import InvoiceDetailModal from "../invoice/InvoiceDetailModal";
+import IssueRefundModal from "./IssueRefundModal";
 import {
   buildInvoiceView,
   invoicePrintHtml,
@@ -57,6 +58,7 @@ const statusStyleMap = {
   completed: { bg: "#D1FAE5", color: "#065F46", label: "Completed" },
   pending: { bg: "#FEF3C7", color: "#92400E", label: "Pending" },
   cancelled: { bg: "#FEE2E2", color: "#991B1B", label: "Cancelled" },
+  refunded: { bg: "#E0E7FF", color: "#3730A3", label: "Refunded" },
   hold: { bg: "#FEF3C7", color: "#92400E", label: "On Hold" },
 };
 
@@ -90,6 +92,7 @@ function StarRating({ value = 0 }) {
 function statusBadgeTone(status) {
   const normalized = String(status || "").toLowerCase();
   if (normalized.includes("complete")) return "success";
+  if (normalized.includes("refund")) return "brand";
   if (normalized.includes("cancel")) return "danger";
   if (normalized.includes("pending") || normalized.includes("hold")) return "warning";
   return "neutral";
@@ -121,6 +124,7 @@ function formatPaymentType(value) {
 function getStatusBadge(status) {
   const normalized = String(status || "").toLowerCase();
   if (normalized.includes("complete")) return statusStyleMap.completed;
+  if (normalized.includes("refund")) return statusStyleMap.refunded;
   if (normalized.includes("pending")) return statusStyleMap.pending;
   if (normalized.includes("cancel")) return statusStyleMap.cancelled;
   if (normalized.includes("hold")) return statusStyleMap.hold;
@@ -594,6 +598,7 @@ export default function OrderDetailsPage() {
   });
   const [invoiceDetails, setInvoiceDetails] = useState(null);
   const [assignModalOpen, setAssignModalOpen] = useState(false);
+  const [refundModalOpen, setRefundModalOpen] = useState(false);
   const [customerCompareExpanded, setCustomerCompareExpanded] = useState(false);
   // null | "customer" | "shop" — which party's contact modal is open.
   const [contactModal, setContactModal] = useState(null);
@@ -975,6 +980,9 @@ export default function OrderDetailsPage() {
                 onClick={() => setAssignModalOpen(true)}
               />
             ) : null}
+            <Button variant="secondary" onClick={() => setRefundModalOpen(true)}>
+              Issue refund
+            </Button>
             <Button onClick={() => navigate(`/orders/edit/${orderId}`)}>
               Edit Order
             </Button>
@@ -2326,6 +2334,13 @@ export default function OrderDetailsPage() {
       bookingId={bookingId}
       bookingSnapshot={orderData}
       onClose={() => setAssignModalOpen(false)}
+      onSuccess={() => refetchOrder()}
+    />
+    <IssueRefundModal
+      open={refundModalOpen}
+      bookingId={bookingId || orderId}
+      currencySymbol={paymentCurrencySymbol}
+      onClose={() => setRefundModalOpen(false)}
       onSuccess={() => refetchOrder()}
     />
     <Modal

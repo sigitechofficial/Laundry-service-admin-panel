@@ -38,13 +38,17 @@ const PAGE_ROW = {
 
 const LEDGER_TONE = {
   cash_collected: "warning",
+  cash_refunded: "info",
   cash_remitted: "success",
   booking_commission: "navy",
+  commission_clawback: "danger",
   extra_tip: "success",
+  extra_tip_clawback: "danger",
   admin_settlement: "neutral",
   agent_payout: "success",
   agent_withdrawal: "warning",
   payout: "neutral",
+  customer_refund: "info",
 };
 
 const STATUS_TONE = {
