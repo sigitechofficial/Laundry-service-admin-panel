@@ -191,11 +191,13 @@ function collectInvoiceAddOns(row) {
 function normalizeInvoiceAddOn(ad) {
   const quantity = Number(ad?.items ?? ad?.quantity ?? 1) || 1;
   const unitPrice = Number(ad?.price ?? ad?.addOnService?.price ?? 0) || 0;
+  const instructions = String(ad?.instructions || ad?.instruction || "").trim();
   return {
     ...ad,
     quantity,
     price: unitPrice,
     name: ad?.addOnService?.name || ad?.name || "Add-on",
+    instructions: instructions || null,
   };
 }
 
@@ -1474,6 +1476,11 @@ export default function OrderDetailsPage() {
                                         {formatMoney(adPrice, paymentCurrencySymbol)} × {adQty}
                                       </p>
                                     )}
+                                    {ad?.instructions ? (
+                                      <p style={{ margin: 0, marginTop: 2, fontSize: 11.5, color: "#4F46E5", fontStyle: "italic" }}>
+                                        {ad.instructions}
+                                      </p>
+                                    ) : null}
                                   </div>
                                 );
                               })}
@@ -1822,9 +1829,16 @@ export default function OrderDetailsPage() {
                                     {(svc.addOns || []).length > 0 && (
                                       <div style={{ marginTop: 4 }}>
                                         {svc.addOns.map((ad, ai) => (
-                                          <p key={ai} style={{ margin: 0, fontSize: 11, color: "#475569" }}>
-                                            + {ad.items || 1}x {ad.addOnService?.name || "Add-on"} ({formatMoney(ad.price, paymentCurrencySymbol)})
-                                          </p>
+                                          <div key={ai} style={{ marginTop: ai === 0 ? 0 : 4 }}>
+                                            <p style={{ margin: 0, fontSize: 11, color: "#475569" }}>
+                                              + {ad.items || 1}x {ad.addOnService?.name || ad.name || "Add-on"} ({formatMoney(ad.price, paymentCurrencySymbol)})
+                                            </p>
+                                            {(ad.instructions || ad.instruction) ? (
+                                              <p style={{ margin: 0, marginTop: 2, fontSize: 11, color: "#4F46E5", fontStyle: "italic" }}>
+                                                {ad.instructions || ad.instruction}
+                                              </p>
+                                            ) : null}
+                                          </div>
                                         ))}
                                       </div>
                                     )}

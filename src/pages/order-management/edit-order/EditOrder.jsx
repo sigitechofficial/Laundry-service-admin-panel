@@ -143,6 +143,7 @@ function mapSelectedAddOnsToUi(selected) {
         name: a?.addOnService?.name || a?.name || "Add-on",
         price: Number(a?.price ?? a?.addOnService?.price ?? 0) || 0,
         items: Number(a?.items) > 0 ? Number(a.items) : 1,
+        instructions: String(a?.instructions || a?.instruction || "").trim() || null,
       };
     })
     .filter(Boolean);
@@ -565,6 +566,7 @@ export default function EditOrder() {
             addOns: (item.addOnServices || []).map((a) => ({
               addOnServiceId: a.id,
               items: Number(a.items) > 0 ? Number(a.items) : qty,
+              instructions: a.instructions || null,
             })),
           };
           if (isPersistedSelectedServiceId(item.id)) {
@@ -1122,14 +1124,19 @@ export default function EditOrder() {
       if (itemIndex === -1) return prev;
       const nextItems = [...service.items];
       const parentQty = Number(nextItems[itemIndex]?.quantity) || 0;
+      const previous = nextItems[itemIndex]?.addOnServices || [];
       nextItems[itemIndex] = {
         ...nextItems[itemIndex],
-        addOnServices: selected.map((s) => ({
-          id: s.id,
-          name: s.name,
-          price: Number(s.price) || 0,
-          items: parentQty > 0 ? parentQty : 1,
-        })),
+        addOnServices: selected.map((s) => {
+          const kept = previous.find((a) => Number(a.id) === Number(s.id));
+          return {
+            id: s.id,
+            name: s.name,
+            price: Number(s.price) || 0,
+            items: Number(kept?.items) > 0 ? Number(kept.items) : parentQty > 0 ? parentQty : 1,
+            instructions: kept?.instructions || null,
+          };
+        }),
       };
       newState[sid] = { ...service, items: nextItems };
       return newState;
@@ -1442,9 +1449,9 @@ export default function EditOrder() {
                           const svcName = serviceItems[String(rowServiceId)]?.serviceName || "";
                           const qty = Number(item.quantity) || 0;
                           const onInvoice = qty > 0;
-                          const addOnLabels = (item.addOnServices || [])
-                            .map((a) => a.name)
-                            .filter(Boolean);
+                          const addOnLabels = (item.addOnServices || []).filter(
+                            (a) => a?.name
+                          );
                           return (
                             <div
                               key={item.id || index}
@@ -1469,9 +1476,18 @@ export default function EditOrder() {
                                   </Button>
                                   {addOnLabels.length > 0 ? (
                                     <div className={styles.addOnPills}>
-                                      {addOnLabels.map((name) => (
-                                        <span key={name} className={styles.addOnPill}>
-                                          {name}
+                                      {addOnLabels.map((addon) => (
+                                        <span
+                                          key={addon.id || addon.name}
+                                          className={styles.addOnPill}
+                                          title={addon.instructions || addon.name}
+                                        >
+                                          {addon.name}
+                                          {addon.instructions ? (
+                                            <span style={{ display: "block", fontWeight: 400, opacity: 0.85 }}>
+                                              {addon.instructions}
+                                            </span>
+                                          ) : null}
                                         </span>
                                       ))}
                                     </div>

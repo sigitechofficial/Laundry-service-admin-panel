@@ -82,7 +82,8 @@ export function buildInvoiceView(invoiceDetails, fallbackShopName = "") {
       addOns: (it?.addOns || []).map((ad) => ({
         name: ad?.name || ad?.addOnService?.name || ad?.service?.name || ad?.title || "Add-on",
         price: Number(ad?.price || 0),
-        qty: Number(ad?.quantity || 1),
+        qty: Number(ad?.quantity || ad?.items || 1),
+        instruction: String(ad?.instructions || ad?.instruction || "").trim(),
       })),
       preferences: (it?.selectedServicePreferences || [])
         .map((pref) => pref?.preferenceValue?.value)
@@ -186,7 +187,7 @@ export function a4InvoiceHtml(view) {
         ? (item.addOns || [])
             .map(
               (ad) =>
-                `<div class="itemSubRow"><span>+ ${ad.qty}x ${ad.name}</span><span>${invoiceMoney(view, ad.qty * ad.price)}</span></div>`
+                `<div class="itemSubRow"><span>+ ${ad.qty}x ${ad.name}${ad.instruction ? `<div class="itemMuted">${ad.instruction}</div>` : ""}</span><span>${invoiceMoney(view, ad.qty * ad.price)}</span></div>`
             )
             .join("")
         : "";
