@@ -16,6 +16,7 @@ import {
   useRecordAgentPayoutMutation,
   useRecordCashSettlementMutation,
 } from "../../store/services/api";
+import { getApiErrorMessage } from "../../store/services/apiErrors";
 
 const CARD = {
   padding: 20,
@@ -99,7 +100,7 @@ export default function AgentSettlementDetail() {
   const [ledgerRail, setLedgerRail] = useState("");
   const [action, setAction] = useState({ open: false, type: null, amount: "", note: "" });
 
-  const { data, isLoading, isError, refetch } = useGetAgentSettlementDetailQuery(
+  const { data, isLoading, isError, error: loadError, refetch } = useGetAgentSettlementDetailQuery(
     {
       agentId,
       ordersPage,
@@ -343,6 +344,9 @@ export default function AgentSettlementDetail() {
       <div style={{ textAlign: "center", padding: 28 }}>
         <p className="jd-lead" style={{ margin: "0 0 12px" }}>
           Could not load this agent&apos;s settlement.
+        </p>
+        <p className="jd-lead" style={{ margin: "0 0 12px", fontSize: 13 }}>
+          {getApiErrorMessage(loadError, "The settlement API failed. Retry, or go back to the list.")}
         </p>
         <Button variant="secondary" onClick={() => refetch()}>
           Retry
