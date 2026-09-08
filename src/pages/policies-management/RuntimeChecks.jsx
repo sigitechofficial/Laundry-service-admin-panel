@@ -50,6 +50,7 @@ export default function RuntimeChecks() {
   const [retryGapMinutes, setRetryGapMinutes] = useState("30");
   const [preferredShopEnabled, setPreferredShopEnabled] = useState(true);
   const [preferredShopWindowMinutes, setPreferredShopWindowMinutes] = useState("10");
+  const [zoneCatalogOverlaysEnabled, setZoneCatalogOverlaysEnabled] = useState(false);
 
   useEffect(() => {
     const next = data?.data?.settings;
@@ -77,6 +78,9 @@ export default function RuntimeChecks() {
     }
     if (next.preferredShopWindowMinutes != null) {
       setPreferredShopWindowMinutes(String(next.preferredShopWindowMinutes.value ?? 10));
+    }
+    if (next.zoneCatalogOverridesEnabled != null) {
+      setZoneCatalogOverlaysEnabled(Boolean(next.zoneCatalogOverridesEnabled.value));
     }
   }, [data]);
 
@@ -120,6 +124,7 @@ export default function RuntimeChecks() {
         invoiceAutoChargeRetryGapMs: retryGapMs,
         preferredShopEnabled,
         preferredShopWindowMinutes: windowMins,
+        zoneCatalogOverridesEnabled: zoneCatalogOverlaysEnabled,
       }).unwrap();
       success("Runtime checks saved. They apply without a server restart.");
       refetch();
@@ -252,6 +257,30 @@ export default function RuntimeChecks() {
                 </Field>
               </div>
             )}
+          </DirectoryFormCard>
+
+          <DirectoryFormCard
+            title="Zone catalog overlays"
+            hint="When on, each zone can have its own prices and hidden items. When off, every zone uses the master catalog."
+          >
+            <Notice tone={zoneCatalogOverlaysEnabled ? "warning" : "info"}>
+              {zoneCatalogOverlaysEnabled
+                ? "Overlays are ON. Customers and agents see zone prices. New charges use those prices."
+                : "Overlays are OFF. Zone Catalog edits are saved but apps still show master prices."}
+            </Notice>
+            <div style={{ marginTop: 12 }}>
+              <Toggle
+                checked={zoneCatalogOverlaysEnabled}
+                onChange={(e) => setZoneCatalogOverlaysEnabled(e.target.checked)}
+                label="Zone catalog overlays"
+              />
+            </div>
+            <p className="jd-field__hint" style={{ margin: "8px 0 0" }}>
+              Env fallback ({settings.zoneCatalogOverridesEnabled?.envKey || "ZONE_CATALOG_OVERRIDES"}):{" "}
+              {settings.zoneCatalogOverridesEnabled?.envValue == null
+                ? "not set in .env (defaults off)"
+                : String(settings.zoneCatalogOverridesEnabled.envValue)}
+            </p>
           </DirectoryFormCard>
 
           <Button onClick={handleSave} disabled={saving}>
