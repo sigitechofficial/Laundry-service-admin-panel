@@ -28,6 +28,7 @@ import { canEditOrderFromBooking } from "../../../shared/orderEditStatusGate";
 import useToaster from "../../../components/ui/Toaster";
 import {
   mergeInvoiceDetailsFromResponse,
+  resolveLaundryAdded,
   resolveOrderSubtotal,
   resolveServicesSubtotal,
   splitAdminTips,
@@ -705,6 +706,12 @@ export default function OrderDetailsPage() {
 
   const orderTotal = totalAmount.toFixed(2);
   const paymentSummary = orderData?.paymentSummary;
+  const servicesAddedAmount = resolveLaundryAdded(
+    paymentSummary,
+    servicesSubtotalAmount
+  );
+  const paidAtBookingAmount = toNumber(paymentSummary?.paidAtBooking?.totalPaid);
+  const balanceCollectedAmount = toNumber(paymentSummary?.paidLater?.totalPaid);
   const paymentWaitingAdmin =
     orderData?.paymentDeliveryGate === "waiting_admin" ||
     paymentSummary?.paymentWaitingAdmin === true;
@@ -1295,9 +1302,12 @@ export default function OrderDetailsPage() {
                   Order Items
                 </p>
               </div>
-              <div style={{ paddingLeft: 11.2, paddingRight: 11.2, minHeight: 30, borderRadius: "6px", background: "#ECFDF3", border: "1px solid #86EFAC", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+              <div style={{ paddingLeft: 11.2, paddingRight: 11.2, minHeight: 30, borderRadius: "6px", background: "#ECFDF3", border: "1px solid #86EFAC", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
                 <p style={{ margin: 0, color: "#15803D",  fontWeight: 700, fontSize: 11, lineHeight: 1.1, display: "flex", alignItems: "center" }}>
                   {selectedServiceGroups.length || 0} service(s)
+                </p>
+                <p style={{ margin: 0, color: "#15803D", fontWeight: 700, fontSize: 11, lineHeight: 1.1 }}>
+                  {formatMoney(servicesAddedAmount, paymentCurrencySymbol)}
                 </p>
               </div>
             </div>
@@ -1550,35 +1560,31 @@ export default function OrderDetailsPage() {
 
             <div style={{ padding: 20, borderTop: "1px solid #E4E7EC", background: "#FCFCFD", display: "flex", flexDirection: "column", rowGap: 3.2 }}>
               <div className="flex items-center justify-between" style={{ paddingTop: 7.2, paddingBottom: 7.2 }}>
-                <p style={{ margin: 0, color: "var(--muted)", fontSize: 14 }}>
-                  Services subtotal
-                </p>
-                <p style={{ margin: 0, fontSize: 14 }}>
-                  {formatMoney(servicesSubtotalAmount, paymentCurrencySymbol)}
+                <div>
+                  <p style={{ margin: 0, color: "#0F172A", fontSize: 14, fontWeight: 700 }}>
+                    Services added
+                  </p>
+                  <p style={{ margin: 0, color: "var(--muted)", fontSize: 11, marginTop: 2 }}>
+                    Shop invoice. Agent{" "}
+                    {Number(commercialTerms?.agentCommissionPercent || 80)}% /
+                    platform{" "}
+                    {Number(commercialTerms?.platformCommissionPercent || 20)}%
+                    split uses this amount.
+                  </p>
+                </div>
+                <p style={{ margin: 0, fontSize: 16, fontWeight: 700, color: "#0F172A" }}>
+                  {formatMoney(servicesAddedAmount, paymentCurrencySymbol)}
                 </p>
               </div>
               <div className="flex items-center justify-between" style={{ paddingTop: 7.2, paddingBottom: 7.2 }}>
                 <p style={{ margin: 0, color: "var(--muted)", fontSize: 14 }}>
-                  Minimum Order Fee
-                </p>
-                <p style={{ margin: 0, color: "var(--muted)", fontSize: 14 }}>
-                  -{formatMoney(Math.abs(minimumOrderFeeAmount), paymentCurrencySymbol)}
-                </p>
-              </div>
-              <div className="flex items-center justify-between" style={{ paddingTop: 7.2, paddingBottom: 7.2 }}>
-                <p style={{ margin: 0, color: "var(--muted)", fontSize: 14 }}>
-                  Service Charge
+                  Platform service fee
                 </p>
                 <p style={{ margin: 0, color: "var(--muted)", fontSize: 14 }}>
                   {formatMoney(serviceChargeAmount, paymentCurrencySymbol)}
                 </p>
               </div>
-              <div className="flex items-center justify-between" style={{ paddingTop: 7.2, paddingBottom: 7.2 }}>
-                <p style={{ margin: 0, color: "var(--muted)", fontSize: 14 }}>
-                  Subtotal
-                </p>
-                <p style={{ margin: 0, fontSize: 14 }}>{formatMoney(orderSubtotalAmount, paymentCurrencySymbol)}</p>
-              </div>
+              {deliveryFeeAmount > 0 ? (
               <div className="flex items-center justify-between" style={{ paddingTop: 7.2, paddingBottom: 7.2 }}>
                 <p style={{ margin: 0, color: "var(--muted)", fontSize: 14 }}>
                   Delivery Fee
@@ -1587,6 +1593,8 @@ export default function OrderDetailsPage() {
                   {formatMoney(deliveryFeeAmount, paymentCurrencySymbol)}
                 </p>
               </div>
+              ) : null}
+              {Number(tipAmount) > 0 ? (
               <div className="flex items-center justify-between" style={{ paddingTop: 7.2, paddingBottom: 7.2 }}>
                 <p style={{ margin: 0, color: "var(--muted)", fontSize: 14 }}>
                   Driver Tip
@@ -1595,6 +1603,7 @@ export default function OrderDetailsPage() {
                   {formatMoney(tipAmount, paymentCurrencySymbol)}
                 </p>
               </div>
+              ) : null}
               {Number(extraTipAmount) > 0 ? (
                 <div className="flex items-center justify-between" style={{ paddingTop: 7.2, paddingBottom: 7.2 }}>
                   <p style={{ margin: 0, color: "var(--muted)", fontSize: 14 }}>
@@ -1602,6 +1611,26 @@ export default function OrderDetailsPage() {
                   </p>
                   <p style={{ margin: 0, color: "var(--muted)", fontSize: 14 }}>
                     {formatMoney(extraTipAmount, paymentCurrencySymbol)}
+                  </p>
+                </div>
+              ) : null}
+              {paidAtBookingAmount > 0 ? (
+                <div className="flex items-center justify-between" style={{ paddingTop: 7.2, paddingBottom: 7.2 }}>
+                  <p style={{ margin: 0, color: "var(--muted)", fontSize: 14 }}>
+                    Paid at booking
+                  </p>
+                  <p style={{ margin: 0, color: "var(--muted)", fontSize: 14 }}>
+                    {formatMoney(paidAtBookingAmount, paymentCurrencySymbol)}
+                  </p>
+                </div>
+              ) : null}
+              {balanceCollectedAmount > 0 ? (
+                <div className="flex items-center justify-between" style={{ paddingTop: 7.2, paddingBottom: 7.2 }}>
+                  <p style={{ margin: 0, color: "var(--muted)", fontSize: 14 }}>
+                    Balance collected
+                  </p>
+                  <p style={{ margin: 0, color: "var(--muted)", fontSize: 14 }}>
+                    {formatMoney(balanceCollectedAmount, paymentCurrencySymbol)}
                   </p>
                 </div>
               ) : null}
@@ -1952,6 +1981,15 @@ export default function OrderDetailsPage() {
                 label="Method"
                 value={formatPaymentType(paymentSummary?.paymentType ?? orderData?.paymentType)}
               />
+              <OdMetaRow
+                label="Services added"
+                value={formatMoney(servicesAddedAmount, paymentCurrencySymbol)}
+              />
+              <p style={{ margin: 0, fontSize: 11, color: "#64748B" }}>
+                Shop invoice. Agent {Number(commercialTerms?.agentCommissionPercent || 80)}%
+                / platform {Number(commercialTerms?.platformCommissionPercent || 20)}%
+                is calculated from this.
+              </p>
               {commercialTerms ? (
                 <>
                   <OdMetaRow label="Applied rates" value={appliedRatesLabel} />

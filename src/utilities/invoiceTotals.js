@@ -21,6 +21,20 @@ function sumServicesAndAddOnsFromItems(items = []) {
 }
 
 /**
+ * Laundry the shop invoiced (items + add-ons + repairs). Commission % uses this.
+ * Prefer paymentSummary so a leftover items-sheet total cannot hide the real bill.
+ */
+export function resolveLaundryAdded(paymentSummary, fallback = 0) {
+  const fromSummary = Number(
+    paymentSummary?.orderSummary?.laundrySubtotal ??
+      paymentSummary?.laundrySubtotal
+  );
+  if (Number.isFinite(fromSummary) && fromSummary >= 0) return fromSummary;
+  const n = Number(fallback);
+  return Number.isFinite(n) && n >= 0 ? n : 0;
+}
+
+/**
  * Services + add-ons subtotal (matches backend servicesSubtotal).
  */
 export function resolveServicesSubtotal(source, items = []) {
