@@ -348,21 +348,32 @@
 .addOnList {
   display: flex;
   flex-direction: column;
-  max-height: 280px;
+  max-height: 380px;
   overflow-y: auto;
 }
 
 .addOnRow {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  flex-direction: column;
+  gap: 8px;
   padding: 10px 0;
   border-bottom: 1px solid var(--line);
 }
 
 .addOnRow:last-child {
   border-bottom: none;
+}
+
+.addOnSelect {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  cursor: pointer;
+}
+
+.addOnRowSelected {
+  padding-bottom: 12px;
 }
 
 .addOnPrice {

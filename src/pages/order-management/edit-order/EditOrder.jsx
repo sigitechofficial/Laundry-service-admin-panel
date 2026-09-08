@@ -351,6 +351,7 @@ export default function EditOrder() {
     itemId: null,
     itemName: "",
     selectedIds: [],
+    instructionsById: {},
   });
   const { data: addOnServicesResponse, isLoading: isLoadingAddOnServices } =
     useGetAllAddOnServicesQuery(undefined, {
@@ -1065,12 +1066,16 @@ export default function EditOrder() {
     addOnServicesResponse?.data?.addOnServices || addOnServicesResponse?.data || [];
 
   const handleOpenAddOnModal = (serviceId, item) => {
+    const existing = item.addOnServices || [];
     setAddOnModal({
       open: true,
       serviceId: String(serviceId),
       itemId: item.id,
       itemName: item.itemName || "Item",
-      selectedIds: (item.addOnServices || []).map((a) => a.id),
+      selectedIds: existing.map((a) => a.id),
+      instructionsById: Object.fromEntries(
+        existing.map((a) => [String(a.id), a.instructions || ""])
+      ),
     });
   };
 
@@ -1081,6 +1086,7 @@ export default function EditOrder() {
       itemId: null,
       itemName: "",
       selectedIds: [],
+      instructionsById: {},
     });
   };
 
@@ -1102,13 +1108,26 @@ export default function EditOrder() {
   const handleToggleAddOnSelection = (addOnId) => {
     setAddOnModal((prev) => {
       const hasId = prev.selectedIds.includes(addOnId);
+      const nextInstructions = { ...prev.instructionsById };
+      if (hasId) delete nextInstructions[String(addOnId)];
       return {
         ...prev,
         selectedIds: hasId
           ? prev.selectedIds.filter((id) => id !== addOnId)
           : [...prev.selectedIds, addOnId],
+        instructionsById: nextInstructions,
       };
     });
+  };
+
+  const handleAddOnInstructionChange = (addOnId, value) => {
+    setAddOnModal((prev) => ({
+      ...prev,
+      instructionsById: {
+        ...prev.instructionsById,
+        [String(addOnId)]: value,
+      },
+    }));
   };
 
   const handleApplyAddOns = () => {
@@ -1134,7 +1153,9 @@ export default function EditOrder() {
             name: s.name,
             price: Number(s.price) || 0,
             items: Number(kept?.items) > 0 ? Number(kept.items) : parentQty > 0 ? parentQty : 1,
-            instructions: kept?.instructions || null,
+            instructions:
+              String(addOnModal.instructionsById[String(s.id)] ?? kept?.instructions ?? "").trim() ||
+              null,
           };
         }),
       };
@@ -1773,7 +1794,9 @@ export default function EditOrder() {
         size="md"
       >
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          <p className={styles.addOnHint}>Select add-on services (optional)</p>
+          <p className={styles.addOnHint}>
+            Select add-ons. Tick one to write an instruction, same as the agent app.
+          </p>
 
           {isLoadingAddOnServices ? (
             <div className={styles.centerEmpty} style={{ minHeight: 140 }}>
@@ -1786,19 +1809,35 @@ export default function EditOrder() {
               {addOnServices.map((addOn) => {
                 const checked = addOnModal.selectedIds.includes(addOn.id);
                 return (
-                  <label key={addOn.id} className={styles.addOnRow}>
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={() => handleToggleAddOnSelection(addOn.id)}
-                      />
-                      <span>{addOn.name}</span>
-                    </span>
-                    <p className={styles.addOnPrice}>
-                      +{formatMoney(addOn.price, moneySymbol)}
-                    </p>
-                  </label>
+                  <div
+                    key={addOn.id}
+                    className={`${styles.addOnRow} ${checked ? styles.addOnRowSelected : ""}`}
+                  >
+                    <label className={styles.addOnSelect}>
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => handleToggleAddOnSelection(addOn.id)}
+                        />
+                        <span>{addOn.name}</span>
+                      </span>
+                      <p className={styles.addOnPrice}>
+                        +{formatMoney(addOn.price, moneySymbol)}
+                      </p>
+                    </label>
+                    {checked ? (
+                      <Field label="Instructions">
+                        <Input
+                          value={addOnModal.instructionsById[String(addOn.id)] || ""}
+                          onChange={(e) =>
+                            handleAddOnInstructionChange(addOn.id, e.target.value)
+                          }
+                          placeholder="Write instruction…"
+                        />
+                      </Field>
+                    ) : null}
+                  </div>
                 );
               })}
             </div>
