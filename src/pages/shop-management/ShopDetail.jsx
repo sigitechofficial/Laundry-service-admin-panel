@@ -4,6 +4,7 @@ import {
   Button,
   Field,
   Input,
+  Modal,
   PageHeader,
   Select,
   Table,
@@ -23,10 +24,17 @@ import {
   useGetShopRevenueQuery,
 } from "../../store/services/api";
 import { Delay } from "../../components/shared/Loaders";
+import ZoiperCallButton from "../../components/shared/ZoiperCallButton";
 import useToaster from "../../components/ui/Toaster";
 import DeleteShopModal from "./DeleteShopModal";
 import dayjs from "dayjs";
 import { DATE_TIME_FORMAT, formatDate, formatMoney, resolveCurrencySymbol } from "../../utilities/formatters";
+import {
+  normalizeTel,
+  normalizeWhatsAppDigits,
+  openTel,
+  openWhatsApp,
+} from "../../utilities/contactLinks";
 import {
   DirectoryDotPill,
   DirectoryIdentity,
@@ -191,6 +199,7 @@ export default function ShopDetails() {
     maxActiveOrders: 50,
   });
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [contactModalOpen, setContactModalOpen] = useState(false);
   const [isBlocked, setIsBlocked] = useState(false);
   const [anonymizeModal, setAnonymizeModal] = useState(false);
   const [adminNotes, setAdminNotes] = useState("");
@@ -688,6 +697,11 @@ export default function ShopDetails() {
 
   const ownerName =
     [biz?.firstName, biz?.lastName].filter(Boolean).join(" ") || "—";
+  const shopPhoneRaw =
+    biz?.phoneNum || shop?.phone || shop?.phoneNum || settingsForm.phone || "";
+  const shopTel = normalizeTel(shopPhoneRaw);
+  const shopWhatsApp = normalizeWhatsAppDigits(shopPhoneRaw);
+  const canCallShop = Boolean(shopTel || shopWhatsApp);
   const rawShopStatus = addr?.status ?? shop?.status;
   const hasShopStatus = rawShopStatus != null;
   const shopStatusActive = Boolean(rawShopStatus);
@@ -741,6 +755,14 @@ export default function ShopDetails() {
             >
               Back to shops
             </Button>
+            <Button
+              variant="secondary"
+              disabled={!canCallShop}
+              onClick={() => setContactModalOpen(true)}
+              title={canCallShop ? "Call or message this shop" : "No phone number on file"}
+            >
+              Call shop
+            </Button>
             {shopSettlementPath(id) ? (
               <Button
                 variant="secondary"
@@ -773,6 +795,58 @@ export default function ShopDetails() {
         userType="agent"
         onSuccess={() => navigate("/shop-management/shops")}
       />
+
+      <Modal
+        open={contactModalOpen}
+        title="Call shop"
+        description={shopName}
+        onClose={() => setContactModalOpen(false)}
+        hideFooter
+      >
+        <div style={{ display: "grid", gap: 12 }}>
+          <div
+            style={{
+              border: "1px solid var(--line)",
+              borderRadius: 12,
+              background: "var(--canvas)",
+              padding: 12,
+              color: "var(--ink-2)",
+              fontWeight: 600,
+            }}
+          >
+            {shopPhoneRaw || "No phone number"}
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            <Button
+              variant="primary"
+              disabled={!shopTel}
+              onClick={() => {
+                if (!openTel(shopTel)) return;
+                setContactModalOpen(false);
+              }}
+            >
+              Direct call
+            </Button>
+            <Button
+              variant="secondary"
+              disabled={!shopWhatsApp}
+              onClick={() => {
+                if (!openWhatsApp(shopWhatsApp)) return;
+                setContactModalOpen(false);
+              }}
+            >
+              WhatsApp
+            </Button>
+            <ZoiperCallButton
+              phone={shopTel || shopWhatsApp}
+              onAfterClick={() => setContactModalOpen(false)}
+            />
+            <Button variant="ghost" onClick={() => setContactModalOpen(false)}>
+              Close
+            </Button>
+          </div>
+        </div>
+      </Modal>
 
       <div
         style={{
@@ -821,6 +895,15 @@ export default function ShopDetails() {
             <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
               <MdOutlinePhone size={14} /> {biz?.phoneNum || "—"}
             </span>
+            {canCallShop ? (
+              <button
+                type="button"
+                onClick={() => setContactModalOpen(true)}
+                className="border-0 bg-transparent p-0 text-[13px] font-semibold text-[#2c3ba0] hover:underline"
+              >
+                Call shop
+              </button>
+            ) : null}
             <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
               <MdMailOutline size={14} /> {biz?.email || "—"}
             </span>

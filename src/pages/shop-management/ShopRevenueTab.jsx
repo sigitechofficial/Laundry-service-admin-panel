@@ -65,15 +65,23 @@ function statusTone(status) {
   return "neutral";
 }
 
-function Line({ label, value, hint, strong }) {
+function Line({ label, value, hint, strong, tone }) {
+  const valueColor =
+    tone === "in"
+      ? "#065f46"
+      : tone === "out"
+        ? "#92400e"
+        : tone === "muted"
+          ? "#6b7280"
+          : "#111827";
   return (
     <div
       style={{
         display: "flex",
         justifyContent: "space-between",
         gap: 12,
-        padding: "7px 0",
-        borderBottom: "1px solid #f1f4f8",
+        padding: strong ? "10px 0" : "7px 0",
+        borderBottom: strong ? "1px solid #e6e9f0" : "1px solid #f1f4f8",
         fontWeight: strong ? 700 : 500,
       }}
     >
@@ -83,7 +91,71 @@ function Line({ label, value, hint, strong }) {
           <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>{hint}</div>
         ) : null}
       </div>
-      <div style={{ fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>{value}</div>
+      <div
+        style={{
+          fontVariantNumeric: "tabular-nums",
+          whiteSpace: "nowrap",
+          color: valueColor,
+        }}
+      >
+        {value}
+      </div>
+    </div>
+  );
+}
+
+function SectionTitle({ title, subtitle }) {
+  return (
+    <div style={{ marginBottom: 4 }}>
+      <div
+        style={{
+          fontSize: 11,
+          fontWeight: 700,
+          letterSpacing: "0.06em",
+          textTransform: "uppercase",
+          color: "#6b7280",
+          marginTop: 12,
+        }}
+      >
+        {title}
+      </div>
+      {subtitle ? (
+        <div style={{ fontSize: 12, color: "#9ca3af", marginTop: 2 }}>{subtitle}</div>
+      ) : null}
+    </div>
+  );
+}
+
+function HighlightStat({ label, value, hint, tone = "navy" }) {
+  const bg =
+    tone === "success"
+      ? "#ecfdf5"
+      : tone === "warning"
+        ? "#fffbeb"
+        : "#eef2ff";
+  const border =
+    tone === "success"
+      ? "#a7f3d0"
+      : tone === "warning"
+        ? "#fde68a"
+        : "#c7d2fe";
+  return (
+    <div
+      style={{
+        padding: "12px 14px",
+        borderRadius: 12,
+        background: bg,
+        border: `1px solid ${border}`,
+        marginTop: 10,
+      }}
+    >
+      <div style={{ fontSize: 12, color: "#6b7280", fontWeight: 600 }}>{label}</div>
+      <div style={{ fontSize: 22, fontWeight: 800, marginTop: 4, fontVariantNumeric: "tabular-nums" }}>
+        {value}
+      </div>
+      {hint ? (
+        <div style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>{hint}</div>
+      ) : null}
     </div>
   );
 }
@@ -396,50 +468,89 @@ export default function ShopRevenueTab({ shopId, fallbackSymbol = "£" }) {
         ]}
       />
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 16 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 16 }}>
         <div style={CARD}>
           <strong>Period breakdown</strong>
-          <div style={{ marginTop: 8 }}>
-            <Line label="Laundry / services" value={money(periodTotals.laundrySubtotal, symbol)} />
-            <Line label="Service charge" value={money(periodTotals.serviceCharge, symbol)} />
-            <Line label="Booking tips" value={money(periodTotals.bookingTips, symbol)} />
-            <Line label="Extra tips after delivery" value={money(periodTotals.extraTips, symbol)} />
-            <Line label="Discounts" value={`−${money(periodTotals.discount, symbol)}`} />
-            <Line label="Platform commission" value={`−${money(periodTotals.platformCommission, symbol)}`} />
-            <Line label="Driver pay" value={`−${money(periodTotals.driverEarnings, symbol)}`} />
-            <Line label="Reschedule charges" value={money(periodTotals.rescheduleCharge, symbol)} />
-            <Line label="Card gross" value={money(periodTotals.cardGross, symbol)} />
-            <Line label="Cash gross" value={money(periodTotals.cashGross, symbol)} />
-            <Line
-              label="Cancelled (not revenue)"
-              value={money(periodTotals.cancelledValue, symbol)}
-              hint={`${periodTotals.cancelledOrders || 0} orders`}
-            />
-            <Line label="Open orders in range" value={periodTotals.openOrders ?? 0} />
-            <Line
-              label="Lifetime collected net"
-              value={money(lifetime.shopNet, symbol)}
-              hint={`${lifetime.ordersCompleted || 0} collected orders all-time`}
-            />
-            <Line
-              label="Withdrawn in this range"
-              value={money(periodFinance.withdrawn, symbol)}
-            />
-            <Line
-              label="Payouts released in this range"
-              value={money(periodFinance.payoutsReleased, symbol)}
-            />
-            <Line
-              label="Cash remitted in this range"
-              value={money(periodFinance.cashRemitted, symbol)}
-              strong
-            />
-          </div>
+          <p className="jd-lead" style={{ margin: "6px 0 0" }}>
+            What customers paid in this date range, and how that splits between shop, platform, and drivers.
+          </p>
+
+          <HighlightStat
+            label="Shop net this period"
+            value={money(periodTotals.shopNet, symbol)}
+            hint={deltaHint(vs.shopNetPct) || "After commission & driver pay"}
+            tone="success"
+          />
+
+          <SectionTitle
+            title="Customer paid"
+            subtitle="Gross amounts from collected orders"
+          />
+          <Line label="Laundry / services" value={money(periodTotals.laundrySubtotal, symbol)} tone="in" />
+          <Line label="Service charge" value={money(periodTotals.serviceCharge, symbol)} />
+          <Line label="Booking tips" value={money(periodTotals.bookingTips, symbol)} />
+          <Line label="Extra tips after delivery" value={money(periodTotals.extraTips, symbol)} />
+          <Line label="Card gross" value={money(periodTotals.cardGross, symbol)} />
+          <Line label="Cash gross" value={money(periodTotals.cashGross, symbol)} />
+
+          <SectionTitle
+            title="Taken out"
+            subtitle="Deductions before shop net"
+          />
+          <Line label="Discounts" value={`−${money(periodTotals.discount, symbol)}`} tone="out" />
+          <Line
+            label="Platform commission"
+            value={`−${money(periodTotals.platformCommission, symbol)}`}
+            tone="out"
+          />
+          <Line
+            label="Driver pay"
+            value={`−${money(periodTotals.driverEarnings, symbol)}`}
+            tone="out"
+          />
+
+          <SectionTitle title="Other in this range" />
+          <Line label="Reschedule charges" value={money(periodTotals.rescheduleCharge, symbol)} />
+          <Line
+            label="Cancelled (not revenue)"
+            value={money(periodTotals.cancelledValue, symbol)}
+            hint={`${periodTotals.cancelledOrders || 0} orders`}
+            tone="muted"
+          />
+          <Line
+            label="Open orders still in progress"
+            value={periodTotals.openOrders ?? 0}
+            hint="Not counted in collected revenue yet"
+            tone="muted"
+          />
+
+          <SectionTitle
+            title="Money moved in this range"
+            subtitle="Wallet / settlement activity during the selected dates"
+          />
+          <Line label="Withdrawn" value={money(periodFinance.withdrawn, symbol)} />
+          <Line label="Payouts released" value={money(periodFinance.payoutsReleased, symbol)} />
+          <Line
+            label="Cash remitted"
+            value={money(periodFinance.cashRemitted, symbol)}
+            strong
+          />
+          <Line
+            label="Lifetime collected net"
+            value={money(lifetime.shopNet, symbol)}
+            hint={`${lifetime.ordersCompleted || 0} collected orders all-time`}
+            strong
+          />
         </div>
 
         <div style={CARD}>
           <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-            <strong>Live wallet & settlement</strong>
+            <div>
+              <strong>Live wallet & settlement</strong>
+              <p className="jd-lead" style={{ margin: "6px 0 0" }}>
+                Current balances — not filtered by the period chips above.
+              </p>
+            </div>
             {shopSettlementPath(shopId) ? (
               <Button
                 size="sm"
@@ -451,35 +562,32 @@ export default function ShopRevenueTab({ shopId, fallbackSymbol = "£" }) {
             ) : null}
           </div>
           {balances ? (
-            <div style={{ marginTop: 8 }}>
-              <Line
-                label="Total earnings (lifetime)"
-                value={money(balances.totalEarnings, symbol)}
-                hint={`Cash ${money(balances.totalEarningsCash, symbol)} · Card ${money(balances.totalEarningsCard, symbol)}`}
-                strong
-              />
-              <Line
+            <div>
+              <HighlightStat
                 label="Available to withdraw"
                 value={money(balances.availableWallet, symbol)}
                 hint={
                   lastEvents.lastWithdrawAt
                     ? `Last withdraw ${formatDate(lastEvents.lastWithdrawAt, DATE_TIME_FORMAT)}`
-                    : "No withdrawal yet"
+                    : balances.canWithdraw
+                      ? "Ready for agent withdrawal request"
+                      : "Waiting on Connect / min amount"
                 }
+                tone="success"
+              />
+
+              <SectionTitle title="Earnings" subtitle="Lifetime shop commission" />
+              <Line
+                label="Total earnings"
+                value={money(balances.totalEarnings, symbol)}
+                hint={`Cash ${money(balances.totalEarningsCash, symbol)} · Card ${money(balances.totalEarningsCard, symbol)}`}
                 strong
-              />
-              <Line
-                label="Pending withdrawal"
-                value={money(balances.pendingWithdrawals, symbol)}
-              />
-              <Line
-                label="Withdrawn to bank (lifetime)"
-                value={money(balances.withdrawnToBank, symbol)}
               />
               <Line
                 label="Still owed by platform"
                 value={money(balances.stillOwedByPlatform, symbol)}
                 hint="Card earnings not released to the wallet yet"
+                tone="out"
               />
               <Line
                 label="Released to wallet"
@@ -490,6 +598,15 @@ export default function ShopRevenueTab({ shopId, fallbackSymbol = "£" }) {
                     : "No admin payout yet"
                 }
               />
+
+              <SectionTitle title="Withdrawals" />
+              <Line label="Pending withdrawal" value={money(balances.pendingWithdrawals, symbol)} />
+              <Line
+                label="Withdrawn to bank"
+                value={money(balances.withdrawnToBank, symbol)}
+              />
+
+              <SectionTitle title="Cash with shop" subtitle="Cash orders & remittances" />
               <Line
                 label="Cash still due to platform"
                 value={money(balances.cashDueToPlatform, symbol)}
@@ -504,9 +621,13 @@ export default function ShopRevenueTab({ shopId, fallbackSymbol = "£" }) {
                 value={money(balances.cashPendingRemittance, symbol)}
               />
               <Line label="Cash in till" value={money(balances.cashInTill, symbol)} />
+
+              <SectionTitle title="Payout account" />
               <Line
                 label="Stripe Connect"
                 value={balances.connectAccountConnected ? "Connected" : "Not connected"}
+                tone={balances.connectAccountConnected ? "in" : "out"}
+                strong
               />
             </div>
           ) : (
@@ -523,6 +644,9 @@ export default function ShopRevenueTab({ shopId, fallbackSymbol = "£" }) {
 
       <div style={CARD}>
         <strong>Collected revenue by day</strong>
+        <p className="jd-lead" style={{ margin: "6px 0 0" }}>
+          Daily shop gross from collected orders in the selected period.
+        </p>
         {series.length ? (
           <div style={{ display: "flex", alignItems: "flex-end", gap: 8, height: 160, marginTop: 16, overflowX: "auto" }}>
             {series.map((row) => (
@@ -545,9 +669,21 @@ export default function ShopRevenueTab({ shopId, fallbackSymbol = "£" }) {
             ))}
           </div>
         ) : (
-          <p className="jd-lead" style={{ margin: "12px 0 0" }}>
-            No collected orders in this range.
-          </p>
+          <div
+            style={{
+              marginTop: 16,
+              padding: "28px 16px",
+              borderRadius: 12,
+              background: "#f8fafc",
+              border: "1px dashed #d1d5db",
+              textAlign: "center",
+            }}
+          >
+            <p style={{ margin: 0, fontWeight: 600 }}>No collected orders in this range</p>
+            <p className="jd-lead" style={{ margin: "8px 0 0" }}>
+              Try Last 30 days or All time — only collected (completed) orders appear here.
+            </p>
+          </div>
         )}
       </div>
 
