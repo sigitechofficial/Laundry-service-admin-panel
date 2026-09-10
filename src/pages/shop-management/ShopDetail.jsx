@@ -309,10 +309,21 @@ export default function ShopDetails() {
     .filter(Boolean)
     .join(", ");
 
-  const totalRevenue = orders.reduce(
-    (sum, o) => sum + Number(o?.orderAmount ?? o?.billingDetail?.total ?? 0),
-    0
-  );
+  const totalRevenue = orders.reduce((sum, o) => {
+    const statusId = Number(o?.bookingStatusId ?? o?.bookingStatus?.id);
+    if (statusId === 19 || statusId === 21) return sum;
+    const title = String(o?.bookingStatus?.title || "").toLowerCase();
+    if (title.includes("cancel") || title.includes("refund")) return sum;
+    const collected =
+      statusId === 16 ||
+      statusId === 17 ||
+      title.includes("complete") ||
+      title.includes("out for delivery");
+    if (!collected) return sum;
+    const gross = Number(o?.billingDetail?.total ?? o?.orderAmount ?? 0);
+    const refunded = Number(o?.refunds?.totalRefunded ?? 0);
+    return sum + Math.max(0, gross - refunded);
+  }, 0);
   const completedOrders = orders.filter((o) =>
     String(o?.bookingStatus?.title || "")
       .toLowerCase()
