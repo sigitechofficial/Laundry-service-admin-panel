@@ -20,6 +20,7 @@ import {
   useGetAllEmployeesWithShopInfoQuery,
   useEditShopMutation,
   useGetShopReviewsQuery,
+  useGetShopRevenueQuery,
 } from "../../store/services/api";
 import { Delay } from "../../components/shared/Loaders";
 import useToaster from "../../components/ui/Toaster";
@@ -37,6 +38,8 @@ import {
 import { directoryStatusTone, joinMeta } from "../directory-table/directoryTableUtils";
 import { BlockUserButton, AnonymizeDeleteModal } from "../user-management/UserBlockActions";
 import ShopRoutingPolicyCard from "./ShopRoutingPolicyCard";
+import ShopRevenueTab from "./ShopRevenueTab";
+import { shopSettlementPath } from "../reports/reportUi";
 
 const CARD = {
   padding: 16,
@@ -95,6 +98,7 @@ const DELIVERY_OPTIONS = [
 const TABS = [
   { value: "overview", label: "Overview" },
   { value: "orders", label: "Orders" },
+  { value: "revenue", label: "Revenue" },
   { value: "reviews", label: "Reviews" },
   { value: "staff", label: "Staff" },
   { value: "documents", label: "Documents" },
@@ -210,6 +214,10 @@ export default function ShopDetails() {
   const { data: shopResponse, isLoading, isError, refetch } = useGetShopDetailsQuery(id, {
     skip: !id,
   });
+  const { data: revenueSnapshot } = useGetShopRevenueQuery(
+    { shopId: id, period: "all", page: 1, limit: 1 },
+    { skip: !id }
+  );
   const { data: employeesResponse } = useGetAllEmployeesWithShopInfoQuery();
   const [editShop, { isLoading: isSavingSettings }] = useEditShopMutation();
 
@@ -699,7 +707,7 @@ export default function ShopDetails() {
       <div>
         <PageHeader
           title="Shop details"
-          description="Shop profile, orders, staff, reviews, and settings"
+          description="Shop profile, orders, revenue, staff, reviews, and settings"
         />
         <div style={{ textAlign: "center", padding: 28 }}>
           <p className="jd-lead" style={{ margin: "0 0 12px" }}>
@@ -724,7 +732,7 @@ export default function ShopDetails() {
     <div>
       <PageHeader
         title={shopName}
-        description="Shop profile, orders, staff, reviews, and settings"
+        description="Shop profile, orders, revenue, staff, reviews, and settings"
         actions={
           <>
             <Button
@@ -733,6 +741,14 @@ export default function ShopDetails() {
             >
               Back to shops
             </Button>
+            {shopSettlementPath(id) ? (
+              <Button
+                variant="secondary"
+                onClick={() => navigate(shopSettlementPath(id))}
+              >
+                Cash settlement
+              </Button>
+            ) : null}
             <BlockUserButton
               userId={biz?.id}
               userType="agent"
@@ -822,7 +838,17 @@ export default function ShopDetails() {
           },
           { label: "Orders", value: orders.length, tone: "brand" },
           { label: "Pending", value: pendingOrdersCount, tone: "warning" },
-          { label: "Revenue", value: formatMoney(totalRevenue, shopCurrencySymbol), tone: "navy" },
+          {
+            label: "Revenue",
+            value: formatMoney(
+              revenueSnapshot?.data?.period?.grossRevenue ?? totalRevenue,
+              shopCurrencySymbol
+            ),
+            tone: "navy",
+            hint: revenueSnapshot?.data?.period
+              ? `${revenueSnapshot.data.period.ordersCompleted || 0} collected · open Revenue for periods`
+              : "Open Revenue for 7d / 30d / monthly",
+          },
           { label: "Completion", value: `${completionRate}%`, tone: "success" },
         ]}
       />
@@ -1020,6 +1046,10 @@ export default function ShopDetails() {
             />
           </DirectoryTableWrap>
         </div>
+      )}
+
+      {activeTab === "revenue" && (
+        <ShopRevenueTab shopId={id} fallbackSymbol={shopCurrencySymbol} />
       )}
 
       {activeTab === "reviews" && (

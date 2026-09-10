@@ -10,10 +10,12 @@ import {
 import { useNavigate, useParams } from "react-router-dom";
 import { useEditCustomerMutation, useGetCustomerByIdQuery } from "../../../store/services/api";
 import { Delay } from "../../../components/shared/Loaders";
+import ZoiperCallButton from "../../../components/shared/ZoiperCallButton";
 import useToaster from "../../../components/ui/Toaster";
 import { getApiErrorMessage } from "../../../store/services/apiErrors";
 import DeleteOrderModal from "../../order-management/order-modals/DeleteOrderModal";
 import { formatDate, formatMoney, resolveCurrencySymbol } from "../../../utilities/formatters";
+import { openTel, openWhatsApp } from "../../../utilities/contactLinks";
 import {
   DirectoryActionDelete,
   DirectoryActions,
@@ -186,14 +188,12 @@ export default function CustomerDetails() {
   };
 
   const handleDirectCall = () => {
-    if (!normalizedTel) return;
-    window.location.href = `tel:${normalizedTel}`;
+    if (!openTel(normalizedTel)) return;
     setContactModal(false);
   };
 
   const handleWhatsAppCall = () => {
-    if (!normalizedWhatsApp) return;
-    window.open(`https://wa.me/${normalizedWhatsApp}`, "_blank", "noopener,noreferrer");
+    if (!openWhatsApp(normalizedWhatsApp)) return;
     setContactModal(false);
   };
 
@@ -566,6 +566,10 @@ export default function CustomerDetails() {
             >
               WhatsApp
             </Button>
+            <ZoiperCallButton
+              phone={normalizedTel || normalizedWhatsApp}
+              onAfterClick={() => setContactModal(false)}
+            />
             <Button variant="ghost" onClick={() => setContactModal(false)}>
               Close
             </Button>

@@ -3,6 +3,11 @@ import { useNavigate, useParams } from "react-router-dom";
 import { Badge, Button, Modal, PageHeader, Select } from "../../../design-system";
 import dayjs from "dayjs";
 import { Delay } from "../../../components/shared/Loaders";
+import ZoiperCallButton from "../../../components/shared/ZoiperCallButton";
+import {
+  openTel,
+  openWhatsApp,
+} from "../../../utilities/contactLinks";
 import {
   TbChevronLeft,
   TbChevronRight,
@@ -776,14 +781,12 @@ export default function OrderDetailsPage() {
   };
 
   const handleDirectCall = () => {
-    if (!activeContact?.tel) return;
-    window.location.href = `tel:${activeContact.tel}`;
+    if (!openTel(activeContact?.tel)) return;
     setContactModal(null);
   };
 
   const handleWhatsAppCall = () => {
-    if (!activeContact?.whatsapp) return;
-    window.open(`https://wa.me/${activeContact.whatsapp}`, "_blank", "noopener,noreferrer");
+    if (!openWhatsApp(activeContact?.whatsapp)) return;
     setContactModal(null);
   };
 
@@ -2430,6 +2433,10 @@ export default function OrderDetailsPage() {
           >
             WhatsApp
           </Button>
+          <ZoiperCallButton
+            phone={activeContact?.tel || activeContact?.whatsapp}
+            onAfterClick={() => setContactModal(null)}
+          />
           <Button variant="ghost" onClick={() => setContactModal(null)}>
             Close
           </Button>

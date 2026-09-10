@@ -779,6 +779,15 @@ export const api = createApi({
       }),
     }),
 
+    getShopRevenue: builder.query({
+      query: ({ shopId, period, startDate, endDate, page, limit } = {}) => ({
+        url: `admin/singleShopData/${shopId}/revenue`,
+        method: "GET",
+        params: { period, startDate, endDate, page, limit },
+      }),
+      providesTags: ["AgentSettlement"],
+    }),
+
     getShopAssignmentPolicy: builder.query({
       query: (shopUserId) => ({
         url: `admin/shopAssignmentPolicy/${shopUserId}`,
@@ -848,16 +857,74 @@ export const api = createApi({
       providesTags: ["AgentSettlement"],
     }),
 
-    getAgentSettlement: builder.query({
-      query: (agentId) => ({
-        url: `admin/agents/${agentId}/settlement`,
+    getPendingWithdrawals: builder.query({
+      query: (params = {}) => ({
+        url: "admin/agents/withdrawals/pending",
+        method: "GET",
+        params,
+      }),
+      providesTags: ["AgentSettlement"],
+    }),
+
+    approveWithdrawal: builder.mutation({
+      query: ({ withdrawalId, body }) => ({
+        url: `admin/agents/withdrawals/${withdrawalId}/approve`,
+        method: "PATCH",
+        body,
+      }),
+      invalidatesTags: ["AgentSettlement"],
+    }),
+
+    rejectWithdrawal: builder.mutation({
+      query: ({ withdrawalId, body }) => ({
+        url: `admin/agents/withdrawals/${withdrawalId}/reject`,
+        method: "PATCH",
+        body,
+      }),
+      invalidatesTags: ["AgentSettlement"],
+    }),
+
+    getShopPayoutAccount: builder.query({
+      query: (shopId) => ({
+        url: `admin/shops/${shopId}/payout-account`,
         method: "GET",
       }),
       providesTags: ["AgentSettlement"],
     }),
 
+    ensureShopPayoutAccount: builder.mutation({
+      query: (shopId) => ({
+        url: `admin/shops/${shopId}/payout-account/ensure`,
+        method: "POST",
+      }),
+      invalidatesTags: ["AgentSettlement"],
+    }),
+
+    createShopPayoutOnboardingLink: builder.mutation({
+      query: (shopId) => ({
+        url: `admin/shops/${shopId}/payout-account/onboarding-link`,
+        method: "POST",
+      }),
+      invalidatesTags: ["AgentSettlement"],
+    }),
+
+    getAgentSettlement: builder.query({
+      query: (idOrArgs) => {
+        const shopId = idOrArgs?.shopId;
+        const agentId = idOrArgs?.agentId ?? idOrArgs;
+        return {
+          url: shopId
+            ? `admin/shops/${shopId}/settlement`
+            : `admin/agents/${agentId}/settlement`,
+          method: "GET",
+        };
+      },
+      providesTags: ["AgentSettlement"],
+    }),
+
     getAgentSettlementDetail: builder.query({
       query: ({
+        shopId,
         agentId,
         ordersPage,
         ordersLimit,
@@ -866,7 +933,9 @@ export const api = createApi({
         ledgerRail,
         ledgerType,
       } = {}) => ({
-        url: `admin/agents/${agentId}/settlement-detail`,
+        url: shopId
+          ? `admin/shops/${shopId}/settlement-detail`
+          : `admin/agents/${agentId}/settlement-detail`,
         method: "GET",
         params: {
           ordersPage,
@@ -972,8 +1041,10 @@ export const api = createApi({
     }),
 
     recordCashSettlement: builder.mutation({
-      query: ({ agentId, body }) => ({
-        url: `admin/agents/${agentId}/cash-settlement`,
+      query: ({ shopId, agentId, body }) => ({
+        url: shopId
+          ? `admin/shops/${shopId}/cash-settlement`
+          : `admin/agents/${agentId}/cash-settlement`,
         method: "POST",
         body,
       }),
@@ -981,8 +1052,10 @@ export const api = createApi({
     }),
 
     recordAgentPayout: builder.mutation({
-      query: ({ agentId, body }) => ({
-        url: `admin/agents/${agentId}/payout`,
+      query: ({ shopId, agentId, body }) => ({
+        url: shopId
+          ? `admin/shops/${shopId}/payout`
+          : `admin/agents/${agentId}/payout`,
         method: "POST",
         body,
       }),
@@ -990,8 +1063,10 @@ export const api = createApi({
     }),
 
     recordSettlementAdjustment: builder.mutation({
-      query: ({ agentId, body }) => ({
-        url: `admin/agents/${agentId}/settlement-adjustment`,
+      query: ({ shopId, agentId, body }) => ({
+        url: shopId
+          ? `admin/shops/${shopId}/settlement-adjustment`
+          : `admin/agents/${agentId}/settlement-adjustment`,
         method: "POST",
         body,
       }),
@@ -2173,11 +2248,18 @@ export const {
   useGetAllOrderStatusesQuery,
   useGetShopsDataQuery,
   useGetShopDetailsQuery,
+  useGetShopRevenueQuery,
   useGetPendingAgentsQuery,
   useGetRejectedAgentsQuery,
   useUpdateAgentApprovalMutation,
   useGetAgentsCashDueQuery,
   useGetPendingRemittancesQuery,
+  useGetPendingWithdrawalsQuery,
+  useApproveWithdrawalMutation,
+  useRejectWithdrawalMutation,
+  useGetShopPayoutAccountQuery,
+  useEnsureShopPayoutAccountMutation,
+  useCreateShopPayoutOnboardingLinkMutation,
   useGetAgentSettlementQuery,
   useGetAgentSettlementDetailQuery,
   useGetNotifyLogsQuery,

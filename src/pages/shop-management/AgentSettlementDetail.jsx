@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Button, Field, Input, Modal, PageHeader, Table, Textarea } from "../../design-system";
 import { Delay } from "../../components/shared/Loaders";
@@ -17,6 +17,8 @@ import {
   useRecordCashSettlementMutation,
 } from "../../store/services/api";
 import { getApiErrorMessage } from "../../store/services/apiErrors";
+import { shopDetailPath, shopSettlementPath } from "../reports/reportUi";
+import ShopPayoutAccountCard from "./ShopPayoutAccountCard";
 
 const CARD = {
   padding: 20,
@@ -91,10 +93,10 @@ function Line({ label, value, hint, strong, tone }) {
 }
 
 export default function AgentSettlementDetail() {
-  const { agentId } = useParams();
+  const { id: shopId } = useParams();
   const navigate = useNavigate();
   const { success, error: toastError } = useToaster();
-  const [tab, setTab] = useState("activity");
+  const [tab, setTab] = useState("statement");
   const [ordersPage, setOrdersPage] = useState(1);
   const [ledgerPage, setLedgerPage] = useState(1);
   const [ledgerRail, setLedgerRail] = useState("");
@@ -102,14 +104,14 @@ export default function AgentSettlementDetail() {
 
   const { data, isLoading, isError, error: loadError, refetch } = useGetAgentSettlementDetailQuery(
     {
-      agentId,
+      shopId,
       ordersPage,
       ordersLimit: 20,
       ledgerPage,
       ledgerLimit: 20,
       ledgerRail: ledgerRail || undefined,
     },
-    { skip: !agentId }
+    { skip: !shopId }
   );
   const [recordCash, { isLoading: recordingCash }] = useRecordCashSettlementMutation();
   const [recordPayout, { isLoading: recordingPayout }] = useRecordAgentPayoutMutation();
@@ -117,6 +119,7 @@ export default function AgentSettlementDetail() {
   const detail = data?.data;
   const agent = detail?.agent || {};
   const shop = detail?.shop || {};
+  const canonicalShopId = detail?.identity?.shopId ?? shop.id;
   const summary = useMemo(() => detail?.summary || {}, [detail]);
   const rails = summary.rails || {};
   const cashRail = rails.cashFromAgent || {};
@@ -126,8 +129,15 @@ export default function AgentSettlementDetail() {
   const ordersPagination = detail?.ordersPagination || {};
   const ledger = detail?.ledger || [];
   const ledgerPagination = detail?.ledgerPagination || {};
+  const statement = detail?.statement || {};
   const activity = detail?.recentActivity || [];
   const formulas = detail?.formulas || {};
+
+  useEffect(() => {
+    const canonical = shopSettlementPath(canonicalShopId);
+    if (!canonical || !shopId || String(canonicalShopId) === String(shopId)) return;
+    navigate(canonical, { replace: true });
+  }, [canonicalShopId, navigate, shopId]);
 
   const ordersTableData = useMemo(
     () => orders.map((row, index) => ({ ...row, rowKey: `order-${row.bookingId}-${index}` })),
@@ -242,24 +252,79 @@ export default function AgentSettlementDetail() {
       },
       {
         key: "label",
-        header: "What happened",
+        header: "Transaction",
         render: (row) => (
-          <DirectoryDotPill tone={LEDGER_TONE[row.referenceType] || "neutral"}>
-            {row.label}
-          </DirectoryDotPill>
+          <div>
+            <DirectoryDotPill tone={LEDGER_TONE[row.referenceType] || "neutral"}>
+              {row.label}
+            </DirectoryDotPill>
+            {row.description ? (
+              <div style={{ marginTop: 4, fontSize: 11, color: "#6b7280" }}>{row.description}</div>
+            ) : null}
+          </div>
         ),
       },
       {
-        key: "amount",
-        header: "Amount",
+        key: "moneyIn",
+        header: "Money in",
+        render: (row) =>
+          Number(row.moneyIn || 0) > 0 ? (
+            <DirectoryMoney>
+              <span style={{ color: "#1a8f5e" }}>
+                {money(row.moneyIn, { ...summary, currency: row.currency || summary.currency })}
+              </span>
+            </DirectoryMoney>
+          ) : (
+            "—"
+          ),
+      },
+      {
+        key: "moneyOut",
+        header: "Money out",
+        render: (row) =>
+          Number(row.moneyOut || 0) > 0 ? (
+            <DirectoryMoney>
+              <span style={{ color: "#c9403f" }}>
+                {money(row.moneyOut, { ...summary, currency: row.currency || summary.currency })}
+              </span>
+            </DirectoryMoney>
+          ) : (
+            "—"
+          ),
+      },
+      {
+        key: "balanceBefore",
+        header: "Balance before",
         render: (row) => (
           <DirectoryMoney>
-            <span style={{ color: row.type === "credit" ? "#1a8f5e" : "#c9403f" }}>
-              {row.type === "credit" ? "+" : "−"}
-              {money(row.amount, { ...summary, currency: row.currency || summary.currency })}
-            </span>
+            {money(row.balanceBefore ?? row.settlementBalanceBefore, {
+              ...summary,
+              currency: row.currency || summary.currency,
+            })}
           </DirectoryMoney>
         ),
+      },
+      {
+        key: "balanceAfter",
+        header: "Balance after",
+        render: (row) => {
+          const after = Number(row.balanceAfter ?? row.settlementBalanceAfter || 0);
+          return (
+            <DirectoryMoney>
+              <span style={{ color: after < 0 ? "#92400e" : after > 0 ? "#065f46" : "#111827", fontWeight: 700 }}>
+                {money(after, { ...summary, currency: row.currency || summary.currency })}
+              </span>
+              {row.walletBalanceAfter != null ? (
+                <span style={{ display: "block", fontSize: 11, color: "#6b7280", fontWeight: 500 }}>
+                  Wallet {money(row.walletBalanceAfter, {
+                    ...summary,
+                    currency: row.currency || summary.currency,
+                  })}
+                </span>
+              ) : null}
+            </DirectoryMoney>
+          );
+        },
       },
       {
         key: "status",
@@ -286,21 +351,6 @@ export default function AgentSettlementDetail() {
             "—"
           ),
       },
-      {
-        key: "description",
-        header: "Note / transfer",
-        render: (row) => (
-          <div style={{ fontSize: 12, color: "#4b5563" }}>
-            <div>{row.description || "—"}</div>
-            {row.stripeTransferId ? (
-              <div style={{ marginTop: 2, fontFamily: "ui-monospace, monospace" }}>{row.stripeTransferId}</div>
-            ) : null}
-            {row.failureReason ? (
-              <div style={{ marginTop: 2, color: "#c9403f" }}>{row.failureReason}</div>
-            ) : null}
-          </div>
-        ),
-      },
     ],
     [navigate, summary]
   );
@@ -318,18 +368,22 @@ export default function AgentSettlementDetail() {
       return;
     }
     try {
+      if (!canonicalShopId) {
+        toastError("This settlement has no shop id");
+        return;
+      }
       if (action.type === "cash") {
         await recordCash({
-          agentId,
+          shopId: canonicalShopId,
           body: { amount, note: action.note || undefined },
         }).unwrap();
-        success(`Recorded ${money(amount, summary)} cash received from this agent`);
+        success(`Recorded ${money(amount, summary)} cash received from this shop`);
       } else {
         await recordPayout({
-          agentId,
+          shopId: canonicalShopId,
           body: { amount, note: action.note || undefined },
         }).unwrap();
-        success(`Released ${money(amount, summary)} to the agent wallet`);
+        success(`Released ${money(amount, summary)} to the shop owner wallet`);
       }
       setAction({ open: false, type: null, amount: "", note: "" });
     } catch (err) {
@@ -343,7 +397,7 @@ export default function AgentSettlementDetail() {
     return (
       <div style={{ textAlign: "center", padding: 28 }}>
         <p className="jd-lead" style={{ margin: "0 0 12px" }}>
-          Could not load this agent&apos;s settlement.
+          Could not load this shop&apos;s settlement.
         </p>
         <p className="jd-lead" style={{ margin: "0 0 12px", fontSize: 13 }}>
           {getApiErrorMessage(loadError, "The settlement API failed. Retry, or go back to the list.")}
@@ -359,12 +413,20 @@ export default function AgentSettlementDetail() {
     <div>
       <PageHeader
         title={shop.name || agent.name || "Agent settlement"}
-        description="Two money rails: cash we still collect from the agent, and card earnings we still owe them. Recording cash or a payout zeroes the live balance — the history below keeps the trail."
+        description="Bank-statement settlement: cash collected, payments received, withdrawals, and balance before & after each transaction. Recording cash or a payout updates the live rails — history stays on the Statement tab."
         actions={
           <>
             <Button variant="secondary" onClick={() => navigate("/shop-management/agent-settlement")}>
               Back
             </Button>
+            {shopDetailPath(canonicalShopId) ? (
+              <Button
+                variant="secondary"
+                onClick={() => navigate(shopDetailPath(canonicalShopId))}
+              >
+                Shop profile
+              </Button>
+            ) : null}
             <Button
               variant="secondary"
               disabled={cashDue <= 0}
@@ -388,13 +450,15 @@ export default function AgentSettlementDetail() {
 
       <div style={{ ...CARD, marginBottom: 16, display: "flex", flexWrap: "wrap", gap: 24, justifyContent: "space-between" }}>
         <div>
-          <p style={{ margin: "0 0 4px", fontWeight: 700, fontSize: 15 }}>{agent.name || "—"}</p>
-          <p style={{ margin: 0, fontSize: 13, color: "#5c6673" }}>{agent.email || "—"}</p>
-          <p style={{ margin: 0, fontSize: 13, color: "#5c6673" }}>{agent.phone || "—"}</p>
+          <p style={{ margin: "0 0 4px", fontWeight: 700, fontSize: 15 }}>{shop.name || "Shop"}</p>
+          <p style={{ margin: 0, fontSize: 13, color: "#5c6673" }}>Shop #{canonicalShopId || shop.id || "—"}</p>
+          <p style={{ margin: 0, fontSize: 13, color: "#5c6673" }}>{shop.address || "—"}</p>
         </div>
         <div>
-          <p style={{ margin: "0 0 4px", fontWeight: 700, fontSize: 15 }}>{shop.name || "Shop"}</p>
-          <p style={{ margin: 0, fontSize: 13, color: "#5c6673" }}>{shop.address || "—"}</p>
+          <p style={{ margin: "0 0 4px", fontWeight: 700, fontSize: 15 }}>{agent.name || "—"}</p>
+          <p style={{ margin: 0, fontSize: 13, color: "#5c6673" }}>Owner #{agent.id || "—"}</p>
+          <p style={{ margin: 0, fontSize: 13, color: "#5c6673" }}>{agent.email || "—"}</p>
+          <p style={{ margin: 0, fontSize: 13, color: "#5c6673" }}>{agent.phone || "—"}</p>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-start" }}>
           <DirectoryStatusPill
@@ -409,6 +473,8 @@ export default function AgentSettlementDetail() {
           </DirectoryDotPill>
         </div>
       </div>
+
+      <ShopPayoutAccountCard shopId={canonicalShopId} />
 
       <div
         style={{
@@ -511,6 +577,50 @@ export default function AgentSettlementDetail() {
 
       <div style={{ ...CARD, marginBottom: 16 }}>
         <p style={{ margin: "0 0 8px", fontSize: 11, fontWeight: 700, letterSpacing: "0.04em", color: "#64748b", textTransform: "uppercase" }}>
+          Cash payment flow
+        </p>
+        <p style={{ margin: 0, fontSize: 13, color: "#4b5563", lineHeight: 1.55 }}>
+          {formulas.cashPaymentFlow ||
+            "Cash COD: invoice → proceed unpaid → deliver → recordCashPayment → cash_collected + commission → agent remits / admin records cash received."}
+        </p>
+        <div
+          style={{
+            marginTop: 12,
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+            gap: 12,
+          }}
+        >
+          <div>
+            <div style={{ fontSize: 12, color: "#6b7280" }}>Cash collected from customers</div>
+            <div style={{ fontWeight: 700 }}>
+              {money(statement.cashCollectedFromCustomers ?? summary.totalCashCollected, summary)}
+            </div>
+          </div>
+          <div>
+            <div style={{ fontSize: 12, color: "#6b7280" }}>Payments received (remitted)</div>
+            <div style={{ fontWeight: 700, color: "#1a8f5e" }}>
+              {money(statement.paymentsReceived ?? summary.totalCashRemitted, summary)}
+            </div>
+          </div>
+          <div>
+            <div style={{ fontSize: 12, color: "#6b7280" }}>Withdrawals to bank</div>
+            <div style={{ fontWeight: 700, color: "#c9403f" }}>
+              {money(statement.withdrawals ?? summary.totalWithdrawn, summary)}
+            </div>
+          </div>
+          <div>
+            <div style={{ fontSize: 12, color: "#6b7280" }}>Live settlement balance</div>
+            <div style={{ fontWeight: 700 }}>
+              {money(statement.lifetimeSettlementBalance ?? summary.balance ?? summary.netSettlement, summary)}
+            </div>
+            <div style={{ fontSize: 11, color: "#6b7280" }}>Negative = cash still due</div>
+          </div>
+        </div>
+      </div>
+
+      <div style={{ ...CARD, marginBottom: 16 }}>
+        <p style={{ margin: "0 0 8px", fontSize: 11, fontWeight: 700, letterSpacing: "0.04em", color: "#64748b", textTransform: "uppercase" }}>
           Refund impact on this agent
         </p>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12 }}>
@@ -537,21 +647,102 @@ export default function AgentSettlementDetail() {
       </div>
 
       <div style={TAB_ROW}>
+        <Button size="sm" variant={tab === "statement" ? "primary" : "secondary"} onClick={() => setTab("statement")}>
+          Statement {ledgerPagination.total ? `(${ledgerPagination.total})` : ""}
+        </Button>
         <Button size="sm" variant={tab === "activity" ? "primary" : "secondary"} onClick={() => setTab("activity")}>
           Recent activity
         </Button>
         <Button size="sm" variant={tab === "orders" ? "primary" : "secondary"} onClick={() => setTab("orders")}>
           Orders {ordersPagination.total ? `(${ordersPagination.total})` : ""}
         </Button>
-        <Button size="sm" variant={tab === "ledger" ? "primary" : "secondary"} onClick={() => setTab("ledger")}>
-          Full ledger {ledgerPagination.total ? `(${ledgerPagination.total})` : ""}
-        </Button>
       </div>
+
+      {tab === "statement" ? (
+        <>
+          <div
+            style={{
+              ...CARD,
+              marginBottom: 12,
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+              gap: 12,
+            }}
+          >
+            <div>
+              <div style={{ fontSize: 12, color: "#6b7280" }}>Page opening balance</div>
+              <div style={{ fontWeight: 700 }}>{money(statement.openingBalance, summary)}</div>
+            </div>
+            <div>
+              <div style={{ fontSize: 12, color: "#6b7280" }}>Page closing balance</div>
+              <div style={{ fontWeight: 700 }}>{money(statement.closingBalance, summary)}</div>
+            </div>
+            <div>
+              <div style={{ fontSize: 12, color: "#6b7280" }}>Payments received</div>
+              <div style={{ fontWeight: 700, color: "#1a8f5e" }}>
+                {money(statement.paymentsReceived, summary)}
+              </div>
+            </div>
+            <div>
+              <div style={{ fontSize: 12, color: "#6b7280" }}>Withdrawals</div>
+              <div style={{ fontWeight: 700, color: "#c9403f" }}>
+                {money(statement.withdrawals, summary)}
+              </div>
+            </div>
+          </div>
+          <p className="jd-lead" style={{ margin: "0 0 12px" }}>
+            {formulas.statement ||
+              "Bank statement: money in / money out with settlement balance before and after each transaction. Newest first."}
+          </p>
+          <div style={{ ...TAB_ROW, marginTop: 0 }}>
+            {[
+              ["", "All"],
+              ["cash", "Cash rail"],
+              ["payable", "Payable / withdrawals"],
+              ["refunds", "Refunds"],
+            ].map(([value, label]) => (
+              <Button
+                key={value || "all"}
+                size="sm"
+                variant={ledgerRail === value ? "primary" : "secondary"}
+                onClick={() => {
+                  setLedgerRail(value);
+                  setLedgerPage(1);
+                }}
+              >
+                {label}
+              </Button>
+            ))}
+          </div>
+          <DirectoryTableWrap
+            footer={
+              <div style={PAGE_ROW}>
+                <p className="jd-lead" style={{ margin: 0 }}>
+                  Page {ledgerPage} of {ledgerTotalPages} ({ledgerPagination.total || 0} entries)
+                </p>
+                <Button variant="secondary" size="sm" disabled={ledgerPage <= 1} onClick={() => setLedgerPage((p) => Math.max(1, p - 1))}>
+                  Previous
+                </Button>
+                <Button variant="secondary" size="sm" disabled={ledgerPage >= ledgerTotalPages} onClick={() => setLedgerPage((p) => p + 1)}>
+                  Next
+                </Button>
+              </div>
+            }
+          >
+            <Table
+              columns={ledgerColumns}
+              rows={ledgerTableData}
+              rowKey={(row) => row.rowKey}
+              empty="No wallet transactions yet"
+            />
+          </DirectoryTableWrap>
+        </>
+      ) : null}
 
       {tab === "activity" ? (
         <div style={CARD}>
           <p style={{ margin: "0 0 12px", fontSize: 13, color: "#4b5563" }}>
-            Latest remittances, payouts, withdrawals, and refund clawbacks. After you record cash the live due becomes £0 — this list is the proof it was sent.
+            Latest cash collections, remittances, payouts, withdrawals, and refund clawbacks.
           </p>
           {activity.length === 0 ? (
             <p className="jd-lead" style={{ margin: 0 }}>
@@ -611,48 +802,6 @@ export default function AgentSettlementDetail() {
         >
           <Table columns={orderColumns} rows={ordersTableData} rowKey={(row) => row.rowKey} empty="No paid orders yet" />
         </DirectoryTableWrap>
-      ) : null}
-
-      {tab === "ledger" ? (
-        <>
-          <div style={{ ...TAB_ROW, marginTop: 0 }}>
-            {[
-              ["", "All"],
-              ["cash", "Cash rail"],
-              ["payable", "Payable / payouts"],
-              ["refunds", "Refunds"],
-            ].map(([value, label]) => (
-              <Button
-                key={value || "all"}
-                size="sm"
-                variant={ledgerRail === value ? "primary" : "secondary"}
-                onClick={() => {
-                  setLedgerRail(value);
-                  setLedgerPage(1);
-                }}
-              >
-                {label}
-              </Button>
-            ))}
-          </div>
-          <DirectoryTableWrap
-            footer={
-              <div style={PAGE_ROW}>
-                <p className="jd-lead" style={{ margin: 0 }}>
-                  Page {ledgerPage} of {ledgerTotalPages} ({ledgerPagination.total || 0} entries)
-                </p>
-                <Button variant="secondary" size="sm" disabled={ledgerPage <= 1} onClick={() => setLedgerPage((p) => Math.max(1, p - 1))}>
-                  Previous
-                </Button>
-                <Button variant="secondary" size="sm" disabled={ledgerPage >= ledgerTotalPages} onClick={() => setLedgerPage((p) => p + 1)}>
-                  Next
-                </Button>
-              </div>
-            }
-          >
-            <Table columns={ledgerColumns} rows={ledgerTableData} rowKey={(row) => row.rowKey} empty="No wallet activity in this filter" />
-          </DirectoryTableWrap>
-        </>
       ) : null}
 
       <Modal

@@ -1,6 +1,13 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import ZoiperCallButton from "../../components/shared/ZoiperCallButton";
 import { Button, Modal } from "../../design-system";
+import {
+  normalizeTel,
+  normalizeWhatsAppDigits,
+  openTel,
+  openWhatsApp,
+} from "../../utilities/contactLinks";
 import { formatDate } from "../../utilities/formatters";
 import styles from "./orderList.module.css";
 
@@ -146,12 +153,9 @@ export function CustomerNamePhone({ name, phone, title, nameTo }) {
 
   const { telPhone, whatsappPhone } = useMemo(() => {
     const raw = String(displayPhone || "");
-    const trimmed = raw.trim();
-    const tel = trimmed.replace(/[^+\d]/g, "");
-    const wa = tel.replace(/\D/g, "");
     return {
-      telPhone: tel,
-      whatsappPhone: wa,
+      telPhone: normalizeTel(raw),
+      whatsappPhone: normalizeWhatsAppDigits(raw),
     };
   }, [displayPhone]);
 
@@ -161,15 +165,12 @@ export function CustomerNamePhone({ name, phone, title, nameTo }) {
   };
 
   const handleCall = () => {
-    if (!telPhone) return;
-    window.location.href = `tel:${telPhone}`;
+    if (!openTel(telPhone)) return;
     setContactOpen(false);
   };
 
   const handleWhatsApp = () => {
-    if (!whatsappPhone) return;
-    // wa.me opens WhatsApp app when installed, otherwise falls back to web.
-    window.open(`https://wa.me/${whatsappPhone}`, "_blank", "noopener,noreferrer");
+    if (!openWhatsApp(whatsappPhone)) return;
     setContactOpen(false);
   };
 
@@ -220,6 +221,10 @@ export function CustomerNamePhone({ name, phone, title, nameTo }) {
             >
               WhatsApp
             </Button>
+            <ZoiperCallButton
+              phone={telPhone || whatsappPhone}
+              onAfterClick={() => setContactOpen(false)}
+            />
             <Button
               variant="ghost"
               onClick={() => setContactOpen(false)}

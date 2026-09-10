@@ -31,12 +31,16 @@ import {
 import {
   useGetAgentsCashDueQuery,
   useGetPendingRemittancesQuery,
+  useGetPendingWithdrawalsQuery,
   useConfirmCashRemittanceMutation,
   useRejectCashRemittanceMutation,
+  useApproveWithdrawalMutation,
+  useRejectWithdrawalMutation,
   useRecordCashSettlementMutation,
   useRecordAgentPayoutMutation,
   useSyncAgentWalletsMutation,
 } from "../../store/services/api";
+import { shopSettlementPath } from "../reports/reportUi";
 
 const isSuccess = (res) => res?.status === "1" || res?.status === 1;
 
@@ -47,13 +51,16 @@ function formatAgentMoney(amount, source) {
 const emptyActionModal = {
   open: false,
   type: null,
+  shopId: null,
   agentId: null,
   agentName: "",
   remittanceId: null,
+  withdrawalId: null,
   currency: "",
   maxAmount: 0,
   amount: "",
   note: "",
+  connectReady: true,
 };
 
 const TAB_ROW = {
@@ -115,6 +122,7 @@ export default function AgentSettlement() {
   const [sortBy, setSortBy] = useState("cashDue");
   const [sortDir, setSortDir] = useState("desc");
   const [remittancePage, setRemittancePage] = useState(1);
+  const [withdrawalPage, setWithdrawalPage] = useState(1);
   const [actionModal, setActionModal] = useState(emptyActionModal);
   const [viewRow, setViewRow] = useState(null);
   const actingRef = useRef(false);
@@ -139,10 +147,24 @@ export default function AgentSettlement() {
     { skip: tab !== "remittances" }
   );
 
+  const {
+    data: withdrawalResponse,
+    isLoading: withdrawalLoading,
+    isError: withdrawalError,
+    refetch: refetchWithdrawals,
+  } = useGetPendingWithdrawalsQuery(
+    { page: withdrawalPage, limit: 20 },
+    { skip: tab !== "withdrawals" }
+  );
+
   const [confirmRemittance, { isLoading: confirming }] =
     useConfirmCashRemittanceMutation();
   const [rejectRemittance, { isLoading: rejecting }] =
     useRejectCashRemittanceMutation();
+  const [approveWithdrawal, { isLoading: approvingWithdrawal }] =
+    useApproveWithdrawalMutation();
+  const [rejectWithdrawal, { isLoading: rejectingWithdrawal }] =
+    useRejectWithdrawalMutation();
   const [recordCashSettlement, { isLoading: recordingCash }] =
     useRecordCashSettlementMutation();
   const [recordPayout, { isLoading: recordingPayout }] =
@@ -151,7 +173,13 @@ export default function AgentSettlement() {
     useSyncAgentWalletsMutation();
 
   const isActing =
-    confirming || rejecting || recordingCash || recordingPayout || syncingWallets;
+    confirming ||
+    rejecting ||
+    approvingWithdrawal ||
+    rejectingWithdrawal ||
+    recordingCash ||
+    recordingPayout ||
+    syncingWallets;
 
   const cashDueAgents = useMemo(
     () => cashDueResponse?.data?.agents || [],
@@ -162,6 +190,11 @@ export default function AgentSettlement() {
     [remittanceResponse?.data?.remittances]
   );
   const remittancePagination = remittanceResponse?.data?.pagination || {};
+  const withdrawals = useMemo(
+    () => withdrawalResponse?.data?.withdrawals || [],
+    [withdrawalResponse?.data?.withdrawals]
+  );
+  const withdrawalPagination = withdrawalResponse?.data?.pagination || {};
 
   const summary = useMemo(() => {
     const totalCashDue = cashDueAgents.reduce(
@@ -200,8 +233,10 @@ export default function AgentSettlement() {
   const cashDueTableData = useMemo(
     () =>
       cashDueAgents.map((agent, index) => ({
-        id: agent.agentUserId,
-        rowKey: `cash-${agent.agentUserId ?? "unknown"}-${index}`,
+        id: agent.shopId,
+        shopId: agent.shopId,
+        agentUserId: agent.agentUserId,
+        rowKey: `cash-${agent.shopId ?? agent.agentUserId ?? "unknown"}-${index}`,
         sl: index + 1,
         name: agent.shopName || agent.agentName || "-",
         email: agent.agentEmail || "-",
@@ -237,6 +272,7 @@ export default function AgentSettlement() {
         id: row.id,
         rowKey: `remittance-${row.id ?? "unknown"}-${index}`,
         sl: (remittancePage - 1) * 20 + index + 1,
+        shopId: row.shopId,
         agentUserId: row.agentUserId,
         name: row.agentName || "-",
         email: row.agentEmail || "-",
@@ -248,6 +284,27 @@ export default function AgentSettlement() {
         submittedAtMs: row.createdAt ? new Date(row.createdAt).getTime() || 0 : 0,
       })),
     [remittances, remittancePage]
+  );
+
+  const withdrawalTableData = useMemo(
+    () =>
+      withdrawals.map((row, index) => ({
+        id: row.id,
+        rowKey: `withdrawal-${row.id ?? "unknown"}-${index}`,
+        sl: (withdrawalPage - 1) * 20 + index + 1,
+        shopId: row.shopId,
+        agentUserId: row.agentUserId,
+        name: row.shopName || row.agentName || "-",
+        email: row.agentEmail || "-",
+        currency: row.currency,
+        amount: Number(row.amount || 0),
+        amountLabel: formatAgentMoney(row.amount, row),
+        description: row.description || "-",
+        connectReady: Boolean(row.isConnectAccountConnected),
+        submittedAt: formatDate(row.createdAt, DATE_TIME_FORMAT),
+        submittedAtMs: row.createdAt ? new Date(row.createdAt).getTime() || 0 : 0,
+      })),
+    [withdrawals, withdrawalPage]
   );
 
   const visibleCashDue = useMemo(() => {
@@ -267,6 +324,15 @@ export default function AgentSettlement() {
       compareSettlementRows(a, b, sortBy, sortDir)
     );
   }, [remittanceTableData, searchTerm, sortBy, sortDir]);
+
+  const visibleWithdrawals = useMemo(() => {
+    const filtered = withdrawalTableData.filter((row) =>
+      matchesSearch(row, searchTerm)
+    );
+    return [...filtered].sort((a, b) =>
+      compareSettlementRows(a, b, sortBy, sortDir)
+    );
+  }, [withdrawalTableData, searchTerm, sortBy, sortDir]);
 
   const handleSort = useCallback((key) => {
     setSortBy((prev) => {
@@ -302,13 +368,16 @@ export default function AgentSettlement() {
     setActionModal({
       open: true,
       type,
-      agentId: row.id || row.agentUserId,
+      shopId: row.shopId || null,
+      agentId: row.agentUserId || null,
       agentName: row.name,
-      remittanceId: row.id,
+      remittanceId: type.includes("remittance") ? row.id : null,
+      withdrawalId: type.includes("withdrawal") ? row.id : null,
       currency: row.currency,
       maxAmount,
       amount: maxAmount > 0 ? String(maxAmount.toFixed(2)) : "",
       note: "",
+      connectReady: row.connectReady !== false,
     });
   }, []);
 
@@ -342,17 +411,47 @@ export default function AgentSettlement() {
           remittanceId: actionModal.remittanceId,
           body: { note: actionModal.note?.trim() || undefined },
         }).unwrap();
+      } else if (actionModal.type === "approve-withdrawal") {
+        if (!actionModal.withdrawalId) {
+          showError("Missing withdrawal id");
+          return;
+        }
+        res = await approveWithdrawal({
+          withdrawalId: actionModal.withdrawalId,
+          body: { note: actionModal.note?.trim() || undefined },
+        }).unwrap();
+      } else if (actionModal.type === "reject-withdrawal") {
+        if (!actionModal.withdrawalId) {
+          showError("Missing withdrawal id");
+          return;
+        }
+        if (!actionModal.note?.trim()) {
+          showError("Rejection note is required");
+          return;
+        }
+        res = await rejectWithdrawal({
+          withdrawalId: actionModal.withdrawalId,
+          body: { note: actionModal.note.trim() },
+        }).unwrap();
       } else if (actionModal.type === "cash-settlement") {
+        if (!actionModal.shopId) {
+          showError("This row has no shop id");
+          return;
+        }
         res = await recordCashSettlement({
-          agentId: actionModal.agentId,
+          shopId: actionModal.shopId,
           body: {
             amount: parsedAmount,
             note: actionModal.note?.trim() || undefined,
           },
         }).unwrap();
       } else if (actionModal.type === "payout") {
+        if (!actionModal.shopId) {
+          showError("This row has no shop id");
+          return;
+        }
         res = await recordPayout({
-          agentId: actionModal.agentId,
+          shopId: actionModal.shopId,
           body: {
             amount: parsedAmount,
             note: actionModal.note?.trim() || undefined,
@@ -373,12 +472,14 @@ export default function AgentSettlement() {
     }
   }, [
     actionModal,
+    approveWithdrawal,
     closeActionModal,
     confirmRemittance,
     isActing,
     recordCashSettlement,
     recordPayout,
     rejectRemittance,
+    rejectWithdrawal,
     showError,
     success,
   ]);
@@ -415,6 +516,7 @@ export default function AgentSettlement() {
           <DirectoryIdentity
             name={row.shopName && row.shopName !== "-" ? row.shopName : row.name}
             email={row.email}
+            id={row.shopId}
             meta={[
               row.shopName &&
               row.shopName !== "-" &&
@@ -422,6 +524,7 @@ export default function AgentSettlement() {
               row.name !== row.shopName
                 ? row.name
                 : null,
+              row.agentUserId ? `Owner #${row.agentUserId}` : null,
               row.shopAddress,
             ]
               .filter(Boolean)
@@ -477,11 +580,15 @@ export default function AgentSettlement() {
         render: (row) => (
           <DirectoryActions>
             <DirectoryActionView
-              onClick={() => navigate(`/shop-management/agent-settlement/${row.id}`)}
+              disabled={!shopSettlementPath(row.shopId)}
+              onClick={() => {
+                const path = shopSettlementPath(row.shopId);
+                if (path) navigate(path);
+              }}
             />
             <Button
               size="sm"
-              disabled={row.cashDue <= 0 || isActing}
+              disabled={!row.shopId || row.cashDue <= 0 || isActing}
               onClick={() => openActionModal("cash-settlement", row)}
             >
               Record
@@ -489,7 +596,7 @@ export default function AgentSettlement() {
             <Button
               size="sm"
               variant="secondary"
-              disabled={row.platformOwes <= 0 || isActing}
+              disabled={!row.shopId || row.platformOwes <= 0 || isActing}
               onClick={() => openActionModal("payout", row)}
             >
               Payout
@@ -498,7 +605,7 @@ export default function AgentSettlement() {
         ),
       },
     ],
-    [isActing, openActionModal]
+    [isActing, navigate, openActionModal]
   );
 
   const remittanceColumns = useMemo(
@@ -509,7 +616,12 @@ export default function AgentSettlement() {
         sortable: true,
         sortKey: "name",
         render: (row) => (
-          <DirectoryIdentity name={row.name} email={row.email} />
+          <DirectoryIdentity
+            name={row.name}
+            email={row.email}
+            id={row.shopId}
+            meta={row.agentUserId ? `Owner #${row.agentUserId}` : null}
+          />
         ),
       },
       {
@@ -554,6 +666,88 @@ export default function AgentSettlement() {
     [isActing, openActionModal]
   );
 
+  const withdrawalColumns = useMemo(
+    () => [
+      {
+        key: "name",
+        header: "Shop / agent",
+        sortable: true,
+        sortKey: "name",
+        render: (row) => (
+          <DirectoryIdentity
+            name={row.name}
+            email={row.email}
+            id={row.shopId}
+            meta={[
+              row.agentUserId ? `Owner #${row.agentUserId}` : null,
+              row.connectReady ? "Stripe ready" : "Connect onboarding needed",
+            ]
+              .filter(Boolean)
+              .join(" · ")}
+          />
+        ),
+      },
+      {
+        key: "amountLabel",
+        header: "Amount",
+        sortable: true,
+        sortKey: "amount",
+        render: (row) => <DirectoryMoney>{row.amountLabel}</DirectoryMoney>,
+      },
+      {
+        key: "submittedAt",
+        header: "Requested",
+        sortable: true,
+        sortKey: "submittedAtMs",
+        render: (row) => row.submittedAt,
+      },
+      {
+        key: "actions",
+        header: "Actions",
+        render: (row) => (
+          <DirectoryActions>
+            <DirectoryActionView
+              onClick={() => setViewRow({ kind: "withdrawal", ...row })}
+            />
+            {row.shopId ? (
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => {
+                  const path = shopSettlementPath(row.shopId);
+                  if (path) navigate(path);
+                }}
+              >
+                Details
+              </Button>
+            ) : null}
+            <Button
+              size="sm"
+              disabled={isActing || !row.connectReady}
+              title={
+                row.connectReady
+                  ? "Approve and transfer to Stripe Connect"
+                  : "Complete Stripe Connect onboarding on the shop settlement page first"
+              }
+              onClick={() => openActionModal("approve-withdrawal", row)}
+            >
+              Approve
+            </Button>
+            <Button
+              size="sm"
+              variant="danger"
+              disabled={isActing}
+              onClick={() => openActionModal("reject-withdrawal", row)}
+            >
+              Reject
+            </Button>
+          </DirectoryActions>
+        ),
+      },
+    ],
+    [isActing, navigate, openActionModal]
+  );
+
   const modalTitle = useMemo(() => {
     switch (actionModal.type) {
       case "cash-settlement":
@@ -564,6 +758,10 @@ export default function AgentSettlement() {
         return "Confirm Cash Remittance";
       case "reject-remittance":
         return "Reject Cash Remittance";
+      case "approve-withdrawal":
+        return "Approve Withdrawal";
+      case "reject-withdrawal":
+        return "Reject Withdrawal";
       default:
         return "Action";
     }
@@ -576,9 +774,23 @@ export default function AgentSettlement() {
     1,
     Math.ceil((remittancePagination.total || 0) / 20)
   );
+  const withdrawalTotalPages = Math.max(
+    1,
+    Math.ceil((withdrawalPagination.total || 0) / 20)
+  );
 
-  const tabError = tab === "cash-due" ? cashDueError : remittanceError;
-  const tabLoading = tab === "cash-due" ? cashDueLoading : remittanceLoading;
+  const tabError =
+    tab === "cash-due"
+      ? cashDueError
+      : tab === "remittances"
+        ? remittanceError
+        : withdrawalError;
+  const tabLoading =
+    tab === "cash-due"
+      ? cashDueLoading
+      : tab === "remittances"
+        ? remittanceLoading
+        : withdrawalLoading;
 
   return (
     <div>
@@ -642,6 +854,16 @@ export default function AgentSettlement() {
               ? ` (${remittancePagination.total})`
               : ""}
           </Button>
+          <Button
+            size="sm"
+            variant={tab === "withdrawals" ? "primary" : "secondary"}
+            onClick={() => switchTab("withdrawals")}
+          >
+            Withdrawal requests
+            {withdrawalPagination.total
+              ? ` (${withdrawalPagination.total})`
+              : ""}
+          </Button>
         </div>
         {tab === "cash-due" ? (
           <Button
@@ -657,8 +879,10 @@ export default function AgentSettlement() {
 
       <p className="jd-lead" style={{ margin: "0 0 16px" }}>
         {tab === "cash-due"
-          ? "Live due can be £0 after you record cash — remitted and released columns keep the lifetime trail. Open an agent for order-by-order split, refunds, and tips."
-          : "Agent-submitted cash remittances awaiting your confirmation."}
+          ? "Live due can be £0 after you record cash — remitted and released columns keep the lifetime trail. Open a shop for statement, payouts, and Connect."
+          : tab === "remittances"
+            ? "Agent-submitted cash remittances awaiting your confirmation."
+            : "Agent withdrawal requests. Approve transfers money to their Stripe Connect payout account; reject releases the reserved balance."}
       </p>
 
       {tabError ? (
@@ -666,12 +890,18 @@ export default function AgentSettlement() {
           <p className="jd-lead" style={{ margin: "0 0 12px" }}>
             {tab === "cash-due"
               ? "Could not load agent settlements."
-              : "Could not load pending remittances."}
+              : tab === "remittances"
+                ? "Could not load pending remittances."
+                : "Could not load withdrawal requests."}
           </p>
           <Button
             variant="secondary"
             onClick={() =>
-              tab === "cash-due" ? refetchCashDue() : refetchRemittances()
+              tab === "cash-due"
+                ? refetchCashDue()
+                : tab === "remittances"
+                  ? refetchRemittances()
+                  : refetchWithdrawals()
             }
           >
             Retry
@@ -702,55 +932,100 @@ export default function AgentSettlement() {
             onSort={handleSort}
           />
         </DirectoryTableWrap>
+      ) : tab === "remittances" ? (
+        <DirectoryTableWrap
+          toolbar={
+            <DirectoryToolbar>
+              <DirectorySearch
+                id="remittance-search"
+                value={searchTerm}
+                onChange={setSearchTerm}
+                placeholder="Search name, email…"
+              />
+            </DirectoryToolbar>
+          }
+          footer={
+            <div style={PAGE_ROW}>
+              <p className="jd-lead" style={{ margin: 0 }}>
+                Page {remittancePage} of {remittanceTotalPages} (
+                {remittancePagination.total || 0} total)
+              </p>
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={remittancePage <= 1}
+                onClick={() => setRemittancePage((p) => Math.max(1, p - 1))}
+              >
+                Previous
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={remittancePage >= remittanceTotalPages}
+                onClick={() => setRemittancePage((p) => p + 1)}
+              >
+                Next
+              </Button>
+            </div>
+          }
+        >
+          <Table
+            columns={remittanceColumns}
+            rows={visibleRemittances}
+            rowKey={(row) => row.rowKey}
+            empty="No pending remittances"
+            sortBy={sortBy}
+            sortDir={sortDir}
+            onSort={handleSort}
+          />
+        </DirectoryTableWrap>
       ) : (
-        <>
-          <DirectoryTableWrap
-            toolbar={
-              <DirectoryToolbar>
-                <DirectorySearch
-                  id="remittance-search"
-                  value={searchTerm}
-                  onChange={setSearchTerm}
-                  placeholder="Search name, email…"
-                />
-              </DirectoryToolbar>
-            }
-            footer={
-              <div style={PAGE_ROW}>
-                <p className="jd-lead" style={{ margin: 0 }}>
-                  Page {remittancePage} of {remittanceTotalPages} (
-                  {remittancePagination.total || 0} total)
-                </p>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  disabled={remittancePage <= 1}
-                  onClick={() => setRemittancePage((p) => Math.max(1, p - 1))}
-                >
-                  Previous
-                </Button>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  disabled={remittancePage >= remittanceTotalPages}
-                  onClick={() => setRemittancePage((p) => p + 1)}
-                >
-                  Next
-                </Button>
-              </div>
-            }
-          >
-            <Table
-              columns={remittanceColumns}
-              rows={visibleRemittances}
-              rowKey={(row) => row.rowKey}
-              empty="No pending remittances"
-              sortBy={sortBy}
-              sortDir={sortDir}
-              onSort={handleSort}
-            />
-          </DirectoryTableWrap>
-        </>
+        <DirectoryTableWrap
+          toolbar={
+            <DirectoryToolbar>
+              <DirectorySearch
+                id="withdrawal-search"
+                value={searchTerm}
+                onChange={setSearchTerm}
+                placeholder="Search shop, agent, email…"
+              />
+            </DirectoryToolbar>
+          }
+          footer={
+            <div style={PAGE_ROW}>
+              <p className="jd-lead" style={{ margin: 0 }}>
+                Page {withdrawalPage} of {withdrawalTotalPages} (
+                {withdrawalPagination.total || 0} total)
+              </p>
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={withdrawalPage <= 1}
+                onClick={() => setWithdrawalPage((p) => Math.max(1, p - 1))}
+              >
+                Previous
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={withdrawalPage >= withdrawalTotalPages}
+                onClick={() => setWithdrawalPage((p) => p + 1)}
+              >
+                Next
+              </Button>
+            </div>
+          }
+        >
+          <Table
+            columns={withdrawalColumns}
+            rows={visibleWithdrawals}
+            rowKey={(row) => row.rowKey}
+            empty="No pending withdrawal requests"
+            sortBy={sortBy}
+            sortDir={sortDir}
+            onSort={handleSort}
+          />
+        </DirectoryTableWrap>
       )}
 
       <Modal
@@ -760,20 +1035,32 @@ export default function AgentSettlement() {
           actionModal.maxAmount > 0 && showAmountField
             ? ` — max ${formatAgentMoney(actionModal.maxAmount, actionModal)}`
             : ""
+        }${
+          actionModal.type === "approve-withdrawal" && !actionModal.connectReady
+            ? " — Stripe Connect onboarding required before approve"
+            : ""
         }`}
         onClose={closeActionModal}
         onPrimary={handleSubmitAction}
         primaryLabel={
           isActing
             ? "Saving…"
-            : actionModal.type === "confirm-remittance"
-              ? "Confirm"
-              : actionModal.type === "reject-remittance"
+            : actionModal.type === "confirm-remittance" ||
+                actionModal.type === "approve-withdrawal"
+              ? "Approve"
+              : actionModal.type === "reject-remittance" ||
+                  actionModal.type === "reject-withdrawal"
                 ? "Reject"
                 : "Save"
         }
         secondaryLabel="Cancel"
-        danger={actionModal.type === "reject-remittance"}
+        danger={
+          actionModal.type === "reject-remittance" ||
+          actionModal.type === "reject-withdrawal"
+        }
+        primaryDisabled={
+          actionModal.type === "approve-withdrawal" && !actionModal.connectReady
+        }
       >
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           {showAmountField ? (
@@ -790,7 +1077,14 @@ export default function AgentSettlement() {
               />
             </Field>
           ) : null}
-          <Field label="Note (optional)" htmlFor="settlement-note">
+          <Field
+            label={
+              actionModal.type === "reject-withdrawal"
+                ? "Rejection reason (required)"
+                : "Note (optional)"
+            }
+            htmlFor="settlement-note"
+          >
             <Textarea
               id="settlement-note"
               rows={3}
@@ -799,9 +1093,12 @@ export default function AgentSettlement() {
                 setActionModal((prev) => ({ ...prev, note: e.target.value }))
               }
               placeholder={
-                actionModal.type === "reject-remittance"
+                actionModal.type === "reject-remittance" ||
+                actionModal.type === "reject-withdrawal"
                   ? "Reason for rejection"
-                  : "Optional note"
+                  : actionModal.type === "approve-withdrawal"
+                    ? "Optional approval note"
+                    : "Optional note"
               }
             />
           </Field>
@@ -813,12 +1110,23 @@ export default function AgentSettlement() {
         title={viewRow?.name || "Settlement"}
         onClose={() => setViewRow(null)}
         fields={[
+          { label: "Shop", value: viewRow?.shopId ? `#${viewRow.shopId}` : "—" },
+          { label: "Owner", value: viewRow?.agentUserId ? `#${viewRow.agentUserId}` : "—" },
           { label: "Agent", value: viewRow?.name },
           { label: "Email", value: viewRow?.email },
           { label: "Amount", value: viewRow?.amountLabel },
           { label: "Note", value: viewRow?.description },
-          { label: "Submitted", value: viewRow?.submittedAt },
-        ]}
+          {
+            label: viewRow?.kind === "withdrawal" ? "Requested" : "Submitted",
+            value: viewRow?.submittedAt,
+          },
+          viewRow?.kind === "withdrawal"
+            ? {
+                label: "Stripe Connect",
+                value: viewRow?.connectReady ? "Ready" : "Onboarding needed",
+              }
+            : null,
+        ].filter(Boolean)}
       />
     </div>
   );

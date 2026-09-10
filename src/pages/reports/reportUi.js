@@ -61,6 +61,11 @@ export function shopDetailPath(shopId) {
   return reportDetailPath("/shop-management/details", shopId);
 }
 
+export function shopSettlementPath(shopId) {
+  const base = shopDetailPath(shopId);
+  return base ? `${base}/settlement` : null;
+}
+
 export function customerDetailPath(customerId) {
   return reportDetailPath("/customer-management/details", customerId);
 }

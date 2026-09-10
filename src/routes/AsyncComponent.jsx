@@ -115,6 +115,9 @@ export const AgentSettlementPage = lazy(() =>
 export const AgentSettlementDetailPage = lazy(() =>
   import("../pages/shop-management/AgentSettlementDetail")
 );
+export const LegacyAgentSettlementRedirectPage = lazy(() =>
+  import("../pages/shop-management/LegacyAgentSettlementRedirect")
+);
 export const NotifyLogsPage = lazy(() =>
   import("../pages/notify-logs/NotifyLogsPage")
 );
