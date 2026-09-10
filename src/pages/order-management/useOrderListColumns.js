@@ -105,7 +105,9 @@ export function useOrderListColumns({
           h(StatusDotPill, {
             title: row.OrderStatus,
             extra:
-              row.paymentWaitingAdmin || row.isRecurringAutoCreated
+              row.paymentWaitingAdmin ||
+              row.isRecurringAutoCreated ||
+              row.hasRefund
                 ? h(
                     "div",
                     { className: "flex flex-wrap items-center gap-1.5" },
@@ -122,6 +124,17 @@ export function useOrderListColumns({
                           tone: "info",
                           label: "Recurring",
                           title: "Auto-created from recurring frequency plan",
+                        })
+                      : null,
+                    row.hasRefund
+                      ? h(DotPill, {
+                          tone: "info",
+                          label: row.isFullyRefunded
+                            ? "Refunded"
+                            : "Partial refund",
+                          title: row.refundSummary?.latestReason
+                            ? `Refunded ${row.totalRefunded != null ? `£${Number(row.totalRefunded).toFixed(2)}` : ""} — ${row.refundSummary.latestReason}`
+                            : `Customer refunded ${row.totalRefunded != null ? `£${Number(row.totalRefunded).toFixed(2)}` : ""}`,
                         })
                       : null
                   )

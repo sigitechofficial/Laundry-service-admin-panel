@@ -462,8 +462,8 @@ export default function ShopRevenueTab({ shopId, fallbackSymbol = "£" }) {
             value: money(periodTotals.refundedValue, symbol),
             tone: "danger",
             hint: periodTotals.refundedOrders
-              ? `${periodTotals.refundedOrders} orders`
-              : undefined,
+              ? `${periodTotals.refundedOrders} order${periodTotals.refundedOrders === 1 ? "" : "s"} with customer refunds`
+              : "Customer refunds in this period",
           },
         ]}
       />

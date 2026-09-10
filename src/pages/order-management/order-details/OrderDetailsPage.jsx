@@ -711,6 +711,23 @@ export default function OrderDetailsPage() {
 
   const orderTotal = totalAmount.toFixed(2);
   const paymentSummary = orderData?.paymentSummary;
+  const refundSummary = orderData?.refundSummary || orderData?.refunds || null;
+  const totalRefunded = toNumber(
+    refundSummary?.totalRefunded ?? orderData?.refunds?.totalRefunded
+  );
+  const hasRefund = Boolean(refundSummary?.hasRefund) || totalRefunded > 0.009;
+  const isFullyRefunded = Boolean(
+    refundSummary?.isFullyRefunded ||
+      String(orderData?.bookingStatus?.title || "")
+        .toLowerCase()
+        .includes("refund")
+  );
+  const refundableNow =
+    refundSummary?.refundableNow != null
+      ? toNumber(refundSummary.refundableNow)
+      : null;
+  const canIssueMoreRefund =
+    refundableNow == null ? true : refundableNow > 0.02;
   const servicesAddedAmount = resolveLaundryAdded(
     paymentSummary,
     servicesSubtotalAmount
@@ -992,8 +1009,21 @@ export default function OrderDetailsPage() {
                 onClick={() => setAssignModalOpen(true)}
               />
             ) : null}
-            <Button variant="secondary" onClick={() => setRefundModalOpen(true)}>
-              Issue refund
+            <Button
+              variant="secondary"
+              onClick={() => setRefundModalOpen(true)}
+              disabled={!canIssueMoreRefund}
+              title={
+                canIssueMoreRefund
+                  ? "Issue a customer refund"
+                  : "Nothing left to refund on this order"
+              }
+            >
+              {hasRefund && !canIssueMoreRefund
+                ? "Fully refunded"
+                : hasRefund
+                  ? "Issue another refund"
+                  : "Issue refund"}
             </Button>
             <Button onClick={() => navigate(`/orders/edit/${orderId}`)}>
               Edit Order
@@ -1019,6 +1049,14 @@ export default function OrderDetailsPage() {
                 >
                   <Badge tone="danger">Payment hold — admin action</Badge>
                 </button>
+              ) : null}
+              {hasRefund ? (
+                <Badge tone="brand">
+                  {isFullyRefunded ? "Refunded" : "Partial refund"}
+                  {totalRefunded > 0
+                    ? ` · ${formatMoney(totalRefunded, paymentCurrencySymbol)}`
+                    : ""}
+                </Badge>
               ) : null}
               <div className={styles.toolbarActions}>
                 <Select
@@ -1048,6 +1086,55 @@ export default function OrderDetailsPage() {
               </div>
             </div>
           </OdCard>
+
+          {hasRefund ? (
+            <OdCard>
+              <div style={{ padding: 16 }}>
+                <p style={{ margin: 0, fontWeight: 700, color: "#3730A3" }}>
+                  {isFullyRefunded ? "Refund issued" : "Partial refund issued"}
+                </p>
+                <p style={{ margin: "6px 0 0", color: "#4338CA", fontSize: 14 }}>
+                  {formatMoney(totalRefunded, paymentCurrencySymbol)} returned to the customer
+                  {refundSummary?.latestChannel
+                    ? ` via ${String(refundSummary.latestChannel)}`
+                    : ""}
+                  {refundSummary?.count > 1
+                    ? ` · ${refundSummary.count} refunds`
+                    : ""}
+                  .
+                </p>
+                {refundSummary?.latestReason ||
+                orderData?.refunds?.latest?.reason ? (
+                  <p style={{ margin: "8px 0 0", fontSize: 13, color: "#4B5563" }}>
+                    Reason:{" "}
+                    {refundSummary?.latestReason ||
+                      orderData?.refunds?.latest?.reason}
+                  </p>
+                ) : null}
+                {Array.isArray(orderData?.refunds?.history) &&
+                orderData.refunds.history.length > 1 ? (
+                  <ul
+                    style={{
+                      margin: "10px 0 0",
+                      paddingLeft: 18,
+                      color: "#4B5563",
+                      fontSize: 13,
+                    }}
+                  >
+                    {orderData.refunds.history.map((item) => (
+                      <li key={item.id}>
+                        {formatMoney(item.amount, paymentCurrencySymbol)}
+                        {item.reason ? ` — ${item.reason}` : ""}
+                        {item.createdAt
+                          ? ` · ${formatDate(item.createdAt, "DD MMM YYYY · HH:mm")}`
+                          : ""}
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </div>
+            </OdCard>
+          ) : null}
 
           <OdCard>
             <OdSectionTitle>Collection & Delivery</OdSectionTitle>
@@ -1988,6 +2075,20 @@ export default function OrderDetailsPage() {
                 label="Services added"
                 value={formatMoney(servicesAddedAmount, paymentCurrencySymbol)}
               />
+              {hasRefund ? (
+                <OdMetaRow
+                  label={
+                    isFullyRefunded ? "Refunded" : "Refunded so far"
+                  }
+                  value={`−${formatMoney(totalRefunded, paymentCurrencySymbol)}`}
+                />
+              ) : null}
+              {hasRefund && refundSummary?.latestReason ? (
+                <OdMetaRow
+                  label="Refund reason"
+                  value={refundSummary.latestReason}
+                />
+              ) : null}
               <p style={{ margin: 0, fontSize: 11, color: "#64748B" }}>
                 Shop invoice. Agent {Number(commercialTerms?.agentCommissionPercent || 80)}%
                 / platform {Number(commercialTerms?.platformCommissionPercent || 20)}%
