@@ -308,7 +308,7 @@ export default function AgentSettlementDetail() {
         key: "balanceAfter",
         header: "Balance after",
         render: (row) => {
-          const after = Number(row.balanceAfter ?? row.settlementBalanceAfter || 0);
+          const after = Number(row.balanceAfter ?? row.settlementBalanceAfter ?? 0);
           return (
             <DirectoryMoney>
               <span style={{ color: after < 0 ? "#92400e" : after > 0 ? "#065f46" : "#111827", fontWeight: 700 }}>
