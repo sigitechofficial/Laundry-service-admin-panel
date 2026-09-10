@@ -193,13 +193,24 @@ export default function AgentSettlementDetail() {
         header: "Agent earning",
         render: (row) => (
           <DirectoryMoney>
-            {money(row.commissionNet ?? row.commissionAmount, summary)}
-            {Number(row.commissionClawbackAmount || 0) > 0 ? (
-              <span style={{ display: "block", fontSize: 11, color: "#c9403f", fontWeight: 500 }}>
-                Earned {money(row.commissionAmount, summary)} · clawback −
-                {money(row.commissionClawbackAmount, summary)}
-              </span>
-            ) : null}
+            {row.isFullyRefunded ? (
+              <>
+                {money(0, summary)}
+                <span style={{ display: "block", fontSize: 11, color: "#c9403f", fontWeight: 600 }}>
+                  Fully refunded
+                </span>
+              </>
+            ) : (
+              <>
+                {money(row.commissionNet ?? row.commissionAmount, summary)}
+                {Number(row.commissionClawbackAmount || 0) > 0 ? (
+                  <span style={{ display: "block", fontSize: 11, color: "#c9403f", fontWeight: 500 }}>
+                    Earned {money(row.commissionAmount, summary)} · clawback −
+                    {money(row.commissionClawbackAmount, summary)}
+                  </span>
+                ) : null}
+              </>
+            )}
           </DirectoryMoney>
         ),
       },
