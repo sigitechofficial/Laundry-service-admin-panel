@@ -595,7 +595,10 @@ export default function OrderDetailsPage() {
     })
   );
   const totalAmount = toNumber(
-    orderData?.billingDetail?.total ?? orderData?.orderAmount ?? orderSubtotalAmount
+    orderData?.paymentSummary?.orderSummary?.totalOrderAmount ??
+      orderData?.billingDetail?.total ??
+      orderData?.orderAmount ??
+      orderSubtotalAmount
   );
   const [selectedItemsServiceId, setSelectedItemsServiceId] = useState("");
   const [selectedItemsCategoryKey, setSelectedItemsCategoryKey] = useState("all");

@@ -109,7 +109,10 @@ export function buildInvoiceView(invoiceDetails, fallbackShopName = "") {
     minimumOrderFee,
   });
   const grandTotal = Number(
-    invoiceDetails?.orderAmount ?? invoiceDetails?.billingDetail?.total ?? orderSubtotal
+    invoiceDetails?.paymentSummary?.orderSummary?.totalOrderAmount ??
+      invoiceDetails?.orderAmount ??
+      invoiceDetails?.billingDetail?.total ??
+      orderSubtotal
   );
   const pickupWindow = `${invoiceDetails?.collectionTimeFrom || "N/A"}-${invoiceDetails?.collectionTimeTo || "N/A"}`;
   const deliveryWindow = `${invoiceDetails?.deliveryTimeFrom || "N/A"}-${invoiceDetails?.deliveryTimeTo || "N/A"}`;

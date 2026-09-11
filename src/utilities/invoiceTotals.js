@@ -105,3 +105,62 @@ export function mergeInvoiceDetailsFromResponse(responseData) {
       resolveOrderSubtotal(invoiceDetails, { servicesSubtotal }),
   };
 }
+
+function roundInvoiceMoney(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return 0;
+  return parseFloat(n.toFixed(2));
+}
+
+/**
+ * Live admin invoice preview. Matches backend invoicePaymentSummary:
+ * card remaining includes unpaid tip (current tip minus pickup prepaid tip).
+ */
+export function buildAdminInvoicePreview({
+  paymentType,
+  laundrySubtotal,
+  serviceCharge,
+  minimumOrderFee,
+  driverTip,
+  prepaidDriverTip,
+  discount = 0,
+}) {
+  const isCash = String(paymentType || "").toLowerCase().trim() === "cash";
+  const laundry = roundInvoiceMoney(laundrySubtotal);
+  const service = roundInvoiceMoney(serviceCharge);
+  const minimum = roundInvoiceMoney(minimumOrderFee);
+  const tip = roundInvoiceMoney(driverTip);
+  const disc = roundInvoiceMoney(discount);
+  const prepaidTip =
+    prepaidDriverTip === undefined ||
+    prepaidDriverTip === null ||
+    prepaidDriverTip === ""
+      ? isCash
+        ? 0
+        : tip
+      : roundInvoiceMoney(prepaidDriverTip);
+
+  if (isCash) {
+    const effectiveLaundry = Math.max(laundry, minimum);
+    const totalOrderAmount = roundInvoiceMoney(effectiveLaundry + service + tip);
+    return {
+      upfrontAmount: minimum,
+      serviceCharge: service,
+      discount: disc,
+      categoryCharge: laundry,
+      totalOrderAmount,
+      total: Math.max(0, roundInvoiceMoney(totalOrderAmount - disc)),
+    };
+  }
+
+  const totalOrderAmount = roundInvoiceMoney(laundry + service + tip);
+  const totalPaid = roundInvoiceMoney(minimum + service + prepaidTip);
+  return {
+    upfrontAmount: minimum,
+    serviceCharge: service,
+    discount: disc,
+    categoryCharge: laundry,
+    totalOrderAmount,
+    total: Math.max(0, roundInvoiceMoney(totalOrderAmount - totalPaid - disc)),
+  };
+}

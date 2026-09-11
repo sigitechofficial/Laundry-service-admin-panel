@@ -23,7 +23,7 @@ import {
   isEditGatePending,
 } from "../../../shared/orderEditStatusGate";
 import { formatMoney, joinMediaUrl, resolveDisplayCurrency } from "../../../utilities/formatters";
-import { mergeInvoiceDetailsFromResponse } from "../../../utilities/invoiceTotals";
+import { mergeInvoiceDetailsFromResponse, splitAdminTips, buildAdminInvoicePreview } from "../../../utilities/invoiceTotals";
 import InvoiceDetailModal from "../invoice/InvoiceDetailModal";
 import {
   buildInvoiceView,
@@ -182,7 +182,12 @@ function buildEditBillingData(orderData, formData, servicesSubtotal) {
   const newMinimum = parseFloat(formData.minimumOrderFee) || 0;
   const newTip = parseFloat(formData.driverTip) || 0;
   const discount = Number(orderData?.billingDetail?.discount ?? 0);
-  const isCash = String(orderData?.paymentType || "").toLowerCase() === "cash";
+  const savedBookingTip = splitAdminTips(orderData).bookingTip;
+  const storedPrepaid = orderData?.billingDetail?.prepaidTipAmount;
+  const prepaidTip =
+    storedPrepaid != null && storedPrepaid !== ""
+      ? Number(storedPrepaid)
+      : savedBookingTip;
 
   // Before line items hydrate, keep the stored invoice total so the footer does not flash £0.
   if (servicesSubtotal == null) {
@@ -191,40 +196,34 @@ function buildEditBillingData(orderData, formData, servicesSubtotal) {
     const oldTotal = Number(
       orderData?.billingDetail?.total ?? orderData?.orderAmount ?? 0
     );
-    const oldTip = Number(orderData?.tips?.[0]?.amount ?? 0);
     return {
       upfrontAmount: newMinimum,
       serviceCharge: newServiceCharge,
       discount,
       categoryCharge: laundry,
+      totalOrderAmount: Number(
+        orderData?.paymentSummary?.orderSummary?.totalOrderAmount ?? oldTotal
+      ),
       total: parseFloat(
         (
           oldTotal +
           (newServiceCharge - oldServiceCharge) +
           (newMinimum - oldMinimum) +
-          (newTip - oldTip)
+          (newTip - savedBookingTip)
         ).toFixed(2)
       ),
     };
   }
 
-  // Match backend calculateInvoiceTotals / payment summary.
-  const total = isCash
-    ? Math.max(
-        0,
-        parseFloat(
-          (Math.max(laundry, newMinimum) + newServiceCharge + newTip - discount).toFixed(2)
-        )
-      )
-    : Math.max(0, parseFloat((laundry - newMinimum - discount).toFixed(2)));
-
-  return {
-    upfrontAmount: newMinimum,
+  return buildAdminInvoicePreview({
+    paymentType: orderData?.paymentType,
+    laundrySubtotal: laundry,
     serviceCharge: newServiceCharge,
+    minimumOrderFee: newMinimum,
+    driverTip: newTip,
+    prepaidDriverTip: prepaidTip,
     discount,
-    categoryCharge: laundry,
-    total,
-  };
+  });
 }
 
 export default function EditOrder() {
@@ -1580,8 +1579,17 @@ export default function EditOrder() {
                       <span>Discount</span>
                       <strong>{formatMoney(billingPreview.discount, moneySymbol)}</strong>
                     </div>
+                    <div className={styles.totalRow}>
+                      <span>Order total</span>
+                      <strong>
+                        {formatMoney(
+                          billingPreview.totalOrderAmount ?? billingPreview.total,
+                          moneySymbol
+                        )}
+                      </strong>
+                    </div>
                     <div className={`${styles.totalRow} ${styles.grand}`}>
-                      <span>Invoice total</span>
+                      <span>Amount due</span>
                       <span>{formatMoney(billingPreview.total, moneySymbol)}</span>
                     </div>
                   </div>
@@ -1756,7 +1764,7 @@ export default function EditOrder() {
           <div className={styles.stickyBar}>
             <div className={styles.stickyMeta}>
               <p>
-                Invoice total <strong>{formatMoney(billingPreview.total, moneySymbol)}</strong>
+                Amount due <strong>{formatMoney(billingPreview.total, moneySymbol)}</strong>
                 {customerName ? ` · ${customerName}` : ""}
               </p>
             </div>
