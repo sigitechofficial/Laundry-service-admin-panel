@@ -555,7 +555,17 @@ export default function BannersPage() {
       targetType: b.targetType ?? "global",
       targetServiceId: b.targetType === "service" ? String(b.targetId ?? "") : "",
       targetCategoryId:
-        b.targetType === "category" || b.targetType === "sub_category" ? String(b.targetId ?? "") : "",
+        b.targetType === "category"
+          ? String(b.targetId ?? "")
+          : b.targetType === "sub_category"
+            ? String(
+                subCategories.find((sc) => String(sc.id ?? sc._id) === String(b.targetId))
+                  ?.categoryId ??
+                  subCategories.find((sc) => String(sc.id ?? sc._id) === String(b.targetId))
+                    ?.category_id ??
+                  ""
+              )
+            : "",
       targetSubCategoryId: b.targetType === "sub_category" ? String(b.targetId ?? "") : "",
       zoneMode: parseZoneIds(b.zoneIds).length ? "specific" : "all",
       zoneIds: parseZoneIds(b.zoneIds).map(String),
@@ -627,13 +637,15 @@ export default function BannersPage() {
     const targetId = resolveTargetId();
     if (targetId !== null) fd.append("targetId", String(targetId));
     const zoneIds = form.zoneMode === "specific" ? form.zoneIds.map(Number).filter(Boolean) : [];
-    fd.append("zoneIds", zoneIds.join(","));
+    if (zoneIds.length) fd.append("zoneIds", zoneIds.join(","));
     if (form.startDate) fd.append("startDate", form.startDate);
     if (form.endDate) fd.append("endDate", form.endDate);
     fd.append("displayOrder", String(parseInt(form.displayOrder, 10) || 1));
     fd.append("showOnHome", String(form.showOnHome));
     fd.append("isActive", String(form.isActive));
-    if (form.bannerImage instanceof File) fd.append("bannerImage", form.bannerImage);
+    if (form.bannerImage instanceof File) {
+      fd.append("image", form.bannerImage);
+    }
     return fd;
   };
 

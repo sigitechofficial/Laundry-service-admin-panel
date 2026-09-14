@@ -2,16 +2,20 @@ import { useForm } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
 import { useEffect } from "react";
-import { Field, Input, Modal } from "../../design-system";
+import { Field, Input, Modal, PasswordInput } from "../../design-system";
 import useToaster from "../../components/ui/Toaster";
 import { useAddCustomerMutation } from "../../store/services/api";
 import { getApiErrorMessage } from "../../store/services/apiErrors";
+import { PHONE_HINT, isValidCustomerPhone } from "../../utilities/customerPhone";
 
 const addCustomerSchema = yup.object().shape({
   firstName: yup.string().required("First name is required").min(2, "At least 2 characters"),
   lastName: yup.string().required("Last name is required").min(2, "At least 2 characters"),
   email: yup.string().required("Email is required").email("Enter a valid email"),
-  phoneNum: yup.string().required("Phone is required").min(8, "Enter a valid phone number"),
+  phoneNum: yup
+    .string()
+    .required("Phone number is required")
+    .test("phone", PHONE_HINT, (value) => isValidCustomerPhone(value)),
   password: yup.string().required("Password is required").min(6, "At least 6 characters"),
   confirmPassword: yup
     .string()
@@ -100,13 +104,25 @@ export default function AddCustomerModal({ open, onClose, onSuccess }) {
             error={!!errors.email}
           />
         </Field>
-        <Field label="Phone" error={errors.phoneNum?.message} htmlFor="add-cus-phone">
-          <Input id="add-cus-phone" placeholder="Phone number" {...register("phoneNum")} error={!!errors.phoneNum} />
+        <Field
+          label="Phone"
+          hint="UK number, e.g. 07911 123456 or +44 7911 123456"
+          error={errors.phoneNum?.message}
+          htmlFor="add-cus-phone"
+        >
+          <Input
+            id="add-cus-phone"
+            type="tel"
+            inputMode="tel"
+            autoComplete="tel"
+            placeholder="07911 123456"
+            {...register("phoneNum")}
+            error={!!errors.phoneNum}
+          />
         </Field>
         <Field label="Password" error={errors.password?.message} htmlFor="add-cus-password">
-          <Input
+          <PasswordInput
             id="add-cus-password"
-            type="password"
             placeholder="At least 6 characters"
             autoComplete="new-password"
             {...register("password")}
@@ -114,9 +130,8 @@ export default function AddCustomerModal({ open, onClose, onSuccess }) {
           />
         </Field>
         <Field label="Confirm password" error={errors.confirmPassword?.message} htmlFor="add-cus-confirm">
-          <Input
+          <PasswordInput
             id="add-cus-confirm"
-            type="password"
             placeholder="Repeat password"
             autoComplete="new-password"
             {...register("confirmPassword")}

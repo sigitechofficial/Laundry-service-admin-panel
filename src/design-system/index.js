@@ -11,6 +11,7 @@ export { default as DsScope } from "./DsScope";
 export { default as Button } from "./components/Button";
 export { default as Field } from "./components/Field";
 export { default as Input, Textarea } from "./components/Input";
+export { default as PasswordInput } from "./components/PasswordInput";
 export { default as Select } from "./components/Select";
 export { default as Badge } from "./components/Badge";
 export { default as Modal } from "./components/Modal";

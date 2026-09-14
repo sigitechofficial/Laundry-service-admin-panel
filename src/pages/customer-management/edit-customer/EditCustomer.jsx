@@ -5,12 +5,13 @@ import {
   useGetCustomerByIdQuery,
 } from "../../../store/services/api";
 import useToaster from "../../../components/ui/Toaster";
-import { Button, Field, Input, PageHeader } from "../../../design-system";
+import { Button, Field, Input, PageHeader, PasswordInput } from "../../../design-system";
 import { Delay } from "../../../components/shared/Loaders";
 import { useForm } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import { editCustomerDefaultValues, editCustomerSchema } from "../constants";
 import { DirectoryFormCard, DirectoryFormGrid, DirectoryStack } from "../../directory-table/directoryTable";
+import { getApiErrorMessage } from "../../../store/services/apiErrors";
 
 export default function EditCustomer() {
   const { id } = useParams();
@@ -35,23 +36,22 @@ export default function EditCustomer() {
     defaultValues: editCustomerDefaultValues,
   });
 
-  const onSubmit = async (data) => {
+  const onSubmit = async (form) => {
     const body = {
-      firstName: data.firstName,
-      lastName: data.lastName,
-      email: data.email,
-      phoneNum: data.phoneNum,
-      status: data.status,
-      password: data.password,
-      confirmPassword: data.confirmPassword,
+      firstName: form.firstName.trim(),
+      lastName: form.lastName.trim(),
+      email: form.email.trim(),
+      phoneNum: form.phoneNum.trim(),
     };
+    if (form.password) body.password = form.password;
 
     const res = await updateCustomer({ id, body });
 
     if (res?.data?.status === "1") {
-      success(res?.data?.message);
+      success(res?.data?.message ?? "Customer updated.");
+      reset((current) => ({ ...current, password: "", confirmPassword: "" }));
     } else {
-      error(res?.data?.error || "Failed to update customer");
+      error(getApiErrorMessage(res?.error, res?.data?.error || "Failed to update customer"));
     }
   };
 
@@ -62,8 +62,8 @@ export default function EditCustomer() {
         lastName: customer?.lastName || "",
         email: customer?.email || "",
         phoneNum: customer?.phoneNum || "",
-        password: customer?.password || "",
-        confirmPassword: customer?.confirmPassword || "",
+        password: "",
+        confirmPassword: "",
         status: customer?.status || userDetails?.status || "",
       });
     }
@@ -75,7 +75,7 @@ export default function EditCustomer() {
     <div>
       <PageHeader
         title="Customer update"
-        description="Update this customer account"
+        description="Update this customer account. Leave password blank to keep the current one."
         actions={
           <Button variant="secondary" onClick={() => navigate(-1)}>
             Back
@@ -93,8 +93,20 @@ export default function EditCustomer() {
             <Field label="Last name" error={errors.lastName?.message} htmlFor="edit-customer-last-name">
               <Input id="edit-customer-last-name" placeholder="Last name" {...register("lastName")} error={!!errors.lastName} />
             </Field>
-            <Field label="Phone number" error={errors.phoneNum?.message} htmlFor="edit-customer-phone">
-              <Input id="edit-customer-phone" placeholder="Phone number" {...register("phoneNum")} error={!!errors.phoneNum} />
+            <Field
+              label="Phone number"
+              hint="UK number, e.g. 07911 123456 or +44 7911 123456"
+              error={errors.phoneNum?.message}
+              htmlFor="edit-customer-phone"
+            >
+              <Input
+                id="edit-customer-phone"
+                type="tel"
+                inputMode="tel"
+                placeholder="07911 123456"
+                {...register("phoneNum")}
+                error={!!errors.phoneNum}
+              />
             </Field>
           </DirectoryStack>
           </DirectoryFormCard>
@@ -103,11 +115,28 @@ export default function EditCustomer() {
             <Field label="Email" error={errors.email?.message} htmlFor="edit-customer-email">
               <Input id="edit-customer-email" type="email" placeholder="Email" {...register("email")} error={!!errors.email} />
             </Field>
-            <Field label="Password" error={errors.password?.message} htmlFor="edit-customer-password">
-              <Input id="edit-customer-password" type="password" placeholder="Password" {...register("password")} error={!!errors.password} />
+            <Field
+              label="New password"
+              hint="Leave blank to keep the current password"
+              error={errors.password?.message}
+              htmlFor="edit-customer-password"
+            >
+              <PasswordInput
+                id="edit-customer-password"
+                placeholder="At least 6 characters"
+                autoComplete="new-password"
+                {...register("password")}
+                error={!!errors.password}
+              />
             </Field>
-            <Field label="Confirm password" error={errors.confirmPassword?.message} htmlFor="edit-customer-confirm">
-              <Input id="edit-customer-confirm" type="password" placeholder="Confirm password" {...register("confirmPassword")} error={!!errors.confirmPassword} />
+            <Field label="Confirm new password" error={errors.confirmPassword?.message} htmlFor="edit-customer-confirm">
+              <PasswordInput
+                id="edit-customer-confirm"
+                placeholder="Repeat new password"
+                autoComplete="new-password"
+                {...register("confirmPassword")}
+                error={!!errors.confirmPassword}
+              />
             </Field>
           </DirectoryStack>
           </DirectoryFormCard>

@@ -162,6 +162,10 @@ export function getApiErrorMessage(error, fallback = API_ERROR_MESSAGES.UNKNOWN)
     return serverMsg;
   }
 
+  if (code === API_ERROR_CODES.NOT_FOUND && serverMsg && serverMsg.length < 180) {
+    return serverMsg;
+  }
+
   if (code === API_ERROR_CODES.RATE_LIMIT) {
     return getRateLimitMessage(readRetryAfterSeconds(error));
   }

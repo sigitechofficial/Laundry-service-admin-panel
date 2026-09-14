@@ -5,6 +5,7 @@ import {
   Input,
   Modal,
   PageHeader,
+  PasswordInput,
   Table,
 } from "../../../design-system";
 import { useNavigate, useParams } from "react-router-dom";
@@ -13,6 +14,7 @@ import { Delay } from "../../../components/shared/Loaders";
 import ZoiperCallButton from "../../../components/shared/ZoiperCallButton";
 import useToaster from "../../../components/ui/Toaster";
 import { getApiErrorMessage } from "../../../store/services/apiErrors";
+import { customerPhoneError } from "../../../utilities/customerPhone";
 import DeleteOrderModal from "../../order-management/order-modals/DeleteOrderModal";
 import { formatDate, formatMoney, resolveCurrencySymbol } from "../../../utilities/formatters";
 import { openTel, openWhatsApp } from "../../../utilities/contactLinks";
@@ -57,7 +59,10 @@ export default function CustomerDetails() {
     phoneNum: "",
     streetAddress: "",
     province: "",
+    password: "",
+    confirmPassword: "",
   });
+  const [settingsErrors, setSettingsErrors] = useState({});
 
   const { data, isLoading, isError, refetch } = useGetCustomerByIdQuery(id, { skip: !id });
   const [editCustomer, { isLoading: isSavingCustomer }] = useEditCustomerMutation();
@@ -85,7 +90,10 @@ export default function CustomerDetails() {
       phoneNum: user?.phoneNum || "",
       streetAddress: userDetails?.streetAddress || "",
       province: userDetails?.province || "",
+      password: "",
+      confirmPassword: "",
     });
+    setSettingsErrors({});
   }, [user?.email, user?.firstName, user?.lastName, user?.phoneNum, userDetails?.province, userDetails?.streetAddress]);
 
   const fullName = `${user?.firstName || ""} ${user?.lastName || ""}`.trim() || "Customer";
@@ -163,19 +171,40 @@ export default function CustomerDetails() {
   const handleSaveCustomerSettings = async () => {
     const customerId = user?.id || userDetails?.userId;
     if (!customerId) return;
+
+    const nextErrors = {};
+    if (!settingsForm.firstName.trim()) nextErrors.firstName = "First name is required";
+    if (!settingsForm.lastName.trim()) nextErrors.lastName = "Last name is required";
+    if (!settingsForm.email.trim()) nextErrors.email = "Email is required";
+    const phoneErr = customerPhoneError(settingsForm.phoneNum);
+    if (phoneErr) nextErrors.phoneNum = phoneErr;
+    if (settingsForm.password) {
+      if (settingsForm.password.length < 6) {
+        nextErrors.password = "Password must be at least 6 characters";
+      }
+      if (settingsForm.password !== settingsForm.confirmPassword) {
+        nextErrors.confirmPassword = "Passwords must match";
+      }
+    } else if (settingsForm.confirmPassword) {
+      nextErrors.confirmPassword = "Enter the new password first";
+    }
+    setSettingsErrors(nextErrors);
+    if (Object.keys(nextErrors).length) return;
+
     try {
+      const body = {
+        firstName: settingsForm.firstName.trim(),
+        lastName: settingsForm.lastName.trim(),
+        email: settingsForm.email.trim(),
+        phoneNum: settingsForm.phoneNum.trim(),
+      };
+      if (settingsForm.password) body.password = settingsForm.password;
       await editCustomer({
         id: customerId,
-        body: {
-          firstName: settingsForm.firstName,
-          lastName: settingsForm.lastName,
-          email: settingsForm.email,
-          phoneNum: settingsForm.phoneNum,
-          streetAddress: settingsForm.streetAddress,
-          province: settingsForm.province,
-        },
+        body,
       }).unwrap();
-      success("Customer updated.");
+      success(settingsForm.password ? "Customer and password updated." : "Customer updated.");
+      setSettingsForm((p) => ({ ...p, password: "", confirmPassword: "" }));
       refetch();
     } catch (err) {
       showError(getApiErrorMessage(err, "Failed to update customer."));
@@ -366,8 +395,6 @@ export default function CustomerDetails() {
               <Info label="Full name" value={fullName} />
               <Info label="Email" value={user?.email || "—"} />
               <Info label="Phone" value={user?.phoneNum || "—"} />
-              <Info label="Date of birth" value={formatDate(user?.dob)} />
-              <Info label="Gender" value={user?.gender || "—"} />
               <Info label="Primary address" value={fullAddress} />
               <Info label="Registered on" value={formatDate(user?.createdAt)} />
               <Info label="Preferred shop" value={bookingDetails?.[0]?.laundryShop?.name || "—"} />
@@ -461,32 +488,42 @@ export default function CustomerDetails() {
         <div style={{ ...PANEL, maxWidth: 720 }}>
           <h2 style={{ margin: "0 0 16px", fontSize: 16, fontWeight: 700 }}>Customer settings</h2>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-            <Field label="First name" htmlFor="settings-first-name">
+            <Field label="First name" htmlFor="settings-first-name" error={settingsErrors.firstName}>
               <Input
                 id="settings-first-name"
                 value={settingsForm.firstName}
+                error={Boolean(settingsErrors.firstName)}
                 onChange={(e) => setSettingsForm((p) => ({ ...p, firstName: e.target.value }))}
               />
             </Field>
-            <Field label="Last name" htmlFor="settings-last-name">
+            <Field label="Last name" htmlFor="settings-last-name" error={settingsErrors.lastName}>
               <Input
                 id="settings-last-name"
                 value={settingsForm.lastName}
+                error={Boolean(settingsErrors.lastName)}
                 onChange={(e) => setSettingsForm((p) => ({ ...p, lastName: e.target.value }))}
               />
             </Field>
-            <Field label="Email" htmlFor="settings-email">
+            <Field label="Email" htmlFor="settings-email" error={settingsErrors.email}>
               <Input
                 id="settings-email"
                 value={settingsForm.email}
+                error={Boolean(settingsErrors.email)}
                 onChange={(e) => setSettingsForm((p) => ({ ...p, email: e.target.value }))}
               />
             </Field>
-            <Field label="Phone" htmlFor="settings-phone">
+            <Field
+              label="Phone"
+              htmlFor="settings-phone"
+              hint="UK number, e.g. 07911 123456 or +44 7911 123456"
+              error={settingsErrors.phoneNum}
+            >
               <Input
                 id="settings-phone"
                 value={settingsForm.phoneNum}
+                type="tel"
                 inputMode="tel"
+                error={Boolean(settingsErrors.phoneNum)}
                 onChange={(e) => {
                   const val = e.target.value.replace(/[^0-9+\-() ]/g, "");
                   setSettingsForm((p) => ({ ...p, phoneNum: val }));
@@ -505,6 +542,35 @@ export default function CustomerDetails() {
                 id="settings-province"
                 value={settingsForm.province}
                 onChange={(e) => setSettingsForm((p) => ({ ...p, province: e.target.value }))}
+              />
+            </Field>
+            <Field
+              label="New password"
+              htmlFor="settings-password"
+              hint="Leave blank to keep the current password"
+              error={settingsErrors.password}
+            >
+              <PasswordInput
+                id="settings-password"
+                placeholder="At least 6 characters"
+                autoComplete="new-password"
+                value={settingsForm.password}
+                error={Boolean(settingsErrors.password)}
+                onChange={(e) => setSettingsForm((p) => ({ ...p, password: e.target.value }))}
+              />
+            </Field>
+            <Field
+              label="Confirm new password"
+              htmlFor="settings-confirm-password"
+              error={settingsErrors.confirmPassword}
+            >
+              <PasswordInput
+                id="settings-confirm-password"
+                placeholder="Repeat new password"
+                autoComplete="new-password"
+                value={settingsForm.confirmPassword}
+                error={Boolean(settingsErrors.confirmPassword)}
+                onChange={(e) => setSettingsForm((p) => ({ ...p, confirmPassword: e.target.value }))}
               />
             </Field>
           </div>
