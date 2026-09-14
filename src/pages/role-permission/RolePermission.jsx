@@ -11,6 +11,7 @@ import {
 } from "../../design-system";
 import { CheckRow, Notice, Toggle } from "../misc-kit";
 import {
+  DirectoryActions,
   DirectoryIdentity,
   DirectoryMetrics,
   DirectoryStatusPill,
@@ -145,8 +146,8 @@ function permissionRolePayload(features, selections) {
 function FeatureTitle({ feature }) {
   return (
     <div>
-      <div style={{ fontWeight: 600 }}>{pretty(feature.title)}</div>
-      <code style={{ fontSize: 12, color: "var(--muted)" }}>{feature.key || "missing key"}</code>
+      <div style={{ fontWeight: 600 }}>{pretty(feature?.title)}</div>
+      <code style={{ fontSize: 12, color: "var(--muted)" }}>{feature?.key || "missing key"}</code>
     </div>
   );
 }
