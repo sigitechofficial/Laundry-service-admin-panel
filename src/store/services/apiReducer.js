@@ -401,6 +401,25 @@ const apiDataSlice = createSlice({
     );
 
     builder.addMatcher(
+      api.endpoints.addCustomer.matchFulfilled,
+      (state, { payload }) => {
+        const created = payload?.data;
+        if (!created?.id) return;
+        const exists = (state.customers || []).some((c) => Number(c.id) === Number(created.id));
+        if (exists) return;
+        state.customers = [
+          {
+            ...created,
+            bookingCount: 0,
+            totalAmountSpent: "0.00",
+            lastBookingDate: null,
+          },
+          ...(state.customers || []),
+        ];
+      }
+    );
+
+    builder.addMatcher(
       api.endpoints.editCustomer.matchFulfilled,
       (state, { meta }) => {
         const { id, body } = meta.arg.originalArgs;

@@ -1,5 +1,5 @@
 import { sidebarList, labelToFeatureKey } from "../components/shared/constants";
-import { getEmployeePermissions } from "./authStorage";
+import { getEmployeePermissions, isEmployeePermissionSession } from "./authStorage";
 
 /**
  * Sidebar parent whose path best matches pathname (longest prefix wins).
@@ -58,6 +58,14 @@ export function canEmployeeReadPathname(pathname) {
   const key = labelToFeatureKey(parent.label);
   if (!key) return true;
   return allowed.has(key);
+}
+
+export function canStaffPerform(featureKey, action = "read") {
+  if (!isEmployeePermissionSession()) return true;
+  const list = getEmployeePermissions();
+  const row = list.find((p) => String(p?.feature?.key || p?.key || "") === String(featureKey));
+  if (!row) return false;
+  return Boolean(row?.[action]);
 }
 
 export function firstAllowedEmployeePath() {

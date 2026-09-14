@@ -602,6 +602,15 @@ export const api = createApi({
       }),
     }),
 
+    addCustomer: builder.mutation({
+      query: (body) => ({
+        url: "admin/addCustomer",
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: ["Customers"],
+    }),
+
     editCustomer: builder.mutation({
       query: ({ id, body }) => ({
         url: `admin/updateCustomer/${id}`,
@@ -2233,6 +2242,7 @@ export const {
   useGetAllCustomersQuery,
   useGetAllCustomersCountQuery,
   useGetCustomerByIdQuery,
+  useAddCustomerMutation,
   useDashboardDataQuery,
   useDeleteCustomerMutation,
   useEditCustomerMutation,

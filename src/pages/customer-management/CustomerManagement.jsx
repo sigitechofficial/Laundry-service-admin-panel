@@ -32,6 +32,8 @@ import {
 import { Delay } from "../../components/shared/Loaders";
 import useToaster from "../../components/ui/Toaster";
 import { getApiErrorMessage } from "../../store/services/apiErrors";
+import { canStaffPerform } from "../../utilities/employeeFeatureAccess";
+import AddCustomerModal from "./AddCustomerModal";
 
 const NAME_SORT_OPTIONS = [
   { value: "asc", label: "A → Z" },
@@ -108,13 +110,15 @@ export default function CustomerManagement() {
   const [searchTerm, setSearchTerm] = useState("");
   const [modalData, setModalData] = useState({ open: false, data: "" });
   const [blockRow, setBlockRow] = useState(null);
+  const [addOpen, setAddOpen] = useState(false);
   const [sortBy, setSortBy] = useState("name");
   const [sortDir, setSortDir] = useState("asc");
 
   const { isLoading, isError, error: customersError, refetch } = useGetAllCustomersQuery();
-  const { data } = useGetAllCustomersCountQuery();
+  const { data, refetch: refetchCount } = useGetAllCustomersCountQuery();
   const [deleteCustomer, { isLoading: isDeleting }] = useDeleteCustomerMutation();
   const customers = useSelector((state) => state.apiData.customers);
+  const canCreateCustomer = canStaffPerform("customerManagement", "create");
 
   const customersData = useMemo(
     () =>
@@ -266,7 +270,12 @@ export default function CustomerManagement() {
     <div>
       <PageHeader
         title="Customer Management"
-        description="View, edit, and manage customer accounts"
+        description="Register new customers, then view and manage their accounts"
+        actions={
+          canCreateCustomer ? (
+            <Button onClick={() => setAddOpen(true)}>Add customer</Button>
+          ) : null
+        }
       />
 
       <DirectoryMetrics
@@ -332,6 +341,15 @@ export default function CustomerManagement() {
           onSort={handleSort}
         />
       </DirectoryTableWrap>
+
+      <AddCustomerModal
+        open={addOpen}
+        onClose={() => setAddOpen(false)}
+        onSuccess={() => {
+          refetch();
+          refetchCount();
+        }}
+      />
 
       <BlockUserModal
         open={Boolean(blockRow)}
