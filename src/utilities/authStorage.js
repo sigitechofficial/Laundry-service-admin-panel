@@ -115,33 +115,53 @@ export function getUserProfile() {
 }
 
 /**
- * Store display fields after login. `isZoneAdmin` drives subtitle (Zone Admin vs Admin).
+ * Store display fields after login. Staff sessions persist roleName + roleScope.
  */
 function persistUserProfile(data, options = {}) {
-  const { isZoneAdmin = false } = options;
+  const { isStaff = false, isZoneAdmin = false } = options;
   const firstName = data?.firstName != null ? String(data.firstName).trim() : "";
   const lastName = data?.lastName != null ? String(data.lastName).trim() : "";
   const email = data?.email != null ? String(data.email).trim() : "";
   const zoneName = data?.zoneName != null ? String(data.zoneName).trim() : "";
-  const roleLabel = isZoneAdmin
-    ? zoneName
-      ? `Zone Admin · ${zoneName}`
-      : "Zone Admin"
-    : "Admin";
+  const roleName = data?.roleName != null ? String(data.roleName).trim() : "";
+  const roleScope = String(data?.roleScope || "").trim().toLowerCase();
+  const staff = isStaff || isZoneAdmin;
+  const hasAssignedZone = Boolean(zoneName || data?.zoneId);
+  let roleLabel = "Admin";
+  if (staff) {
+    if (roleScope === "zone" || (!roleScope && hasAssignedZone)) {
+      roleLabel = zoneName ? `Zone Manager · ${zoneName}` : "Zone Manager";
+    } else {
+      roleLabel = roleName || "Admin Manager";
+    }
+  }
   localStorage.setItem(
     LS_USER_PROFILE,
-    JSON.stringify({ firstName, lastName, email, zoneName, roleLabel })
+    JSON.stringify({
+      firstName,
+      lastName,
+      email,
+      zoneName,
+      roleLabel,
+      roleName,
+      roleScope: staff ? roleScope || (hasAssignedZone ? "zone" : "platform") : null,
+    })
   );
 }
 
-/** Zone employee session: permissions JSON is present. */
+/** Staff session (Admin Manager or Zone Manager): permissions matrix applies. */
 export function isEmployeePermissionSession() {
   try {
     const profile = getUserProfile();
-    const isZoneAdmin =
-      typeof profile?.roleLabel === "string" &&
-      profile.roleLabel.toLowerCase().includes("zone admin");
-    if (!isZoneAdmin) return false;
+    const scope = String(profile?.roleScope || "").toLowerCase();
+    if (scope === "platform" || scope === "zone") return true;
+
+    const roleLabel = typeof profile?.roleLabel === "string" ? profile.roleLabel.toLowerCase() : "";
+    const legacyStaff =
+      roleLabel.includes("zone admin") ||
+      roleLabel.includes("zone manager") ||
+      roleLabel.includes("admin manager");
+    if (legacyStaff) return true;
 
     const raw = readStorage(LS_EMPLOYEE_PERMISSIONS);
     return Boolean(raw && raw !== "[]");
@@ -224,6 +244,6 @@ export function persistZoneAdminLoginSession(data) {
     localStorage.removeItem(LS_EMPLOYEE_PERMISSIONS);
   }
 
-  persistUserProfile(data, { isZoneAdmin: true });
+  persistUserProfile(data, { isStaff: true });
   return true;
 }

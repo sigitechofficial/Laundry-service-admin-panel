@@ -15,17 +15,18 @@ import {
   useGetAllZonesQuery,
 } from "../../../store/services/api";
 
-/** Role label from API (e.g. "Zone Admin", id 7) — zone field only for this role. */
-function isZoneAdminRole(roleId, roles) {
+/** Role is zone-forced (Zone Manager / Zone Admin). */
+function isZoneScopedRole(roleId, roles) {
   if (roleId === undefined || roleId === null || String(roleId).trim() === "") return false;
   const list = Array.isArray(roles) ? roles : [];
   const r = list.find((x) => String(x.id) === String(roleId));
   if (!r) return false;
+  if (String(r.scope || "").trim().toLowerCase() === "zone") return true;
   const name = String(r.name ?? "")
     .trim()
     .toLowerCase()
     .replace(/\s+/g, " ");
-  return name === "zone admin";
+  return Number(r.id) === 7 || name === "zone admin";
 }
 
 const addEmployeeSchema = yup.object().shape({
@@ -53,10 +54,10 @@ const addEmployeeSchema = yup.object().shape({
     is: true,
     then: (s) => s.optional(),
     otherwise: (s) =>
-      s.test("zone-if-zone-admin", "Zone is required for Zone Admin", function (value) {
+      s.test("zone-if-zone-admin", "Zone is required for Zone Manager", function (value) {
         const roleId = this.parent.roleId;
         const rolesList = this.options.context?.roles ?? [];
-        if (!isZoneAdminRole(roleId, rolesList)) return true;
+        if (!isZoneScopedRole(roleId, rolesList)) return true;
         return value !== undefined && value !== null && String(value).trim() !== "";
       }),
   }),
@@ -158,7 +159,14 @@ export default function AddEmployeeModal({
     });
   }, [rolesRes?.data, forShopEmployees]);
   const roleOptions = useMemo(() => {
-    return roles.map((r) => ({ value: String(r.id), label: r.name ?? String(r.id) }));
+    return roles.map((r) => {
+      const zoneScoped = isZoneScopedRole(r.id, [r]);
+      const type = zoneScoped ? "Zone" : "Platform";
+      return {
+        value: String(r.id),
+        label: `${r.name ?? r.id} · ${type}`,
+      };
+    });
   }, [roles]);
 
   const formDefaultValues = useMemo(
@@ -191,11 +199,11 @@ export default function AddEmployeeModal({
   const countryId = watch("countryId");
   const selectedRoleId = watch("roleId");
   const showZoneForRole =
-    !forShopEmployees && isZoneAdminRole(selectedRoleId, roles);
+    !forShopEmployees && isZoneScopedRole(selectedRoleId, roles);
 
   useEffect(() => {
     if (!open || forShopEmployees) return;
-    if (isZoneAdminRole(selectedRoleId, roles)) return;
+    if (isZoneScopedRole(selectedRoleId, roles)) return;
     if (!getValues("zoneId")) return;
     setValue("zoneId", "", { shouldValidate: true });
   }, [selectedRoleId, roles, open, forShopEmployees, setValue, getValues]);
@@ -269,7 +277,7 @@ export default function AddEmployeeModal({
         countryId: data.countryId ? Number(data.countryId) : undefined,
         cityId: data.cityId ? Number(data.cityId) : undefined,
       };
-      if (isZoneAdminRole(data.roleId, roles) && data.zoneId) {
+      if (isZoneScopedRole(data.roleId, roles) && data.zoneId) {
         body.zoneId = Number(data.zoneId);
       }
       const res = await updateEmployee(body);
@@ -311,7 +319,7 @@ export default function AddEmployeeModal({
         countryId: Number(data.countryId),
         cityId: Number(data.cityId),
       };
-      if (isZoneAdminRole(data.roleId, roles) && data.zoneId) {
+      if (isZoneScopedRole(data.roleId, roles) && data.zoneId) {
         body.zoneId = Number(data.zoneId);
       }
       const res = await addEmployee(body);
@@ -369,6 +377,13 @@ export default function AddEmployeeModal({
                 options={roleOptions}
                 placeholder="Select role"
               />
+              {!forShopEmployees ? (
+                <p className="jd-field__hint" style={{ margin: "6px 0 0" }}>
+                  {showZoneForRole
+                    ? "Zone Manager — this person is limited to one assigned zone."
+                    : "Platform — this person can work across all zones, only on screens you grant."}
+                </p>
+              ) : null}
             </Field>
           )}
         />

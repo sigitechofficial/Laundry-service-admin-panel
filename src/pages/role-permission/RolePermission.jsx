@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  Badge,
   Button,
   Field,
   Input,
@@ -10,16 +11,11 @@ import {
 } from "../../design-system";
 import { CheckRow, Notice, Toggle } from "../misc-kit";
 import {
-  DirectoryActionEdit,
-  DirectoryActions,
-  DirectoryActionView,
   DirectoryIdentity,
   DirectoryMetrics,
   DirectoryStatusPill,
   DirectoryTableWrap,
-  DirectoryViewModal,
 } from "../directory-table/directoryTable";
-import { formatDisplayDate } from "../directory-table/directoryTableUtils";
 import useToaster from "../../components/ui/Toaster";
 import { Delay } from "../../components/shared/Loaders";
 import {
@@ -31,15 +27,23 @@ import {
 } from "../../store/services/api";
 import { getSidebarPermissionSelectOptions } from "../../components/shared/constants";
 
-const ACTION_OPTIONS = ["create", "read", "update", "delete"];
+const ACTION_OPTIONS = ["read", "create", "update", "delete"];
+const ACTION_LABEL = {
+  read: "View",
+  create: "Create",
+  update: "Edit",
+  delete: "Delete",
+};
 
 const FEATURE_OF_OPTIONS = [
   { label: "Admin", value: "Admin" },
-  { label: "Agent", value: "Agent" },
   { label: "Both", value: "both" },
+  { label: "Agent", value: "Agent" },
   { label: "Agent Employee", value: "Agent Employee" },
 ];
-const DEFAULT_FEATURE_OF = "Agent Employee";
+const DEFAULT_FEATURE_OF = "Admin";
+const ADMIN_FEATURE_OF = new Set(["Admin", "both"]);
+const AGENT_FEATURE_OF = new Set(["Agent", "Agent Employee", "both"]);
 
 const pretty = (value = "") =>
   String(value)
@@ -91,7 +95,95 @@ const isAgentShopStaffRole = (role) => {
   return role?.audience === "agent_shop_staff" || id === 6 || id === 8;
 };
 
-const AGENT_FEATURE_OF = new Set(["Agent", "Agent Employee", "both"]);
+const isZoneManagerRole = (role) => {
+  if (isAgentShopStaffRole(role)) return false;
+  if (Number(role?.id) === 7) return true;
+  return String(role?.scope || "").toLowerCase() === "zone";
+};
+
+const crudSummary = (perm) => {
+  const bits = ACTION_OPTIONS.filter((action) => perm?.[action]).map((action) => ACTION_LABEL[action]);
+  return bits.length ? bits.join(" · ") : "No access";
+};
+
+function selectionsFromRole(role, features) {
+  const next = {};
+  const fromRole = Array.isArray(role?.permissions) ? role.permissions : [];
+  const byFeatureId = new Map(
+    fromRole
+      .filter((row) => row?.featureId != null || row?.id != null)
+      .map((row) => [Number(row.featureId ?? row.id), row])
+  );
+  features.forEach((feature) => {
+    const fid = Number(feature.id);
+    const fromFeatures = feature.permissions?.find((p) => Number(p?.roleId) === Number(role?.id));
+    const source = byFeatureId.get(fid) || fromFeatures;
+    next[String(feature.id)] = source ? pickCrud(source) : emptyActions();
+  });
+  return next;
+}
+
+function permissionRolePayload(features, selections) {
+  return features
+    .map((feature) => {
+      const actions = selections[String(feature.id)] || {};
+      const hasAny = ACTION_OPTIONS.some((action) => actions[action]);
+      if (!hasAny) return null;
+      return {
+        id: Number(feature.id),
+        permissions: {
+          create: Boolean(actions.create),
+          read: Boolean(actions.read),
+          update: Boolean(actions.update),
+          delete: Boolean(actions.delete),
+        },
+      };
+    })
+    .filter(Boolean);
+}
+
+function FeatureTitle({ feature }) {
+  return (
+    <div>
+      <div style={{ fontWeight: 600 }}>{pretty(feature.title)}</div>
+      <code style={{ fontSize: 12, color: "var(--muted)" }}>{feature.key || "missing key"}</code>
+    </div>
+  );
+}
+
+function PermissionMatrix({ features, selections, onToggle, empty }) {
+  if (!features.length) {
+    return <Notice>No Admin screens found. Add a permission with feature of Admin.</Notice>;
+  }
+  return (
+    <DirectoryTableWrap>
+      <Table
+        stickyLeft={1}
+        columns={[
+          {
+            key: "screen",
+            header: "Screen",
+            render: (feature) => <FeatureTitle feature={feature} />,
+          },
+          ...ACTION_OPTIONS.map((action) => ({
+            key: action,
+            header: ACTION_LABEL[action],
+            render: (feature) => (
+              <CheckRow
+                label={ACTION_LABEL[action]}
+                checked={Boolean(selections?.[String(feature.id)]?.[action])}
+                onChange={() => onToggle(feature.id, action)}
+              />
+            ),
+          })),
+        ]}
+        rows={features}
+        rowKey={(feature) => feature.id}
+        empty={empty || "No screens."}
+      />
+    </DirectoryTableWrap>
+  );
+}
 
 export default function RolePermission() {
   const { success, error } = useToaster();
@@ -104,8 +196,26 @@ export default function RolePermission() {
 
   const roles = useMemo(() => extractList(rolesRes, ["roles", "items", "rows"]), [rolesRes]);
   const agentShopRoles = useMemo(() => roles.filter((r) => isAgentShopStaffRole(r)), [roles]);
-  const otherRoles = useMemo(() => roles.filter((r) => !isAgentShopStaffRole(r)), [roles]);
+  const zoneRoles = useMemo(
+    () => roles.filter((r) => !isAgentShopStaffRole(r) && isZoneManagerRole(r)),
+    [roles]
+  );
+  const platformRoles = useMemo(
+    () => roles.filter((r) => !isAgentShopStaffRole(r) && !isZoneManagerRole(r)),
+    [roles]
+  );
   const permissionOptions = useMemo(() => normalizeFeatureOptions(featuresRes), [featuresRes]);
+  const adminFeatures = useMemo(
+    () =>
+      permissionOptions.filter((f) => !f.featureOf || ADMIN_FEATURE_OF.has(f.featureOf)),
+    [permissionOptions]
+  );
+  const agentFeatures = useMemo(
+    () => permissionOptions.filter((f) => !f.featureOf || AGENT_FEATURE_OF.has(f.featureOf)),
+    [permissionOptions]
+  );
+
+  const glanceRoles = useMemo(() => [...zoneRoles, ...platformRoles], [zoneRoles, platformRoles]);
 
   const [permissionModal, setPermissionModal] = useState(false);
   const [roleModal, setRoleModal] = useState(false);
@@ -121,33 +231,51 @@ export default function RolePermission() {
   const [roleName, setRoleName] = useState("");
   const [roleStatus, setRoleStatus] = useState(true);
   const [roleSelections, setRoleSelections] = useState({});
-  const [viewRole, setViewRole] = useState(null);
+  const [zoneSelections, setZoneSelections] = useState({});
+  const [platformSelections, setPlatformSelections] = useState({});
+  const [selectedPlatformRoleId, setSelectedPlatformRoleId] = useState("");
 
-  const editablePermissionOptions = useMemo(() => {
-    if (!editingIsAgentShop) return permissionOptions;
-    return permissionOptions.filter((f) => {
-      if (!f.featureOf) return true;
-      return AGENT_FEATURE_OF.has(f.featureOf);
-    });
-  }, [permissionOptions, editingIsAgentShop]);
+  const zoneRole = zoneRoles[0] || null;
+  const selectedPlatformRole = useMemo(
+    () => platformRoles.find((r) => String(r.id) === String(selectedPlatformRoleId)) || platformRoles[0] || null,
+    [platformRoles, selectedPlatformRoleId]
+  );
 
   useEffect(() => {
-    setRoleSelections((prev) => {
-      const next = {};
-      permissionOptions.forEach((feature) => {
-        const existing = prev[String(feature.id)] || {};
-        next[String(feature.id)] = ACTION_OPTIONS.reduce(
-          (acc, action) => ({ ...acc, [action]: Boolean(existing[action]) }),
-          {}
-        );
-      });
-      return next;
-    });
-  }, [permissionOptions]);
+    if (!selectedPlatformRoleId && platformRoles[0]?.id) {
+      setSelectedPlatformRoleId(String(platformRoles[0].id));
+    }
+  }, [platformRoles, selectedPlatformRoleId]);
 
-  const resetRoleSelectionsToEmpty = () => {
+  useEffect(() => {
+    if (zoneRole) setZoneSelections(selectionsFromRole(zoneRole, adminFeatures));
+  }, [zoneRole, adminFeatures]);
+
+  useEffect(() => {
+    if (selectedPlatformRole) {
+      setPlatformSelections(selectionsFromRole(selectedPlatformRole, adminFeatures));
+    }
+  }, [selectedPlatformRole, adminFeatures]);
+
+  const editablePermissionOptions = useMemo(() => {
+    if (editingIsAgentShop) return agentFeatures;
+    return adminFeatures;
+  }, [editingIsAgentShop, permissionOptions, adminFeatures, agentFeatures]);
+
+  const handleMatrixToggle = (setter) => (featureId, action) => {
+    const key = String(featureId);
+    setter((prev) => ({
+      ...prev,
+      [key]: {
+        ...(prev[key] || emptyActions()),
+        [action]: !prev?.[key]?.[action],
+      },
+    }));
+  };
+
+  const resetRoleSelectionsToEmpty = (features = adminFeatures) => {
     const reset = {};
-    permissionOptions.forEach((feature) => {
+    features.forEach((feature) => {
       reset[String(feature.id)] = emptyActions();
     });
     setRoleSelections(reset);
@@ -158,7 +286,7 @@ export default function RolePermission() {
     setRoleSelections((prev) => ({
       ...prev,
       [key]: {
-        ...(prev[key] || {}),
+        ...(prev[key] || emptyActions()),
         [action]: !prev?.[key]?.[action],
       },
     }));
@@ -177,13 +305,7 @@ export default function RolePermission() {
     setEditingIsAgentShop(false);
     setRoleName("");
     setRoleStatus(true);
-    setRoleSelections((prev) => {
-      const reset = {};
-      Object.keys(prev).forEach((id) => {
-        reset[id] = emptyActions();
-      });
-      return reset;
-    });
+    setRoleSelections({});
   };
 
   const submitPermission = async () => {
@@ -195,7 +317,7 @@ export default function RolePermission() {
 
     try {
       await addFeature({
-        title: normalized,
+        title: selected?.menuLabel || normalized,
         status: true,
         featureOf,
         key: normalized,
@@ -208,29 +330,33 @@ export default function RolePermission() {
     }
   };
 
+  const saveRolePermissions = async (role, features, selections, fallbackName) => {
+    if (!role?.id) return error("Select a role first.");
+    const permissionRole = permissionRolePayload(features, selections);
+    if (!permissionRole.length) {
+      return error("Select at least one permission.");
+    }
+    try {
+      await updateRole({
+        id: role.id,
+        name: role.name || fallbackName,
+        status: role.status !== false,
+        permissionRole,
+      }).unwrap();
+      success(`${role.name || "Role"} permissions saved.`);
+      refetchRoles();
+      refetchFeatures();
+    } catch (err) {
+      error(err?.data?.message ?? "Failed to save permissions.");
+    }
+  };
+
   const submitRole = async () => {
     const name = roleName.trim();
     if (!name) return error("Role name is required.");
 
-    const featuresForSubmit = editingIsAgentShop ? editablePermissionOptions : permissionOptions;
-
-    const permissionRole = featuresForSubmit
-      .map((feature) => {
-        const actions = roleSelections[String(feature.id)] || {};
-        const hasAny = ACTION_OPTIONS.some((action) => actions[action]);
-        if (!hasAny) return null;
-        return {
-          id: Number(feature.id),
-          permissions: {
-            create: Boolean(actions.create),
-            read: Boolean(actions.read),
-            update: Boolean(actions.update),
-            delete: Boolean(actions.delete),
-          },
-        };
-      })
-      .filter(Boolean);
-
+    const featuresForSubmit = editingIsAgentShop ? editablePermissionOptions : adminFeatures;
+    const permissionRole = permissionRolePayload(featuresForSubmit, roleSelections);
     if (!permissionRole.length) {
       return error("Select at least one permission.");
     }
@@ -249,8 +375,8 @@ export default function RolePermission() {
             : "Role updated successfully."
         );
       } else {
-        await addLaundryRole({ name, permissionRole }).unwrap();
-        success("Role added successfully.");
+        await addLaundryRole({ name, permissionRole, scope: "platform" }).unwrap();
+        success("Admin Manager role added successfully.");
       }
       closeRoleModal();
       refetchRoles();
@@ -270,45 +396,45 @@ export default function RolePermission() {
     setEditingIsAgentShop(agentShop);
     setRoleName(role?.name || "");
     setRoleStatus(Boolean(role?.status));
-
-    const existingFromRole = Array.isArray(role?.permissionRole) ? role.permissionRole : [];
-    const byFeatureId = new Map(
-      existingFromRole
-        .filter((e) => e != null && e.id != null)
-        .map((e) => [Number(e.id), e?.permissions])
-    );
-
-    const featuresForEdit = agentShop
-      ? permissionOptions.filter((f) => !f.featureOf || AGENT_FEATURE_OF.has(f.featureOf))
-      : permissionOptions;
-
-    const next = {};
-    featuresForEdit.forEach((feature) => {
-      const fid = Number(feature.id);
-      const fromFeatures = feature.permissions?.find((p) => Number(p?.roleId) === Number(roleId));
-      const fromRoleList = byFeatureId.get(fid);
-      const source = fromFeatures || fromRoleList;
-      next[String(feature.id)] = source ? pickCrud(source) : emptyActions();
-    });
-
-    setRoleSelections(next);
+    const featuresForEdit = agentShop ? agentFeatures : adminFeatures;
+    setRoleSelections(selectionsFromRole(role, featuresForEdit));
     setRoleModal(true);
   };
 
-  const roleColumns = [
+  const glanceColumns = useMemo(
+    () => [
+      {
+        key: "screen",
+        header: "Screen",
+        render: (feature) => <FeatureTitle feature={feature} />,
+      },
+      ...glanceRoles.map((role) => ({
+        key: `role-${role.id}`,
+        header: role.name,
+        render: (feature) => {
+          const perm = (role.permissions || []).find(
+            (p) => Number(p.featureId) === Number(feature.id)
+          );
+          const granted = Boolean(perm?.read || perm?.create || perm?.update || perm?.delete);
+          return (
+            <Badge tone={granted ? "success" : "neutral"}>
+              {granted ? crudSummary(perm) : "Denied"}
+            </Badge>
+          );
+        },
+      })),
+    ],
+    [glanceRoles]
+  );
+
+  const agentRoleColumns = [
     {
       key: "name",
       header: "Role",
       render: (role) => (
         <DirectoryIdentity
           name={role?.name ?? `Role ${role?.id ?? ""}`}
-          meta={[
-            isAgentShopStaffRole(role) ? "Agent employee" : null,
-            role?.audience === "admin_portal" ? "Admin employee" : null,
-            role?.isSystem ? "System" : null,
-          ]
-            .filter(Boolean)
-            .join(" · ") || null}
+          meta="Agent employee · system"
           id={role?.id}
         />
       ),
@@ -316,23 +442,16 @@ export default function RolePermission() {
     {
       key: "status",
       header: "Status",
-      render: (role) => (
-        <DirectoryStatusPill active={role?.status} />
-      ),
+      render: (role) => <DirectoryStatusPill active={role?.status} />,
     },
     {
       key: "actions",
       header: "Actions",
       render: (role) => (
         <DirectoryActions>
-          <DirectoryActionView onClick={() => setViewRole(role)} />
-          {isAgentShopStaffRole(role) ? (
-            <Button size="sm" variant="secondary" onClick={() => openEditRoleModal(role)}>
-              Edit defaults
-            </Button>
-          ) : (
-            <DirectoryActionEdit onClick={() => openEditRoleModal(role)} />
-          )}
+          <Button size="sm" variant="secondary" onClick={() => openEditRoleModal(role)}>
+            Edit defaults
+          </Button>
         </DirectoryActions>
       ),
     },
@@ -347,7 +466,7 @@ export default function RolePermission() {
     <div style={{ display: "grid", gap: 20 }}>
       <PageHeader
         title="Role and Permission"
-        description="Define admin and agent shop roles, then assign screen-level CRUD."
+        description="Super Admin sees Zone Manager vs Admin Manager screens at a glance. Staff still need View on a screen to use it."
         actions={
           <>
             <Button variant="secondary" onClick={() => setPermissionModal(true)}>
@@ -360,11 +479,11 @@ export default function RolePermission() {
                 setEditingIsAgentShop(false);
                 setRoleStatus(true);
                 setRoleName("");
-                resetRoleSelectionsToEmpty();
+                resetRoleSelectionsToEmpty(adminFeatures);
                 setRoleModal(true);
               }}
             >
-              Add Role
+              Add Admin Manager role
             </Button>
           </>
         }
@@ -372,11 +491,99 @@ export default function RolePermission() {
 
       <DirectoryMetrics
         items={[
-          { label: "Total roles", value: roles.length, tone: "brand" },
-          { label: "Agent shop", value: agentShopRoles.length, tone: "navy" },
-          { label: "Admin / custom", value: otherRoles.length, tone: "success" },
+          { label: "Admin screens", value: adminFeatures.length, tone: "brand" },
+          { label: "Zone Manager roles", value: zoneRoles.length, tone: "navy" },
+          { label: "Platform roles", value: platformRoles.length, tone: "success" },
         ]}
       />
+
+      <section>
+        <h3 style={{ margin: "0 0 8px" }}>Who can open which screen</h3>
+        <p style={{ margin: "0 0 16px", color: "var(--muted)", fontSize: 14 }}>
+          Green means that role has at least one grant. Zone Manager is limited to their assigned zone.
+          Admin Manager is platform-wide.
+        </p>
+        <DirectoryTableWrap>
+          <Table
+            stickyLeft={1}
+            columns={glanceColumns}
+            rows={adminFeatures}
+            rowKey={(feature) => feature.id}
+            empty="No Admin screens in the catalog yet."
+          />
+        </DirectoryTableWrap>
+      </section>
+
+      <section>
+        <h3 style={{ margin: "0 0 8px" }}>Zone Manager</h3>
+        <p style={{ margin: "0 0 16px", color: "var(--muted)", fontSize: 14 }}>
+          {zoneRole
+            ? `${zoneRole.name} (role ${zoneRole.id}) — screens they can use inside their assigned zone.`
+            : "Zone Admin (role 7) is missing. Deploy seeders, then refresh."}
+        </p>
+        <PermissionMatrix
+          features={adminFeatures}
+          selections={zoneSelections}
+          onToggle={handleMatrixToggle(setZoneSelections)}
+        />
+        {zoneRole ? (
+          <div style={{ marginTop: 12 }}>
+            <Button
+              disabled={isUpdatingRole}
+              onClick={() => saveRolePermissions(zoneRole, adminFeatures, zoneSelections)}
+            >
+              {isUpdatingRole ? "Saving…" : "Save Zone Manager"}
+            </Button>
+          </div>
+        ) : null}
+      </section>
+
+      <section>
+        <h3 style={{ margin: "0 0 8px" }}>Admin Manager / platform roles</h3>
+        <p style={{ margin: "0 0 16px", color: "var(--muted)", fontSize: 14 }}>
+          These staff sign in with Staff login and can work across all zones, only on granted screens.
+        </p>
+        {platformRoles.length ? (
+          <div style={{ display: "grid", gap: 16 }}>
+            <Field label="Platform role">
+              <Select
+                aria-label="Platform role"
+                value={selectedPlatformRole ? String(selectedPlatformRole.id) : ""}
+                onChange={setSelectedPlatformRoleId}
+                options={platformRoles.map((r) => ({
+                  value: String(r.id),
+                  label: r.name || `Role ${r.id}`,
+                }))}
+              />
+            </Field>
+            <PermissionMatrix
+              features={adminFeatures}
+              selections={platformSelections}
+              onToggle={handleMatrixToggle(setPlatformSelections)}
+            />
+            {selectedPlatformRole ? (
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <Button
+                  disabled={isUpdatingRole}
+                  onClick={() =>
+                    saveRolePermissions(selectedPlatformRole, adminFeatures, platformSelections)
+                  }
+                >
+                  {isUpdatingRole ? "Saving…" : `Save ${selectedPlatformRole.name}`}
+                </Button>
+                <Button
+                  variant="secondary"
+                  onClick={() => openEditRoleModal(selectedPlatformRole)}
+                >
+                  Rename
+                </Button>
+              </div>
+            ) : null}
+          </div>
+        ) : (
+          <Notice>No platform roles yet. Add an Admin Manager role to grant screens without a zone.</Notice>
+        )}
+      </section>
 
       <section>
         <h3 style={{ margin: "0 0 8px" }}>Agent shop defaults</h3>
@@ -386,20 +593,8 @@ export default function RolePermission() {
         </p>
         <DirectoryTableWrap>
           <Table
-            columns={roleColumns}
+            columns={agentRoleColumns}
             rows={agentShopRoles}
-            rowKey={(role) => role?.id ?? role?.name}
-            empty="No roles found."
-          />
-        </DirectoryTableWrap>
-      </section>
-
-      <section>
-        <h3 style={{ margin: "0 0 16px" }}>Admin / custom roles</h3>
-        <DirectoryTableWrap>
-          <Table
-            columns={roleColumns}
-            rows={otherRoles}
             rowKey={(role) => role?.id ?? role?.name}
             empty="No roles found."
           />
@@ -410,7 +605,7 @@ export default function RolePermission() {
         open={permissionModal}
         onClose={closePermissionModal}
         title="Add New Permission"
-        description="Add a feature first so it can be used in roles."
+        description="Create an Admin screen key that matches the sidebar (for example orderManagement)."
         primaryLabel="Add Permission"
         onPrimary={submitPermission}
         primaryDisabled={isAddingFeature}
@@ -424,11 +619,19 @@ export default function RolePermission() {
               onChange={setPermissionPath}
               options={sidebarPermissionOptions.map((opt) => ({
                 value: opt.value,
-                label: opt.menuLabel,
+                label: `${opt.menuLabel} (${opt.featureKey})`,
               }))}
               placeholder="Select a screen"
             />
           </Field>
+          {permissionPath ? (
+            <Notice>
+              Live key:{" "}
+              <code>
+                {sidebarPermissionOptions.find((o) => o.value === permissionPath)?.featureKey || "—"}
+              </code>
+            </Notice>
+          ) : null}
           <Field label="Feature of">
             <Select
               aria-label="Feature of"
@@ -448,14 +651,14 @@ export default function RolePermission() {
             ? editingIsAgentShop
               ? "Edit Agent shop feature defaults"
               : "Update Role"
-            : "Create New Role"
+            : "Create Admin Manager role"
         }
         description={
           editingIsAgentShop
             ? "Update feature menu permissions for this Agent employee role. Does not change accept, assign, team, or wallet rights."
             : isEditRoleMode
-              ? "Update role details and permissions."
-              : "Define a new role and assign permission."
+              ? "Update role details and Admin screen permissions."
+              : "Platform role: all zones, only the Admin screens you grant."
         }
         primaryLabel={isEditRoleMode ? "Update Role" : "Add Role"}
         onPrimary={submitRole}
@@ -466,7 +669,7 @@ export default function RolePermission() {
           <Field label="Role Name" htmlFor="role-name">
             <Input
               id="role-name"
-              placeholder="Enter full name"
+              placeholder="Admin Manager"
               value={roleName}
               onChange={(e) => {
                 if (editingIsAgentShop) return;
@@ -491,51 +694,24 @@ export default function RolePermission() {
           </div>
 
           <div>
-            <h4 style={{ margin: "0 0 8px" }}>Assign Permission</h4>
+            <h4 style={{ margin: "0 0 8px" }}>Admin screens</h4>
             <p style={{ margin: "0 0 12px", color: "var(--muted)", fontSize: 13 }}>
               {editingIsAgentShop
                 ? "Only Agent / Agent Employee / both features are shown."
-                : "Select the permission for this role."}
+                : "Only Admin / both features. Each row shows the live API key."}
             </p>
             {!editablePermissionOptions.length ? (
               <Notice>No permissions found. Add permissions first.</Notice>
             ) : (
-              <div style={{ display: "grid", gap: 16 }}>
-                {editablePermissionOptions.map((feature) => (
-                  <div key={feature.id}>
-                    <div style={{ fontWeight: 600, marginBottom: 8 }}>{pretty(feature.title)}</div>
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
-                      {ACTION_OPTIONS.map((action) => (
-                        <CheckRow
-                          key={`${feature.id}-${action}`}
-                          checked={Boolean(roleSelections?.[String(feature.id)]?.[action])}
-                          onChange={() => handleRoleActionToggle(feature.id, action)}
-                          label={pretty(action)}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
+              <PermissionMatrix
+                features={editablePermissionOptions}
+                selections={roleSelections}
+                onToggle={handleRoleActionToggle}
+              />
             )}
           </div>
         </div>
       </Modal>
-
-      <DirectoryViewModal
-        open={Boolean(viewRole)}
-        title={viewRole?.name || "Role"}
-        onClose={() => setViewRole(null)}
-        fields={[
-          { label: "Role ID", value: viewRole?.id },
-          { label: "Name", value: viewRole?.name },
-          { label: "Audience", value: viewRole?.audience || "—" },
-          { label: "System", value: viewRole?.isSystem ? "Yes" : "No" },
-          { label: "Status", value: viewRole?.status ? "Active" : "Inactive" },
-          { label: "Created", value: formatDisplayDate(viewRole?.createdAt) },
-          { label: "Updated", value: formatDisplayDate(viewRole?.updatedAt) },
-        ]}
-      />
     </div>
   );
 }

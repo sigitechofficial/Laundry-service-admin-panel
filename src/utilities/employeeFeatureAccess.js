@@ -28,7 +28,7 @@ function buildFeatureKeyToIdMap(permissions) {
   const map = new Map();
   const list = Array.isArray(permissions) ? permissions : [];
   for (const p of list) {
-    const key = p?.feature?.key;
+    const key = p?.feature?.key || p?.key;
     const id = p?.featureId ?? p?.feature?.id;
     if (key && id != null && String(id).trim() !== "") {
       map.set(String(key), String(id).trim());
@@ -44,10 +44,31 @@ export function getAllowedFeatureKeysFromPermissions(permissions) {
   const keys = new Set();
   const list = Array.isArray(permissions) ? permissions : [];
   for (const p of list) {
-    const key = p?.feature?.key;
+    const key = p?.feature?.key || p?.key;
     if (key && p?.read === true) keys.add(String(key));
   }
   return keys;
+}
+
+export function canEmployeeReadPathname(pathname) {
+  const perms = getEmployeePermissions();
+  const allowed = getAllowedFeatureKeysFromPermissions(perms);
+  const parent = findSidebarParentForPathname(pathname);
+  if (!parent) return true;
+  const key = labelToFeatureKey(parent.label);
+  if (!key) return true;
+  return allowed.has(key);
+}
+
+export function firstAllowedEmployeePath() {
+  const perms = getEmployeePermissions();
+  const allowed = getAllowedFeatureKeysFromPermissions(perms);
+  for (const item of sidebarList) {
+    if (!item.path) continue;
+    const key = labelToFeatureKey(item.label);
+    if (key && allowed.has(key)) return item.path;
+  }
+  return null;
 }
 
 /**

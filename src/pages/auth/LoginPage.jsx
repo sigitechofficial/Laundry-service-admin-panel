@@ -154,7 +154,7 @@ export default function LoginPage() {
         </div>
         <h1 className="jd-h1">Sign in</h1>
         <p className="jd-lead">
-          Administrator and Zone Manager use different endpoints. Choose a role, then enter your credentials.
+          Administrator and staff use different endpoints. Super Admin uses Administrator. Admin Manager and Zone Manager both use Staff.
         </p>
 
         <div className="jd-rolepick" role="group" aria-label="Sign-in role">
@@ -173,8 +173,8 @@ export default function LoginPage() {
             aria-pressed={role === "manager"}
             onClick={() => navigate("/auth/login?role=manager")}
           >
-            <b>Zone Manager</b>
-            <span>Scoped to assigned zones</span>
+            <b>Staff</b>
+            <span>Admin Manager and Zone Manager</span>
           </button>
         </div>
 
@@ -251,7 +251,7 @@ export default function LoginPage() {
                 {busy
                   ? "Signing in…"
                   : role === "manager"
-                    ? "Sign in as Zone Manager"
+                    ? "Sign in as Staff"
                     : "Sign in as Administrator"}
               </Button>
             </div>
