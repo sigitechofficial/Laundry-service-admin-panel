@@ -3,6 +3,7 @@ import { canAdminAssignOrReassignFromBooking } from "../../shared/adminAssignGat
 import { resolveOrderStatusTitle } from "../../shared/orderEditStatusGate";
 import {
   DATE_TIME_FORMAT,
+  formatBookingWindow,
   formatDate,
   formatMoney,
   resolveDisplayCurrency,
@@ -327,12 +328,16 @@ export function mapBookingToOrderListRow(booking) {
   const finalLabel =
     finalAmount != null ? formatOrderMoney(finalAmount, booking) : "—";
   const shopLabel = resolveShopName(booking);
-  const pickupDateTime = booking?.collectionDate
-    ? formatDate(booking.collectionDate, DATE_TIME_FORMAT)
-    : "—";
-  const deliveryDateTime = booking?.deliveryDate
-    ? formatDate(booking.deliveryDate, DATE_TIME_FORMAT)
-    : "—";
+  const pickupDateTime = formatBookingWindow(
+    booking?.collectionDate,
+    booking?.collectionTimeFrom,
+    booking?.collectionTimeTo
+  );
+  const deliveryDateTime = formatBookingWindow(
+    booking?.deliveryDate,
+    booking?.deliveryTimeFrom,
+    booking?.deliveryTimeTo
+  );
   const statusTitle = resolveOrderStatusTitle(booking);
   const schedulePhase = resolveOrderSchedulePhase(booking, statusTitle);
   const paymentDeliveryGate = booking?.paymentDeliveryGate || null;

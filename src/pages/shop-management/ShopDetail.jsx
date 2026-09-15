@@ -39,14 +39,14 @@ import {
   DirectoryDotPill,
   DirectoryIdentity,
   DirectoryMetrics,
-  DirectoryMoney,
   DirectoryStatusPill,
   DirectoryTableWrap,
 } from "../directory-table/directoryTable";
-import { directoryStatusTone, joinMeta } from "../directory-table/directoryTableUtils";
+import { joinMeta } from "../directory-table/directoryTableUtils";
 import { BlockUserButton, AnonymizeDeleteModal } from "../user-management/UserBlockActions";
 import ShopRoutingPolicyCard from "./ShopRoutingPolicyCard";
 import ShopRevenueTab from "./ShopRevenueTab";
+import { buildShopOrderFinanceColumns, PunctualityMetrics } from "./shopOrderFinanceColumns";
 import { shopSettlementPath } from "../reports/reportUi";
 
 const CARD = {
@@ -275,17 +275,13 @@ export default function ShopDetails() {
     () => shop?.orders ?? shop?.bookingDetails ?? [],
     [shop?.bookingDetails, shop?.orders]
   );
-  const shopCurrencySymbol = (() => {
-    const fromShop = resolveCurrencySymbol(addr?.zone ?? shop?.zone ?? shop);
-    if (fromShop) return fromShop;
-    for (const order of orders) {
-      const symbol = resolveCurrencySymbol(
-        order?.billingDetail ?? order?.paymentSummary ?? order?.zone ?? order
-      );
-      if (symbol) return symbol;
-    }
-    return "";
-  })();
+  const shopCurrencySymbol = useMemo(
+    () =>
+      resolveCurrencySymbol(addr?.zone ?? shop?.zone ?? shop, {
+        applyDefault: true,
+      }),
+    [addr?.zone, shop]
+  );
   const allEmployees = useMemo(
     () => employeesResponse?.data?.employees ?? [],
     [employeesResponse?.data?.employees]
@@ -659,52 +655,21 @@ export default function ShopDetails() {
     };
   }, [activeTab]);
 
-  const orderColumns = [
-    {
-      key: "orderId",
-      header: "Order",
-      render: (row) => (
-        <DirectoryIdentity
-          name={`#${row.orderTrackId || row.id}`}
-          meta={
-            `${row?.customer?.firstName || ""} ${row?.customer?.lastName || ""}`.trim() || "—"
-          }
-          id={row.id}
-        />
-      ),
-    },
-    {
-      key: "date",
-      header: "When",
-      render: (row) => (
-        <DirectoryIdentity
-          name={formatDate(row?.createdAt)}
-          meta={`${row?.totalItems || 0} items`}
-        />
-      ),
-    },
-    {
-      key: "total",
-      header: "Total",
-      render: (row) => (
-        <DirectoryMoney>
-          {formatMoney(
-            row?.orderAmount,
-            resolveCurrencySymbol(row?.billingDetail ?? row?.paymentSummary ?? row) ||
-              shopCurrencySymbol
-          )}
-        </DirectoryMoney>
-      ),
-    },
-    {
-      key: "status",
-      header: "Status",
-      render: (row) => {
-        const status = String(row?.bookingStatus?.title || "Pending");
-        return <DirectoryDotPill tone={directoryStatusTone(status)}>{status}</DirectoryDotPill>;
-      },
-    },
-  ];
+  const orderColumns = useMemo(
+    () =>
+      buildShopOrderFinanceColumns({
+        symbol: shopCurrencySymbol,
+        onOpenOrder: (row) => {
+          if (row?.id) navigate(`/orders/details/${row.id}`);
+        },
+      }),
+    [navigate, shopCurrencySymbol]
+  );
+
+  const punctualityItems = PunctualityMetrics({
+    stats:
+      revenueSnapshot?.data?.lifetimePunctuality || shop?.punctuality || null,
+  });
 
   const ownerName =
     [biz?.firstName, biz?.lastName].filter(Boolean).join(" ") || "—";
@@ -946,6 +911,15 @@ export default function ShopDetails() {
           { label: "Completion", value: `${completionRate}%`, tone: "success" },
         ]}
       />
+      {punctualityItems?.length ? (
+        <>
+          <p className="jd-lead" style={{ margin: 0 }}>
+            Pickup and delivery timing across collected orders (early = before the
+            slot, on time = inside the window, late = after the slot).
+          </p>
+          <DirectoryMetrics items={punctualityItems} />
+        </>
+      ) : null}
 
       <div style={TAB_ROW}>
         {TABS.map((tab) => (
@@ -1127,6 +1101,11 @@ export default function ShopDetails() {
             </div>
             <Badge tone="neutral">{`${visibleOrders.length} shown`}</Badge>
           </div>
+          <p className="jd-lead" style={{ margin: "0 0 12px" }}>
+            Collection and delivery windows, pickup/delivery timing, and the money
+            split (gross, shop net, platform fee + commission) match the Revenue tab.
+            Service fee is platform income, not shop net.
+          </p>
           <DirectoryTableWrap>
             <Table
               columns={orderColumns}

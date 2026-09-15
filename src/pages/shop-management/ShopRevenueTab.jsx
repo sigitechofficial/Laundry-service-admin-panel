@@ -6,18 +6,19 @@ import { useGetShopRevenueQuery } from "../../store/services/api";
 import { getApiErrorMessage } from "../../store/services/apiErrors";
 import {
   DATE_TIME_FORMAT,
+  formatBookingWindow,
   formatDate,
   formatMoney,
 } from "../../utilities/formatters";
 import {
   DirectoryDateInput,
   DirectoryDotPill,
-  DirectoryIdentity,
   DirectoryMetrics,
   DirectoryMoney,
   DirectoryTableWrap,
 } from "../directory-table/directoryTable";
 import { downloadReportCsv, shopSettlementPath } from "../reports/reportUi.js";
+import { buildShopOrderFinanceColumns, PunctualityMetrics } from "./shopOrderFinanceColumns";
 
 const CARD = {
   padding: 16,
@@ -204,51 +205,14 @@ export default function ShopRevenueTab({ shopId, fallbackSymbol = "£" }) {
   const withdrawnLifetime = balances?.withdrawnToBank;
 
   const orderColumns = useMemo(
-    () => [
-      {
-        key: "order",
-        header: "Order",
-        render: (row) => (
-          <DirectoryIdentity
-            name={`#${row.orderTrackId || row.id}`}
-            meta={row.customer}
-          />
-        ),
-      },
-      {
-        key: "when",
-        header: "Collected",
-        render: (row) => formatDate(row.collectionDate, DATE_TIME_FORMAT),
-      },
-      {
-        key: "status",
-        header: "Status",
-        render: (row) => (
-          <DirectoryDotPill tone={statusTone(row.status)}>{row.status || "—"}</DirectoryDotPill>
-        ),
-      },
-      {
-        key: "pay",
-        header: "Pay",
-        render: (row) => row.paymentType || "—",
-      },
-      {
-        key: "gross",
-        header: "Gross",
-        render: (row) => <DirectoryMoney>{money(row.gross, symbol)}</DirectoryMoney>,
-      },
-      {
-        key: "net",
-        header: "Shop net",
-        render: (row) => <DirectoryMoney>{money(row.shopNet, symbol)}</DirectoryMoney>,
-      },
-      {
-        key: "commission",
-        header: "Platform",
-        render: (row) => money(row.platformCommission, symbol),
-      },
-    ],
-    [symbol]
+    () =>
+      buildShopOrderFinanceColumns({
+        symbol,
+        onOpenOrder: (row) => {
+          if (row?.id) navigate(`/orders/details/${row.id}`);
+        },
+      }),
+    [navigate, symbol]
   );
 
   const ledgerColumns = useMemo(
@@ -295,13 +259,36 @@ export default function ShopRevenueTab({ shopId, fallbackSymbol = "£" }) {
         `shop-${shopId}-orders-${filters.period || period}.csv`,
         [
           { key: "orderTrackId", header: "Order" },
-          { key: "collectionDate", header: "Collected" },
+          {
+            key: "collectionWindow",
+            header: "Collection",
+            value: (row) =>
+              formatBookingWindow(
+                row.collectionDate,
+                row.collectionTimeFrom,
+                row.collectionTimeTo
+              ),
+          },
+          {
+            key: "deliveryWindow",
+            header: "Delivery",
+            value: (row) =>
+              formatBookingWindow(
+                row.deliveryDate,
+                row.deliveryTimeFrom,
+                row.deliveryTimeTo
+              ),
+          },
+          { key: "pickupTiming", header: "Pickup timing" },
+          { key: "deliveryTiming", header: "Delivery timing" },
           { key: "status", header: "Status" },
           { key: "customer", header: "Customer" },
           { key: "paymentType", header: "Pay" },
           { key: "gross", header: "Gross" },
           { key: "shopNet", header: "Shop net" },
-          { key: "platformCommission", header: "Platform" },
+          { key: "serviceCharge", header: "Service fee (platform)" },
+          { key: "platformCommission", header: "Commission (platform)" },
+          { key: "platformTake", header: "Platform total" },
         ],
         orders
       );
@@ -458,6 +445,12 @@ export default function ShopRevenueTab({ shopId, fallbackSymbol = "£" }) {
             tone: "warning",
           },
           {
+            label: "Platform take",
+            value: money(periodTotals.platformTake, symbol),
+            tone: "navy",
+            hint: "Service fee + zone commission (admin)",
+          },
+          {
             label: "Refunded",
             value: money(periodTotals.refundedValue, symbol),
             tone: "danger",
@@ -467,6 +460,22 @@ export default function ShopRevenueTab({ shopId, fallbackSymbol = "£" }) {
           },
         ]}
       />
+      {payload.punctuality ? (
+        <>
+          <p className="jd-lead" style={{ margin: 0 }}>
+            Pickup and delivery timing in this date range. Early = before the booked
+            slot, on time = inside the window, late = after the slot.
+          </p>
+          <DirectoryMetrics
+            items={
+              PunctualityMetrics({
+                stats: payload.punctuality,
+                prefix: "",
+              }) || []
+            }
+          />
+        </>
+      ) : null}
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 16 }}>
         <div style={CARD}>
@@ -478,8 +487,14 @@ export default function ShopRevenueTab({ shopId, fallbackSymbol = "£" }) {
           <HighlightStat
             label="Shop net this period"
             value={money(periodTotals.shopNet, symbol)}
-            hint={deltaHint(vs.shopNetPct) || "After commission & driver pay"}
+            hint={deltaHint(vs.shopNetPct) || "After platform fee, commission & driver pay"}
             tone="success"
+          />
+          <HighlightStat
+            label="Platform take this period"
+            value={money(periodTotals.platformTake, symbol)}
+            hint="Service fee + zone commission — admin revenue, not shop income"
+            tone="warning"
           />
 
           <SectionTitle
@@ -487,22 +502,37 @@ export default function ShopRevenueTab({ shopId, fallbackSymbol = "£" }) {
             subtitle="Gross amounts from collected orders"
           />
           <Line label="Laundry / services" value={money(periodTotals.laundrySubtotal, symbol)} tone="in" />
-          <Line label="Service charge" value={money(periodTotals.serviceCharge, symbol)} />
+          <Line
+            label="Service fee (customer paid)"
+            value={money(periodTotals.serviceCharge, symbol)}
+            hint="This amount is kept by the platform, not the shop"
+          />
           <Line label="Booking tips" value={money(periodTotals.bookingTips, symbol)} />
           <Line label="Extra tips after delivery" value={money(periodTotals.extraTips, symbol)} />
           <Line label="Card gross" value={money(periodTotals.cardGross, symbol)} />
           <Line label="Cash gross" value={money(periodTotals.cashGross, symbol)} />
 
           <SectionTitle
-            title="Taken out"
-            subtitle="Deductions before shop net"
+            title="Platform (admin)"
+            subtitle="Service fee and commission stay with the platform"
+          />
+          <Line label="Service fee" value={money(periodTotals.serviceCharge, symbol)} tone="in" />
+          <Line
+            label="Zone commission"
+            value={money(periodTotals.platformCommission, symbol)}
+            tone="in"
+          />
+          <Line
+            label="Platform take"
+            value={money(periodTotals.platformTake, symbol)}
+            strong
+          />
+
+          <SectionTitle
+            title="Taken out of shop net"
+            subtitle="Deductions before the shop share"
           />
           <Line label="Discounts" value={`−${money(periodTotals.discount, symbol)}`} tone="out" />
-          <Line
-            label="Platform commission"
-            value={`−${money(periodTotals.platformCommission, symbol)}`}
-            tone="out"
-          />
           <Line
             label="Driver pay"
             value={`−${money(periodTotals.driverEarnings, symbol)}`}
@@ -714,6 +744,8 @@ export default function ShopRevenueTab({ shopId, fallbackSymbol = "£" }) {
             <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
               <p className="jd-lead" style={{ margin: 0 }}>
                 Page {pagination.page || 1} of {pagination.totalPages || 1} ({pagination.total || 0} orders)
+                {" · "}Collection and delivery windows, pickup/delivery timing, and platform
+                take (fee + commission) match the shop Orders tab.
               </p>
               <Button
                 size="sm"

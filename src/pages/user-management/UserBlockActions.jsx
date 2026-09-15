@@ -48,8 +48,9 @@ export function BlockUserModal({ open, onClose, userId, userType, isBlocked, onS
         </p>
       ) : (
         <p style={{ margin: 0, lineHeight: 1.6 }}>
-          This will <strong>block</strong> the user. They will not be able to log in until unblocked.
-          Their data will remain intact and can be restored at any time.
+          This will <strong>block</strong> the user. If they are logged in, they cannot continue — the app shows
+          “You are blocked from admin. Contact the support team.” Incomplete orders must be completed or cancelled
+          first. A customer&apos;s recurring frequency is paused so no further orders are created.
         </p>
       )}
     </Modal>

@@ -2114,12 +2114,15 @@ export default function OrderDetailsPage() {
                     )}
                   />
                   <OdMetaRow
-                    label="Service fee"
+                    label="Platform service fee"
                     value={formatMoney(
                       commercialTerms.serviceCharge,
                       paymentCurrencySymbol
                     )}
                   />
+                  <p style={{ margin: 0, fontSize: 11, color: "#64748B" }}>
+                    Service fee is platform / admin revenue. It is not included in shop net.
+                  </p>
                   <OdMetaRow
                     label="Agent commission"
                     value={`${Number(commercialTerms.agentCommissionPercent || 0)}% (${formatMoney(

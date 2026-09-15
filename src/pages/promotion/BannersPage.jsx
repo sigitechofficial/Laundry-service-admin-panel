@@ -125,14 +125,14 @@ function targetLabel(banner) {
 }
 
 function symbolForBanner(banner, zones = []) {
-  const direct = resolveCurrencySymbol(banner);
+  const direct = resolveCurrencySymbol(banner, { applyDefault: false });
   if (direct) return direct;
   const zoneIds = parseZoneIds(banner.zoneIds);
   const pool = zoneIds.length
     ? zones.filter((z) => zoneIds.some((id) => String(z.id) === String(id)))
     : zones;
-  const symbols = [...new Set(pool.map((z) => resolveCurrencySymbol(z)).filter(Boolean))];
-  return symbols.length === 1 ? symbols[0] : "";
+  const symbols = [...new Set(pool.map((z) => resolveCurrencySymbol(z, { applyDefault: true })).filter(Boolean))];
+  return symbols.length === 1 ? symbols[0] : resolveCurrencySymbol(null, { applyDefault: true });
 }
 
 function offerDisplay(banner, zones = []) {

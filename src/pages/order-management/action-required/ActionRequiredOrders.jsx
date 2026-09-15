@@ -296,8 +296,10 @@ export default function ActionRequiredOrders() {
           <PickupDropCell
             pickup={row.collectionDate || row.pickupDateTime}
             pickupTime={row.collectionTimeFrom}
+            pickupTimeTo={row.collectionTimeTo}
             drop={row.deliveryDate || row.deliveryDateTime}
             dropTime={row.deliveryTimeFrom}
+            dropTimeTo={row.deliveryTimeTo}
             title={`Pickup: ${row.pickupDateTime}\nDelivery: ${row.deliveryDateTime}`}
           />
         ),

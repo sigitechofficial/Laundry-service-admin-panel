@@ -17,6 +17,7 @@ import {
 } from "./orderListTable";
 import {
   customerDetailsPath,
+  formatOrderMoney,
   resolveShopBusinessInfoId,
   shopDetailsPath,
 } from "./orderListUtils";
@@ -93,8 +94,10 @@ export function useOrderListColumns({
           h(PickupDropCell, {
             pickup: row._booking?.collectionDate || row.pickupDateTime,
             pickupTime: row._booking?.collectionTimeFrom,
+            pickupTimeTo: row._booking?.collectionTimeTo,
             drop: row._booking?.deliveryDate || row.deliveryDateTime,
             dropTime: row._booking?.deliveryTimeFrom,
+            dropTimeTo: row._booking?.deliveryTimeTo,
             title: `Pickup: ${row.pickupDateTime}\nDelivery: ${row.deliveryDateTime}`,
           }),
       },
@@ -133,8 +136,8 @@ export function useOrderListColumns({
                             ? "Refunded"
                             : "Partial refund",
                           title: row.refundSummary?.latestReason
-                            ? `Refunded ${row.totalRefunded != null ? `£${Number(row.totalRefunded).toFixed(2)}` : ""} — ${row.refundSummary.latestReason}`
-                            : `Customer refunded ${row.totalRefunded != null ? `£${Number(row.totalRefunded).toFixed(2)}` : ""}`,
+                            ? `Refunded ${formatOrderMoney(row.totalRefunded, row._booking)} — ${row.refundSummary.latestReason}`
+                            : `Customer refunded ${formatOrderMoney(row.totalRefunded, row._booking)}`,
                         })
                       : null
                   )

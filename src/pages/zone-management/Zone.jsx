@@ -711,6 +711,7 @@ export default function ZoneManagement() {
           currencyUnits: currencies,
           country: zoneCountryRef(zone),
           countryId: zone?.city?.countryId ?? zoneCountryRef(zone)?.id,
+          applyDefault: true,
         };
         return {
           id: zone.id,

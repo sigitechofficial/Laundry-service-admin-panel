@@ -596,10 +596,10 @@ export default function AgentSettlement() {
             <Button
               size="sm"
               variant="secondary"
-              disabled={!row.shopId || row.platformOwes <= 0 || isActing}
+              disabled={!row.shopId || row.platformOwes <= 0 || isActing || row.connectReady === false}
               onClick={() => openActionModal("payout", row)}
             >
-              Payout
+              Pay to Connect
             </Button>
           </DirectoryActions>
         ),
@@ -753,7 +753,7 @@ export default function AgentSettlement() {
       case "cash-settlement":
         return "Record Cash Settlement";
       case "payout":
-        return "Record Agent Payout";
+        return "Pay agent via Stripe Connect";
       case "confirm-remittance":
         return "Confirm Cash Remittance";
       case "reject-remittance":
@@ -812,7 +812,7 @@ export default function AgentSettlement() {
             tone: "success",
           },
           {
-            label: "Already released to wallets",
+            label: "Already sent to Stripe Connect",
             value: formatMoney(summary.totalReleased, summary.currencySymbol),
             tone: "success",
           },
@@ -1059,7 +1059,8 @@ export default function AgentSettlement() {
           actionModal.type === "reject-withdrawal"
         }
         primaryDisabled={
-          actionModal.type === "approve-withdrawal" && !actionModal.connectReady
+          (actionModal.type === "approve-withdrawal" && !actionModal.connectReady) ||
+          (actionModal.type === "payout" && !actionModal.connectReady)
         }
       >
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>

@@ -8,7 +8,7 @@ import {
   openTel,
   openWhatsApp,
 } from "../../utilities/contactLinks";
-import { formatDate } from "../../utilities/formatters";
+import { formatCalendarDate, formatClock, formatDate, isDateOnlyValue } from "../../utilities/formatters";
 import styles from "./orderList.module.css";
 
 /** Shared blue link used by order id, shop name, and customer name. */
@@ -128,6 +128,15 @@ export function OrderIdLink({ id, label, navigate }) {
 
 export function DateTimeStack({ value, title }) {
   if (!value) return "—";
+  if (isDateOnlyValue(value)) {
+    return (
+      <div title={title}>
+        <div className="font-mono text-[13px] font-semibold tabular-nums text-[#0e131c]">
+          {formatCalendarDate(value)}
+        </div>
+      </div>
+    );
+  }
   return (
     <div title={title}>
       <div className="font-mono text-[13px] font-semibold tabular-nums text-[#0e131c]">
@@ -350,33 +359,39 @@ export function ItemsBadge({ count }) {
   );
 }
 
-function compactSlot(raw, timeFrom) {
+function compactSlot(raw, timeFrom, timeTo) {
   if (raw == null || raw === "" || raw === "—") return "—";
-  const datePart = formatDate(raw, "DD MMM");
+  const datePart = formatCalendarDate(raw, "DD MMM");
   if (datePart === "—") return String(raw);
-  // Prefer the dedicated TIME slot. Never invent HH:mm from a date-only value
-  // (midnight UTC → local "05:00" in PK, which made every row look identical).
-  if (timeFrom) {
-    const hm = String(timeFrom).trim().slice(0, 5);
-    return hm ? `${datePart} · ${hm}` : datePart;
-  }
+  const from = formatClock(timeFrom);
+  const to = formatClock(timeTo);
+  if (from && to) return `${datePart} · ${from}–${to}`;
+  if (from) return `${datePart} · ${from}`;
   return datePart;
 }
 
-export function PickupDropCell({ pickup, drop, pickupTime, dropTime, title }) {
+export function PickupDropCell({
+  pickup,
+  drop,
+  pickupTime,
+  pickupTimeTo,
+  dropTime,
+  dropTimeTo,
+  title,
+}) {
   return (
     <div className="flex flex-col gap-2" title={title}>
       <div className="flex items-center gap-2 whitespace-nowrap text-[12.5px] text-[#38424f]">
         <span className="rounded-[5px] bg-[#e8effe] px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.05em] text-[#2a63d6]">
           Pick
         </span>
-        <span className="font-mono">{compactSlot(pickup, pickupTime)}</span>
+        <span className="font-mono">{compactSlot(pickup, pickupTime, pickupTimeTo)}</span>
       </div>
       <div className="flex items-center gap-2 whitespace-nowrap text-[12.5px] text-[#38424f]">
         <span className="rounded-[5px] bg-[#efeafe] px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.05em] text-[#5f47c4]">
           Drop
         </span>
-        <span className="font-mono">{compactSlot(drop, dropTime)}</span>
+        <span className="font-mono">{compactSlot(drop, dropTime, dropTimeTo)}</span>
       </div>
     </div>
   );

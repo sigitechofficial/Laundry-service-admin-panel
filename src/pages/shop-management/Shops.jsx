@@ -224,7 +224,7 @@ export default function Shops() {
                 <span className={styles.spotMeta}>
                   {shop?.orderCount ?? 0} orders
                   {shop?.totalRevenue != null
-                    ? ` · ${formatMoney(shop.totalRevenue, resolveCurrencySymbol(shop))}`
+                    ? ` · ${formatMoney(shop.totalRevenue, resolveCurrencySymbol(shop, { applyDefault: true }))}`
                     : ""}
                 </span>
               </button>

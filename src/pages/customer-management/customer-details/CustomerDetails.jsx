@@ -142,11 +142,12 @@ export default function CustomerDetails() {
   const currencySymbol = useMemo(() => {
     for (const booking of bookingDetails) {
       const symbol = resolveCurrencySymbol(
-        booking?.billingDetail ?? booking?.paymentSummary ?? booking?.zone ?? booking
+        booking?.billingDetail ?? booking?.paymentSummary ?? booking?.zone ?? booking,
+        { applyDefault: false }
       );
       if (symbol) return symbol;
     }
-    return resolveCurrencySymbol(userDetails ?? user);
+    return resolveCurrencySymbol(userDetails ?? user, { applyDefault: true });
   }, [bookingDetails, user, userDetails]);
 
   const allOrders = useMemo(
@@ -260,7 +261,9 @@ export default function CustomerDetails() {
         <DirectoryMoney>
           {formatMoney(
             row.orderAmount,
-            resolveCurrencySymbol(row.billingDetail ?? row.paymentSummary ?? row) || currencySymbol
+            resolveCurrencySymbol(row.billingDetail ?? row.paymentSummary ?? row, {
+              applyDefault: true,
+            }) || currencySymbol
           )}
         </DirectoryMoney>
       ),

@@ -7,6 +7,7 @@ import { DATE_TIME_FORMAT, formatAmount, formatDate } from "../../utilities/form
 import {
   DirectoryDotPill,
   DirectoryIdentity,
+  DirectoryMetrics,
   DirectoryMoney,
   DirectoryStatusPill,
   DirectoryTableWrap,
@@ -132,6 +133,7 @@ export default function AgentSettlementDetail() {
   const statement = detail?.statement || {};
   const activity = detail?.recentActivity || [];
   const formulas = detail?.formulas || {};
+  const earningsReport = detail?.earningsReport || null;
 
   useEffect(() => {
     const canonical = shopSettlementPath(canonicalShopId);
@@ -146,6 +148,68 @@ export default function AgentSettlementDetail() {
   const ledgerTableData = useMemo(
     () => ledger.map((row, index) => ({ ...row, rowKey: `ledger-${row.id}-${index}` })),
     [ledger]
+  );
+
+  const channelReportRows = useMemo(() => {
+    if (!earningsReport) return [];
+    return [
+      { key: "card", channel: "Card", ...earningsReport.card },
+      { key: "cash", channel: "Cash", ...earningsReport.cash },
+      {
+        key: "mixed",
+        channel: "Mixed (card + cash balance)",
+        ...earningsReport.mixed,
+      },
+    ];
+  }, [earningsReport]);
+
+  const channelReportColumns = useMemo(
+    () => [
+      {
+        key: "channel",
+        header: "How paid",
+        render: (row) => (
+          <DirectoryDotPill
+            tone={row.key === "cash" ? "warning" : row.key === "mixed" ? "info" : "navy"}
+          >
+            {row.channel}
+          </DirectoryDotPill>
+        ),
+      },
+      {
+        key: "orders",
+        header: "Orders",
+        render: (row) => row.orders ?? 0,
+      },
+      {
+        key: "customers",
+        header: "Customers",
+        render: (row) => row.customers ?? 0,
+      },
+      {
+        key: "gross",
+        header: "Gross",
+        render: (row) => <DirectoryMoney>{money(row.gross, summary)}</DirectoryMoney>,
+      },
+      {
+        key: "laundry",
+        header: "Services",
+        render: (row) => <DirectoryMoney>{money(row.laundry, summary)}</DirectoryMoney>,
+      },
+      {
+        key: "platformTake",
+        header: "Admin take",
+        render: (row) => (
+          <DirectoryMoney>{money(row.platformTake, summary)}</DirectoryMoney>
+        ),
+      },
+      {
+        key: "shopNet",
+        header: "Shop net",
+        render: (row) => <DirectoryMoney>{money(row.shopNet, summary)}</DirectoryMoney>,
+      },
+    ],
+    [summary]
   );
 
   const orderColumns = useMemo(
@@ -170,8 +234,10 @@ export default function AgentSettlementDetail() {
         key: "channel",
         header: "Channel",
         render: (row) => (
-          <DirectoryDotPill tone={row.channel === "cash" ? "warning" : "navy"}>
-            {row.channel === "cash" ? "Cash" : "Card"}
+          <DirectoryDotPill
+            tone={row.mixed ? "info" : row.channel === "cash" ? "warning" : "navy"}
+          >
+            {row.mixed ? "Mixed" : row.channel === "cash" ? "Cash" : "Card"}
           </DirectoryDotPill>
         ),
       },
@@ -181,10 +247,12 @@ export default function AgentSettlementDetail() {
         render: (row) => (
           <div style={{ fontSize: 12, color: "#4b5563", lineHeight: 1.45 }}>
             <div>Total {money(row.orderTotal, summary)}</div>
-            <div>Laundry share {money(row.laundryCommission, summary)}</div>
+            <div>Laundry / services {money(row.laundry, summary)}</div>
+            <div>Shop share {money(row.laundryCommission, summary)}</div>
             <div>Booking tip {money(row.bookingTip, summary)}</div>
-            <div>Platform {money(row.platformShare, summary)}</div>
-            <div>Service fee {money(row.serviceFee, summary)}</div>
+            <div>Platform fee {money(row.serviceFee, summary)}</div>
+            <div>Admin commission {money(row.platformShare, summary)}</div>
+            <div>Admin take {money(row.platformTake ?? Number(row.serviceFee || 0) + Number(row.platformShare || 0), summary)}</div>
           </div>
         ),
       },
@@ -371,6 +439,7 @@ export default function AgentSettlementDetail() {
   const acting = recordingCash || recordingPayout;
   const cashDue = Number(summary.cashDueToPlatform || 0);
   const payable = Number(summary.platformOwesAgent || 0);
+  const stripeReady = Boolean(shop.connectAccountConnected);
 
   const submitAction = async () => {
     const amount = Number(action.amount);
@@ -394,7 +463,7 @@ export default function AgentSettlementDetail() {
           shopId: canonicalShopId,
           body: { amount, note: action.note || undefined },
         }).unwrap();
-        success(`Released ${money(amount, summary)} to the shop owner wallet`);
+        success(`Sent ${money(amount, summary)} to the agent's Stripe Connect account`);
       }
       setAction({ open: false, type: null, amount: "", note: "" });
     } catch (err) {
@@ -448,12 +517,12 @@ export default function AgentSettlementDetail() {
               Record cash received
             </Button>
             <Button
-              disabled={payable <= 0}
+              disabled={payable <= 0 || !stripeReady}
               onClick={() =>
                 setAction({ open: true, type: "payout", amount: String(payable), note: "" })
               }
             >
-              Release payout
+              Pay to Stripe Connect
             </Button>
           </>
         }
@@ -564,12 +633,12 @@ export default function AgentSettlementDetail() {
             tone="danger"
           />
           <Line
-            label="Released to agent wallet"
+            label="Released to Stripe Connect"
             value={`−${money(payRail.releasedToWallet ?? summary.totalAgentPayouts, summary)}`}
             hint={
               payRail.lastReleasedAt
-                ? `Last released ${formatDate(payRail.lastReleasedAt, DATE_TIME_FORMAT)}. Not a bank transfer until they withdraw.`
-                : "Admin payout — not a bank transfer yet"
+                ? `Last sent ${formatDate(payRail.lastReleasedAt, DATE_TIME_FORMAT)} to Stripe Connect.`
+                : "Admin payout goes to the agent's Stripe Connect account"
             }
             tone="success"
           />
@@ -585,6 +654,124 @@ export default function AgentSettlementDetail() {
           </p>
         </div>
       </div>
+
+      {earningsReport ? (
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
+            gap: 16,
+            marginBottom: 16,
+          }}
+        >
+          {earningsReport.loadError ? (
+            <div style={{ ...CARD, gridColumn: "1 / -1" }}>
+              <p style={{ margin: 0, fontWeight: 700 }}>Admin breakdown could not load</p>
+              <p className="jd-lead" style={{ margin: "6px 0 0" }}>
+                Cash rails below are still live. Retry this page to refresh services,
+                commission, and card vs cash counts.
+              </p>
+            </div>
+          ) : (
+            <>
+          <div style={CARD}>
+            <p style={{ margin: "0 0 4px", fontSize: 11, fontWeight: 700, letterSpacing: "0.04em", color: "#1e3a8a", textTransform: "uppercase" }}>
+              Admin overall breakdown
+            </p>
+            <p style={{ margin: "0 0 12px", fontSize: 28, fontWeight: 800, color: "#1e3a8a" }}>
+              {money(earningsReport.platformTake, summary)}
+            </p>
+            <p style={{ margin: "0 0 12px", fontSize: 12, color: "#6b7280" }}>
+              Platform take on paid orders (service fee + commission)
+            </p>
+            <Line
+              label="Laundry / services"
+              value={money(earningsReport.laundry, summary)}
+              hint="Customer laundry / repair invoice, before the split"
+            />
+            <Line
+              label="Service fee (admin)"
+              value={money(earningsReport.serviceFee, summary)}
+              hint="Kept by the platform — not shop income"
+            />
+            <Line
+              label="Zone commission (admin)"
+              value={money(earningsReport.platformCommission, summary)}
+              hint="Platform share of the laundry split"
+            />
+            <Line
+              label="Admin / platform take"
+              value={money(earningsReport.platformTake, summary)}
+              strong
+            />
+            <Line label="Shop net" value={money(earningsReport.shopNet, summary)} />
+            <Line
+              label="Driver pay"
+              value={`−${money(earningsReport.driverEarnings, summary)}`}
+            />
+            <Line
+              label="Gross after refunds"
+              value={money(earningsReport.gross, summary)}
+            />
+            <p style={{ margin: "10px 0 0", fontSize: 12, color: "#6b7280", lineHeight: 1.5 }}>
+              {formulas.adminTake ||
+                "Admin take = service fee + zone commission. Net of customer refunds on paid invoices."}
+            </p>
+          </div>
+
+          <div style={CARD}>
+            <p style={{ margin: "0 0 4px", fontSize: 11, fontWeight: 700, letterSpacing: "0.04em", color: "#0f766e", textTransform: "uppercase" }}>
+              Card vs cash
+            </p>
+            <p style={{ margin: "0 0 12px", fontSize: 13, color: "#4b5563", lineHeight: 1.5 }}>
+              {formulas.payMix ||
+                "How many paid orders and unique customers used card vs cash at this shop."}
+            </p>
+            <DirectoryMetrics
+              items={[
+                {
+                  label: "Card orders",
+                  value: earningsReport.card?.orders ?? 0,
+                  tone: "navy",
+                  hint: `${earningsReport.card?.customers ?? 0} customers`,
+                },
+                {
+                  label: "Cash orders",
+                  value: earningsReport.cash?.orders ?? 0,
+                  tone: "warning",
+                  hint: `${earningsReport.cash?.customers ?? 0} customers`,
+                },
+                {
+                  label: "Unique customers",
+                  value: earningsReport.customers ?? 0,
+                  tone: "brand",
+                  hint: earningsReport.customersWhoUsedBoth
+                    ? `${earningsReport.customersWhoUsedBoth} used both card and cash`
+                    : `${earningsReport.ordersPaid || 0} paid orders`,
+                },
+              ]}
+            />
+            <div style={{ marginTop: 12 }}>
+              <DirectoryTableWrap>
+                <Table
+                  columns={channelReportColumns}
+                  rows={channelReportRows}
+                  rowKey={(row) => row.key}
+                  empty="No paid orders yet."
+                />
+              </DirectoryTableWrap>
+            </div>
+            {Number(earningsReport.mixed?.orders || 0) > 0 ? (
+              <p style={{ margin: "10px 0 0", fontSize: 12, color: "#6b7280", lineHeight: 1.5 }}>
+                Mixed orders are a subset of cash: booked on card, remaining balance
+                collected in cash.
+              </p>
+            ) : null}
+          </div>
+            </>
+          )}
+        </div>
+      ) : null}
 
       <div style={{ ...CARD, marginBottom: 16 }}>
         <p style={{ margin: "0 0 8px", fontSize: 11, fontWeight: 700, letterSpacing: "0.04em", color: "#64748b", textTransform: "uppercase" }}>
@@ -818,7 +1005,7 @@ export default function AgentSettlementDetail() {
       <Modal
         open={action.open}
         onClose={() => setAction({ open: false, type: null, amount: "", note: "" })}
-        title={action.type === "cash" ? "Record cash received from agent" : "Release payout to agent wallet"}
+        title={action.type === "cash" ? "Record cash received from agent" : "Pay agent via Stripe Connect"}
         primaryLabel={acting ? "Saving…" : "Confirm"}
         onPrimary={submitAction}
         primaryDisabled={acting}
@@ -826,7 +1013,9 @@ export default function AgentSettlementDetail() {
         <p style={{ margin: "0 0 12px", fontSize: 13, color: "#4b5563" }}>
           {action.type === "cash"
             ? `Live cash due is ${money(cashDue, summary)}. After confirm that due becomes £0 (or lower) and a “Cash handed to platform” row is added to Recent activity.`
-            : `Live payable is ${money(payable, summary)}. This releases money into the agent wallet. It is not a Stripe bank transfer until they withdraw.`}
+            : stripeReady
+              ? `Live payable is ${money(payable, summary)}. Confirm sends this amount to the agent's Stripe Connect account. They cannot withdraw the same earnings again.`
+              : "Stripe Connect onboarding must be complete before you can pay this agent."}
         </p>
         <Field label="Amount" htmlFor="settle-amount">
           <Input
