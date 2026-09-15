@@ -44,6 +44,7 @@ import {
 } from "../directory-table/directoryTable";
 import { joinMeta } from "../directory-table/directoryTableUtils";
 import { BlockUserButton, AnonymizeDeleteModal } from "../user-management/UserBlockActions";
+import { isAccountBlocked } from "../../utilities/accountBlocked";
 import ShopRoutingPolicyCard from "./ShopRoutingPolicyCard";
 import ShopRevenueTab from "./ShopRevenueTab";
 import { buildShopOrderFinanceColumns, PunctualityMetrics } from "./shopOrderFinanceColumns";
@@ -428,7 +429,7 @@ export default function ShopDetails() {
 
   useEffect(() => {
     if (!shop) return;
-    setIsBlocked(biz?.status === false);
+    setIsBlocked(isAccountBlocked(biz));
     setSettingsForm({
       shopName: shop?.shopName || shop?.name || "",
       status: shop?.status === false ? "inactive" : "active",

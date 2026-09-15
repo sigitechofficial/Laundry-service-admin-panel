@@ -576,7 +576,13 @@ export const api = createApi({
         method: "PATCH",
         body: { userId, userType, reason },
       }),
-      invalidatesTags: ["Customers", "Drivers", "Employees"],
+      invalidatesTags: (_result, _error, arg) => [
+        "Customers",
+        "Drivers",
+        "Employees",
+        "Shops",
+        { type: "Customers", id: String(arg?.userId) },
+      ],
     }),
 
     unblockUser: builder.mutation({
@@ -585,7 +591,13 @@ export const api = createApi({
         method: "PATCH",
         body: { userId, userType },
       }),
-      invalidatesTags: ["Customers", "Drivers", "Employees"],
+      invalidatesTags: (_result, _error, arg) => [
+        "Customers",
+        "Drivers",
+        "Employees",
+        "Shops",
+        { type: "Customers", id: String(arg?.userId) },
+      ],
     }),
 
     getUserBlockStatus: builder.query({
@@ -593,6 +605,9 @@ export const api = createApi({
         url: `admin/user-block-status/${userId}`,
         method: "GET",
       }),
+      providesTags: (_result, _error, userId) => [
+        { type: "Customers", id: String(userId) },
+      ],
     }),
 
     getCustomerById: builder.query({
@@ -600,6 +615,10 @@ export const api = createApi({
         url: `admin/specificCustomerDetails/${id}`,
         method: "GET",
       }),
+      providesTags: (_result, _error, id) => [
+        "Customers",
+        { type: "Customers", id: String(id) },
+      ],
     }),
 
     addCustomer: builder.mutation({

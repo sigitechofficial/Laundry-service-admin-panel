@@ -135,3 +135,9 @@
   outline: var(--focus-ring);
   outline-offset: var(--focus-offset);
 }
+
+/* Search chrome already draws the outer ring on the wrapper. */
+.jd-ds input[type="search"]:focus-visible {
+  outline: none;
+  outline-offset: 0;
+}

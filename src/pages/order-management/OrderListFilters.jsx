@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import dayjs from "dayjs";
-import { Field, Input, Select } from "../../design-system";
-import FilterDetails from "./FilterDetails";
+import { Field, Input } from "../../design-system";
+import FilterDetails, { closeFilterMenu } from "./FilterDetails";
 import OrderZoneFilter from "./OrderZoneFilter";
 import OrderShopFilter from "./OrderShopFilter";
 import {
@@ -47,6 +47,24 @@ function rangeForDays(days) {
     .subtract(Math.max(1, days) - 1, "day")
     .format("YYYY-MM-DD");
   return { startDate: start, endDate: end };
+}
+
+function FilterOption({ selected, children, onPick }) {
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        onPick();
+        closeFilterMenu(e.currentTarget);
+      }}
+      className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13.5px] ${
+        selected ? "bg-[#eef0fb] font-semibold text-[#20307f]" : "text-[#38424f] hover:bg-[#f4f5f8]"
+      }`}
+    >
+      <span className="flex-1">{children}</span>
+      {selected ? <span className="font-bold text-[#2c3ba0]">✓</span> : null}
+    </button>
+  );
 }
 
 export default function OrderListFilters({
@@ -138,7 +156,7 @@ export default function OrderListFilters({
             value={searchInput ?? ""}
             onChange={(e) => onSearchInputChange(e.target.value)}
             placeholder={searchPlaceholder}
-            className="min-w-0 flex-1 border-0 bg-transparent text-[13.5px] text-[#0e131c] outline-none placeholder:text-[#8a94a2]"
+            className={styles.searchInput}
           />
         </label>
       ) : null}
@@ -175,22 +193,17 @@ export default function OrderListFilters({
           {DATE_PRESETS.map((preset) => {
             const on = activePreset === preset.days;
             return (
-              <button
+              <FilterOption
                 key={preset.label}
-                type="button"
-                onClick={(e) => {
+                selected={on}
+                onPick={() => {
                   setShowCustom(false);
                   if (!preset.days) onDateRangeChange?.(null);
                   else onDateRangeChange?.(rangeForDays(preset.days));
-                  e.currentTarget.closest("details")?.removeAttribute("open");
                 }}
-                className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13.5px] ${
-                  on ? "bg-[#eef0fb] font-semibold text-[#20307f]" : "text-[#38424f] hover:bg-[#f4f5f8]"
-                }`}
               >
-                <span className="flex-1">{preset.label}</span>
-                {on ? <span className="font-bold text-[#2c3ba0]">✓</span> : null}
-              </button>
+                {preset.label}
+              </FilterOption>
             );
           })}
           <button
@@ -251,31 +264,40 @@ export default function OrderListFilters({
               </svg>
             </summary>
           }
-          panelClassName="absolute right-0 z-30 mt-2 w-[260px] rounded-xl border border-[#e6e9f0] bg-white p-4 shadow-[0_20px_48px_-16px_rgba(16,21,31,.34)]"
+          panelClassName="absolute right-0 z-30 mt-2 max-h-[360px] w-[260px] overflow-auto rounded-xl border border-[#e6e9f0] bg-white p-1.5 shadow-[0_20px_48px_-16px_rgba(16,21,31,.34)]"
         >
-          <Field label="Status">
-            <Select
-              aria-label="Order status"
-              value={statusId || ""}
-              onChange={(value) => onStatusIdChange?.(value)}
-              options={statusOptions}
-              placeholder="All statuses"
-            />
-          </Field>
-          <Field label="Type">
-            <Select
-              aria-label="Order type"
-              value={recurringType || ""}
-              onChange={(value) => onRecurringTypeChange?.(value)}
-              options={RECURRING_OPTIONS}
-              placeholder="All orders"
-            />
-          </Field>
+          <p className="px-2.5 pb-1 pt-2 text-[10.5px] font-bold uppercase tracking-[0.08em] text-[#5c6673]">
+            Status
+          </p>
+          {statusOptions.map((opt) => (
+            <FilterOption
+              key={opt.value || "all-status"}
+              selected={String(opt.value) === String(statusId || "")}
+              onPick={() => onStatusIdChange?.(opt.value)}
+            >
+              {opt.label}
+            </FilterOption>
+          ))}
+          <p className="px-2.5 pb-1 pt-3 text-[10.5px] font-bold uppercase tracking-[0.08em] text-[#5c6673]">
+            Type
+          </p>
+          {RECURRING_OPTIONS.map((opt) => (
+            <FilterOption
+              key={opt.value || "all-type"}
+              selected={String(opt.value) === String(recurringType || "")}
+              onPick={() => onRecurringTypeChange?.(opt.value)}
+            >
+              {opt.label}
+            </FilterOption>
+          ))}
           {hasActiveFilters && onClearFilters ? (
             <button
               type="button"
-              onClick={onClearFilters}
-              className="mt-3 text-xs font-semibold text-[#5c6673] hover:text-[#0e131c]"
+              onClick={(e) => {
+                onClearFilters();
+                closeFilterMenu(e.currentTarget);
+              }}
+              className="mt-2 px-2.5 pb-1 text-xs font-semibold text-[#5c6673] hover:text-[#0e131c]"
             >
               Clear all
             </button>
@@ -285,22 +307,35 @@ export default function OrderListFilters({
 
       {showSort && onSortByChange ? (
         <>
-          <div
-            className={`${styles.sortBy} ${
-              sortIsCustom ? "border-[#2c3ba0] bg-[#eef0fb] text-[#20307f]" : ""
-            }`}
+          <FilterDetails
+            summary={
+              <summary
+                className={`${styles.tool} ${styles.sortByTrigger} ${
+                  sortIsCustom ? "border-[#2c3ba0] bg-[#eef0fb] text-[#20307f]" : ""
+                }`}
+              >
+                <span className={styles.sortByLabel}>Sort by</span>
+                <span className={styles.sortByValue}>
+                  {sortOptions.find((o) => String(o.value) === String(sortBy || defaultSortBy))
+                    ?.label || "Order placed"}
+                </span>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className="h-4 w-4 text-[#8a94a2]">
+                  <path d="m6 9 6 6 6-6" />
+                </svg>
+              </summary>
+            }
+            panelClassName="absolute right-0 z-30 mt-2 min-w-[200px] rounded-xl border border-[#e6e9f0] bg-white p-1.5 shadow-[0_20px_48px_-16px_rgba(16,21,31,.34)]"
           >
-            <span className={styles.sortByLabel}>Sort by</span>
-            <div className={styles.sortSelect}>
-              <Select
-                aria-label="Sort by"
-                value={sortBy || defaultSortBy}
-                onChange={(value) => onSortByChange(value)}
-                options={sortOptions}
-                placeholder="Sort by"
-              />
-            </div>
-          </div>
+            {sortOptions.map((opt) => (
+              <FilterOption
+                key={opt.value}
+                selected={String(opt.value) === String(sortBy || defaultSortBy)}
+                onPick={() => onSortByChange(opt.value)}
+              >
+                {opt.label}
+              </FilterOption>
+            ))}
+          </FilterDetails>
           <div className={styles.sortDir} role="group" aria-label="Sort direction">
             <button
               type="button"
@@ -336,12 +371,13 @@ export default function OrderListFilters({
           <button
             type="button"
             onClick={onDownload}
-            className={`${styles.tool} hover:bg-[#f4f5f8]`}
+            className={`${styles.tool} ${styles.iconTool} hover:bg-[#f4f5f8]`}
+            aria-label="Download"
+            title="Download"
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4 text-[#5c6673]">
               <path d="M12 3v12M8 11l4 4 4-4M4 21h16" />
             </svg>
-            Download
           </button>
         ) : null}
         {extra}

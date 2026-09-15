@@ -33,6 +33,7 @@ import { Delay } from "../../components/shared/Loaders";
 import useToaster from "../../components/ui/Toaster";
 import { getApiErrorMessage } from "../../store/services/apiErrors";
 import { canStaffPerform } from "../../utilities/employeeFeatureAccess";
+import { isAccountBlocked } from "../../utilities/accountBlocked";
 import AddCustomerModal from "./AddCustomerModal";
 
 const NAME_SORT_OPTIONS = [
@@ -137,6 +138,7 @@ export default function CustomerManagement() {
         createdAt: cus?.createdAt,
         updatedAt: cus?.updatedAt,
         status: cus?.status,
+        blocked: isAccountBlocked(cus),
         changeStatus: cus?.status,
       })),
     [customers]
@@ -205,7 +207,12 @@ export default function CustomerManagement() {
       key: "status",
       header: "Status",
       sortable: true,
-      render: (row) => <DirectoryStatusPill active={row.status} />,
+      render: (row) => (
+        <DirectoryStatusPill
+          active={!isAccountBlocked(row)}
+          inactiveLabel="Blocked"
+        />
+      ),
     },
     {
       key: "totalOrders",
@@ -237,7 +244,7 @@ export default function CustomerManagement() {
             onClick={() => navigate(`/customer-management/details/${row.id}`)}
           />
           <DirectoryActionBlock
-            isBlocked={!row.status}
+            isBlocked={isAccountBlocked(row)}
             onClick={() => setBlockRow(row)}
           />
           <DirectoryActionEdit
@@ -356,7 +363,7 @@ export default function CustomerManagement() {
         onClose={() => setBlockRow(null)}
         userId={blockRow?.id}
         userType="customer"
-        isBlocked={!blockRow?.status}
+        isBlocked={isAccountBlocked(blockRow)}
         onSuccess={() => {
           setBlockRow(null);
           refetch();

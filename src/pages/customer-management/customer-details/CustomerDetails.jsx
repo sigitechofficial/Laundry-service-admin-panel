@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  Badge,
   Button,
   Field,
   Input,
@@ -33,6 +34,7 @@ import {
 } from "../../directory-table/directoryTable";
 import { directoryStatusTone } from "../../directory-table/directoryTableUtils";
 import { BlockUserButton, AnonymizeDeleteModal } from "../../user-management/UserBlockActions";
+import { isAccountBlocked } from "../../../utilities/accountBlocked";
 
 const PANEL = {
   padding: 16,
@@ -76,11 +78,14 @@ export default function CustomerDetails() {
   const normalizedTel = String(customerPhone).replace(/[^+\d]/g, "");
   const normalizedWhatsApp = normalizedTel.replace(/\D/g, "");
   const canCallCustomer = Boolean(normalizedTel);
+  const blockedFromApi =
+    user?.blocked === true ||
+    userDetails?.blocked === true ||
+    isAccountBlocked(user?.status);
 
-  // Sync blocked state from API data
   useEffect(() => {
-    if (user?.status !== undefined) setIsBlocked(!user.status);
-  }, [user?.status]);
+    setIsBlocked(blockedFromApi);
+  }, [blockedFromApi]);
 
   useEffect(() => {
     setSettingsForm({
@@ -329,7 +334,12 @@ export default function CustomerDetails() {
   return (
     <div>
       <PageHeader
-        title={fullName}
+        title={
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>
+            {fullName}
+            {isBlocked ? <Badge tone="danger">Blocked</Badge> : null}
+          </span>
+        }
         description={`Customer since ${formatDate(
           userDetails?.createdAt || user?.createdAt,
           "MMMM YYYY"

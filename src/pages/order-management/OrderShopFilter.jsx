@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useGetShopsDataQuery } from "../../store/services/api";
-import FilterDetails from "./FilterDetails";
+import FilterDetails, { closeFilterMenu } from "./FilterDetails";
 import styles from "./orderList.module.css";
 
 /**
@@ -57,7 +57,7 @@ export default function OrderShopFilter({ value, onChange }) {
             type="button"
             onClick={(e) => {
               onChange?.(opt.value);
-              e.currentTarget.closest("details")?.removeAttribute("open");
+              closeFilterMenu(e.currentTarget);
             }}
             className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13.5px] ${
               on ? "bg-[#eef0fb] font-semibold text-[#20307f]" : "text-[#38424f] hover:bg-[#f4f5f8]"

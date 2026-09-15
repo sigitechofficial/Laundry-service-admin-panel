@@ -5,6 +5,7 @@ import { Delay } from "../../../components/shared/Loaders";
 import { extractAdminEmployees } from "../extractAdminEmployees";
 import { useState, useEffect } from "react";
 import { BlockUserButton, AnonymizeDeleteModal } from "../../user-management/UserBlockActions";
+import { isAccountBlocked } from "../../../utilities/accountBlocked";
 
 const PANEL = {
   padding: 16,
@@ -27,8 +28,8 @@ export default function EmployeeDetails() {
   const employee = adminEmployees.find((e) => String(e.id) === String(id));
 
   useEffect(() => {
-    if (employee?.status !== undefined) setIsBlocked(!employee.status);
-  }, [employee?.status]);
+    if (employee) setIsBlocked(isAccountBlocked(employee));
+  }, [employee?.status, employee?.blocked]);
   const showInitialLoader =
     Boolean(id) &&
     payload == null &&
@@ -109,8 +110,8 @@ export default function EmployeeDetails() {
           <div>
             <p className="jd-field__hint" style={{ margin: 0 }}>Status</p>
             <div style={{ marginTop: 6 }}>
-              <Badge tone={employee.status ? "success" : "danger"}>
-                {employee.status ? "Active" : "Blocked"}
+              <Badge tone={isAccountBlocked(employee) ? "danger" : "success"}>
+                {isAccountBlocked(employee) ? "Blocked" : "Active"}
               </Badge>
             </div>
           </div>

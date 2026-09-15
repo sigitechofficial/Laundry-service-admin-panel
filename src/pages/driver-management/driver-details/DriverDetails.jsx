@@ -17,6 +17,7 @@ import {
 } from "../../directory-table/directoryTable";
 import { directoryStatusTone, joinMeta } from "../../directory-table/directoryTableUtils";
 import { BlockUserButton, AnonymizeDeleteModal } from "../../user-management/UserBlockActions";
+import { isAccountBlocked } from "../../../utilities/accountBlocked";
 
 const PANEL = {
   padding: 24,
@@ -47,7 +48,9 @@ export default function DriverDetails() {
   const addressInfo = shopInfo?.addressDb;
 
   useEffect(() => {
-    if (driverDetails?.status !== undefined) setIsBlocked(!driverDetails.status);
+    if (driverDetails?.status !== undefined) {
+      setIsBlocked(isAccountBlocked(driverDetails.status));
+    }
   }, [driverDetails?.status]);
   const bookings = useMemo(
     () => data?.data?.driverBookings || [],

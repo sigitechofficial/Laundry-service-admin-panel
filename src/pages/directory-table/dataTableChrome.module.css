@@ -192,6 +192,15 @@
   font-size: 13.5px;
   color: var(--ink);
   outline: none;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.searchInput:focus,
+.searchInput:focus-visible {
+  outline: none;
+  box-shadow: none;
+  border: 0;
 }
 
 .searchInput::placeholder {

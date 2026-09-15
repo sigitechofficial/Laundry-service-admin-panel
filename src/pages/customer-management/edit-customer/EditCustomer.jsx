@@ -64,10 +64,10 @@ export default function EditCustomer() {
         phoneNum: customer?.phoneNum || "",
         password: "",
         confirmPassword: "",
-        status: customer?.status || userDetails?.status || "",
+        status: customer?.status,
       });
     }
-  }, [customer, reset, userDetails?.status]);
+  }, [customer, reset]);
 
   if (isFetchingCustomer) return <Delay />;
 
