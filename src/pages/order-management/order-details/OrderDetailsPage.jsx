@@ -30,6 +30,12 @@ import {
   resolveDisplayCurrency,
 } from "../../../utilities/formatters";
 import { canEditOrderFromBooking } from "../../../shared/orderEditStatusGate";
+import {
+  INVOICE_PHASE,
+  invoicePhaseLabel,
+  isInvoiceIssued,
+  resolveInvoicePhase,
+} from "../../../shared/invoiceLifecycle";
 import useToaster from "../../../components/ui/Toaster";
 import {
   mergeInvoiceDetailsFromResponse,
@@ -52,6 +58,7 @@ import { customerDetailsPath, resolveShopBusinessInfoId, shopDetailsPath } from 
 import {
   OdCard,
   OdEmptyInvoice,
+  OdInvoiceTotal,
   OdMetaRow,
   OdMoreCategories,
   OdSectionTitle,
@@ -513,9 +520,8 @@ export default function OrderDetailsPage() {
   // Total items on the agent invoice (sum of every service line qty). Populated
   // once the agent creates/updates the invoice — this is what should drive the
   // Delivery count when the agent didn't record a separate delivery-proof count.
-  const invoiceGenerated = ["draft", "finalized"].includes(
-    String(orderData?.invoiceStatus || "").toLowerCase()
-  );
+  const invoiceGenerated = isInvoiceIssued(orderData);
+  const invoicePhase = resolveInvoicePhase(orderData);
   const invoiceItemsTotal = selectedServiceGroups.reduce(
     (sum, group) =>
       sum +
@@ -747,6 +753,16 @@ export default function OrderDetailsPage() {
     paymentSummary ?? orderData,
     { applyDefault: true }
   ).symbol;
+  const invoiceTotalHint =
+    invoicePhase === INVOICE_PHASE.DRAFT
+      ? "Draft — not finalized"
+      : invoicePhase === INVOICE_PHASE.PENDING
+        ? paidAtBookingAmount > 0
+          ? `${formatMoney(paidAtBookingAmount, paymentCurrencySymbol)} held at booking`
+          : minimumOrderFeeAmount > 0
+            ? `Min. ${formatMoney(minimumOrderFeeAmount, paymentCurrencySymbol)}`
+            : "Total after services are invoiced"
+        : null;
   const commercialTerms = orderData?.commercialTerms;
   const appliedRatesLabel = (() => {
     if (!commercialTerms) return null;
@@ -1061,6 +1077,14 @@ export default function OrderDetailsPage() {
                     : ""}
                 </Badge>
               ) : null}
+              {invoicePhase === INVOICE_PHASE.PENDING ||
+              invoicePhase === INVOICE_PHASE.DRAFT ? (
+                <Badge
+                  tone={invoicePhase === INVOICE_PHASE.DRAFT ? "brand" : "warning"}
+                >
+                  Invoice {invoicePhaseLabel(invoicePhase).toLowerCase()}
+                </Badge>
+              ) : null}
               <div className={styles.toolbarActions}>
                 <Select
                   value={selectedStatusId}
@@ -1080,12 +1104,11 @@ export default function OrderDetailsPage() {
                 >
                   {isUpdatingStatus ? "Updating..." : "Update"}
                 </Button>
-                <div className={styles.totalBlock}>
-                  <p className={styles.sectionLabel}>Order Total</p>
-                  <p className={styles.totalValue}>
-                    {formatMoney(totalAmount, paymentCurrencySymbol)}
-                  </p>
-                </div>
+                <OdInvoiceTotal
+                  phase={invoicePhase}
+                  amountLabel={formatMoney(totalAmount, paymentCurrencySymbol)}
+                  hint={invoiceTotalHint}
+                />
               </div>
             </div>
           </OdCard>
@@ -1744,8 +1767,12 @@ export default function OrderDetailsPage() {
                   Amount Due
                 </p>
                 <p style={{ margin: 0, fontSize: 14, fontWeight: 700,
-                    color: amountDueNow > 0 ? "#B45309" : "#065F46", }}>
-                  {formatMoney(amountDueNow, paymentCurrencySymbol)}
+                    color: invoiceGenerated
+                      ? (amountDueNow > 0 ? "#B45309" : "#065F46")
+                      : "#64748B", }}>
+                  {invoiceGenerated
+                    ? formatMoney(amountDueNow, paymentCurrencySymbol)
+                    : "TBD"}
                 </p>
               </div>
               {paymentSummary?.paymentStateLabel ? (
@@ -1757,10 +1784,12 @@ export default function OrderDetailsPage() {
               ) : null}
               <div className="flex items-center justify-between pt-2.5 mt-2.5" style={{ borderTop: "1px solid #E4E7EC" }}>
                 <p style={{ margin: 0, fontFamily: "Switzer", fontWeight: 700 }}>
-                  Total
+                  {invoiceGenerated ? "Total" : "Invoice"}
                 </p>
-                <p style={{ margin: 0, fontFamily: "Switzer", fontWeight: 700, color: "var(--accent)" }}>
-                  {formatMoney(orderTotal, paymentCurrencySymbol)}
+                <p style={{ margin: 0, fontFamily: "Switzer", fontWeight: 700, color: invoiceGenerated ? "var(--accent)" : "#475569" }}>
+                  {invoiceGenerated
+                    ? formatMoney(orderTotal, paymentCurrencySymbol)
+                    : invoicePhaseLabel(invoicePhase)}
                 </p>
               </div>
             </div>
@@ -2064,10 +2093,12 @@ export default function OrderDetailsPage() {
           <div style={CARD}>
             <OdSectionTitle>Payment</OdSectionTitle>
             <div className="space-y-3" style={{ padding: 20 }}>
-              <div className={`${styles.due} ${amountDueNow > 0 ? styles.dueWarn : styles.dueOk}`}>
+              <div className={`${styles.due} ${invoiceGenerated && amountDueNow > 0 ? styles.dueWarn : styles.dueOk}`}>
                 <p className={styles.dueLabel}>Amount due</p>
                 <p className={styles.dueValue}>
-                  {formatMoney(amountDueNow, paymentCurrencySymbol)}
+                  {invoiceGenerated
+                    ? formatMoney(amountDueNow, paymentCurrencySymbol)
+                    : "TBD"}
                 </p>
               </div>
               <OdMetaRow
@@ -2196,17 +2227,22 @@ export default function OrderDetailsPage() {
                   {paymentSummary.paymentStateLabel}
                 </p>
               ) : null}
-              {orderData?.invoiceStatus ? (
-                <div className="flex justify-between gap-3">
-                  <p style={{ margin: 0, color: "var(--muted)",  fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em" }}>
-                    Invoice
-                  </p>
-                  <p style={{ margin: 0, textAlign: "right", fontSize: 13, fontWeight: 500, color: "#475569" }}>
-                    {String(orderData.invoiceStatus).charAt(0).toUpperCase() +
-                      String(orderData.invoiceStatus).slice(1)}
-                  </p>
-                </div>
-              ) : null}
+              <div className="flex justify-between gap-3">
+                <p style={{ margin: 0, color: "var(--muted)",  fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em" }}>
+                  Invoice
+                </p>
+                <Badge
+                  tone={
+                    invoicePhase === INVOICE_PHASE.FINALIZED
+                      ? "success"
+                      : invoicePhase === INVOICE_PHASE.DRAFT
+                        ? "brand"
+                        : "warning"
+                  }
+                >
+                  {invoicePhaseLabel(invoicePhase)}
+                </Badge>
+              </div>
             </div>
           </div>
 

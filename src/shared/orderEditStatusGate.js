@@ -7,6 +7,8 @@
  * Side statuses (on hold / issue) stay editable if an invoice already exists.
  */
 
+import { isInvoiceIssued } from "./invoiceLifecycle";
+
 function normalizeStatusTitle(value) {
   return String(value ?? "")
     .toLowerCase()
@@ -102,11 +104,6 @@ function rankByExactPipeline(key) {
   return -1;
 }
 
-function hasInvoiceRecord(booking) {
-  const invoiceStatus = String(booking?.invoiceStatus || "").toLowerCase();
-  return invoiceStatus === "draft" || invoiceStatus === "finalized";
-}
-
 function canEditByStatusId(sid) {
   const n = Number(sid);
   if (!Number.isFinite(n) || n <= 0) return null;
@@ -156,7 +153,7 @@ export function getFirstEditableStatusIndexFromApi(statuses) {
 /** True when the page should wait (status list / title not loaded yet). */
 export function isEditGatePending(booking, statuses) {
   if (!booking) return true;
-  if (hasInvoiceRecord(booking)) return false;
+  if (isInvoiceIssued(booking)) return false;
   if (resolveOrderStatusTitle(booking)) return false;
   const sid =
     booking?.bookingStatusId ??
@@ -169,7 +166,7 @@ export function isEditGatePending(booking, statuses) {
 export function canEditOrderFromBooking(booking, statuses) {
   if (!booking) return false;
 
-  if (hasInvoiceRecord(booking)) {
+  if (isInvoiceIssued(booking)) {
     const sid =
       booking?.bookingStatusId ??
       booking?.bookingStatus?.id ??

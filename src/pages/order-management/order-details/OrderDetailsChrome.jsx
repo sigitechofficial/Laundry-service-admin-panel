@@ -1,5 +1,6 @@
 import { Button } from "../../../design-system";
 import { Link } from "react-router-dom";
+import { INVOICE_PHASE, invoicePhaseLabel } from "../../../shared/invoiceLifecycle";
 import styles from "./orderDetails.module.css";
 
 export function OdSectionTitle({ children }) {
@@ -63,6 +64,29 @@ export function OdEmptyInvoice({ invoiceGenerated }) {
         Agent invoice appears here only after the agent creates a draft or
         finalized invoice. Customer selected services stay frozen on the left.
       </p>
+    </div>
+  );
+}
+
+/** Header money: never treat the booking-time minimum as the order total. */
+export function OdInvoiceTotal({
+  phase,
+  amountLabel,
+  hint,
+}) {
+  const pending = phase === INVOICE_PHASE.PENDING;
+  const draft = phase === INVOICE_PHASE.DRAFT;
+  return (
+    <div className={styles.totalBlock}>
+      <p className={styles.sectionLabel}>
+        {pending || draft ? "Invoice" : "Order Total"}
+      </p>
+      {pending ? (
+        <p className={styles.totalPending}>{invoicePhaseLabel(phase)}</p>
+      ) : (
+        <p className={styles.totalValue}>{amountLabel}</p>
+      )}
+      {hint ? <p className={styles.totalHint}>{hint}</p> : null}
     </div>
   );
 }

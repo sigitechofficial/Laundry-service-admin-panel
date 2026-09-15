@@ -1,6 +1,7 @@
 import dayjs from "dayjs";
 import { canAdminAssignOrReassignFromBooking } from "../../shared/adminAssignGate";
 import { resolveOrderStatusTitle } from "../../shared/orderEditStatusGate";
+import { isInvoiceIssued } from "../../shared/invoiceLifecycle";
 import {
   DATE_TIME_FORMAT,
   formatBookingWindow,
@@ -325,8 +326,12 @@ export function mapBookingToOrderListRow(booking) {
   const finalAmount = toAmount(billing?.total) ?? costAmount;
   const upfrontLabel =
     upfrontAmount != null ? formatOrderMoney(upfrontAmount, booking) : "—";
-  const finalLabel =
-    finalAmount != null ? formatOrderMoney(finalAmount, booking) : "—";
+  const invoiceIssued = isInvoiceIssued(booking);
+  const finalLabel = invoiceIssued
+    ? finalAmount != null
+      ? formatOrderMoney(finalAmount, booking)
+      : "—"
+    : "Pending";
   const shopLabel = resolveShopName(booking);
   const pickupDateTime = formatBookingWindow(
     booking?.collectionDate,
@@ -408,6 +413,8 @@ export function mapBookingToOrderListRow(booking) {
       upfront: upfrontLabel,
       finalAmount: finalLabel,
       status: statusTitle,
+      invoiceStatus: invoiceIssued ? booking?.invoiceStatus : "pending",
+      paymentHold: paymentWaitingAdmin ? "Payment hold — admin" : "",
       statusChangedBy: booking?.lastStatusChange
         ? [
             booking.lastStatusChange.actorLabel,
