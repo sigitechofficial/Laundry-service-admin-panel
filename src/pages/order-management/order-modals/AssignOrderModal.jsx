@@ -138,9 +138,11 @@ export default function AssignOrderModal({
       ? error?.data?.message ||
         "Could not refresh shop list. Showing last loaded shops."
       : null;
-  const isReassign =
-    Boolean(payload?.currentLaundryShopId) ||
-    isReassignBooking(bookingSnapshot);
+  const isReassign = isReassignBooking({
+    ...bookingSnapshot,
+    bookingStatusId:
+      payload?.bookingStatusId ?? bookingSnapshot?.bookingStatusId,
+  });
   const pickupLabel = formatPickupLabel(payload, bookingSnapshot);
   const orderRef = payload?.orderTrackId || bookingId;
   const zoneDisplay =

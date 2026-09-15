@@ -107,6 +107,7 @@ export function useOrderListColumns({
         render: (row) =>
           h(StatusDotPill, {
             title: row.OrderStatus,
+            changedBy: row.lastStatusChange,
             extra:
               row.paymentWaitingAdmin ||
               row.isRecurringAutoCreated ||

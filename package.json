@@ -12,7 +12,7 @@
     "build": "vite build",
     "build:production": "vite build --mode production",
     "preview": "vite preview --port 2424",
-    "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/sessionAndApiErrors.test.mjs",
+    "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/sessionAndApiErrors.test.mjs tests/adminAssignGate.test.mjs",
     "lint": "eslint src",
     "tunnel": "npx ngrok http 5174",
     "tunnel:localtunnel": "npx localtunnel --port 2424",

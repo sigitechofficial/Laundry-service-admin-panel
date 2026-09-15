@@ -405,12 +405,43 @@ const STATUS_PILLS = [
   { test: /new|created|confirm/, tone: "created" },
 ];
 
-export function StatusDotPill({ title, extra }) {
+export function StatusChangedBy({ change }) {
+  if (!change) return null;
+  const role = change.actorLabel || "System";
+  const when = change.at ? formatDate(change.at, "DD MMM YYYY") : null;
+  const clock = change.at ? formatDate(change.at, "HH:mm") : null;
+  const clockOk = clock && clock !== "—";
+  const whenLine =
+    when && when !== "—" ? (clockOk ? `${when} · ${clock}` : when) : null;
+  const who = change.actorName ? `${role} · ${change.actorName}` : role;
+  const title = [
+    `Last changed by ${who}`,
+    whenLine,
+    change.inferred ? "Role inferred from this status" : null,
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  return (
+    <div className={styles.statusActor} title={title}>
+      <span className={styles.statusActorRole} data-actor={change.actorType || "system"}>
+        {role}
+      </span>
+      {change.actorName ? (
+        <span className={styles.statusActorName}>{change.actorName}</span>
+      ) : null}
+      {whenLine ? <span className={styles.statusActorWhen}>{whenLine}</span> : null}
+    </div>
+  );
+}
+
+export function StatusDotPill({ title, extra, changedBy }) {
   const value = String(title || "").toLowerCase();
   const match = STATUS_PILLS.find((item) => item.test.test(value));
   return (
     <div className={styles.dotPillStack}>
       <DotPill label={title || "—"} tone={match?.tone || "neutral"} title={title} />
+      {changedBy ? <StatusChangedBy change={changedBy} /> : null}
       {extra}
     </div>
   );

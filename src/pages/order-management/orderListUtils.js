@@ -374,6 +374,7 @@ export function mapBookingToOrderListRow(booking) {
     upfrontLabel,
     finalLabel,
     OrderStatus: statusTitle,
+    lastStatusChange: booking?.lastStatusChange || null,
     paymentWaitingAdmin,
     paymentDeliveryGate,
     isRecurringAutoCreated,
@@ -407,6 +408,17 @@ export function mapBookingToOrderListRow(booking) {
       upfront: upfrontLabel,
       finalAmount: finalLabel,
       status: statusTitle,
+      statusChangedBy: booking?.lastStatusChange
+        ? [
+            booking.lastStatusChange.actorLabel,
+            booking.lastStatusChange.actorName,
+          ]
+            .filter(Boolean)
+            .join(" · ")
+        : "",
+      statusChangedAt: booking?.lastStatusChange?.at
+        ? formatDate(booking.lastStatusChange.at, DATE_TIME_FORMAT)
+        : "",
       paymentHold: paymentWaitingAdmin ? "Payment hold — admin" : "",
       type: isRecurringAutoCreated ? "Recurring" : "Manual",
     },
@@ -433,6 +445,8 @@ export function downloadOrderListCsv(rows = [], filename = "orders_export.csv") 
     "Upfront",
     "Final amount",
     "Status",
+    "Status changed by",
+    "Status changed at",
   ];
   const lines = [head.join(",")];
   rows.forEach((row) => {
@@ -453,6 +467,8 @@ export function downloadOrderListCsv(rows = [], filename = "orders_export.csv") 
         csvEscape(x.upfront || row.upfrontLabel || ""),
         csvEscape(x.finalAmount || row.finalLabel || ""),
         x.status || row.OrderStatus || row.status || "",
+        csvEscape(x.statusChangedBy || ""),
+        csvEscape(x.statusChangedAt || ""),
       ].join(",")
     );
   });

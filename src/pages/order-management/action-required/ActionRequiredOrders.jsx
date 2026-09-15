@@ -226,6 +226,7 @@ export default function ActionRequiredOrders() {
             : "—",
           updatedAtMs: updatedRaw ? dayjs(updatedRaw).valueOf() : 0,
           paymentWaitingAdmin: row.paymentDeliveryGate === "waiting_admin",
+          lastStatusChange: row.lastStatusChange || null,
           raw: row,
           _booking: row,
         };
@@ -310,6 +311,7 @@ export default function ActionRequiredOrders() {
         render: (row) => (
           <StatusDotPill
             title={row.status}
+            changedBy={row.lastStatusChange}
             extra={
               row.paymentWaitingAdmin || row.reasonKeys?.includes("payment_failed") ? (
                 <DotPill

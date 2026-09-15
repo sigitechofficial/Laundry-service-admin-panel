@@ -1,9 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import dayjs from "dayjs";
-import { Field, Input } from "../../design-system";
-import FilterDetails, { closeFilterMenu } from "./FilterDetails";
-import OrderZoneFilter from "./OrderZoneFilter";
-import OrderShopFilter from "./OrderShopFilter";
+import { Field, Input, Modal, Select } from "../../design-system";
+import { useGetAllZonesQuery, useGetShopsDataQuery } from "../../store/services/api";
 import {
   DEFAULT_ORDER_LIST_SORT_BY,
   DEFAULT_ORDER_LIST_SORT_DIR,
@@ -49,22 +47,45 @@ function rangeForDays(days) {
   return { startDate: start, endDate: end };
 }
 
-function FilterOption({ selected, children, onPick }) {
+function normalizeZones(data) {
+  const raw = Array.isArray(data) ? data : data?.zones ?? data?.data ?? [];
+  return Array.isArray(raw) ? raw : [];
+}
+
+function ChoiceChip({ selected, children, onPick }) {
   return (
     <button
       type="button"
-      onClick={(e) => {
-        onPick();
-        closeFilterMenu(e.currentTarget);
-      }}
-      className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13.5px] ${
-        selected ? "bg-[#eef0fb] font-semibold text-[#20307f]" : "text-[#38424f] hover:bg-[#f4f5f8]"
-      }`}
+      onClick={onPick}
+      className={`${styles.filterChip} ${selected ? styles.filterChipOn : ""}`}
     >
-      <span className="flex-1">{children}</span>
-      {selected ? <span className="font-bold text-[#2c3ba0]">✓</span> : null}
+      {children}
     </button>
   );
+}
+
+function snapshotFromProps({
+  zoneId,
+  shopId,
+  statusId,
+  recurringType,
+  dateRange,
+  sortBy,
+  sortDir,
+  defaultSortBy,
+}) {
+  const preset = presetFromRange(dateRange);
+  return {
+    zoneId: zoneId ?? "",
+    shopId: shopId ?? "",
+    statusId: statusId ?? "",
+    recurringType: recurringType ?? "",
+    datePreset: preset === "custom" ? "custom" : preset,
+    startDate: toDateInput(dateRange?.startDate),
+    endDate: toDateInput(dateRange?.endDate),
+    sortBy: sortBy || defaultSortBy,
+    sortDir: sortDir || DEFAULT_ORDER_LIST_SORT_DIR,
+  };
 }
 
 export default function OrderListFilters({
@@ -96,14 +117,52 @@ export default function OrderListFilters({
   sortOptions = ORDER_LIST_SORT_OPTIONS,
   defaultSortBy = DEFAULT_ORDER_LIST_SORT_BY,
 }) {
-  const [draftStart, setDraftStart] = useState(toDateInput(dateRange?.startDate));
-  const [draftEnd, setDraftEnd] = useState(toDateInput(dateRange?.endDate));
-  const [showCustom, setShowCustom] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState(() =>
+    snapshotFromProps({
+      zoneId,
+      shopId,
+      statusId,
+      recurringType,
+      dateRange,
+      sortBy,
+      sortDir,
+      defaultSortBy,
+    })
+  );
 
-  useEffect(() => {
-    setDraftStart(toDateInput(dateRange?.startDate));
-    setDraftEnd(toDateInput(dateRange?.endDate));
-  }, [dateRange]);
+  const { data: zonesRes } = useGetAllZonesQuery(undefined, {
+    skip: !onZoneIdChange,
+  });
+  const { data: shopsRes } = useGetShopsDataQuery(undefined, {
+    skip: !onShopIdChange,
+  });
+
+  const zoneOptions = useMemo(() => {
+    const zones = normalizeZones(zonesRes?.data);
+    return [
+      { value: "", label: "All zones" },
+      ...zones
+        .map((z) => ({
+          value: String(z.id ?? z.zoneId ?? ""),
+          label: z.name ?? z.zoneName ?? String(z.id ?? z.zoneId ?? ""),
+        }))
+        .filter((opt) => opt.value !== ""),
+    ];
+  }, [zonesRes?.data]);
+
+  const shopOptions = useMemo(() => {
+    const shops = shopsRes?.data?.AllShopsData || [];
+    return [
+      { value: "", label: "All shops" },
+      ...shops
+        .map((s) => ({
+          value: String(s.shopAddressId ?? ""),
+          label: s.shopName || `Shop ${s.id}`,
+        }))
+        .filter((opt) => opt.value !== ""),
+    ];
+  }, [shopsRes?.data?.AllShopsData]);
 
   const statusOptions = useMemo(() => {
     if (Array.isArray(statusOptionsProp) && statusOptionsProp.length) {
@@ -120,27 +179,101 @@ export default function OrderListFilters({
     ];
   }, [orderStatuses, statusOptionsProp]);
 
-  const commitDates = (start, end) => {
-    setDraftStart(start);
-    setDraftEnd(end);
-    if (start && end) {
-      onDateRangeChange?.({ startDate: start, endDate: end });
-    } else {
-      onDateRangeChange?.(null);
-    }
-  };
-
-  const activePreset = presetFromRange(dateRange);
-  const dateLabel =
-    activePreset === "custom"
-      ? "Date range"
-      : DATE_PRESETS.find((p) => p.days === activePreset)?.label || "All dates";
-  const advancedCount =
-    (showStatusFilter && statusId ? 1 : 0) +
-    (showStatusFilter && recurringType ? 1 : 0);
   const sortIsCustom =
     String(sortBy || defaultSortBy) !== String(defaultSortBy) ||
     String(sortDir || DEFAULT_ORDER_LIST_SORT_DIR) !== DEFAULT_ORDER_LIST_SORT_DIR;
+
+  const modalActiveCount =
+    (onZoneIdChange && zoneId ? 1 : 0) +
+    (onShopIdChange && shopId ? 1 : 0) +
+    (onDateRangeChange && dateRange?.startDate ? 1 : 0) +
+    (showStatusFilter && statusId ? 1 : 0) +
+    (showStatusFilter && recurringType ? 1 : 0) +
+    (showSort && onSortByChange && sortIsCustom ? 1 : 0);
+
+  const openModal = () => {
+    setDraft(
+      snapshotFromProps({
+        zoneId,
+        shopId,
+        statusId,
+        recurringType,
+        dateRange,
+        sortBy,
+        sortDir,
+        defaultSortBy,
+      })
+    );
+    setOpen(true);
+  };
+
+  const patchDraft = (partial) => setDraft((prev) => ({ ...prev, ...partial }));
+
+  const pickDatePreset = (preset) => {
+    if (!preset.days) {
+      patchDraft({ datePreset: "", startDate: "", endDate: "" });
+      return;
+    }
+    const range = rangeForDays(preset.days);
+    patchDraft({
+      datePreset: preset.days,
+      startDate: range.startDate,
+      endDate: range.endDate,
+    });
+  };
+
+  const applyDraft = () => {
+    onZoneIdChange?.(draft.zoneId);
+    onShopIdChange?.(draft.shopId);
+    if (showStatusFilter) {
+      onStatusIdChange?.(draft.statusId);
+      onRecurringTypeChange?.(draft.recurringType);
+    }
+    if (onDateRangeChange) {
+      if (draft.startDate && draft.endDate) {
+        onDateRangeChange({ startDate: draft.startDate, endDate: draft.endDate });
+      } else {
+        onDateRangeChange(null);
+      }
+    }
+    if (showSort) {
+      onSortByChange?.(draft.sortBy);
+      onSortDirChange?.(draft.sortDir);
+    }
+    setOpen(false);
+  };
+
+  const clearDraftAndApply = () => {
+    const empty = {
+      zoneId: "",
+      shopId: "",
+      statusId: "",
+      recurringType: "",
+      datePreset: "",
+      startDate: "",
+      endDate: "",
+      sortBy: defaultSortBy,
+      sortDir: DEFAULT_ORDER_LIST_SORT_DIR,
+    };
+    setDraft(empty);
+    onZoneIdChange?.("");
+    onShopIdChange?.("");
+    if (showStatusFilter) {
+      onStatusIdChange?.("");
+      onRecurringTypeChange?.("");
+    }
+    onDateRangeChange?.(null);
+    if (showSort) {
+      onSortByChange?.(defaultSortBy);
+      onSortDirChange?.(DEFAULT_ORDER_LIST_SORT_DIR);
+    }
+    setOpen(false);
+  };
+
+  const draftDateOn = (preset) =>
+    preset.days === ""
+      ? !draft.startDate && !draft.endDate && draft.datePreset !== "custom"
+      : draft.datePreset === preset.days;
 
   return (
     <div className={styles.toolbar}>
@@ -161,204 +294,8 @@ export default function OrderListFilters({
         </label>
       ) : null}
 
-      {onZoneIdChange ? <OrderZoneFilter value={zoneId} onChange={onZoneIdChange} /> : null}
-
-      {onShopIdChange ? <OrderShopFilter value={shopId} onChange={onShopIdChange} /> : null}
-
-      {onDateRangeChange ? (
-        <FilterDetails
-          summary={
-            <summary
-              className={`${styles.tool} list-none cursor-pointer hover:bg-[#f4f5f8] [&::-webkit-details-marker]:hidden ${
-                dateRange?.startDate
-                  ? "border-[#2c3ba0] bg-[#eef0fb] text-[#20307f]"
-                  : ""
-              }`}
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4 text-[#5c6673]">
-                <rect x="3" y="4" width="18" height="17" rx="2" />
-                <path d="M3 9h18M8 2v4M16 2v4" />
-              </svg>
-              {dateLabel}
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className="h-4 w-4 text-[#8a94a2] transition group-open:rotate-180">
-                <path d="m6 9 6 6 6-6" />
-              </svg>
-            </summary>
-          }
-          panelClassName="absolute right-0 z-30 mt-2 min-w-[220px] rounded-xl border border-[#e6e9f0] bg-white p-1.5 shadow-[0_20px_48px_-16px_rgba(16,21,31,.34)]"
-        >
-          <p className="px-2.5 pb-1 pt-2 text-[10.5px] font-bold uppercase tracking-[0.08em] text-[#5c6673]">
-            Order placed
-          </p>
-          {DATE_PRESETS.map((preset) => {
-            const on = activePreset === preset.days;
-            return (
-              <FilterOption
-                key={preset.label}
-                selected={on}
-                onPick={() => {
-                  setShowCustom(false);
-                  if (!preset.days) onDateRangeChange?.(null);
-                  else onDateRangeChange?.(rangeForDays(preset.days));
-                }}
-              >
-                {preset.label}
-              </FilterOption>
-            );
-          })}
-          <button
-            type="button"
-            onClick={() => setShowCustom(true)}
-            className={`flex w-full items-center rounded-lg px-2.5 py-2 text-left text-[13.5px] ${
-              activePreset === "custom" || showCustom
-                ? "bg-[#eef0fb] font-semibold text-[#20307f]"
-                : "text-[#38424f] hover:bg-[#f4f5f8]"
-            }`}
-          >
-            Custom range
-          </button>
-          {showCustom || activePreset === "custom" ? (
-            <div className="grid grid-cols-1 gap-2 border-t border-[#e6e9f0] p-2 sm:grid-cols-2">
-              <Field label="Start" htmlFor="order-list-start">
-                <Input
-                  id="order-list-start"
-                  type="date"
-                  value={draftStart}
-                  onChange={(e) => commitDates(e.target.value, draftEnd)}
-                />
-              </Field>
-              <Field label="End" htmlFor="order-list-end">
-                <Input
-                  id="order-list-end"
-                  type="date"
-                  value={draftEnd}
-                  onChange={(e) => commitDates(draftStart, e.target.value)}
-                />
-              </Field>
-            </div>
-          ) : null}
-        </FilterDetails>
-      ) : null}
-
-      {showStatusFilter ? (
-        <FilterDetails
-          summary={
-            <summary
-              className={`${styles.tool} list-none cursor-pointer hover:bg-[#f4f5f8] [&::-webkit-details-marker]:hidden ${
-                advancedCount
-                  ? "border-[#2c3ba0] bg-[#eef0fb] text-[#20307f]"
-                  : ""
-              }`}
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4 text-[#5c6673]">
-                <path d="M3 5h18l-7 8v6l-4-2v-4z" />
-              </svg>
-              Filters
-              {advancedCount ? (
-                <span className="min-w-[18px] rounded-full bg-[#2c3ba0] px-1.5 text-center text-[11px] font-bold text-white">
-                  {advancedCount}
-                </span>
-              ) : null}
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className="h-4 w-4 text-[#8a94a2] transition group-open:rotate-180">
-                <path d="m6 9 6 6 6-6" />
-              </svg>
-            </summary>
-          }
-          panelClassName="absolute right-0 z-30 mt-2 max-h-[360px] w-[260px] overflow-auto rounded-xl border border-[#e6e9f0] bg-white p-1.5 shadow-[0_20px_48px_-16px_rgba(16,21,31,.34)]"
-        >
-          <p className="px-2.5 pb-1 pt-2 text-[10.5px] font-bold uppercase tracking-[0.08em] text-[#5c6673]">
-            Status
-          </p>
-          {statusOptions.map((opt) => (
-            <FilterOption
-              key={opt.value || "all-status"}
-              selected={String(opt.value) === String(statusId || "")}
-              onPick={() => onStatusIdChange?.(opt.value)}
-            >
-              {opt.label}
-            </FilterOption>
-          ))}
-          <p className="px-2.5 pb-1 pt-3 text-[10.5px] font-bold uppercase tracking-[0.08em] text-[#5c6673]">
-            Type
-          </p>
-          {RECURRING_OPTIONS.map((opt) => (
-            <FilterOption
-              key={opt.value || "all-type"}
-              selected={String(opt.value) === String(recurringType || "")}
-              onPick={() => onRecurringTypeChange?.(opt.value)}
-            >
-              {opt.label}
-            </FilterOption>
-          ))}
-          {hasActiveFilters && onClearFilters ? (
-            <button
-              type="button"
-              onClick={(e) => {
-                onClearFilters();
-                closeFilterMenu(e.currentTarget);
-              }}
-              className="mt-2 px-2.5 pb-1 text-xs font-semibold text-[#5c6673] hover:text-[#0e131c]"
-            >
-              Clear all
-            </button>
-          ) : null}
-        </FilterDetails>
-      ) : null}
-
-      {showSort && onSortByChange ? (
-        <>
-          <FilterDetails
-            summary={
-              <summary
-                className={`${styles.tool} ${styles.sortByTrigger} ${
-                  sortIsCustom ? "border-[#2c3ba0] bg-[#eef0fb] text-[#20307f]" : ""
-                }`}
-              >
-                <span className={styles.sortByLabel}>Sort by</span>
-                <span className={styles.sortByValue}>
-                  {sortOptions.find((o) => String(o.value) === String(sortBy || defaultSortBy))
-                    ?.label || "Order placed"}
-                </span>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className="h-4 w-4 text-[#8a94a2]">
-                  <path d="m6 9 6 6 6-6" />
-                </svg>
-              </summary>
-            }
-            panelClassName="absolute right-0 z-30 mt-2 min-w-[200px] rounded-xl border border-[#e6e9f0] bg-white p-1.5 shadow-[0_20px_48px_-16px_rgba(16,21,31,.34)]"
-          >
-            {sortOptions.map((opt) => (
-              <FilterOption
-                key={opt.value}
-                selected={String(opt.value) === String(sortBy || defaultSortBy)}
-                onPick={() => onSortByChange(opt.value)}
-              >
-                {opt.label}
-              </FilterOption>
-            ))}
-          </FilterDetails>
-          <div className={styles.sortDir} role="group" aria-label="Sort direction">
-            <button
-              type="button"
-              aria-pressed={sortDir === "asc"}
-              className={sortDir === "asc" ? styles.sortDirOn : undefined}
-              onClick={() => onSortDirChange?.("asc")}
-            >
-              Asc
-            </button>
-            <button
-              type="button"
-              aria-pressed={sortDir === "desc"}
-              className={sortDir === "desc" ? styles.sortDirOn : undefined}
-              onClick={() => onSortDirChange?.("desc")}
-            >
-              Desc
-            </button>
-          </div>
-        </>
-      ) : null}
-
       <div className={styles.toolbarActions}>
-        {hasActiveFilters && onClearFilters && !showStatusFilter ? (
+        {hasActiveFilters && onClearFilters ? (
           <button
             type="button"
             onClick={onClearFilters}
@@ -367,6 +304,25 @@ export default function OrderListFilters({
             Clear
           </button>
         ) : null}
+        <button
+          type="button"
+          onClick={openModal}
+          className={`${styles.tool} ${
+            modalActiveCount ? "border-[#2c3ba0] bg-[#eef0fb] text-[#20307f]" : ""
+          } hover:bg-[#f4f5f8]`}
+          aria-haspopup="dialog"
+          aria-expanded={open}
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4 text-[#5c6673]">
+            <path d="M3 5h18l-7 8v6l-4-2v-4z" />
+          </svg>
+          Filters
+          {modalActiveCount ? (
+            <span className="min-w-[18px] rounded-full bg-[#2c3ba0] px-1.5 text-center text-[11px] font-bold text-white">
+              {modalActiveCount}
+            </span>
+          ) : null}
+        </button>
         {onDownload ? (
           <button
             type="button"
@@ -382,6 +338,166 @@ export default function OrderListFilters({
         ) : null}
         {extra}
       </div>
+
+      <Modal
+        open={open}
+        title="Filters"
+        description="Set zone, shop, dates, status and sort, then apply."
+        onClose={() => setOpen(false)}
+        primaryLabel="Apply"
+        secondaryLabel="Cancel"
+        onPrimary={applyDraft}
+        size="md"
+        maxHeight="80vh"
+      >
+        <div className={styles.filterModal}>
+          {onZoneIdChange ? (
+            <Field label="Zone">
+              <Select
+                aria-label="Zone"
+                value={draft.zoneId}
+                onChange={(value) => patchDraft({ zoneId: value })}
+                options={zoneOptions}
+              />
+            </Field>
+          ) : null}
+
+          {onShopIdChange ? (
+            <Field label="Shop">
+              <Select
+                aria-label="Shop"
+                value={draft.shopId}
+                onChange={(value) => patchDraft({ shopId: value })}
+                options={shopOptions}
+              />
+            </Field>
+          ) : null}
+
+          {onDateRangeChange ? (
+            <div>
+              <p className={styles.filterSectionLabel}>Order placed</p>
+              <div className={styles.filterChipRow}>
+                {DATE_PRESETS.map((preset) => (
+                  <ChoiceChip
+                    key={preset.label}
+                    selected={draftDateOn(preset)}
+                    onPick={() => pickDatePreset(preset)}
+                  >
+                    {preset.label}
+                  </ChoiceChip>
+                ))}
+                <ChoiceChip
+                  selected={draft.datePreset === "custom"}
+                  onPick={() =>
+                    patchDraft({
+                      datePreset: "custom",
+                      startDate: draft.startDate,
+                      endDate: draft.endDate,
+                    })
+                  }
+                >
+                  Custom range
+                </ChoiceChip>
+              </div>
+              {draft.datePreset === "custom" ? (
+                <div className={styles.filterDateGrid}>
+                  <Field label="Start" htmlFor="order-list-start">
+                    <Input
+                      id="order-list-start"
+                      type="date"
+                      value={draft.startDate}
+                      onChange={(e) =>
+                        patchDraft({
+                          datePreset: "custom",
+                          startDate: e.target.value,
+                        })
+                      }
+                    />
+                  </Field>
+                  <Field label="End" htmlFor="order-list-end">
+                    <Input
+                      id="order-list-end"
+                      type="date"
+                      value={draft.endDate}
+                      onChange={(e) =>
+                        patchDraft({
+                          datePreset: "custom",
+                          endDate: e.target.value,
+                        })
+                      }
+                    />
+                  </Field>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+
+          {showStatusFilter ? (
+            <>
+              <Field label="Status">
+                <Select
+                  aria-label="Status"
+                  value={draft.statusId}
+                  onChange={(value) => patchDraft({ statusId: value })}
+                  options={statusOptions}
+                />
+              </Field>
+              <Field label="Type">
+                <Select
+                  aria-label="Order type"
+                  value={draft.recurringType}
+                  onChange={(value) => patchDraft({ recurringType: value })}
+                  options={RECURRING_OPTIONS}
+                />
+              </Field>
+            </>
+          ) : null}
+
+          {showSort && onSortByChange ? (
+            <div className={styles.filterSortRow}>
+              <Field label="Sort by">
+                <Select
+                  aria-label="Sort by"
+                  value={draft.sortBy}
+                  onChange={(value) => patchDraft({ sortBy: value })}
+                  options={sortOptions}
+                />
+              </Field>
+              <div>
+                <p className={styles.filterSectionLabel}>Direction</p>
+                <div className={styles.sortDir} role="group" aria-label="Sort direction">
+                  <button
+                    type="button"
+                    aria-pressed={draft.sortDir === "asc"}
+                    className={draft.sortDir === "asc" ? styles.sortDirOn : undefined}
+                    onClick={() => patchDraft({ sortDir: "asc" })}
+                  >
+                    Asc
+                  </button>
+                  <button
+                    type="button"
+                    aria-pressed={draft.sortDir === "desc"}
+                    className={draft.sortDir === "desc" ? styles.sortDirOn : undefined}
+                    onClick={() => patchDraft({ sortDir: "desc" })}
+                  >
+                    Desc
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          {modalActiveCount ? (
+            <button
+              type="button"
+              onClick={clearDraftAndApply}
+              className={styles.filterClear}
+            >
+              Clear all filters
+            </button>
+          ) : null}
+        </div>
+      </Modal>
     </div>
   );
 }
