@@ -49,6 +49,8 @@ import ShopRoutingPolicyCard from "./ShopRoutingPolicyCard";
 import ShopRevenueTab from "./ShopRevenueTab";
 import { buildShopOrderFinanceColumns, PunctualityMetrics } from "./shopOrderFinanceColumns";
 import { shopSettlementPath } from "../reports/reportUi";
+import { buildShopReportModel, shopReportHtml } from "./shopReportDocument";
+import { printHtmlDocument } from "../order-management/invoice/invoiceView";
 
 const CARD = {
   padding: 16,
@@ -691,6 +693,30 @@ export default function ShopDetails() {
     .filter(Boolean)
     .join(" · ");
 
+  const handleGenerateReport = () => {
+    const model = buildShopReportModel({
+      shop: {
+        name: shopName,
+        id: shop?.id,
+        owner: ownerName,
+        address: fullAddress,
+        phone: shopPhoneRaw || "—",
+        email: biz?.email || shop?.email || "—",
+        zone: addr?.zone?.name || revenueSnapshot?.data?.shop?.zoneName || "—",
+        established: shop?.createdAt
+          ? formatDate(shop.createdAt, "MMMM YYYY")
+          : "—",
+      },
+      revenue: revenueSnapshot?.data || null,
+      ratings: shopRatingSummary,
+      currencySymbol: shopCurrencySymbol,
+      ordersTotal: orders.length,
+      pendingCount: pendingOrdersCount,
+      completionRate,
+    });
+    printHtmlDocument(shopReportHtml(model));
+  };
+
   if (isLoading) return <Delay />;
 
   if (isError || !shop) {
@@ -739,6 +765,18 @@ export default function ShopDetails() {
               title={canCallShop ? "Call or message this shop" : "No phone number on file"}
             >
               Call shop
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={handleGenerateReport}
+              disabled={!revenueSnapshot?.data}
+              title={
+                revenueSnapshot?.data
+                  ? "Generate a full PDF report for this shop"
+                  : "Loading shop metrics…"
+              }
+            >
+              Report
             </Button>
             {shopSettlementPath(id) ? (
               <Button
