@@ -1744,6 +1744,15 @@ export const api = createApi({
       invalidatesTags: ["ReviewReasonCodes"],
     }),
 
+    reorderReviewReasonCodes: builder.mutation({
+      query: (ids) => ({
+        url: "admin/reorderReviewReasonCodes",
+        method: "PATCH",
+        body: { ids },
+      }),
+      invalidatesTags: ["ReviewReasonCodes"],
+    }),
+
     getShopReviews: builder.query({
       query: (params = {}) => ({
         url: "admin/shopReviews",
@@ -2390,6 +2399,7 @@ export const {
   useCreateReviewReasonCodeMutation,
   useUpdateReviewReasonCodeMutation,
   useDeleteReviewReasonCodeMutation,
+  useReorderReviewReasonCodesMutation,
   useGetShopReviewsQuery,
   useHideShopReviewMutation,
   useUnhideShopReviewMutation,

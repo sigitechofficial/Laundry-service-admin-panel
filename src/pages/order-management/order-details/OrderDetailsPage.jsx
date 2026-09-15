@@ -2506,6 +2506,58 @@ export default function OrderDetailsPage() {
             </div>
           </div>
 
+          {Array.isArray(orderData?.agentDeclines) &&
+          orderData.agentDeclines.length > 0 ? (
+            <div style={CARD}>
+              <OdSectionTitle>
+                Declined by shops ({orderData.agentDeclines.length})
+              </OdSectionTitle>
+              <div style={{ display: "grid", gap: 10 }}>
+                {orderData.agentDeclines.map((d) => (
+                  <div
+                    key={d.id}
+                    style={{
+                      borderLeft: "3px solid #ef4444",
+                      padding: "8px 12px",
+                      background: "#fef2f2",
+                      borderRadius: 8,
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: 13,
+                        fontWeight: 600,
+                        color: "#0f172a",
+                      }}
+                    >
+                      {d.agentName || `Agent #${d.agentUserId}`}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: 13,
+                        color: "#334155",
+                        marginTop: 2,
+                      }}
+                    >
+                      {d.reason || "No reason provided"}
+                    </div>
+                    {d.createdAt ? (
+                      <div
+                        style={{
+                          fontSize: 11,
+                          color: "#94a3b8",
+                          marginTop: 2,
+                        }}
+                      >
+                        {new Date(d.createdAt).toLocaleString()}
+                      </div>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
           <div style={CARD}>
             <OdSectionTitle>Activity</OdSectionTitle>
             <OdTimeline rows={activityRows} />

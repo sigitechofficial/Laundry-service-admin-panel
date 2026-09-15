@@ -1,5 +1,5 @@
-import { useState, useMemo } from "react";
-import { PageHeader, Table, Button, Modal } from "../../design-system";
+import { useState, useMemo, useEffect, useRef } from "react";
+import { PageHeader, Button, Modal } from "../../design-system";
 import {
   DirectoryActionDelete,
   DirectoryActionEdit,
@@ -23,6 +23,7 @@ import {
   useCreateReviewReasonCodeMutation,
   useUpdateReviewReasonCodeMutation,
   useDeleteReviewReasonCodeMutation,
+  useReorderReviewReasonCodesMutation,
 } from "../../store/services/api";
 import useToaster from "../../components/ui/Toaster";
 
@@ -42,6 +43,8 @@ export default function ReviewReasonCodes() {
     useUpdateReviewReasonCodeMutation();
   const [deleteReason, { isLoading: isDeleting }] =
     useDeleteReviewReasonCodeMutation();
+  const [reorderReasons, { isLoading: isReordering }] =
+    useReorderReviewReasonCodesMutation();
 
   const reasons = useMemo(() => {
     if (Array.isArray(data?.data)) return data.data;
@@ -69,6 +72,40 @@ export default function ReviewReasonCodes() {
       })),
     [filtered]
   );
+
+  // Local, drag-reorderable copy of the rows. Kept in sync whenever the
+  // fetched data or active tab changes.
+  const [orderedRows, setOrderedRows] = useState(tableRows);
+  useEffect(() => {
+    setOrderedRows(tableRows);
+  }, [tableRows]);
+
+  const dragIndexRef = useRef(null);
+  const [dragOverIndex, setDragOverIndex] = useState(null);
+
+  const persistOrder = async (rows) => {
+    try {
+      await reorderReasons(rows.map((r) => r.id)).unwrap();
+      success("Order updated");
+    } catch (err) {
+      showError(err?.data?.message || "Failed to reorder");
+      refetch();
+    }
+  };
+
+  const handleRowDrop = (index) => {
+    const from = dragIndexRef.current;
+    dragIndexRef.current = null;
+    setDragOverIndex(null);
+    if (from == null || from === index) return;
+    setOrderedRows((prev) => {
+      const next = [...prev];
+      const [moved] = next.splice(from, 1);
+      next.splice(index, 0, moved);
+      persistOrder(next);
+      return next;
+    });
+  };
 
   const handleToggleStatus = async (row) => {
     try {
@@ -120,54 +157,6 @@ export default function ReviewReasonCodes() {
     }
   };
 
-  const columns = [
-    {
-      key: "label",
-      header: "Reason",
-      render: (row) => (
-        <DirectoryIdentity name={row.label} meta={`${row.code}${row.isOther ? " · Other" : ""}`} />
-      ),
-    },
-    {
-      key: "sentiment",
-      header: "Sentiment",
-      render: (row) => (
-        <DirectoryDotPill tone={row.sentiment === "positive" ? "success" : "danger"}>
-          {row.sentiment}
-        </DirectoryDotPill>
-      ),
-    },
-    {
-      key: "status",
-      header: "Status",
-      render: (row) => (
-        <DirectoryStatusPill active={row.status} />
-      ),
-    },
-    {
-      key: "actions",
-      header: "Actions",
-      render: (row) => (
-        <DirectoryActions>
-          <DirectoryActionView onClick={() => setViewRow(row)} />
-          <DirectoryActionEdit
-            onClick={() => {
-              const full = reasons.find((r) => r.id === row.id);
-              setReasonToEdit(full || row);
-              setAddModalOpen(true);
-            }}
-          />
-          <DirectoryActionDelete
-            onClick={() => {
-              setReasonToDelete(row);
-              setDeleteConfirmOpen(true);
-            }}
-          />
-        </DirectoryActions>
-      ),
-    },
-  ];
-
   const positiveCount = reasons.filter((r) => r.sentiment === "positive").length;
   const negativeCount = reasons.filter((r) => r.sentiment === "negative").length;
 
@@ -209,6 +198,12 @@ export default function ReviewReasonCodes() {
         </div>
       ) : null}
 
+      <p className="jd-field__hint" style={{ margin: "0 0 10px", display: "flex", alignItems: "center", gap: 6 }}>
+        <span aria-hidden="true" style={{ fontSize: 15, color: "#94a3b8" }}>⠿</span>
+        Drag the handle to reorder how reasons appear to customers. The order is saved automatically.
+        {isReordering ? <span style={{ color: "var(--muted)" }}>· Saving…</span> : null}
+      </p>
+
       <DirectoryTableWrap
         toolbar={
           <DirectoryToolbar>
@@ -224,12 +219,107 @@ export default function ReviewReasonCodes() {
           </DirectoryToolbar>
         }
       >
-        <Table
-          columns={columns}
-          rows={isError ? [] : tableRows}
-          rowKey={(row) => row.id}
-          empty={tab === "all" ? "No review reason codes yet" : `No ${tab} reason codes`}
-        />
+        <div className="jd-tbl-wrap">
+          <table className="jd-tbl">
+            <colgroup>
+              <col style={{ width: 48 }} />
+              <col />
+              <col style={{ width: 160 }} />
+              <col style={{ width: 140 }} />
+              <col style={{ width: 160 }} />
+            </colgroup>
+            <thead>
+              <tr>
+                <th aria-label="Reorder" />
+                <th className="jd-tbl--left jd-tbl--text">Reason</th>
+                <th className="jd-tbl--left jd-tbl--text">Sentiment</th>
+                <th className="jd-tbl--left jd-tbl--status">Status</th>
+                <th className="jd-tbl--right jd-tbl--actions">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {isError || orderedRows.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="jd-tbl__empty">
+                    {tab === "all" ? "No review reason codes yet" : `No ${tab} reason codes`}
+                  </td>
+                </tr>
+              ) : (
+                orderedRows.map((row, index) => (
+                  <tr
+                    key={row.id}
+                    draggable
+                    onDragStart={(e) => {
+                      dragIndexRef.current = index;
+                      e.dataTransfer.effectAllowed = "move";
+                    }}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = "move";
+                      if (dragOverIndex !== index) setDragOverIndex(index);
+                    }}
+                    onDragEnd={() => {
+                      dragIndexRef.current = null;
+                      setDragOverIndex(null);
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      handleRowDrop(index);
+                    }}
+                    style={{
+                      background:
+                        dragOverIndex === index ? "rgba(67, 56, 202, 0.06)" : undefined,
+                      boxShadow:
+                        dragOverIndex === index
+                          ? "inset 0 2px 0 var(--brand, #4338ca)"
+                          : undefined,
+                    }}
+                  >
+                    <td
+                      className="jd-tbl--center jd-tbl--text"
+                      title="Drag to reorder"
+                      style={{ cursor: "grab", color: "#94a3b8" }}
+                    >
+                      <span style={{ fontSize: 18, lineHeight: 1, userSelect: "none" }}>⠿</span>
+                    </td>
+                    <td className="jd-tbl--left jd-tbl--text">
+                      <DirectoryIdentity
+                        name={row.label}
+                        meta={`${row.code}${row.isOther ? " · Other" : ""}`}
+                      />
+                    </td>
+                    <td className="jd-tbl--left jd-tbl--text">
+                      <DirectoryDotPill tone={row.sentiment === "positive" ? "success" : "danger"}>
+                        {row.sentiment}
+                      </DirectoryDotPill>
+                    </td>
+                    <td className="jd-tbl--left jd-tbl--status">
+                      <DirectoryStatusPill active={row.status} />
+                    </td>
+                    <td className="jd-tbl--right jd-tbl--actions">
+                      <DirectoryActions>
+                        <DirectoryActionView onClick={() => setViewRow(row)} />
+                        <DirectoryActionEdit
+                          onClick={() => {
+                            const full = reasons.find((r) => r.id === row.id);
+                            setReasonToEdit(full || row);
+                            setAddModalOpen(true);
+                          }}
+                        />
+                        <DirectoryActionDelete
+                          onClick={() => {
+                            setReasonToDelete(row);
+                            setDeleteConfirmOpen(true);
+                          }}
+                        />
+                      </DirectoryActions>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </DirectoryTableWrap>
 
       <DirectoryViewModal
