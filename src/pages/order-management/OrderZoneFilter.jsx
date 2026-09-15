@@ -1,6 +1,5 @@
 import { useMemo } from "react";
 import { useGetAllZonesQuery } from "../../store/services/api";
-import { useGetAllZonesQuery } from "../../store/services/api";
 import FilterDetails, { closeFilterMenu } from "./FilterDetails";
 import styles from "./orderList.module.css";
 
