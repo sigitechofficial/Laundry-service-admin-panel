@@ -19,7 +19,6 @@ import {
   DriverDetails,
   ZoneManagement,
   ZoneDetails,
-  ZoneCatalog,
   EmployeeManagement,
   EmployeeDetails,
   EditEmployee,
@@ -180,11 +179,6 @@ export const privateRoutes = [
     resourceKey: "zone_details_Page",
   },
   {
-    path: "/zone-management/catalog",
-    element: ZoneCatalog,
-    resourceKey: "zone_management_Page",
-  },
-  {
     path: "/employee-management",
     element: EmployeeManagement,
     resourceKey: "employee_management_Page",
@@ -341,6 +335,7 @@ export const privateRedirects = [
   { path: "/orders", to: "/orders/action-required" },
   { path: "/promotion", to: "/promotion/promo-codes" },
   { path: "/shop-ratings-report", to: "/reports/shop-ratings" },
+  { path: "/zone-management/catalog", to: "/services-management/dashboard" },
 ];
 
 export const publicRoutes = [

@@ -534,12 +534,24 @@ export const api = createApi({
     }),
 
     getServiceWitPreferences: builder.query({
-      query: (id) => ({
-        url: `admin/servicesAndPreferencesData/${id}`,
-        method: "GET",
-      }),
-      providesTags: (result, error, id) => {
-        const normalizedId = normalizeServiceId(id);
+      query: (arg) => {
+        const serviceId =
+          arg && typeof arg === "object" ? arg.serviceId : arg;
+        const zoneId =
+          arg && typeof arg === "object" ? arg.zoneId : undefined;
+        return {
+          url: `admin/servicesAndPreferencesData/${serviceId}`,
+          method: "GET",
+          params:
+            zoneId != null && String(zoneId).trim() !== ""
+              ? { zoneId }
+              : undefined,
+        };
+      },
+      providesTags: (result, error, arg) => {
+        const serviceId =
+          arg && typeof arg === "object" ? arg.serviceId : arg;
+        const normalizedId = normalizeServiceId(serviceId);
         return normalizedId
           ? [{ type: "ServiceConfig", id: normalizedId }]
           : [{ type: "ServiceConfig", id: "LIST" }];

@@ -167,11 +167,6 @@ export const sidebarList = [
         path: "/zone-management",
         size: "24px",
       },
-      {
-        label: "Zone Catalog",
-        path: "/zone-management/catalog",
-        size: "24px",
-      },
     ],
   },
   {

@@ -1,5 +1,8 @@
-import { useNavigate } from "react-router-dom";
-import { Button, PageHeader } from "../../design-system";
+import { useMemo } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
+import { Button, Field, PageHeader, Select } from "../../design-system";
+import { useGetAllZonesQuery } from "../../store/services/api";
+import { zonesArrayFromGetZonesResponse } from "../../utilities/zonesList";
 
 const CATALOG_SECTIONS = [
   {
@@ -56,6 +59,20 @@ const CRUMB = {
   color: "var(--muted)",
 };
 
+export function useCatalogScope() {
+  const location = useLocation();
+  const zoneId = useMemo(() => {
+    const params = new URLSearchParams(location.search);
+    const parsed = Number(params.get("zoneId"));
+    return Number.isFinite(parsed) && parsed > 0 ? String(parsed) : "";
+  }, [location.search]);
+  return {
+    zoneId,
+    isZoneMode: Boolean(zoneId),
+    search: location.search,
+  };
+}
+
 /**
  * Shared catalog chrome. Tabs navigate existing routes so nav.js feature
  * keys and permissions stay intact.
@@ -69,10 +86,88 @@ export default function CatalogChrome({
   children,
 }) {
   const navigate = useNavigate();
+  const location = useLocation();
+  const { zoneId, isZoneMode } = useCatalogScope();
+  const { data: zonesRes } = useGetAllZonesQuery();
+  const zones = useMemo(
+    () => zonesArrayFromGetZonesResponse(zonesRes),
+    [zonesRes]
+  );
+
+  const setCatalogZone = (nextZoneId) => {
+    const params = new URLSearchParams(location.search);
+    if (nextZoneId) params.set("zoneId", String(nextZoneId));
+    else params.delete("zoneId");
+    const query = params.toString();
+    navigate(
+      {
+        pathname: location.pathname,
+        search: query ? `?${query}` : "",
+      },
+      { replace: true }
+    );
+  };
+
+  const activateZoneMode = () => {
+    if (zoneId) return;
+    const firstZone = zones?.[0]?.id;
+    if (firstZone) setCatalogZone(firstZone);
+  };
 
   return (
     <div>
-      <PageHeader title={title} description={description} actions={actions} />
+      <PageHeader
+        title={title}
+        description={description}
+        actions={
+          <>
+            <div
+              style={{
+                display: "flex",
+                flexWrap: "wrap",
+                alignItems: "end",
+                gap: 8,
+                minWidth: 260,
+              }}
+            >
+              <Field label="Catalog scope">
+                <div style={{ display: "flex", gap: 8 }}>
+                  <Button
+                    size="sm"
+                    variant={!isZoneMode ? "primary" : "secondary"}
+                    onClick={() => setCatalogZone("")}
+                  >
+                    Master
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={isZoneMode ? "primary" : "secondary"}
+                    onClick={activateZoneMode}
+                    disabled={!isZoneMode && !zones.length}
+                  >
+                    Zone
+                  </Button>
+                </div>
+              </Field>
+              {isZoneMode ? (
+                <Field label="Zone">
+                  <Select
+                    aria-label="Catalog zone"
+                    value={zoneId}
+                    onChange={setCatalogZone}
+                    options={zones.map((z) => ({
+                      value: String(z.id),
+                      label: z.name || `Zone ${z.id}`,
+                    }))}
+                    placeholder="Select zone"
+                  />
+                </Field>
+              ) : null}
+            </div>
+            {actions}
+          </>
+        }
+      />
 
       <div style={TAB_ROW} role="tablist" aria-label="Service catalog sections">
         {CATALOG_SECTIONS.map((item) => (
@@ -81,7 +176,7 @@ export default function CatalogChrome({
             size="sm"
             variant={item.id === section ? "primary" : "secondary"}
             aria-current={item.id === section ? "page" : undefined}
-            onClick={() => navigate(item.path)}
+            onClick={() => navigate({ pathname: item.path, search: location.search })}
           >
             {item.label}
           </Button>

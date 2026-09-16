@@ -75,10 +75,6 @@ export const ZoneDetails = lazy(() =>
   import("../pages/zone-management/zone-details/ZoneDetails")
 );
 
-export const ZoneCatalog = lazy(() =>
-  import("../pages/zone-management/ZoneCatalog")
-);
-
 export const EmployeeManagement = lazy(() =>
   import("../pages/employee-management/EmployeeManagement")
 );

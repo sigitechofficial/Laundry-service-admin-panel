@@ -53,6 +53,11 @@ export function getAllowedFeatureKeysFromPermissions(permissions) {
 export function canEmployeeReadPathname(pathname) {
   const perms = getEmployeePermissions();
   const allowed = getAllowedFeatureKeysFromPermissions(perms);
+  if (String(pathname || "").startsWith("/services-management")) {
+    if (allowed.has("serviceManagement") || allowed.has("zoneRecord")) {
+      return true;
+    }
+  }
   const parent = findSidebarParentForPathname(pathname);
   if (!parent) return true;
   const key = labelToFeatureKey(parent.label);
@@ -86,6 +91,13 @@ export function resolveEmployeeFeatureIdForPathname(pathname) {
   const perms = getEmployeePermissions();
   if (!perms.length) return null;
   const keyToId = buildFeatureKeyToIdMap(perms);
+  if (String(pathname || "").startsWith("/services-management")) {
+    return (
+      keyToId.get("serviceManagement") ??
+      keyToId.get("zoneRecord") ??
+      null
+    );
+  }
   const parent = findSidebarParentForPathname(pathname);
   if (!parent) return null;
   const key = labelToFeatureKey(parent.label);

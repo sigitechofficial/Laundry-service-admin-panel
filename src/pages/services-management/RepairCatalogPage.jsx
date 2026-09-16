@@ -19,7 +19,8 @@ import {
   DirectoryTableWrap,
   DirectoryToolbar,
 } from "../directory-table/directoryTable";
-import CatalogChrome from "./catalogChrome";
+import CatalogChrome, { useCatalogScope } from "./catalogChrome";
+import ZoneModeGuard from "./ZoneModeGuard";
 import { formatAmount } from "../../utilities/formatters";
 import {
   useCreateRepairGarmentMutation,
@@ -48,6 +49,7 @@ function money(value) {
 }
 
 export default function RepairCatalogPage() {
+  const { isZoneMode } = useCatalogScope();
   const { success, error } = useToaster();
   const {
     data: garmentsRes,
@@ -55,14 +57,14 @@ export default function RepairCatalogPage() {
     isError: garmentsError,
     error: garmentsQueryError,
     refetch: refetchGarments,
-  } = useGetRepairGarmentsQuery();
+  } = useGetRepairGarmentsQuery(undefined, { skip: isZoneMode });
   const {
     data: optionsRes,
     isLoading: optionsLoading,
     isError: optionsError,
     error: optionsQueryError,
     refetch: refetchOptions,
-  } = useGetRepairOptionsQuery();
+  } = useGetRepairOptionsQuery(undefined, { skip: isZoneMode });
 
   const [createGarment, { isLoading: creatingGarment }] =
     useCreateRepairGarmentMutation();
@@ -329,11 +331,15 @@ export default function RepairCatalogPage() {
       description="Priced repair work, then garments that link which repairs customers can choose. Related to Alteration services in the main catalog."
       breadcrumb={["Catalog", "Repairs"]}
       actions={
+        isZoneMode ? null : (
         <Button variant="secondary" onClick={onSeed} disabled={seeding}>
-          {seeding ? "Loading…" : "Load defaults"}
+          {seeding ? "Loading..." : "Load defaults"}
         </Button>
+        )
       }
     >
+      {isZoneMode ? <ZoneModeGuard sectionName="Repairs" /> : (
+      <>
 
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
         <Button
@@ -635,6 +641,8 @@ export default function RepairCatalogPage() {
         secondaryLabel="Cancel"
         danger
       />
+      </>
+      )}
     </CatalogChrome>
   );
 }

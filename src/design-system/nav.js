@@ -66,7 +66,6 @@ export const DS_NAV = [
         path: "/zone-management",
         children: [
           { label: "Zones", path: "/zone-management", icon: "pin" },
-          { label: "Zone Catalog", path: "/zone-management/catalog", icon: "book" },
         ],
       },
       {

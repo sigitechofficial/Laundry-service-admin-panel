@@ -44,7 +44,7 @@ import {
   DirectoryPanel,
   DirectoryTableWrap,
 } from "../directory-table/directoryTable";
-import CatalogChrome from "./catalogChrome";
+import CatalogChrome, { useCatalogScope } from "./catalogChrome";
 import CategoryModal from "./categories-modal/CategoryModal";
 import ConfigureModal from "./configure-modal/ConfigureModal";
 import {
@@ -53,6 +53,7 @@ import {
   normalizeAddOnServicesList,
 } from "./serviceAddOnsUtils";
 import { buildCatalogExports, downloadCatalogCsv } from "./catalogCsv";
+import ZoneCatalogWorkspace from "./ZoneCatalogWorkspace";
 
 const SERVICE_ICONS = [
   { pattern: /wash\s*&\s*fold|wash and fold|fold/i, icon: MdLocalLaundryService },
@@ -474,6 +475,7 @@ function ServiceCategoriesExpandableTable({
 
 export default function ServiceDashboard() {
   const navigate = useNavigate();
+  const { isZoneMode, zoneId } = useCatalogScope();
   const [selectedServiceId, setSelectedServiceId] = useState(null);
   const [globalSearch, setGlobalSearch] = useState("");
   const [menuServiceId, setMenuServiceId] = useState(null);
@@ -496,7 +498,9 @@ export default function ServiceDashboard() {
     isError: isServicesError,
     error: servicesQueryError,
     refetch: refetchServices,
-  } = useGetAllServicesQuery();
+  } = useGetAllServicesQuery(undefined, {
+    skip: isZoneMode,
+  });
   const services = useMemo(
     () => servicesData?.data?.services ?? [],
     [servicesData?.data?.services]
@@ -508,14 +512,25 @@ export default function ServiceDashboard() {
     isError: isConfigError,
     error: configQueryError,
     refetch: refetchConfig,
-  } = useGetServiceWitPreferencesQuery(selectedServiceId, {
-    skip: !selectedServiceId,
-  });
+  } = useGetServiceWitPreferencesQuery(
+    { serviceId: selectedServiceId, zoneId },
+    {
+      skip: !selectedServiceId || isZoneMode,
+    }
+  );
 
-  const { data: addOnsResponse } = useGetAllAddOnServicesQuery();
-  const { data: categoriesResponse } = useGetCategoriesQuery();
-  const { data: subCategoriesResponse } = useGetSubCategoriesQuery();
-  const { data: preferencesResponse } = useGetPreferencesQuery();
+  const { data: addOnsResponse } = useGetAllAddOnServicesQuery(undefined, {
+    skip: isZoneMode,
+  });
+  const { data: categoriesResponse } = useGetCategoriesQuery(undefined, {
+    skip: isZoneMode,
+  });
+  const { data: subCategoriesResponse } = useGetSubCategoriesQuery(undefined, {
+    skip: isZoneMode,
+  });
+  const { data: preferencesResponse } = useGetPreferencesQuery(undefined, {
+    skip: isZoneMode,
+  });
   const addOnsList = useMemo(
     () => normalizeAddOnServicesList(addOnsResponse),
     [addOnsResponse]
@@ -874,6 +889,19 @@ export default function ServiceDashboard() {
       description: "",
       image: "",
     });
+
+  if (isZoneMode) {
+    return (
+      <CatalogChrome
+        section="overview"
+        title="Service catalog"
+        description="Zone mode: manage zone-specific visibility, ordering, and prices for services, categories, items, add-ons, repairs, and preferences."
+        breadcrumb={["Catalog", "Zone mode"]}
+      >
+        <ZoneCatalogWorkspace zoneId={zoneId} />
+      </CatalogChrome>
+    );
+  }
 
   if (isLoadingServices || isServicesError) {
     return (
