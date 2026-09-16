@@ -11,6 +11,25 @@ export function normalizeTel(raw) {
     .replace(/[^+\d]/g, "");
 }
 
+/**
+ * Join a stored dial code ("+44" / "44") with a national number ("07123…")
+ * into one display string ("+44 7123…"). Numbers already carrying a "+" or
+ * already starting with the dial code are returned as-is so nothing doubles up.
+ */
+export function formatPhoneWithCountryCode(countryCode, phoneNum) {
+  const phone = String(phoneNum || "").trim();
+  if (!phone) return "";
+  const codeDigits = String(countryCode || "").replace(/\D/g, "");
+  if (!codeDigits || phone.startsWith("+")) return phone;
+  const phoneDigits = phone.replace(/\D/g, "");
+  if (phoneDigits.startsWith(codeDigits) && phoneDigits.length > codeDigits.length + 6) {
+    return `+${phoneDigits}`;
+  }
+  // Drop a single trunk "0" (e.g. UK 07… → +44 7…) when prefixing a dial code.
+  const national = phoneDigits.replace(/^0/, "");
+  return `+${codeDigits} ${national}`;
+}
+
 export function normalizeWhatsAppDigits(raw) {
   return normalizeTel(raw).replace(/\D/g, "");
 }

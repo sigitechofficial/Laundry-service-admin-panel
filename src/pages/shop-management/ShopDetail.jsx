@@ -30,6 +30,7 @@ import DeleteShopModal from "./DeleteShopModal";
 import dayjs from "dayjs";
 import { DATE_TIME_FORMAT, formatDate, formatMoney, resolveCurrencySymbol } from "../../utilities/formatters";
 import {
+  formatPhoneWithCountryCode,
   normalizeTel,
   normalizeWhatsAppDigits,
   openTel,
@@ -243,8 +244,11 @@ export default function ShopDetails() {
     (shopPayload.id != null || shopPayload.shopName)
       ? shopPayload
       : null;
+  // `shop` is the bussinessInformation row; `shop.businessInfo` is the OWNER
+  // users row (alias). So biz.id = owner user id (block/unblock/anonymize),
+  // and shop.id = business id (reviews, settlement, reports).
   const biz = shop?.businessInfo;
-  const businessInfoId = biz?.id || shop?.businessInfoId || shop?.id;
+  const businessInfoId = shop?.businessInfoId || shop?.id;
   const { data: shopReviewsResponse } = useGetShopReviewsQuery(
     { businessInfoId, limit: 20, page: 1 },
     { skip: !businessInfoId }
@@ -673,8 +677,12 @@ export default function ShopDetails() {
 
   const ownerName =
     [biz?.firstName, biz?.lastName].filter(Boolean).join(" ") || "—";
-  const shopPhoneRaw =
-    biz?.phoneNum || shop?.phone || shop?.phoneNum || settingsForm.phone || "";
+  // Owner phone with its dial code ("+44 7…") so display, tel: and wa.me all
+  // carry the international prefix (stored separately as users.countryCode).
+  const shopPhoneRaw = formatPhoneWithCountryCode(
+    biz?.countryCode || shop?.countryCode,
+    biz?.phoneNum || shop?.phone || shop?.phoneNum || settingsForm.phone || ""
+  );
   const shopTel = normalizeTel(shopPhoneRaw);
   const shopWhatsApp = normalizeWhatsAppDigits(shopPhoneRaw);
   const canCallShop = Boolean(shopTel || shopWhatsApp);
@@ -914,7 +922,7 @@ export default function ShopDetails() {
               <MdOutlineLocationOn size={14} /> {fullAddress || "Address not available"}
             </span>
             <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-              <MdOutlinePhone size={14} /> {biz?.phoneNum || "—"}
+              <MdOutlinePhone size={14} /> {shopPhoneRaw || "—"}
             </span>
             {canCallShop ? (
               <button
@@ -981,8 +989,8 @@ export default function ShopDetails() {
               <div style={FORM_GRID}>
                 <div><Label>Owner</Label><div>{ownerName}</div></div>
                 <div><Label>Primary email</Label><div>{biz?.email || "—"}</div></div>
-                <div><Label>Phone</Label><div>{biz?.phoneNum || "—"}</div></div>
-                <div><Label>WhatsApp</Label><div>{biz?.phoneNum || "—"}</div></div>
+                <div><Label>Phone</Label><div>{shopPhoneRaw || "—"}</div></div>
+                <div><Label>WhatsApp</Label><div>{shopPhoneRaw || "—"}</div></div>
                 <div><Label>Address</Label><div>{fullAddress || "—"}</div></div>
                 <div><Label>Website</Label><div>{biz?.website || shop?.website || "—"}</div></div>
                 <div><Label>Service radius</Label><div>{shop?.serviceRadius || "—"}</div></div>

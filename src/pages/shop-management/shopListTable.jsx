@@ -1,4 +1,5 @@
 import { formatMoney, resolveCurrencySymbol } from "../../utilities/formatters";
+import { formatPhoneWithCountryCode } from "../../utilities/contactLinks";
 import {
   DirectoryActionDelete,
   DirectoryActionEdit,
@@ -28,7 +29,10 @@ export function mapShopToRow(item) {
   const locationLine = [zone, city, country].filter(Boolean).join(" · ") || "—";
   const statusValue = addr?.status != null ? !!addr.status : false;
   const email = biz?.email ?? item?.email ?? "";
-  const phone = biz?.phoneNum ?? item?.phone ?? item?.phoneNum ?? "";
+  const phone = formatPhoneWithCountryCode(
+    biz?.countryCode ?? item?.countryCode,
+    biz?.phoneNum ?? item?.phone ?? item?.phoneNum ?? ""
+  );
   const rawEmployees = biz?.TotalEmployees ?? item?.totalEmployees ?? item?.noOfEmployee;
 
   return {
