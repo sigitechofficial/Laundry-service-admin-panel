@@ -12,6 +12,7 @@ import {
   useUpdateServicesSortOrderMutation,
   useUpdateCategoriesSortOrderMutation,
   useUpdateSubCategoriesSortOrderMutation,
+  useGetZoneCatalogQuery,
 } from "../../store/services/api";
 import { IoEye, TbPencil, TbChevronRight, TbChevronDown } from "../../shared/icons/index";
 import { TbGripVertical } from "react-icons/tb";
@@ -53,7 +54,16 @@ import {
   normalizeAddOnServicesList,
 } from "./serviceAddOnsUtils";
 import { buildCatalogExports, downloadCatalogCsv } from "./catalogCsv";
-import ZoneCatalogWorkspace from "./ZoneCatalogWorkspace";
+import {
+  useZoneOverlayActions,
+  ZoneAddOnsSection,
+  ZoneCategoriesTable,
+  ZoneCopyOverlays,
+  ZoneRepairSection,
+  ZoneServicePreferences,
+  ZoneSourcePill,
+  ZoneVisibilityPill,
+} from "./zoneCatalogControls";
 
 const SERVICE_ICONS = [
   { pattern: /wash\s*&\s*fold|wash and fold|fold/i, icon: MdLocalLaundryService },
@@ -475,7 +485,7 @@ function ServiceCategoriesExpandableTable({
 
 export default function ServiceDashboard() {
   const navigate = useNavigate();
-  const { isZoneMode, zoneId } = useCatalogScope();
+  const { isZoneMode, zoneId, zoneName, zones } = useCatalogScope();
   const [selectedServiceId, setSelectedServiceId] = useState(null);
   const [globalSearch, setGlobalSearch] = useState("");
   const [menuServiceId, setMenuServiceId] = useState(null);
@@ -501,10 +511,35 @@ export default function ServiceDashboard() {
   } = useGetAllServicesQuery(undefined, {
     skip: isZoneMode,
   });
-  const services = useMemo(
-    () => servicesData?.data?.services ?? [],
-    [servicesData?.data?.services]
-  );
+
+  // Zone scope: one effective-catalog payload drives the whole page
+  // (services, categories, items, add-ons, repairs, preferences).
+  const {
+    data: zoneCatalogData,
+    isLoading: isLoadingZoneCatalog,
+    isFetching: isFetchingZoneCatalog,
+    isError: isZoneCatalogError,
+    error: zoneCatalogQueryError,
+    refetch: refetchZoneCatalog,
+  } = useGetZoneCatalogQuery(zoneId, { skip: !isZoneMode });
+  const zoneCatalog = zoneCatalogData?.data || null;
+  const zoneActions = useZoneOverlayActions(zoneId);
+  const zoneBusy = zoneActions.busy || isFetchingZoneCatalog;
+
+  const services = useMemo(() => {
+    if (isZoneMode) {
+      return (zoneCatalog?.services || []).map((svc) => ({
+        id: svc.serviceId,
+        name: svc.name,
+        description: svc.description,
+        image: svc.image,
+        isEnabled: svc.isEnabled,
+        inherited: svc.inherited,
+        zone: svc,
+      }));
+    }
+    return servicesData?.data?.services ?? [];
+  }, [isZoneMode, zoneCatalog?.services, servicesData?.data?.services]);
 
   const {
     data: serviceConfigData,
@@ -567,13 +602,25 @@ export default function ServiceDashboard() {
     setServiceDragOrder(null);
   }, [servicesData]);
 
-  const orderedServices = serviceDragOrder ?? services;
+  const orderedServices = (isZoneMode ? null : serviceDragOrder) ?? services;
 
   useEffect(() => {
-    if (orderedServices?.length && !selectedServiceId) {
+    if (!orderedServices?.length) return;
+    const stillPresent = orderedServices.some(
+      (s) => String(s.id) === String(selectedServiceId)
+    );
+    if (!selectedServiceId || !stillPresent) {
       setSelectedServiceId(orderedServices[0]?.id);
     }
   }, [orderedServices, selectedServiceId]);
+
+  // Switching scope closes any open master menus / modals.
+  useEffect(() => {
+    setMenuServiceId(null);
+    setDownloadMenuOpen(false);
+    setConfigureOpen(false);
+    setCategoryModalOpen(false);
+  }, [zoneId]);
 
   useEffect(() => {
     if (serviceModal.type === "update" && serviceModal.id) {
@@ -603,7 +650,71 @@ export default function ServiceDashboard() {
     return () => window.removeEventListener("mousedown", close);
   }, [downloadMenuOpen]);
 
-  const selectedService = orderedServices?.find((s) => s.id === selectedServiceId);
+  const selectedService = orderedServices?.find(
+    (s) => String(s.id) === String(selectedServiceId)
+  );
+  const selectedZoneService = isZoneMode ? selectedService?.zone || null : null;
+
+  const zoneMetrics = useMemo(() => {
+    if (!isZoneMode || !zoneCatalog) return null;
+    let categories = 0;
+    let categoriesVisible = 0;
+    let items = 0;
+    let itemsVisible = 0;
+    let overrides = 0;
+    let preferences = 0;
+    const countPrefs = (rows) => {
+      (rows || []).forEach((p) => {
+        preferences += 1;
+        if (!p.inherited) overrides += 1;
+        countPrefs(p.childTypes);
+      });
+    };
+    (zoneCatalog.services || []).forEach((svc) => {
+      if (!svc.inherited) overrides += 1;
+      countPrefs(svc.preferences);
+      (svc.categories || []).forEach((cat) => {
+        categories += 1;
+        if (cat.isEnabled) categoriesVisible += 1;
+        if (!cat.inherited) overrides += 1;
+        (cat.items || []).forEach((item) => {
+          items += 1;
+          if (item.isEnabled) itemsVisible += 1;
+          if (!item.inherited || !item.priceInherited) overrides += 1;
+          (item.attach || []).forEach((a) => {
+            if (!a.inherited) overrides += 1;
+          });
+        });
+      });
+    });
+    let addOns = 0;
+    (zoneCatalog.addOnCategories || []).forEach((cat) => {
+      if (!cat.inherited) overrides += 1;
+      (cat.addOns || []).forEach((a) => {
+        addOns += 1;
+        if (!a.inherited || !a.priceInherited) overrides += 1;
+      });
+    });
+    (zoneCatalog.repair || []).forEach((g) => {
+      if (!g.inherited) overrides += 1;
+      (g.options || []).forEach((o) => {
+        if (!o.inherited || !o.priceInherited) overrides += 1;
+      });
+    });
+    const servicesTotal = (zoneCatalog.services || []).length;
+    const servicesVisible = (zoneCatalog.services || []).filter((s) => s.isEnabled).length;
+    return {
+      servicesTotal,
+      servicesVisible,
+      categories,
+      categoriesVisible,
+      items,
+      itemsVisible,
+      addOns,
+      preferences,
+      overrides,
+    };
+  }, [isZoneMode, zoneCatalog]);
 
   const allCategories = Array.isArray(categoriesResponse?.data)
     ? categoriesResponse.data
@@ -890,46 +1001,57 @@ export default function ServiceDashboard() {
       image: "",
     });
 
-  if (isZoneMode) {
-    return (
-      <CatalogChrome
-        section="overview"
-        title="Service catalog"
-        description="Zone mode: manage zone-specific visibility, ordering, and prices for services, categories, items, add-ons, repairs, and preferences."
-        breadcrumb={["Catalog", "Zone mode"]}
-      >
-        <ZoneCatalogWorkspace zoneId={zoneId} />
-      </CatalogChrome>
-    );
-  }
+  const pageDescription = isZoneMode
+    ? `Zone scope: ${zoneName}. Hide/show services, categories, items, add-ons, repairs and preferences, or set zone prices. The agent app and invoices in this zone follow what you see here.`
+    : "One workspace for the customer catalog. Select a service to see its categories, items, add-ons, and preferences.";
 
-  if (isLoadingServices || isServicesError) {
+  const isPageLoading = isZoneMode ? isLoadingZoneCatalog : isLoadingServices;
+  const isPageError = isZoneMode ? isZoneCatalogError : isServicesError;
+
+  if (isPageLoading || isPageError) {
     return (
       <CatalogChrome
         section="overview"
         title="Service catalog"
-        description="Services → categories → items, with add-ons and preferences in context"
+        description={pageDescription}
       >
         <QueryState
-          loading={isLoadingServices}
-          error={servicesQueryError || isServicesError}
-          onRetry={refetchServices}
-          errorLabel="Could not load services. Please try again."
+          loading={isPageLoading}
+          error={
+            isZoneMode
+              ? zoneCatalogQueryError || isZoneCatalogError
+              : servicesQueryError || isServicesError
+          }
+          onRetry={isZoneMode ? refetchZoneCatalog : refetchServices}
+          errorLabel={
+            isZoneMode
+              ? "Could not load this zone's catalog. Please try again."
+              : "Could not load services. Please try again."
+          }
         />
       </CatalogChrome>
     );
   }
 
+  const zoneCategoryCount = selectedZoneService?.categories?.length ?? 0;
+  const zoneItemCount = (selectedZoneService?.categories || []).reduce(
+    (n, c) => n + (c.items?.length || 0),
+    0
+  );
+  const categoryCount = isZoneMode ? zoneCategoryCount : rawTableRows.length;
+  const itemCount = isZoneMode ? zoneItemCount : subCategoryCount;
+
   return (
     <CatalogChrome
       section="overview"
       title="Service catalog"
-      description="One workspace for the customer catalog. Select a service to see its categories, items, add-ons, and preferences."
+      description={pageDescription}
       breadcrumb={[
         "Catalog",
+        isZoneMode ? zoneName : "Master",
         selectedService?.name || "Select a service",
         selectedService
-          ? `${rawTableRows.length} ${rawTableRows.length === 1 ? "category" : "categories"} · ${subCategoryCount} ${subCategoryCount === 1 ? "item" : "items"}`
+          ? `${categoryCount} ${categoryCount === 1 ? "category" : "categories"} · ${itemCount} ${itemCount === 1 ? "item" : "items"}`
           : null,
       ].filter(Boolean)}
       actions={
@@ -944,6 +1066,7 @@ export default function ServiceDashboard() {
               />
             </Field>
           </div>
+          {isZoneMode ? null : (
           <div
             style={{ position: "relative" }}
             onMouseDown={(e) => e.stopPropagation()}
@@ -1004,23 +1127,61 @@ export default function ServiceDashboard() {
               </div>
             ) : null}
           </div>
-          <Button variant="secondary" onClick={() => setConfigureOpen(true)}>
-            Configure
-          </Button>
-          <Button onClick={openAddService}>Add Service</Button>
+          )}
+          {isZoneMode ? null : (
+            <>
+              <Button variant="secondary" onClick={() => setConfigureOpen(true)}>
+                Configure
+              </Button>
+              <Button onClick={openAddService}>Add Service</Button>
+            </>
+          )}
         </>
       }
     >
-      <DirectoryMetrics
-        items={[
-          { label: "Services", value: orderedServices?.length ?? 0, tone: "brand" },
-          { label: "Categories", value: allCategories.length, tone: "navy" },
-          { label: "Items", value: allSubCategories.length, tone: "success" },
-          { label: "Add-ons", value: addOnsList.length, tone: "warning" },
-          { label: "Preferences", value: allPreferences.length, tone: "neutral" },
-          { label: "On this service", value: rawTableRows.length, tone: "brand" },
-        ]}
-      />
+      {isZoneMode && zoneMetrics ? (
+        <DirectoryMetrics
+          items={[
+            {
+              label: "Services",
+              value: `${zoneMetrics.servicesVisible}/${zoneMetrics.servicesTotal}`,
+              hint: "visible in this zone",
+              tone: "brand",
+            },
+            {
+              label: "Categories",
+              value: `${zoneMetrics.categoriesVisible}/${zoneMetrics.categories}`,
+              hint: "visible in this zone",
+              tone: "navy",
+            },
+            {
+              label: "Items",
+              value: `${zoneMetrics.itemsVisible}/${zoneMetrics.items}`,
+              hint: "visible in this zone",
+              tone: "success",
+            },
+            { label: "Add-ons", value: zoneMetrics.addOns, tone: "warning" },
+            { label: "Preferences", value: zoneMetrics.preferences, tone: "neutral" },
+            {
+              label: "Zone overrides",
+              value: zoneMetrics.overrides,
+              hint: "rows that differ from master",
+              tone: "brand",
+            },
+          ]}
+        />
+      ) : (
+        <DirectoryMetrics
+          items={[
+            { label: "Services", value: orderedServices?.length ?? 0, tone: "brand" },
+            { label: "Categories", value: allCategories.length, tone: "navy" },
+            { label: "Items", value: allSubCategories.length, tone: "success" },
+            { label: "Add-ons", value: addOnsList.length, tone: "warning" },
+            { label: "Preferences", value: allPreferences.length, tone: "neutral" },
+            { label: "On this service", value: rawTableRows.length, tone: "brand" },
+          ]}
+        />
+      )}
 
       <div
         style={{
@@ -1034,21 +1195,30 @@ export default function ServiceDashboard() {
           <div style={{ padding: "16px", borderBottom: "1px solid #e6e9f0" }}>
             <div style={{ fontWeight: 700, color: "#0e131c" }}>Services</div>
             <p style={{ margin: "4px 0 0", fontSize: 13, color: "#5c6673" }}>
-              Drag the grip to set customer tab order.
+              {isZoneMode
+                ? "Select a service. Use ⋯ to hide or show it in this zone."
+                : "Drag the grip to set customer tab order."}
             </p>
           </div>
           <div style={{ padding: 8 }}>
             {!orderedServices?.length ? (
-              <EmptyHint>No services yet. Use Add Service to create the first catalog item.</EmptyHint>
+              <EmptyHint>
+                {isZoneMode
+                  ? "No active services in the master catalog."
+                  : "No services yet. Use Add Service to create the first catalog item."}
+              </EmptyHint>
             ) : null}
             {orderedServices?.map((service) => {
               const IconComponent = getServiceIcon(service.name);
-              const isActive = selectedServiceId === service.id;
-              const isOver = dragOverServiceId === service.id;
-              const serviceCatCount = allCategories.filter(
-                (cat) =>
-                  String(cat.serviceId ?? cat.service?.id) === String(service.id)
-              ).length;
+              const isActive = String(selectedServiceId) === String(service.id);
+              const isOver = !isZoneMode && dragOverServiceId === service.id;
+              const serviceCatCount = isZoneMode
+                ? service.zone?.categories?.length ?? 0
+                : allCategories.filter(
+                    (cat) =>
+                      String(cat.serviceId ?? cat.service?.id) === String(service.id)
+                  ).length;
+              const zoneHidden = isZoneMode && service.isEnabled === false;
 
               return (
                 <div
@@ -1065,12 +1235,13 @@ export default function ServiceDashboard() {
                     }
                   }}
                   onDragOver={(e) => {
-                    if (serviceReorderLoading) return;
+                    if (isZoneMode || serviceReorderLoading) return;
                     e.preventDefault();
                     setDragOverServiceId(service.id);
                   }}
                   onDragLeave={() => setDragOverServiceId(null)}
                   onDrop={(e) => {
+                    if (isZoneMode) return;
                     e.preventDefault();
                     e.stopPropagation();
                     handleServiceChipDrop(service.id);
@@ -1091,29 +1262,39 @@ export default function ServiceDashboard() {
                     color: isActive ? "var(--on-accent)" : "var(--ink)",
                     borderRadius: "var(--r-md)",
                     border: isOver ? "1px dashed var(--brand-500)" : "1px solid transparent",
+                    opacity: zoneHidden && !isActive ? 0.6 : 1,
                   }}
                 >
-                  <span
-                    draggable={!serviceReorderLoading}
-                    onDragStart={(e) => {
-                      e.stopPropagation();
-                      draggingServiceIdRef.current = service.id;
-                      e.dataTransfer.setData("text/plain", String(service.id));
-                      e.dataTransfer.effectAllowed = "move";
-                    }}
-                    onClick={(e) => e.stopPropagation()}
-                    style={{
-                      display: "flex",
-                      color: isActive ? "rgba(255,255,255,0.85)" : "var(--faint)",
-                      cursor: serviceReorderLoading ? "not-allowed" : "grab",
-                    }}
-                    aria-label="Drag to reorder service"
-                  >
-                    <TbGripVertical size={18} />
-                  </span>
+                  {isZoneMode ? null : (
+                    <span
+                      draggable={!serviceReorderLoading}
+                      onDragStart={(e) => {
+                        e.stopPropagation();
+                        draggingServiceIdRef.current = service.id;
+                        e.dataTransfer.setData("text/plain", String(service.id));
+                        e.dataTransfer.effectAllowed = "move";
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                      style={{
+                        display: "flex",
+                        color: isActive ? "rgba(255,255,255,0.85)" : "var(--faint)",
+                        cursor: serviceReorderLoading ? "not-allowed" : "grab",
+                      }}
+                      aria-label="Drag to reorder service"
+                    >
+                      <TbGripVertical size={18} />
+                    </span>
+                  )}
                   <IconComponent size={18} color={isActive ? "#fff" : "var(--success-700)"} />
                   <div style={{ minWidth: 0, flex: 1 }}>
-                    <div style={{ fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis" }}>
+                    <div
+                      style={{
+                        fontWeight: 600,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        textDecoration: zoneHidden ? "line-through" : "none",
+                      }}
+                    >
                       {service.name}
                     </div>
                     <div
@@ -1123,6 +1304,10 @@ export default function ServiceDashboard() {
                       }}
                     >
                       {serviceCatCount} {serviceCatCount === 1 ? "category" : "categories"}
+                      {zoneHidden ? " · hidden in zone" : ""}
+                      {isZoneMode && !zoneHidden && service.inherited === false
+                        ? " · zone override"
+                        : ""}
                     </div>
                   </div>
                   <Button
@@ -1134,10 +1319,71 @@ export default function ServiceDashboard() {
                         prev === service.id ? null : service.id
                       );
                     }}
+                    aria-label={`Actions for ${service.name}`}
                   >
                     ⋯
                   </Button>
-                  {menuServiceId === service.id ? (
+                  {menuServiceId === service.id && isZoneMode ? (
+                    <div
+                      role="menu"
+                      onMouseDown={(e) => e.stopPropagation()}
+                      style={{
+                        position: "absolute",
+                        right: 8,
+                        top: "100%",
+                        zIndex: 20,
+                        minWidth: 170,
+                        padding: 6,
+                        background: "var(--surface)",
+                        border: "1px solid var(--line)",
+                        borderRadius: "var(--r-md)",
+                        boxShadow: "var(--e-3)",
+                        display: "grid",
+                        gap: 2,
+                      }}
+                    >
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        disabled={zoneBusy}
+                        style={{ justifyContent: "flex-start" }}
+                        onClick={async () => {
+                          setMenuServiceId(null);
+                          await zoneActions.save(
+                            {
+                              type: "service",
+                              serviceId: service.id,
+                              entityId: service.id,
+                              isEnabled: !service.isEnabled,
+                            },
+                            service.isEnabled
+                              ? `"${service.name}" hidden in ${zoneName}`
+                              : `"${service.name}" visible in ${zoneName}`
+                          );
+                        }}
+                      >
+                        {service.isEnabled ? "Hide in this zone" : "Show in this zone"}
+                      </Button>
+                      {service.inherited === false ? (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          disabled={zoneBusy}
+                          style={{ justifyContent: "flex-start" }}
+                          onClick={async () => {
+                            setMenuServiceId(null);
+                            await zoneActions.resetRow(
+                              { type: "service", entityId: service.id },
+                              `"${service.name}" reset to master`
+                            );
+                          }}
+                        >
+                          Reset to master
+                        </Button>
+                      ) : null}
+                    </div>
+                  ) : null}
+                  {menuServiceId === service.id && !isZoneMode ? (
                     <div
                       role="menu"
                       onMouseDown={(e) => e.stopPropagation()}
@@ -1168,10 +1414,128 @@ export default function ServiceDashboard() {
               );
             })}
           </div>
+          {isZoneMode ? <ZoneCopyOverlays zoneId={zoneId} zones={zones} /> : null}
         </DirectoryPanel>
 
         <div style={{ flex: "1 1 480px", minWidth: 0 }}>
-          {selectedService ? (
+          {isZoneMode && selectedZoneService ? (
+            <>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  gap: 12,
+                  alignItems: "flex-start",
+                  marginBottom: 12,
+                  flexWrap: "wrap",
+                }}
+              >
+                <div>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    <span style={{ fontWeight: 700, fontSize: 18, color: "var(--ink)" }}>
+                      {selectedZoneService.name}
+                    </span>
+                    <ZoneVisibilityPill isEnabled={selectedZoneService.isEnabled} />
+                    <ZoneSourcePill inherited={selectedZoneService.inherited} />
+                  </div>
+                  <p style={{ margin: "4px 0 0", color: "var(--muted)", fontSize: 13 }}>
+                    {zoneCategoryCount} {zoneCategoryCount === 1 ? "category" : "categories"} ·{" "}
+                    {zoneItemCount} {zoneItemCount === 1 ? "item" : "items"} ·{" "}
+                    {(selectedZoneService.preferences || []).length}{" "}
+                    {(selectedZoneService.preferences || []).length === 1
+                      ? "preference"
+                      : "preferences"}{" "}
+                    · in {zoneName}
+                  </p>
+                </div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  {selectedZoneService.inherited === false ? (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      disabled={zoneBusy}
+                      onClick={() =>
+                        zoneActions.resetRow(
+                          { type: "service", entityId: selectedZoneService.serviceId },
+                          `"${selectedZoneService.name}" reset to master`
+                        )
+                      }
+                    >
+                      Reset service to master
+                    </Button>
+                  ) : null}
+                  <Button
+                    size="sm"
+                    variant={selectedZoneService.isEnabled ? "secondary" : "primary"}
+                    disabled={zoneBusy}
+                    onClick={() =>
+                      zoneActions.save(
+                        {
+                          type: "service",
+                          serviceId: selectedZoneService.serviceId,
+                          entityId: selectedZoneService.serviceId,
+                          isEnabled: !selectedZoneService.isEnabled,
+                        },
+                        selectedZoneService.isEnabled
+                          ? `"${selectedZoneService.name}" hidden in ${zoneName}`
+                          : `"${selectedZoneService.name}" visible in ${zoneName}`
+                      )
+                    }
+                  >
+                    {selectedZoneService.isEnabled
+                      ? "Hide service in this zone"
+                      : "Show service in this zone"}
+                  </Button>
+                </div>
+              </div>
+
+              <ZoneServicePreferences
+                serviceId={selectedZoneService.serviceId}
+                serviceHidden={!selectedZoneService.isEnabled}
+                preferences={selectedZoneService.preferences}
+                disabled={zoneBusy}
+                onSave={zoneActions.save}
+                onReset={zoneActions.resetRow}
+              />
+
+              <ZoneCategoriesTable
+                serviceHidden={!selectedZoneService.isEnabled}
+                categories={selectedZoneService.categories}
+                searchTerm={globalSearch}
+                disabled={zoneBusy}
+                onSave={zoneActions.save}
+                onReset={zoneActions.resetRow}
+              />
+
+              <ZoneAddOnsSection
+                addOnCategories={zoneCatalog?.addOnCategories}
+                disabled={zoneBusy}
+                onSave={zoneActions.save}
+                onReset={zoneActions.resetRow}
+              />
+              <ZoneRepairSection
+                repair={zoneCatalog?.repair}
+                disabled={zoneBusy}
+                onSave={zoneActions.save}
+                onReset={zoneActions.resetRow}
+              />
+            </>
+          ) : null}
+
+          {isZoneMode && !selectedZoneService ? (
+            <DirectoryTableWrap>
+              <EmptyHint>Select a service to manage it in {zoneName}.</EmptyHint>
+            </DirectoryTableWrap>
+          ) : null}
+
+          {!isZoneMode && selectedService ? (
             <div
               style={{
                 display: "flex",
@@ -1210,7 +1574,7 @@ export default function ServiceDashboard() {
             </div>
           ) : null}
 
-          {linkedPreferences.length ? (
+          {isZoneMode ? null : linkedPreferences.length ? (
             <div
               style={{
                 display: "flex",
@@ -1247,7 +1611,7 @@ export default function ServiceDashboard() {
             </p>
           ) : null}
 
-          {isLoadingConfig || isConfigError ? (
+          {isZoneMode ? null : isLoadingConfig || isConfigError ? (
             <QueryState
               loading={isLoadingConfig}
               error={configQueryError || isConfigError}
@@ -1273,33 +1637,37 @@ export default function ServiceDashboard() {
         </div>
       </div>
 
-      <CategoryModal
-        open={categoryModalOpen}
-        onClose={() => setCategoryModalOpen(false)}
-        type=""
-        categoryData={
-          selectedServiceId
-            ? { serviceId: selectedServiceId, service: selectedService }
-            : {}
-        }
-      />
+      {isZoneMode ? null : (
+        <>
+          <CategoryModal
+            open={categoryModalOpen}
+            onClose={() => setCategoryModalOpen(false)}
+            type=""
+            categoryData={
+              selectedServiceId
+                ? { serviceId: selectedServiceId, service: selectedService }
+                : {}
+            }
+          />
 
-      <ConfigureModal
-        open={configureOpen}
-        onClose={() => setConfigureOpen(false)}
-        selectedServiceId={selectedServiceId}
-      />
+          <ConfigureModal
+            open={configureOpen}
+            onClose={() => setConfigureOpen(false)}
+            selectedServiceId={selectedServiceId}
+          />
 
-      <CategoryAddOnsModal
-        open={addOnsModal.open}
-        onClose={() =>
-          setAddOnsModal({ open: false, categoryName: "", subCategories: [] })
-        }
-        categoryName={addOnsModal.categoryName}
-        subCategories={addOnsModal.subCategories}
-        addOnsList={addOnsList}
-        subCategoriesByServiceId={subCategoriesByServiceId}
-      />
+          <CategoryAddOnsModal
+            open={addOnsModal.open}
+            onClose={() =>
+              setAddOnsModal({ open: false, categoryName: "", subCategories: [] })
+            }
+            categoryName={addOnsModal.categoryName}
+            subCategories={addOnsModal.subCategories}
+            addOnsList={addOnsList}
+            subCategoriesByServiceId={subCategoriesByServiceId}
+          />
+        </>
+      )}
 
       <Modal
         open={serviceModal.open}
