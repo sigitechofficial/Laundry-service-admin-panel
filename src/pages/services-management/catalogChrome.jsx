@@ -139,8 +139,26 @@ export default function CatalogChrome({
         description={description}
         actions={
           <>
-            <div style={{ minWidth: 220 }}>
-              <Field label="Catalog scope" htmlFor="catalog-scope-select">
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                minWidth: 260,
+              }}
+            >
+              <label
+                htmlFor="catalog-scope-select"
+                style={{
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: "var(--muted)",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                Scope
+              </label>
+              <div style={{ flex: 1, minWidth: 200 }}>
                 <Select
                   id="catalog-scope-select"
                   aria-label="Catalog scope"
@@ -149,7 +167,7 @@ export default function CatalogChrome({
                   options={scopeOptions}
                   placeholder="Master catalog"
                 />
-              </Field>
+              </div>
             </div>
             {actions}
           </>

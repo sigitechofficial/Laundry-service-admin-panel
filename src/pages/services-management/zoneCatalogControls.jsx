@@ -110,6 +110,12 @@ function ResetButton({ disabled, onClick, label = "Reset" }) {
   );
 }
 
+function formatPriceInput(value) {
+  if (value == null || value === "") return "";
+  const n = Number(value);
+  return Number.isFinite(n) ? n.toFixed(2) : "";
+}
+
 /**
  * Inline price editor. Saves only when the value actually differs from
  * what the zone currently resolves to, so accidental clicks don't create
@@ -117,38 +123,54 @@ function ResetButton({ disabled, onClick, label = "Reset" }) {
  */
 export function ZonePriceEditor({
   price,
+  zonePrice,
   masterPrice,
   priceInherited,
   staged,
   disabled,
   onSave,
 }) {
-  const [draft, setDraft] = useState(price == null ? "" : String(price));
+  // Show the stored zone price when one exists (even while overlays are
+  // staged/off); otherwise the effective price, which equals master.
+  const shown = zonePrice != null && zonePrice !== "" ? zonePrice : price;
+  const [draft, setDraft] = useState(formatPriceInput(shown));
   useEffect(() => {
-    setDraft(price == null ? "" : String(price));
-  }, [price]);
+    setDraft(formatPriceInput(shown));
+  }, [shown]);
 
-  const dirty = String(draft).trim() !== String(price ?? "");
-  const invalid = draft !== "" && (!Number.isFinite(Number(draft)) || Number(draft) < 0);
+  const current = shown == null || shown === "" ? null : Number(shown);
+  const draftNum = String(draft).trim() === "" ? null : Number(draft);
+  const invalid = draftNum != null && (!Number.isFinite(draftNum) || draftNum < 0);
+  const dirty =
+    !invalid &&
+    draftNum !== null &&
+    (current === null || Math.abs(draftNum - current) > 0.0001);
+  const commit = () => onSave(draftNum.toFixed(2));
 
   return (
     <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6 }}>
       <Input
-        type="number"
-        min={0}
-        step="0.01"
+        type="text"
+        inputMode="decimal"
         value={draft}
         disabled={disabled}
-        onChange={(e) => setDraft(e.target.value)}
+        onChange={(e) => {
+          const next = e.target.value.replace(",", ".");
+          // digits with at most one dot and two decimals
+          if (next === "" || /^\d*\.?\d{0,2}$/.test(next)) setDraft(next);
+        }}
+        onBlur={() => {
+          if (!invalid && draftNum !== null) setDraft(draftNum.toFixed(2));
+        }}
         onClick={(e) => e.stopPropagation()}
         onKeyDown={(e) => {
           if (e.key === "Enter" && dirty && !invalid) {
             e.preventDefault();
-            onSave(draft);
+            commit();
           }
         }}
         aria-label="Zone price"
-        style={{ width: 104 }}
+        style={{ width: 92, textAlign: "right" }}
       />
       {dirty ? (
         <Button
@@ -156,18 +178,25 @@ export function ZonePriceEditor({
           disabled={disabled || invalid}
           onClick={(e) => {
             e.stopPropagation();
-            onSave(draft);
+            commit();
           }}
         >
           Save
         </Button>
       ) : null}
-      <span style={{ fontSize: 11, color: "var(--muted)", whiteSpace: "nowrap" }}>
-        {staged
-          ? "Staged (overlays flag off)"
-          : priceInherited
-            ? "Master price"
-            : `Master ${formatAmount(masterPrice, null, { applyDefault: true })}`}
+      <span
+        style={{ fontSize: 11, color: "var(--muted)", flexBasis: "100%" }}
+        title={
+          staged
+            ? "Zone pricing is switched off in runtime settings (zoneCatalogOverridesEnabled). The zone price is stored and will apply once it is turned on."
+            : undefined
+        }
+      >
+        {priceInherited
+          ? "Master price"
+          : `Master ${formatAmount(masterPrice, null, { applyDefault: true })}${
+              staged ? " · saved, applies when zone pricing is on" : ""
+            }`}
       </span>
     </div>
   );
@@ -370,16 +399,15 @@ export function ZoneCategoriesTable({
         master catalog.
       </p>
       <div style={{ maxHeight: 560, overflow: "auto" }}>
-        <table className="jd-tbl" style={{ minWidth: 900 }}>
+        <table className="jd-tbl" style={{ minWidth: 560 }}>
           <thead>
             <tr>
-              <th style={{ width: 48 }} />
-              <th>SL</th>
+              <th style={{ width: 44 }} />
+              <th style={{ width: 40 }}>SL</th>
               <th>Category</th>
-              <th>Items</th>
-              <th>Visibility</th>
-              <th>Source</th>
-              <th style={{ textAlign: "right" }}>Zone actions</th>
+              <th style={{ width: 64 }}>Items</th>
+              <th style={{ width: 130 }}>Status</th>
+              <th style={{ width: 132, textAlign: "right" }}>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -420,16 +448,23 @@ export function ZoneCategoriesTable({
                       {visibleItems}/{items.length}
                     </td>
                     <td>
-                      <ZoneVisibilityPill
-                        isEnabled={cat.isEnabled}
-                        parentHidden={catHiddenByParent}
-                      />
-                    </td>
-                    <td>
-                      <ZoneSourcePill inherited={cat.inherited} />
+                      <div style={{ display: "grid", gap: 4, justifyItems: "start" }}>
+                        <ZoneVisibilityPill
+                          isEnabled={cat.isEnabled}
+                          parentHidden={catHiddenByParent}
+                        />
+                        <ZoneSourcePill inherited={cat.inherited} />
+                      </div>
                     </td>
                     <td onClick={(e) => e.stopPropagation()}>
-                      <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: 6,
+                          justifyContent: "flex-end",
+                          flexWrap: "wrap",
+                        }}
+                      >
                         <ToggleVisibilityButton
                           label={cat.name}
                           isEnabled={cat.isEnabled}
@@ -465,7 +500,7 @@ export function ZoneCategoriesTable({
 
                   {isOpen ? (
                     <tr>
-                      <td colSpan={7} style={{ background: "var(--canvas)", padding: 16 }}>
+                      <td colSpan={6} style={{ background: "var(--canvas)", padding: 12 }}>
                         {items.length === 0 ? (
                           <p style={{ color: "var(--faint)", margin: 0, fontSize: 13 }}>
                             No items configured in the master catalog.
@@ -475,10 +510,10 @@ export function ZoneCategoriesTable({
                             <thead>
                               <tr>
                                 <th>Item</th>
-                                <th>Zone price</th>
-                                <th>Visibility</th>
+                                <th style={{ width: 170 }}>Zone price</th>
+                                <th style={{ width: 130 }}>Status</th>
                                 <th>Add-ons on this item</th>
-                                <th style={{ textAlign: "right" }}>Zone actions</th>
+                                <th style={{ width: 132, textAlign: "right" }}>Actions</th>
                               </tr>
                             </thead>
                             <tbody>
@@ -501,6 +536,7 @@ export function ZoneCategoriesTable({
                                     <td>
                                       <ZonePriceEditor
                                         price={item.price}
+                                        zonePrice={item.zonePrice}
                                         masterPrice={item.masterPrice}
                                         priceInherited={item.priceInherited}
                                         staged={item.staged}
@@ -587,6 +623,7 @@ export function ZoneCategoriesTable({
                                           display: "flex",
                                           gap: 6,
                                           justifyContent: "flex-end",
+                                          flexWrap: "wrap",
                                         }}
                                       >
                                         <ToggleVisibilityButton
@@ -761,6 +798,7 @@ function PriceGroupTable({ groups, groupKey, groupType, rowKey, rowType, disable
                       <td>
                         <ZonePriceEditor
                           price={row.price}
+                          zonePrice={row.zonePrice}
                           masterPrice={row.masterPrice}
                           priceInherited={row.priceInherited}
                           staged={row.staged}
