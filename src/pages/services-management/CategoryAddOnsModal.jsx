@@ -47,9 +47,10 @@ export default function CategoryAddOnsModal({
             paddingRight: 4,
           }}
         >
-          <p style={{ margin: 0, fontSize: 13, color: "var(--muted)" }}>
+          <p style={{ margin: 0, fontSize: 13, color: "var(--muted)", flex: "0 0 auto" }}>
             {addOns.length} {addOns.length === 1 ? "add-on" : "add-ons"} linked
-            {categoryName ? ` to ${categoryName}` : ""}
+            {categoryName ? ` to ${categoryName}` : ""} · {grouped.size}{" "}
+            {grouped.size === 1 ? "group" : "groups"}
           </p>
 
           {[...grouped.entries()].map(([groupName, services]) => (
@@ -59,6 +60,10 @@ export default function CategoryAddOnsModal({
                 border: "1px solid var(--line)",
                 borderRadius: "var(--r-lg)",
                 overflow: "hidden",
+                // Flex children with overflow:hidden shrink to fit the scroll
+                // area and clip their rows — keep each group at natural height
+                // so the outer region scrolls instead.
+                flex: "0 0 auto",
               }}
             >
               <div
