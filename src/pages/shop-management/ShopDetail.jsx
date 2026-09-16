@@ -47,6 +47,7 @@ import { BlockUserButton, AnonymizeDeleteModal } from "../user-management/UserBl
 import { isAccountBlocked } from "../../utilities/accountBlocked";
 import ShopRoutingPolicyCard from "./ShopRoutingPolicyCard";
 import ShopRevenueTab from "./ShopRevenueTab";
+import ShopReportTab from "./ShopReportTab";
 import { buildShopOrderFinanceColumns } from "./shopOrderFinanceColumns";
 import { shopSettlementPath } from "../reports/reportUi";
 import { buildShopReportModel, shopReportHtml } from "./shopReportDocument";
@@ -1189,39 +1190,7 @@ export default function ShopDetails() {
       )}
 
       {activeTab === "report" && (
-        <div style={{ display: "grid", gap: 16 }}>
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              gap: 12,
-              flexWrap: "wrap",
-            }}
-          >
-            <div>
-              <strong>Shop report</strong>
-              <p className="jd-lead" style={{ margin: "4px 0 0" }}>
-                Full snapshot — orders, ratings, pickup/delivery punctuality,
-                earnings, payment mix and tips. Download the whole report as a PDF.
-              </p>
-            </div>
-            <Button onClick={handleGenerateReport}>Download PDF</Button>
-          </div>
-          <div style={{ ...CARD, padding: 0, overflow: "hidden" }}>
-            <iframe
-              title="Shop report preview"
-              srcDoc={reportHtml}
-              style={{
-                width: "100%",
-                height: "1500px",
-                border: "none",
-                display: "block",
-                background: "#f1f5f9",
-              }}
-            />
-          </div>
-        </div>
+        <ShopReportTab model={reportModel} onDownload={handleGenerateReport} />
       )}
 
       {activeTab === "reviews" && (
