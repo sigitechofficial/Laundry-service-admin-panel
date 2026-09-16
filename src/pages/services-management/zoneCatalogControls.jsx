@@ -170,7 +170,7 @@ export function ZonePriceEditor({
           }
         }}
         aria-label="Zone price"
-        style={{ width: 92, textAlign: "right" }}
+        style={{ width: 92 }}
       />
       {dirty ? (
         <Button
