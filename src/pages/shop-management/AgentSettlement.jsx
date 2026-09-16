@@ -535,6 +535,7 @@ export default function AgentSettlement() {
       {
         key: "cashDueLabel",
         header: "Cash due",
+        align: "right",
         sortable: true,
         sortKey: "cashDue",
         render: (row) => <DirectoryMoney>{row.cashDueLabel}</DirectoryMoney>,
@@ -542,6 +543,7 @@ export default function AgentSettlement() {
       {
         key: "totalCashCollected",
         header: "Cash collected",
+        align: "right",
         sortable: true,
         sortKey: "totalCashCollectedRaw",
         render: (row) => <DirectoryMoney>{row.totalCashCollected}</DirectoryMoney>,
@@ -549,6 +551,7 @@ export default function AgentSettlement() {
       {
         key: "totalCashRemitted",
         header: "Cash already sent",
+        align: "right",
         sortable: true,
         sortKey: "totalCashRemittedRaw",
         render: (row) => <DirectoryMoney>{row.totalCashRemitted}</DirectoryMoney>,
@@ -556,6 +559,7 @@ export default function AgentSettlement() {
       {
         key: "platformOwesLabel",
         header: "Still payable",
+        align: "right",
         sortable: true,
         sortKey: "platformOwes",
         render: (row) => <DirectoryMoney>{row.platformOwesLabel}</DirectoryMoney>,
@@ -563,6 +567,7 @@ export default function AgentSettlement() {
       {
         key: "totalPaidOut",
         header: "Already released",
+        align: "right",
         sortable: true,
         sortKey: "totalPaidOutRaw",
         render: (row) => <DirectoryMoney>{row.totalPaidOut}</DirectoryMoney>,

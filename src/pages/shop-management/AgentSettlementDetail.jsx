@@ -114,7 +114,7 @@ function ReceiptCard({ title, badge, note, tone = "plain", children }) {
         minWidth: 0,
       }}
     >
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
         <div style={{ fontSize: 14, fontWeight: 700, color: t.title }}>{title}</div>
         {badge ? (
           <span
@@ -126,7 +126,6 @@ function ReceiptCard({ title, badge, note, tone = "plain", children }) {
               border: `1px solid ${t.border}`,
               background: tone === "plain" ? "#f8fafc" : "#fff",
               color: t.text,
-              whiteSpace: "nowrap",
             }}
           >
             {badge}
@@ -217,6 +216,159 @@ function ReceiptHighlight({ label, value, pill, sub, tone = "info" }) {
   );
 }
 
+/**
+ * Calculation row: operator column (+ − = ±) so admin can re-do the arithmetic
+ * by hand. `op="eq"` rows are subtotals (bold, ruled, tinted).
+ */
+const STEP_OPS = { add: "+", sub: "−", eq: "=", pm: "±", none: "" };
+const STEP_OP_COLOR = { add: "#047857", sub: "#b45309", eq: "#111827", pm: "#4b5563", none: "transparent" };
+
+function StepRow({ op = "none", label, hint, value, highlight, tone = "plain", muted }) {
+  const t = RECEIPT_TONES[tone] || RECEIPT_TONES.plain;
+  const isEq = op === "eq";
+  return (
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "18px minmax(0, 1fr) auto",
+        alignItems: "flex-start",
+        columnGap: 10,
+        padding: isEq ? "9px 8px" : "6px 8px",
+        margin: isEq ? "4px -8px 0" : "0 -8px",
+        borderTop: isEq ? `1px solid ${highlight ? "#c7d2fe" : t.border}` : "none",
+        background: highlight ? "#eef2ff" : isEq ? "rgba(15, 23, 42, 0.035)" : "transparent",
+        borderRadius: isEq ? 8 : 0,
+        opacity: muted ? 0.75 : 1,
+      }}
+    >
+      <span
+        aria-hidden
+        style={{
+          fontSize: 14,
+          fontWeight: 800,
+          lineHeight: "18px",
+          color: STEP_OP_COLOR[op] || "#4b5563",
+          fontVariantNumeric: "tabular-nums",
+          textAlign: "center",
+        }}
+      >
+        {STEP_OPS[op] ?? ""}
+      </span>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontSize: 13.5, fontWeight: isEq ? 700 : 500, color: highlight ? "#1e1b4b" : t.text, lineHeight: "18px" }}>
+          {label}
+        </div>
+        {hint ? <div style={{ fontSize: 11.5, color: t.muted, marginTop: 2, lineHeight: 1.4 }}>{hint}</div> : null}
+      </div>
+      <div
+        style={{
+          fontSize: isEq ? 14.5 : 13.5,
+          fontWeight: isEq ? 800 : 600,
+          color: op === "sub" ? "#b45309" : highlight ? "#312e81" : t.text,
+          whiteSpace: "nowrap",
+          fontVariantNumeric: "tabular-nums",
+          lineHeight: "18px",
+        }}
+      >
+        {op === "sub" ? "−" : ""}
+        {value}
+      </div>
+    </div>
+  );
+}
+
+function StepCard({ eyebrow, eyebrowColor = "#64748b", title, headline, headlineColor, note, tone = "plain", children, footer }) {
+  const t = RECEIPT_TONES[tone] || RECEIPT_TONES.plain;
+  return (
+    <div
+      style={{
+        ...CARD,
+        marginBottom: 0,
+        border: `1px solid ${t.border}`,
+        background: t.bg,
+        display: "flex",
+        flexDirection: "column",
+        minWidth: 0,
+      }}
+    >
+      {eyebrow ? (
+        <p style={{ margin: "0 0 4px", fontSize: 11, fontWeight: 700, letterSpacing: "0.04em", color: eyebrowColor, textTransform: "uppercase" }}>
+          {eyebrow}
+        </p>
+      ) : null}
+      {title ? <div style={{ fontSize: 14, fontWeight: 700, color: t.title }}>{title}</div> : null}
+      {headline != null ? (
+        <p style={{ margin: "0 0 10px", fontSize: 28, fontWeight: 800, color: headlineColor || t.title, fontVariantNumeric: "tabular-nums" }}>
+          {headline}
+        </p>
+      ) : null}
+      {note ? <p style={{ margin: "0 0 8px", fontSize: 12, color: t.muted, lineHeight: 1.5 }}>{note}</p> : null}
+      <div>{children}</div>
+      {footer ? <div style={{ marginTop: 12 }}>{footer}</div> : null}
+    </div>
+  );
+}
+
+function FootStat({ label, value }) {
+  return (
+    <div style={{ minWidth: 0 }}>
+      <div style={{ fontSize: 11, color: "#6b7280" }}>{label}</div>
+      <div style={{ fontSize: 13, fontWeight: 700, color: "#1f2937", fontVariantNumeric: "tabular-nums" }}>{value}</div>
+    </div>
+  );
+}
+
+const num = (v) => {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+};
+const r2 = (v) => Math.round(num(v) * 100) / 100;
+
+/** Normalise the settlement report so older API payloads still reconcile. */
+function normalizeReport(report) {
+  if (!report) return null;
+  const laundry = num(report.laundry);
+  const serviceFee = num(report.serviceFee);
+  const bookingTips = num(report.bookingTips);
+  const discount = num(report.discount);
+  const refunded = num(report.refunded);
+  const gross = num(report.gross);
+  const orderTotal =
+    report.orderTotal != null
+      ? num(report.orderTotal)
+      : r2(Math.max(laundry + serviceFee + bookingTips, gross + discount));
+  const customersPaidNet =
+    report.customersPaidNet != null
+      ? num(report.customersPaidNet)
+      : report.orderTotal != null
+        ? r2(Math.max(0, orderTotal - discount - refunded))
+        : gross;
+  const shopNet = num(report.shopNet);
+  const platformCommission = num(report.platformCommission);
+  const driverEarnings = num(report.driverEarnings);
+  const rescheduleCharges = num(report.rescheduleCharges);
+  const splitTotal = r2(shopNet + platformCommission + serviceFee + driverEarnings + rescheduleCharges);
+  return {
+    ordersPaid: Number(report.ordersPaid || 0),
+    laundry,
+    serviceFee,
+    bookingTips,
+    orderTotal,
+    discount,
+    refunded,
+    customersPaidNet,
+    paidAtBooking: num(report.paidAtBooking),
+    balanceAtDelivery: gross,
+    shopNet,
+    platformCommission,
+    driverEarnings,
+    rescheduleCharges,
+    platformTake: report.platformTake != null ? num(report.platformTake) : r2(serviceFee + platformCommission),
+    splitTotal,
+    splitDifference: r2(splitTotal - customersPaidNet),
+  };
+}
+
 export default function AgentSettlementDetail() {
   const { id: shopId } = useParams();
   const navigate = useNavigate();
@@ -258,6 +410,7 @@ export default function AgentSettlementDetail() {
   const activity = detail?.recentActivity || [];
   const formulas = detail?.formulas || {};
   const earningsReport = detail?.earningsReport || null;
+  const report = useMemo(() => normalizeReport(earningsReport), [earningsReport]);
 
   useEffect(() => {
     const canonical = shopSettlementPath(canonicalShopId);
@@ -634,100 +787,95 @@ export default function AgentSettlementDetail() {
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
+          gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
           gap: 16,
           marginBottom: 16,
         }}
       >
-        <div style={CARD}>
-          <p style={{ margin: "0 0 4px", fontSize: 11, fontWeight: 700, letterSpacing: "0.04em", color: "#b45309", textTransform: "uppercase" }}>
-            Cash to collect from agent
-          </p>
-          <p style={{ margin: "0 0 12px", fontSize: 28, fontWeight: 800, color: "#92400e" }}>
-            {money(cashRail.stillDue ?? summary.cashDueToPlatform, summary)}
-          </p>
-          <Line label="Cash customers paid this agent" value={money(cashRail.collected, summary)} />
-          <Line
-            label="Cash returned to customers (refunds)"
-            value={`−${money(cashRail.refundedToCustomers, summary)}`}
-            hint="Lowers what the agent still owes us"
-            tone="danger"
+        <StepCard
+          eyebrow="Cash to collect from agent"
+          eyebrowColor="#b45309"
+          headline={money(cashRail.stillDue ?? summary.cashDueToPlatform, summary)}
+          headlineColor="#92400e"
+          note="Cash the agent collected from customers, minus what they have already kept or handed over."
+          footer={
+            <p style={{ margin: 0, fontSize: 12, color: "#6b7280", lineHeight: 1.5 }}>
+              Recording cash received adds to “handed to platform” and brings cash due down. History stays on the Statement tab.
+            </p>
+          }
+        >
+          <StepRow label="Cash customers paid this agent" value={money(cashRail.collected, summary)} />
+          <StepRow op="sub" label="Cash refunded to customers" value={money(cashRail.refundedToCustomers, summary)} />
+          <StepRow op="eq" label="Cash in agent’s till" hint="Physical cash the agent is holding" value={money(cashRail.cashInTill ?? num(cashRail.collected) - num(cashRail.refundedToCustomers) - num(cashRail.remitted), summary)} />
+          <StepRow
+            op="sub"
+            label="Agent earnings kept from this cash"
+            hint={`Commission credited ${money(cashRail.commissionCredited, summary)} − clawbacks ${money(cashRail.commissionClawedBack, summary)}. Card commission is netted here too instead of being paid out separately.`}
+            value={money(cashRail.commissionOffset, summary)}
           />
-          <Line
-            label="Commission already kept / credited"
-            value={`−${money(cashRail.commissionOffset, summary)}`}
-            hint={`Credited ${money(cashRail.commissionCredited, summary)} − clawed back ${money(cashRail.commissionClawedBack, summary)}. Includes card commission, which nets against cash due.`}
+          <StepRow
+            op="sub"
+            label="Cash already handed to platform"
+            hint={cashRail.lastRemittedAt ? `Last recorded ${formatDate(cashRail.lastRemittedAt, DATE_TIME_FORMAT)}` : "Nothing recorded yet"}
+            value={money(cashRail.remitted, summary)}
           />
-          <Line
-            label="Already handed to platform"
-            value={`−${money(cashRail.remitted, summary)}`}
-            hint={
-              cashRail.lastRemittedAt
-                ? `Last recorded ${formatDate(cashRail.lastRemittedAt, DATE_TIME_FORMAT)}. Live due can be £0 — this lifetime total stays.`
-                : "Why the live due can be £0 after Record — this lifetime total stays"
-            }
-            tone="success"
-          />
-          <Line
-            label="Admin adjustments (net)"
-            value={money(cashRail.adminAdjustmentNet, summary)}
-            hint="Manual credit / debit corrections"
-          />
-          <Line label="Waiting on pending remittance" value={money(cashRail.pendingRemittance, summary)} />
-          <Line
-            label="Cash still in agent's till"
-            value={money(cashRail.cashInTill, summary)}
-            hint={formulas.cashInTill || "Collected − refunded − remitted (before commission netting)"}
-          />
-          <Line
-            label="Still to collect after pending"
-            value={money(cashRail.stillDueAfterPending, summary)}
-            strong
-          />
-          <p style={{ margin: "10px 0 0", fontSize: 12, color: "#6b7280", lineHeight: 1.5 }}>
-            {formulas.cashDue ||
-              "Cash collected − refunds − commission the agent already kept − cash you recorded as received."}
-          </p>
-        </div>
+          {num(cashRail.adminAdjustmentNet) !== 0 ? (
+            <StepRow op="pm" label="Admin adjustments (net)" hint="Manual credit / debit corrections" value={money(cashRail.adminAdjustmentNet, summary)} />
+          ) : null}
+          <StepRow op="eq" highlight label="Cash due now" value={money(cashRail.stillDue ?? summary.cashDueToPlatform, summary)} />
+          {num(cashRail.pendingRemittance) > 0 ? (
+            <>
+              <StepRow op="sub" label="Pending remittance (awaiting approval)" value={money(cashRail.pendingRemittance, summary)} muted />
+              <StepRow op="eq" label="Due after pending clears" value={money(cashRail.stillDueAfterPending, summary)} />
+            </>
+          ) : null}
+        </StepCard>
 
-        <div style={CARD}>
-          <p style={{ margin: "0 0 4px", fontSize: 11, fontWeight: 700, letterSpacing: "0.04em", color: "#047857", textTransform: "uppercase" }}>
-            Payable to agent (card)
-          </p>
-          <p style={{ margin: "0 0 12px", fontSize: 28, fontWeight: 800, color: "#065f46" }}>
-            {money(payRail.stillOwed ?? summary.platformOwesAgent, summary)}
-          </p>
-          <Line
-            label="Card commission (laundry + booking tip)"
-            value={money(payRail.cardCommission ?? summary.commissionCardOnly, summary)}
+        <StepCard
+          eyebrow="Payable to agent (card)"
+          eyebrowColor="#047857"
+          headline={money(payRail.stillOwed ?? summary.platformOwesAgent, summary)}
+          headlineColor="#065f46"
+          note="Earnings the platform holds for the agent from card orders, minus what has already been released to Stripe Connect."
+          footer={
+            <div style={{ borderTop: "1px solid #e6e9f0", paddingTop: 10 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.04em", color: "#64748b", textTransform: "uppercase", marginBottom: 6 }}>
+                Stripe Connect wallet
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 10 }}>
+                <FootStat label="Released by admin" value={money(payRail.releasedToWallet ?? summary.totalAgentPayouts, summary)} />
+                <FootStat label="Withdrawn to bank" value={money(payRail.withdrawnToBank ?? summary.totalWithdrawn, summary)} />
+                <FootStat label="Still in wallet" value={money(payRail.sittingInWallet, summary)} />
+              </div>
+              {payRail.lastReleasedAt ? (
+                <p style={{ margin: "8px 0 0", fontSize: 11.5, color: "#6b7280" }}>
+                  Last released {formatDate(payRail.lastReleasedAt, DATE_TIME_FORMAT)}. Completed transfers cannot be paid twice.
+                </p>
+              ) : null}
+            </div>
+          }
+        >
+          <StepRow label="Card earnings" hint="Laundry share + booking tips on card orders" value={money(payRail.cardCommission ?? summary.commissionCardOnly, summary)} />
+          <StepRow op="add" label="Extra tips after delivery" value={money(payRail.extraTips, summary)} />
+          {num(payRail.extraTipClawbacks) > 0 ? (
+            <StepRow op="sub" label="Extra-tip clawbacks" value={money(payRail.extraTipClawbacks, summary)} />
+          ) : null}
+          <StepRow
+            op="eq"
+            label="Earned on card"
+            value={money(
+              num(payRail.cardCommission ?? summary.commissionCardOnly) + num(payRail.extraTips) - num(payRail.extraTipClawbacks),
+              summary
+            )}
           />
-          <Line label="Extra tips after delivery" value={money(payRail.extraTips, summary)} />
-          <Line
-            label="Extra-tip clawbacks"
-            value={`−${money(payRail.extraTipClawbacks, summary)}`}
-            tone="danger"
+          <StepRow
+            op="sub"
+            label="Already released to Stripe Connect"
+            hint="Includes in-flight admin payouts"
+            value={money(payRail.releasedToWallet ?? summary.totalAgentPayouts, summary)}
           />
-          <Line
-            label="Released to Stripe Connect"
-            value={`−${money(payRail.releasedToWallet ?? summary.totalAgentPayouts, summary)}`}
-            hint={
-              payRail.lastReleasedAt
-                ? `Last sent ${formatDate(payRail.lastReleasedAt, DATE_TIME_FORMAT)} to Stripe Connect.`
-                : "Admin payout goes to the agent's Stripe Connect account"
-            }
-            tone="success"
-          />
-          <Line
-            label="Withdrawn to agent's bank"
-            value={money(payRail.withdrawnToBank ?? summary.totalWithdrawn, summary)}
-            hint="Stripe Connect transfer"
-          />
-          <Line label="Sitting in agent wallet (not withdrawn)" value={money(payRail.sittingInWallet, summary)} />
-          <Line label="Still owed (not released)" value={money(payRail.stillOwed, summary)} strong />
-          <p style={{ margin: "10px 0 0", fontSize: 12, color: "#6b7280", lineHeight: 1.5 }}>
-            {formulas.withdrawn}
-          </p>
-        </div>
+          <StepRow op="eq" highlight label="Still owed to agent" value={money(payRail.stillOwed ?? summary.platformOwesAgent, summary)} />
+        </StepCard>
       </div>
 
       {earningsReport ? (
@@ -743,121 +891,87 @@ export default function AgentSettlementDetail() {
           <>
             <div style={{ ...CARD, marginBottom: 16 }}>
               <p style={{ margin: "0 0 4px", fontSize: 11, fontWeight: 700, letterSpacing: "0.04em", color: "#1e3a8a", textTransform: "uppercase" }}>
-                Admin overall breakdown
+                Money breakdown
               </p>
               <p style={{ margin: "0 0 14px", fontSize: 13, color: "#4b5563", lineHeight: 1.5 }}>
-                Same layout as the agent receipt, totalled across{" "}
-                {earningsReport.ordersPaid || 0} paid order
-                {Number(earningsReport.ordersPaid || 0) === 1 ? "" : "s"} (net of customer
-                refunds). Read left to right: what customers paid → how the laundry amount is
-                split → what the platform keeps.
+                Across {report.ordersPaid} paid order{report.ordersPaid === 1 ? "" : "s"}. Step 1 is what
+                customers paid, step 2 is where every pound went, step 3 is the platform’s share. Steps 1 and 2 must total the same.
               </p>
               <div
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
                   gap: 12,
                 }}
               >
-                <ReceiptCard
-                  title="Laundry subtotal"
-                  note="Customer laundry / repair invoices before any split."
-                >
-                  <ReceiptRow
-                    label="Laundry / services"
-                    value={money(earningsReport.laundry, summary)}
-                    strong
-                  />
-                </ReceiptCard>
-
-                <ReceiptCard
-                  title="Order summary"
-                  badge={`${earningsReport.ordersPaid || 0} paid`}
-                  note="What customers were charged. The service fee is added on top of laundry."
-                >
-                  <ReceiptRow label="Laundry subtotal" value={money(earningsReport.laundry, summary)} />
-                  <ReceiptRow
-                    label="Service fee"
-                    hint="Kept by the platform — never shop income"
-                    value={money(earningsReport.serviceFee, summary)}
-                  />
-                  {Number(earningsReport.discount || 0) > 0 ? (
-                    <ReceiptRow
-                      label="Discounts"
-                      value={money(earningsReport.discount, summary)}
-                      negative
-                    />
+                <StepCard eyebrow="1 · Customers paid" eyebrowColor="#475569">
+                  <StepRow label="Laundry / services" value={money(report.laundry, summary)} />
+                  <StepRow op="add" label="Service fee" hint="Charged on top of laundry — platform income" value={money(report.serviceFee, summary)} />
+                  {report.bookingTips > 0 ? (
+                    <StepRow op="add" label="Booking tips" hint="Go to the shop" value={money(report.bookingTips, summary)} />
                   ) : null}
-                  <ReceiptRow
-                    label="Total customers paid"
-                    hint="Gross after refunds"
-                    value={money(earningsReport.gross, summary)}
-                    strong
-                  />
-                </ReceiptCard>
+                  <StepRow op="eq" label="Invoice value" value={money(report.orderTotal, summary)} />
+                  {report.discount > 0 ? (
+                    <StepRow op="sub" label="Discounts / coupons" value={money(report.discount, summary)} />
+                  ) : null}
+                  {report.refunded > 0 ? (
+                    <StepRow op="sub" label="Refunded to customers" value={money(report.refunded, summary)} />
+                  ) : null}
+                  <StepRow op="eq" highlight label="Customers paid (net)" value={money(report.customersPaidNet, summary)} />
+                  {report.paidAtBooking > 0 ? (
+                    <p style={{ margin: "10px 0 0", fontSize: 11.5, color: "#6b7280", lineHeight: 1.5 }}>
+                      Of this, {money(report.paidAtBooking, summary)} was paid by card at booking and{" "}
+                      {money(report.balanceAtDelivery, summary)} as the balance after the invoice.
+                    </p>
+                  ) : null}
+                </StepCard>
 
-                <ReceiptCard
-                  tone="success"
-                  title="Laundry split"
-                  note="How the laundry subtotal is shared once the order is paid."
-                >
-                  <ReceiptRow
-                    tone="success"
-                    label="Shop net"
-                    hint="Shop's share"
-                    value={money(earningsReport.shopNet, summary)}
-                  />
-                  <ReceiptRow
-                    tone="success"
-                    label="Zone commission"
-                    hint="Platform's share of laundry"
-                    value={money(earningsReport.platformCommission, summary)}
-                  />
-                  {Number(earningsReport.driverEarnings || 0) > 0 ? (
-                    <ReceiptRow
+                <StepCard eyebrow="2 · Where it went" eyebrowColor="#047857" tone="success">
+                  <StepRow tone="success" label="Shop keeps" hint="Laundry share + booking tips" value={money(report.shopNet, summary)} />
+                  <StepRow tone="success" op="add" label="Zone commission → platform" hint="Platform’s share of laundry" value={money(report.platformCommission, summary)} />
+                  <StepRow tone="success" op="add" label="Service fee → platform" value={money(report.serviceFee, summary)} />
+                  {report.driverEarnings > 0 ? (
+                    <StepRow tone="success" op="add" label="Driver pay" value={money(report.driverEarnings, summary)} />
+                  ) : null}
+                  {report.rescheduleCharges > 0 ? (
+                    <StepRow tone="success" op="add" label="Reschedule charges" value={money(report.rescheduleCharges, summary)} />
+                  ) : null}
+                  <StepRow tone="success" op="eq" highlight label="Total split" value={money(report.splitTotal, summary)} />
+                  {Math.abs(report.splitDifference) > 0.02 ? (
+                    <StepRow
                       tone="success"
-                      label="Driver pay"
-                      hint="Paid out to drivers"
-                      value={money(earningsReport.driverEarnings, summary)}
+                      op={report.splitDifference > 0 ? "add" : "sub"}
+                      label="Difference vs customers paid"
+                      hint={
+                        report.splitDifference > 0
+                          ? "Split exceeds what customers paid — usually discounts the platform absorbed, or minimum-order top-ups"
+                          : "Customers paid more than the split — usually rounding or unallocated charges"
+                      }
+                      value={money(Math.abs(report.splitDifference), summary)}
+                      muted
                     />
-                  ) : null}
-                  <ReceiptRow
-                    tone="success"
-                    label="Laundry subtotal"
-                    value={money(earningsReport.laundry, summary)}
-                    strong
-                  />
-                </ReceiptCard>
+                  ) : (
+                    <p style={{ margin: "10px 0 0", fontSize: 11.5, color: "#047857" }}>
+                      ✓ Matches customers paid (net)
+                    </p>
+                  )}
+                </StepCard>
 
-                <ReceiptCard tone="info" title="Admin / platform take">
-                  <ReceiptHighlight
-                    label="Platform keeps"
-                    value={money(earningsReport.platformTake, summary)}
-                    pill="Admin"
-                    sub={`${money(earningsReport.serviceFee, summary)} service fee + ${money(
-                      earningsReport.platformCommission,
-                      summary
-                    )} zone commission`}
-                  />
-                  <div style={{ marginTop: 8 }}>
-                    <ReceiptRow tone="info" label="Service fee" value={money(earningsReport.serviceFee, summary)} />
-                    <ReceiptRow
-                      tone="info"
-                      label="Zone commission"
-                      value={money(earningsReport.platformCommission, summary)}
-                    />
-                    <ReceiptRow
-                      tone="info"
-                      label="Admin / platform take"
-                      value={money(earningsReport.platformTake, summary)}
-                      strong
-                    />
+                <StepCard eyebrow="3 · Platform keeps" eyebrowColor="#1d4ed8" tone="info">
+                  <ReceiptHighlight label="Platform keeps" value={money(report.platformTake, summary)} pill="Admin" />
+                  <div style={{ marginTop: 10 }}>
+                    <StepRow tone="info" label="Service fee" value={money(report.serviceFee, summary)} />
+                    <StepRow tone="info" op="add" label="Zone commission" value={money(report.platformCommission, summary)} />
+                    <StepRow tone="info" op="eq" label="Platform keeps" value={money(report.platformTake, summary)} />
                   </div>
-                </ReceiptCard>
+                  <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 10 }}>
+                    <FootStat label="Shop keeps" value={money(report.shopNet, summary)} />
+                    <FootStat label="Drivers" value={money(report.driverEarnings, summary)} />
+                  </div>
+                </StepCard>
               </div>
               <p style={{ margin: "12px 0 0", fontSize: 12, color: "#6b7280", lineHeight: 1.5 }}>
-                {formulas.adminTake ||
-                  "Admin take = service fee + zone commission. Net of customer refunds on paid invoices."}
+                Platform keeps = service fee + zone commission. Shop keeps = agent earning on each paid invoice. All figures are net of customer refunds.
               </p>
             </div>
 
@@ -913,10 +1027,10 @@ export default function AgentSettlementDetail() {
                     }
                     badge={`${row.orders ?? 0} orders · ${row.customers ?? 0} customers`}
                   >
-                    <ReceiptRow label="Gross" value={money(row.gross, summary)} />
-                    <ReceiptRow label="Services" value={money(row.laundry, summary)} />
-                    <ReceiptRow label="Admin take" value={money(row.platformTake, summary)} />
-                    <ReceiptRow label="Shop net" value={money(row.shopNet, summary)} strong />
+                    <ReceiptRow label="Customers paid" value={money(row.gross, summary)} />
+                    <ReceiptRow label="Laundry / services" value={money(row.laundry, summary)} />
+                    <ReceiptRow label="Platform keeps" value={money(row.platformTake, summary)} />
+                    <ReceiptRow label="Shop keeps" value={money(row.shopNet, summary)} strong />
                   </ReceiptCard>
                 ))}
               </div>

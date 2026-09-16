@@ -22,9 +22,12 @@ const CARD = {
  */
 export default function ShopPayoutAccountCard({ shopId }) {
   const { success, error: toastError } = useToaster();
-  const { data, isLoading, isError, refetch } = useGetShopPayoutAccountQuery(shopId, {
+  const { data, isLoading, isError, error, refetch } = useGetShopPayoutAccountQuery(shopId, {
     skip: !shopId,
   });
+  const errorMessage =
+    error?.data?.message || error?.data?.error || error?.error || error?.message || null;
+  const errorStatus = error?.status ?? error?.originalStatus ?? null;
   const [ensureAccount, { isLoading: ensuring }] = useEnsureShopPayoutAccountMutation();
   const [createLink, { isLoading: linking }] = useCreateShopPayoutOnboardingLinkMutation();
 
@@ -95,8 +98,10 @@ export default function ShopPayoutAccountCard({ shopId }) {
           Loading payout account…
         </p>
       ) : isError ? (
-        <p className="jd-lead" style={{ margin: "12px 0 0" }}>
-          Could not load payout account.{" "}
+        <p className="jd-lead" style={{ margin: "12px 0 0" }} data-testid="payout-account-error">
+          Could not load payout account
+          {errorMessage ? ` — ${errorMessage}` : ""}
+          {errorStatus ? ` (HTTP ${errorStatus})` : ""}.{" "}
           <button type="button" onClick={() => refetch()} style={{ color: "#1d4ed8", background: "none", border: 0, cursor: "pointer" }}>
             Retry
           </button>

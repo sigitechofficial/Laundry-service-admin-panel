@@ -1,7 +1,7 @@
 import { useLayoutEffect, useRef } from "react";
 
 const MONEY_KEY =
-  /price|fee|amount|cashdue|payable|revenue|earning|spent|money|cost|owe|due(?!date)|orders|items|reviews|qty|used|count|minimum|avg|share|shops|rating/i;
+  /price|fee|amount|cash|remitt|paidout|payout|released|collected|payable|revenue|earning|spent|money|cost|owe|due(?!date)|balance|commission|orders|items|reviews|qty|used|count|minimum|avg|share|shops|rating/i;
 const MONEY_HEADER =
   /^(price|fee|cash due|payable|amount|revenue|spent|total|orders|items|reviews|used|avg|share|shops|rating|pickup|delivery|minimum)$/i;
 const DATE_KEY = /^(updatedat|updated|createdat|created)$/i;
