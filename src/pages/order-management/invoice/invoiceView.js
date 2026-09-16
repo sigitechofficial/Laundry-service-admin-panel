@@ -3,6 +3,7 @@ import {
   formatMoney,
   resolveDisplayCurrency,
 } from "../../../utilities/formatters";
+import { formatUserPhone } from "../../../utilities/contactLinks";
 import {
   resolveInvoiceSettlement,
   resolveOrderSubtotal,
@@ -60,7 +61,7 @@ export function buildInvoiceView(invoiceDetails, fallbackShopName = "") {
     ? formatDate(invoiceDetails.createdAt || invoiceDetails.collectionDate)
     : "N/A";
   const timeText = invoiceDetails?.collectionTimeTo || invoiceDetails?.collectionTimeFrom || "N/A";
-  const addressText = [invoiceDetails?.customer?.phoneNum, invoiceDetails?.dropOffAddress?.streetAddress]
+  const addressText = [formatUserPhone(invoiceDetails?.customer), invoiceDetails?.dropOffAddress?.streetAddress]
     .filter(Boolean)
     .join(" · ");
   const shopName =
@@ -160,7 +161,7 @@ export function buildInvoiceView(invoiceDetails, fallbackShopName = "") {
     deliveryWindow,
     bags: Number(invoiceDetails?.noOfBags || 0),
     frequency: invoiceDetails?.frequency || "Just Once",
-    emailOrPhone: [invoiceDetails?.customer?.phoneNum, invoiceDetails?.customer?.email]
+    emailOrPhone: [formatUserPhone(invoiceDetails?.customer), invoiceDetails?.customer?.email]
       .filter(Boolean)
       .join(" · "),
     printedDate: formatDate(new Date()),
@@ -170,7 +171,7 @@ export function buildInvoiceView(invoiceDetails, fallbackShopName = "") {
     statusLabel: invoiceDetails?.bookingStatus?.title || invoiceDetails?.status || "",
     paymentStatus: invoiceDetails?.billingDetail?.paymentStatus || "",
     customerEmail: invoiceDetails?.customer?.email || "",
-    customerPhone: invoiceDetails?.customer?.phoneNum || invoiceDetails?.customer?.phone || "",
+    customerPhone: formatUserPhone(invoiceDetails?.customer),
     customerAddress:
       invoiceDetails?.dropOffAddress?.streetAddress ||
       invoiceDetails?.pickupAddress?.streetAddress ||

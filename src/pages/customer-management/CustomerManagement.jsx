@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { Button, Modal, PageHeader, Select, Table } from "../../design-system";
 import { formatDate, formatAmount, resolveCurrencySymbol } from "../../utilities/formatters";
+import { formatUserPhone } from "../../utilities/contactLinks";
 import {
   DirectoryActionBlock,
   DirectoryActionDelete,
@@ -129,7 +130,7 @@ export default function CustomerManagement() {
         customerId: cus.id,
         name: `${cus?.firstName || ""} ${cus?.lastName || ""}`.trim() || "—",
         email: cus?.email,
-        phoneNumber: cus?.phoneNum,
+        phoneNumber: formatUserPhone(cus),
         amountSpent: cus?.totalAmountSpent,
         currencySymbol: resolveCurrencySymbol(cus, { applyDefault: true }),
         lastOrderDate: cus?.lastBookingDate,

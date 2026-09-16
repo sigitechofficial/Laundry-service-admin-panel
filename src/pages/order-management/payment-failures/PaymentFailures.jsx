@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button, Field, Modal, Textarea } from "../../../design-system";
 import useToaster from "../../../components/ui/Toaster";
+import { formatUserPhone } from "../../../utilities/contactLinks";
 import { useNavigate } from "react-router-dom";
 import {
   useGetPaymentFailuresQuery,
@@ -155,7 +156,7 @@ export default function PaymentFailures() {
           orderId: row.orderTrackId || String(row.id),
           customer: customerName || row?.customer?.email || "—",
           customerId: resolveCustomerId(row),
-          phone: row?.customer?.phoneNum || "—",
+          phone: formatUserPhone(row?.customer) || "—",
           amount: formatFailureAmount(row),
           code: code || "—",
           reason,

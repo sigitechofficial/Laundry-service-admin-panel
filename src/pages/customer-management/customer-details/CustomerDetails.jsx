@@ -4,6 +4,7 @@ import {
   Button,
   Field,
   Input,
+  PhoneInput,
   Modal,
   PageHeader,
   PasswordInput,
@@ -18,7 +19,7 @@ import { getApiErrorMessage } from "../../../store/services/apiErrors";
 import { customerPhoneError } from "../../../utilities/customerPhone";
 import DeleteOrderModal from "../../order-management/order-modals/DeleteOrderModal";
 import { formatDate, formatMoney, resolveCurrencySymbol } from "../../../utilities/formatters";
-import { openTel, openWhatsApp } from "../../../utilities/contactLinks";
+import { formatUserPhone, openTel, openWhatsApp } from "../../../utilities/contactLinks";
 import {
   DirectoryActionDelete,
   DirectoryActions,
@@ -74,7 +75,7 @@ export default function CustomerDetails() {
     [data?.data?.bookingDetails]
   );
   const user = userDetails?.user;
-  const customerPhone = user?.phoneNum || "";
+  const customerPhone = formatUserPhone(user);
   const normalizedTel = String(customerPhone).replace(/[^+\d]/g, "");
   const normalizedWhatsApp = normalizedTel.replace(/\D/g, "");
   const canCallCustomer = Boolean(normalizedTel);
@@ -407,7 +408,7 @@ export default function CustomerDetails() {
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 16 }}>
               <Info label="Full name" value={fullName} />
               <Info label="Email" value={user?.email || "—"} />
-              <Info label="Phone" value={user?.phoneNum || "—"} />
+              <Info label="Phone" value={customerPhone || "—"} />
               <Info label="Primary address" value={fullAddress} />
               <Info label="Registered on" value={formatDate(user?.createdAt)} />
               <Info label="Preferred shop" value={bookingDetails?.[0]?.laundryShop?.name || "—"} />
@@ -531,11 +532,10 @@ export default function CustomerDetails() {
               hint="UK number, e.g. 07911 123456 or +44 7911 123456"
               error={settingsErrors.phoneNum}
             >
-              <Input
+              <PhoneInput
                 id="settings-phone"
+                countryCode={user?.countryCode}
                 value={settingsForm.phoneNum}
-                type="tel"
-                inputMode="tel"
                 error={Boolean(settingsErrors.phoneNum)}
                 onChange={(e) => {
                   const val = e.target.value.replace(/[^0-9+\-() ]/g, "");

@@ -9,6 +9,7 @@ import {
 } from "../../../store/services/api";
 import { getApiErrorMessage } from "../../../store/services/apiErrors";
 import { DATE_TIME_FORMAT, formatDate } from "../../../utilities/formatters";
+import { formatUserPhone } from "../../../utilities/contactLinks";
 import { matchesOrderListSearch } from "../listSearch";
 import OrderListDataTable from "../OrderListDataTable";
 import AssignOrderModal from "../order-modals/AssignOrderModal";
@@ -200,7 +201,7 @@ export default function ActionRequiredOrders() {
             : "—",
           customer: row.customer?.name || "—",
           customerId: resolveCustomerId(row),
-          phone: row.customer?.phoneNum || "—",
+          phone: formatUserPhone(row.customer) || "—",
           shopName: resolveShopName(row),
           laundryShopId: resolveLaundryShopId(row),
           shopBusinessInfoId: resolveShopBusinessInfoId(row),

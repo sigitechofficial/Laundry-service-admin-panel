@@ -5,6 +5,7 @@ import dayjs from "dayjs";
 import { Delay } from "../../../components/shared/Loaders";
 import ZoiperCallButton from "../../../components/shared/ZoiperCallButton";
 import {
+  formatUserPhone,
   openTel,
   openWhatsApp,
 } from "../../../utilities/contactLinks";
@@ -621,7 +622,7 @@ export default function OrderDetailsPage() {
   const [contactModal, setContactModal] = useState(null);
   const selectedItemsServiceIdResolved =
     selectedItemsServiceId || selectedServiceGroups?.[0]?.serviceId || "";
-  const customerPhone = orderData?.customer?.phoneNum || "";
+  const customerPhone = formatUserPhone(orderData?.customer);
   const normalizedCustomerTel = String(customerPhone).replace(/[^+\d]/g, "");
   const normalizedCustomerWhatsApp = normalizedCustomerTel.replace(/\D/g, "");
   const canCallCustomer = Boolean(normalizedCustomerTel);
@@ -639,7 +640,7 @@ export default function OrderDetailsPage() {
   const shopAgentName =
     [shopAgent?.firstName, shopAgent?.lastName].filter(Boolean).join(" ").trim() || "";
   const shopEmail = shopAgent?.email || "";
-  const shopPhone = shopAgent?.phoneNum || "";
+  const shopPhone = formatUserPhone(shopAgent);
   const normalizedShopTel = String(shopPhone).replace(/[^+\d]/g, "");
   const normalizedShopWhatsApp = normalizedShopTel.replace(/\D/g, "");
   const canCallShop = Boolean(normalizedShopTel);
@@ -2038,7 +2039,7 @@ export default function OrderDetailsPage() {
                     valueTo={customerDetailsPath(orderData.customer.id)}
                   />
                   <OdMetaRow label="Email" value={orderData.customer.email || "—"} />
-                  <OdMetaRow label="Phone" value={orderData.customer.phoneNum || "—"} />
+                  <OdMetaRow label="Phone" value={customerPhone || "—"} />
                   <Button
                     size="sm"
                     variant="secondary"

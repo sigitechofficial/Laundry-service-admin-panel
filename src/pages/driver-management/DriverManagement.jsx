@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button, Modal, PageHeader, Table } from "../../design-system";
 import { formatAmount, formatDate, resolveCurrencySymbol } from "../../utilities/formatters";
+import { formatUserPhone } from "../../utilities/contactLinks";
 import {
   DirectoryActionDelete,
   DirectoryActionEdit,
@@ -90,7 +91,7 @@ export default function DriverManagement() {
         driverId: driver.id,
         name: `${driver.firstName || ""} ${driver.lastName || ""}`.trim(),
         email: driver.email || "",
-        phone: driver.phoneNum || driver.phone || "",
+        phone: formatUserPhone(driver),
         role: driver.role?.name || "",
         totalOrders: driver.totalOrders || 0,
         completedOrders: driver.completedOrders || 0,

@@ -6,6 +6,7 @@ import {
   Input,
   Modal,
   PageHeader,
+  PhoneInput,
   Select,
   Table,
   Textarea,
@@ -1434,16 +1435,18 @@ export default function ShopDetails() {
                   />
                 </Field>
                 <Field label="Phone number" htmlFor="detail-phone">
-                  <Input
+                  <PhoneInput
                     id="detail-phone"
+                    countryCode={biz?.countryCode || shop?.countryCode}
                     value={settingsForm.phone}
                     onChange={handleSettingsChange("phone")}
                   />
                 </Field>
                 <div style={{ gridColumn: "1 / -1" }}>
                   <Field label="WhatsApp" htmlFor="detail-whatsapp">
-                    <Input
+                    <PhoneInput
                       id="detail-whatsapp"
+                      countryCode={biz?.countryCode || shop?.countryCode}
                       value={settingsForm.whatsapp}
                       onChange={handleSettingsChange("whatsapp")}
                     />

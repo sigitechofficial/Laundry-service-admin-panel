@@ -1,4 +1,5 @@
 import dayjs from "dayjs";
+import { formatUserPhone } from "../../utilities/contactLinks";
 import { canAdminAssignOrReassignFromBooking } from "../../shared/adminAssignGate";
 import { resolveOrderStatusTitle } from "../../shared/orderEditStatusGate";
 import { isInvoiceIssued } from "../../shared/invoiceLifecycle";
@@ -188,7 +189,7 @@ export function resolveCustomerDisplay(booking) {
     fromParts ||
     customer.email ||
     "—";
-  const phone = customer.phoneNum || "—";
+  const phone = formatUserPhone(customer) || "—";
   return { name, phone };
 }
 

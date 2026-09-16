@@ -11,6 +11,21 @@ export function normalizeTel(raw) {
     .replace(/[^+\d]/g, "");
 }
 
+/** "+44" / "44" / " +44 " → "+44"; anything without digits → "". */
+export function formatDialCode(countryCode) {
+  const digits = String(countryCode || "").replace(/\D/g, "");
+  return digits ? `+${digits}` : "";
+}
+
+/** Display phone for any users row ({ countryCode, phoneNum | phone }). */
+export function formatUserPhone(user) {
+  if (!user) return "";
+  return formatPhoneWithCountryCode(
+    user.countryCode,
+    user.phoneNum ?? user.phone ?? user.phoneNumber ?? ""
+  );
+}
+
 /**
  * Join a stored dial code ("+44" / "44") with a national number ("07123…")
  * into one display string ("+44 7123…"). Numbers already carrying a "+" or
