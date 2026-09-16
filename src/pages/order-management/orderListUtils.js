@@ -273,16 +273,21 @@ function sumNestedItemQuantities(list) {
 
 /**
  * Live item count for list rows.
- * Prefer Σ customerSelectedServices[].items (list payload now includes `items`).
- * Fall back to booking.totalItems / itemCount only when the nested sum is absent.
+ * `booking.totalItems` is the server's canonical physical-piece count (active
+ * invoice lines × unitCount, repair garments counted once) and is what the
+ * agent app receipt shows — prefer it so admin and app agree. Fall back to
+ * Σ customerSelectedServices[].items only when the server count is absent.
  */
 export function resolveOrderItemCount(booking) {
+  const serverCount = toItemCount(booking?.totalItems);
+  if (serverCount != null && serverCount > 0) return serverCount;
+
   const nested = sumNestedItemQuantities(
     booking?.customerSelectedServices ||
       booking?.orderItems ||
       booking?.services
   );
-  if (nested != null) return nested;
+  if (nested != null && nested > 0) return nested;
 
   for (const value of [
     booking?.totalItems,

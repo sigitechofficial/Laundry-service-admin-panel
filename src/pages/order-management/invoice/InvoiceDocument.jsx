@@ -20,6 +20,16 @@ export default function InvoiceDocument({ view }) {
     ...item,
     index,
   }));
+  const settlement = view.settlement || {};
+  const paid = settlement.paidAtBooking || {};
+  const statusLabel =
+    settlement.amountDueNow > 0
+      ? "Outstanding"
+      : settlement.paymentStatus && /paid|complete/i.test(settlement.paymentStatus)
+        ? "Settled"
+        : settlement.isCash
+          ? "Collect at delivery"
+          : "Nothing due";
 
   return (
     <div className={styles.doc}>
@@ -43,8 +53,11 @@ export default function InvoiceDocument({ view }) {
           </div>
         </div>
         <div className={styles.totalBlock}>
-          <p className={styles.totalLabel}>Amount due</p>
+          <p className={styles.totalLabel}>Total order amount</p>
           <p className={styles.totalValue}>{money(view, view.grandTotal)}</p>
+          <p className={styles.panelRow} style={{ marginTop: 4 }}>
+            Amount due now <strong>{money(view, view.amountDue)}</strong>
+          </p>
         </div>
       </header>
 
@@ -70,11 +83,16 @@ export default function InvoiceDocument({ view }) {
           </p>
         </section>
         <section className={styles.panel}>
-          <p className={styles.panelLabel}>Summary</p>
+          <p className={styles.panelLabel}>Summary · {settlement.isCash ? "Cash" : "Card"}</p>
           <p className={styles.panelTitle}>{money(view, view.grandTotal)}</p>
-          <p className={styles.panelRow}>Services {money(view, view.servicesSubtotal)}</p>
-          <p className={styles.panelRow}>Subtotal {money(view, view.subtotal)}</p>
-          <p className={styles.panelRow}>Discount {money(view, view.discount)}</p>
+          <p className={styles.panelRow}>Laundry {money(view, settlement.laundrySubtotal)}</p>
+          <p className={styles.panelRow}>Service fee {money(view, settlement.serviceFee)}</p>
+          {paid.totalPaid > 0 ? (
+            <p className={styles.panelRow}>Paid at booking {money(view, paid.totalPaid)}</p>
+          ) : null}
+          <p className={styles.panelRow}>
+            Due now <strong>{money(view, settlement.amountDueNow)}</strong>
+          </p>
         </section>
       </div>
 
@@ -116,7 +134,19 @@ export default function InvoiceDocument({ view }) {
             {
               key: "rate",
               header: "Rate",
-              render: (row) => <span className={styles.num}>{money(view, row.rate)}</span>,
+              render: (row) => (
+                <span className={styles.num} style={{ display: "inline-flex", flexDirection: "column", alignItems: "flex-end" }}>
+                  {money(view, row.rate)}
+                  {row.zonePriced ? (
+                    <span
+                      className={styles.itemMeta}
+                      title="This zone has a price override in Zone Catalog. The master catalog price differs."
+                    >
+                      Zone price · master {money(view, row.masterRate)}
+                    </span>
+                  ) : null}
+                </span>
+              ),
             },
             {
               key: "line",
@@ -130,42 +160,107 @@ export default function InvoiceDocument({ view }) {
         />
       </div>
 
-      <div className={styles.breakdown}>
-        <div className={styles.breakRow}>
-          <span>Services subtotal</span>
-          <strong>{money(view, view.servicesSubtotal)}</strong>
-        </div>
-        <div className={styles.breakRow}>
-          <span>Minimum order fee</span>
-          <strong>-{money(view, Math.abs(view.minimumOrderFee || 0))}</strong>
-        </div>
-        <div className={styles.breakRow}>
-          <span>Service charge</span>
-          <strong>{money(view, view.serviceCharge)}</strong>
-        </div>
-        {Number(view.tip) > 0 ? (
+      <div className={styles.settlement}>
+        <div className={styles.breakdown}>
+          <div className={styles.blockHead}>
+            <span>Order summary</span>
+            <Badge tone="neutral">{settlement.isCash ? "Cash" : "Card"}</Badge>
+          </div>
+          {settlement.isCash && settlement.minimumAdjustment > 0 ? (
+            <p className={styles.blockNote}>
+              Laundry is below the zone minimum, so the minimum order amount is charged instead.
+            </p>
+          ) : !settlement.isCash && paid.minimumOrderPayment > 0 ? (
+            <p className={styles.blockNote}>
+              The minimum order payment is not added again as a separate charge.
+            </p>
+          ) : null}
           <div className={styles.breakRow}>
-            <span>Tip</span>
-            <strong>{money(view, view.tip)}</strong>
+            <span>Laundry subtotal</span>
+            <strong>{money(view, settlement.laundrySubtotal)}</strong>
+          </div>
+          {settlement.isCash && settlement.minimumAdjustment > 0 ? (
+            <div className={styles.breakRow}>
+              <span>Minimum order top-up</span>
+              <strong>{money(view, settlement.minimumAdjustment)}</strong>
+            </div>
+          ) : null}
+          <div className={styles.breakRow}>
+            <span>Service fee</span>
+            <strong>{money(view, settlement.serviceFee)}</strong>
+          </div>
+          {settlement.driverTip > 0 ? (
+            <div className={styles.breakRow}>
+              <span>Tip</span>
+              <strong>{money(view, settlement.driverTip)}</strong>
+            </div>
+          ) : null}
+          {settlement.discount > 0 ? (
+            <div className={styles.breakRow}>
+              <span>Discount</span>
+              <strong>-{money(view, settlement.discount)}</strong>
+            </div>
+          ) : null}
+          {view.tax != null && Number(view.tax) !== 0 ? (
+            <div className={styles.breakRow}>
+              <span>Tax</span>
+              <strong>{money(view, view.tax)}</strong>
+            </div>
+          ) : null}
+          <div className={styles.grandRow}>
+            <span>Total order amount</span>
+            <span>{money(view, settlement.totalOrderAmount)}</span>
+          </div>
+        </div>
+
+        {paid.totalPaid > 0 ? (
+          <div className={`${styles.breakdown} ${styles.paidBlock}`}>
+            <div className={styles.blockHead}>
+              <span>Paid at booking</span>
+            </div>
+            {paid.minimumOrderPayment > 0 ? (
+              <div className={styles.breakRow}>
+                <span>
+                  Minimum order payment
+                  <span className={styles.rowHint}>Applied to laundry subtotal</span>
+                </span>
+                <strong>{money(view, paid.minimumOrderPayment)}</strong>
+              </div>
+            ) : null}
+            {paid.serviceFee > 0 ? (
+              <div className={styles.breakRow}>
+                <span>Service fee</span>
+                <strong>{money(view, paid.serviceFee)}</strong>
+              </div>
+            ) : null}
+            {paid.driverTip > 0 ? (
+              <div className={styles.breakRow}>
+                <span>Tip</span>
+                <strong>{money(view, paid.driverTip)}</strong>
+              </div>
+            ) : null}
+            <div className={styles.grandRow}>
+              <span>Total paid</span>
+              <span>{money(view, paid.totalPaid)}</span>
+            </div>
           </div>
         ) : null}
-        {view.tax != null && Number(view.tax) !== 0 ? (
-          <div className={styles.breakRow}>
-            <span>Tax</span>
-            <strong>{money(view, view.tax)}</strong>
+
+        <div className={`${styles.breakdown} ${styles.dueBlock}`}>
+          <div className={styles.blockHead}>
+            <span>Amount due now</span>
+            <span className={styles.dueValue}>
+              <span className={styles.duePill}>{money(view, settlement.amountDueNow)}</span>
+              <Badge tone={settlement.amountDueNow > 0 ? "warning" : "success"}>{statusLabel}</Badge>
+            </span>
           </div>
-        ) : null}
-        <div className={styles.breakRow}>
-          <span>Subtotal</span>
-          <strong>{money(view, view.subtotal)}</strong>
-        </div>
-        <div className={styles.breakRow}>
-          <span>Discount</span>
-          <strong>{money(view, view.discount)}</strong>
-        </div>
-        <div className={styles.grandRow}>
-          <span>Grand total</span>
-          <span>{money(view, view.grandTotal)}</span>
+          <p className={styles.blockNote}>
+            {paid.totalPaid > 0
+              ? `${money(view, settlement.totalOrderAmount)} actual total − ${money(view, paid.totalPaid)} already paid`
+              : settlement.isCash
+                ? "Full bill is collected in cash at delivery."
+                : "Nothing was paid at booking; full total is due."}
+          </p>
         </div>
       </div>
     </div>

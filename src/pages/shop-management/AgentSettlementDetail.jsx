@@ -93,6 +93,130 @@ function Line({ label, value, hint, strong, tone }) {
   );
 }
 
+/** Receipt-style card — mirrors the agent app's order summary blocks. */
+const RECEIPT_TONES = {
+  plain: { bg: "#fff", border: "#e6e9f0", title: "#111827", text: "#1f2937", muted: "#6b7280" },
+  success: { bg: "#ecfdf5", border: "#a7f3d0", title: "#065f46", text: "#065f46", muted: "#047857" },
+  info: { bg: "#eff6ff", border: "#bfdbfe", title: "#1d4ed8", text: "#1e3a8a", muted: "#3b82f6" },
+};
+
+function ReceiptCard({ title, badge, note, tone = "plain", children }) {
+  const t = RECEIPT_TONES[tone] || RECEIPT_TONES.plain;
+  return (
+    <div
+      style={{
+        padding: "14px 16px",
+        borderRadius: 14,
+        border: `1px solid ${t.border}`,
+        background: t.bg,
+        display: "flex",
+        flexDirection: "column",
+        minWidth: 0,
+      }}
+    >
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+        <div style={{ fontSize: 14, fontWeight: 700, color: t.title }}>{title}</div>
+        {badge ? (
+          <span
+            style={{
+              fontSize: 11,
+              fontWeight: 600,
+              padding: "3px 9px",
+              borderRadius: 999,
+              border: `1px solid ${t.border}`,
+              background: tone === "plain" ? "#f8fafc" : "#fff",
+              color: t.text,
+              whiteSpace: "nowrap",
+            }}
+          >
+            {badge}
+          </span>
+        ) : null}
+      </div>
+      {note ? (
+        <p style={{ margin: "6px 0 0", fontSize: 12, color: t.muted, lineHeight: 1.5 }}>{note}</p>
+      ) : null}
+      <div style={{ marginTop: 8 }}>{children}</div>
+    </div>
+  );
+}
+
+function ReceiptRow({ label, hint, value, strong, tone = "plain", negative }) {
+  const t = RECEIPT_TONES[tone] || RECEIPT_TONES.plain;
+  return (
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "flex-start",
+        gap: 12,
+        padding: strong ? "9px 0 2px" : "6px 0",
+        borderTop: strong ? `1px solid ${t.border}` : "none",
+        marginTop: strong ? 4 : 0,
+      }}
+    >
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontSize: 13.5, fontWeight: strong ? 700 : 500, color: t.text }}>{label}</div>
+        {hint ? <div style={{ fontSize: 11.5, color: t.muted, marginTop: 1 }}>{hint}</div> : null}
+      </div>
+      <div
+        style={{
+          fontSize: strong ? 14.5 : 13.5,
+          fontWeight: strong ? 800 : 600,
+          color: negative ? "#b45309" : t.text,
+          whiteSpace: "nowrap",
+          fontVariantNumeric: "tabular-nums",
+        }}
+      >
+        {negative ? "−" : ""}
+        {value}
+      </div>
+    </div>
+  );
+}
+
+function ReceiptHighlight({ label, value, pill, sub, tone = "info" }) {
+  const t = RECEIPT_TONES[tone] || RECEIPT_TONES.plain;
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+        <div style={{ fontSize: 15, fontWeight: 800, color: t.title }}>{label}</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span
+            style={{
+              background: tone === "success" ? "#059669" : "#1d4ed8",
+              color: "#fff",
+              fontWeight: 800,
+              fontSize: 16,
+              padding: "6px 12px",
+              borderRadius: 10,
+              fontVariantNumeric: "tabular-nums",
+            }}
+          >
+            {value}
+          </span>
+          {pill ? (
+            <span
+              style={{
+                fontSize: 11,
+                fontWeight: 600,
+                padding: "3px 9px",
+                borderRadius: 999,
+                border: `1px solid ${t.border}`,
+                background: "#fff",
+                color: t.text,
+              }}
+            >
+              {pill}
+            </span>
+          ) : null}
+        </div>
+      </div>
+      {sub ? <p style={{ margin: "8px 0 0", fontSize: 12.5, color: t.muted }}>{sub}</p> : null}
+    </div>
+  );
+}
+
 export default function AgentSettlementDetail() {
   const { id: shopId } = useParams();
   const navigate = useNavigate();
@@ -162,55 +286,6 @@ export default function AgentSettlementDetail() {
       },
     ];
   }, [earningsReport]);
-
-  const channelReportColumns = useMemo(
-    () => [
-      {
-        key: "channel",
-        header: "How paid",
-        render: (row) => (
-          <DirectoryDotPill
-            tone={row.key === "cash" ? "warning" : row.key === "mixed" ? "info" : "navy"}
-          >
-            {row.channel}
-          </DirectoryDotPill>
-        ),
-      },
-      {
-        key: "orders",
-        header: "Orders",
-        render: (row) => row.orders ?? 0,
-      },
-      {
-        key: "customers",
-        header: "Customers",
-        render: (row) => row.customers ?? 0,
-      },
-      {
-        key: "gross",
-        header: "Gross",
-        render: (row) => <DirectoryMoney>{money(row.gross, summary)}</DirectoryMoney>,
-      },
-      {
-        key: "laundry",
-        header: "Services",
-        render: (row) => <DirectoryMoney>{money(row.laundry, summary)}</DirectoryMoney>,
-      },
-      {
-        key: "platformTake",
-        header: "Admin take",
-        render: (row) => (
-          <DirectoryMoney>{money(row.platformTake, summary)}</DirectoryMoney>
-        ),
-      },
-      {
-        key: "shopNet",
-        header: "Shop net",
-        render: (row) => <DirectoryMoney>{money(row.shopNet, summary)}</DirectoryMoney>,
-      },
-    ],
-    [summary]
-  );
 
   const orderColumns = useMemo(
     () => [
@@ -656,121 +731,204 @@ export default function AgentSettlementDetail() {
       </div>
 
       {earningsReport ? (
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
-            gap: 16,
-            marginBottom: 16,
-          }}
-        >
-          {earningsReport.loadError ? (
-            <div style={{ ...CARD, gridColumn: "1 / -1" }}>
-              <p style={{ margin: 0, fontWeight: 700 }}>Admin breakdown could not load</p>
-              <p className="jd-lead" style={{ margin: "6px 0 0" }}>
-                Cash rails below are still live. Retry this page to refresh services,
-                commission, and card vs cash counts.
-              </p>
-            </div>
-          ) : (
-            <>
-          <div style={CARD}>
-            <p style={{ margin: "0 0 4px", fontSize: 11, fontWeight: 700, letterSpacing: "0.04em", color: "#1e3a8a", textTransform: "uppercase" }}>
-              Admin overall breakdown
-            </p>
-            <p style={{ margin: "0 0 12px", fontSize: 28, fontWeight: 800, color: "#1e3a8a" }}>
-              {money(earningsReport.platformTake, summary)}
-            </p>
-            <p style={{ margin: "0 0 12px", fontSize: 12, color: "#6b7280" }}>
-              Platform take on paid orders (service fee + commission)
-            </p>
-            <Line
-              label="Laundry / services"
-              value={money(earningsReport.laundry, summary)}
-              hint="Customer laundry / repair invoice, before the split"
-            />
-            <Line
-              label="Service fee (admin)"
-              value={money(earningsReport.serviceFee, summary)}
-              hint="Kept by the platform — not shop income"
-            />
-            <Line
-              label="Zone commission (admin)"
-              value={money(earningsReport.platformCommission, summary)}
-              hint="Platform share of the laundry split"
-            />
-            <Line
-              label="Admin / platform take"
-              value={money(earningsReport.platformTake, summary)}
-              strong
-            />
-            <Line label="Shop net" value={money(earningsReport.shopNet, summary)} />
-            <Line
-              label="Driver pay"
-              value={`−${money(earningsReport.driverEarnings, summary)}`}
-            />
-            <Line
-              label="Gross after refunds"
-              value={money(earningsReport.gross, summary)}
-            />
-            <p style={{ margin: "10px 0 0", fontSize: 12, color: "#6b7280", lineHeight: 1.5 }}>
-              {formulas.adminTake ||
-                "Admin take = service fee + zone commission. Net of customer refunds on paid invoices."}
+        earningsReport.loadError ? (
+          <div style={{ ...CARD, marginBottom: 16 }}>
+            <p style={{ margin: 0, fontWeight: 700 }}>Admin breakdown could not load</p>
+            <p className="jd-lead" style={{ margin: "6px 0 0" }}>
+              Cash rails below are still live. Retry this page to refresh services,
+              commission, and card vs cash counts.
             </p>
           </div>
+        ) : (
+          <>
+            <div style={{ ...CARD, marginBottom: 16 }}>
+              <p style={{ margin: "0 0 4px", fontSize: 11, fontWeight: 700, letterSpacing: "0.04em", color: "#1e3a8a", textTransform: "uppercase" }}>
+                Admin overall breakdown
+              </p>
+              <p style={{ margin: "0 0 14px", fontSize: 13, color: "#4b5563", lineHeight: 1.5 }}>
+                Same layout as the agent receipt, totalled across{" "}
+                {earningsReport.ordersPaid || 0} paid order
+                {Number(earningsReport.ordersPaid || 0) === 1 ? "" : "s"} (net of customer
+                refunds). Read left to right: what customers paid → how the laundry amount is
+                split → what the platform keeps.
+              </p>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
+                  gap: 12,
+                }}
+              >
+                <ReceiptCard
+                  title="Laundry subtotal"
+                  note="Customer laundry / repair invoices before any split."
+                >
+                  <ReceiptRow
+                    label="Laundry / services"
+                    value={money(earningsReport.laundry, summary)}
+                    strong
+                  />
+                </ReceiptCard>
 
-          <div style={CARD}>
-            <p style={{ margin: "0 0 4px", fontSize: 11, fontWeight: 700, letterSpacing: "0.04em", color: "#0f766e", textTransform: "uppercase" }}>
-              Card vs cash
-            </p>
-            <p style={{ margin: "0 0 12px", fontSize: 13, color: "#4b5563", lineHeight: 1.5 }}>
-              {formulas.payMix ||
-                "How many paid orders and unique customers used card vs cash at this shop."}
-            </p>
-            <DirectoryMetrics
-              items={[
-                {
-                  label: "Card orders",
-                  value: earningsReport.card?.orders ?? 0,
-                  tone: "navy",
-                  hint: `${earningsReport.card?.customers ?? 0} customers`,
-                },
-                {
-                  label: "Cash orders",
-                  value: earningsReport.cash?.orders ?? 0,
-                  tone: "warning",
-                  hint: `${earningsReport.cash?.customers ?? 0} customers`,
-                },
-                {
-                  label: "Unique customers",
-                  value: earningsReport.customers ?? 0,
-                  tone: "brand",
-                  hint: earningsReport.customersWhoUsedBoth
-                    ? `${earningsReport.customersWhoUsedBoth} used both card and cash`
-                    : `${earningsReport.ordersPaid || 0} paid orders`,
-                },
-              ]}
-            />
-            <div style={{ marginTop: 12 }}>
-              <DirectoryTableWrap>
-                <Table
-                  columns={channelReportColumns}
-                  rows={channelReportRows}
-                  rowKey={(row) => row.key}
-                  empty="No paid orders yet."
-                />
-              </DirectoryTableWrap>
-            </div>
-            {Number(earningsReport.mixed?.orders || 0) > 0 ? (
-              <p style={{ margin: "10px 0 0", fontSize: 12, color: "#6b7280", lineHeight: 1.5 }}>
-                Mixed orders are a subset of cash: booked on card, remaining balance
-                collected in cash.
+                <ReceiptCard
+                  title="Order summary"
+                  badge={`${earningsReport.ordersPaid || 0} paid`}
+                  note="What customers were charged. The service fee is added on top of laundry."
+                >
+                  <ReceiptRow label="Laundry subtotal" value={money(earningsReport.laundry, summary)} />
+                  <ReceiptRow
+                    label="Service fee"
+                    hint="Kept by the platform — never shop income"
+                    value={money(earningsReport.serviceFee, summary)}
+                  />
+                  {Number(earningsReport.discount || 0) > 0 ? (
+                    <ReceiptRow
+                      label="Discounts"
+                      value={money(earningsReport.discount, summary)}
+                      negative
+                    />
+                  ) : null}
+                  <ReceiptRow
+                    label="Total customers paid"
+                    hint="Gross after refunds"
+                    value={money(earningsReport.gross, summary)}
+                    strong
+                  />
+                </ReceiptCard>
+
+                <ReceiptCard
+                  tone="success"
+                  title="Laundry split"
+                  note="How the laundry subtotal is shared once the order is paid."
+                >
+                  <ReceiptRow
+                    tone="success"
+                    label="Shop net"
+                    hint="Shop's share"
+                    value={money(earningsReport.shopNet, summary)}
+                  />
+                  <ReceiptRow
+                    tone="success"
+                    label="Zone commission"
+                    hint="Platform's share of laundry"
+                    value={money(earningsReport.platformCommission, summary)}
+                  />
+                  {Number(earningsReport.driverEarnings || 0) > 0 ? (
+                    <ReceiptRow
+                      tone="success"
+                      label="Driver pay"
+                      hint="Paid out to drivers"
+                      value={money(earningsReport.driverEarnings, summary)}
+                    />
+                  ) : null}
+                  <ReceiptRow
+                    tone="success"
+                    label="Laundry subtotal"
+                    value={money(earningsReport.laundry, summary)}
+                    strong
+                  />
+                </ReceiptCard>
+
+                <ReceiptCard tone="info" title="Admin / platform take">
+                  <ReceiptHighlight
+                    label="Platform keeps"
+                    value={money(earningsReport.platformTake, summary)}
+                    pill="Admin"
+                    sub={`${money(earningsReport.serviceFee, summary)} service fee + ${money(
+                      earningsReport.platformCommission,
+                      summary
+                    )} zone commission`}
+                  />
+                  <div style={{ marginTop: 8 }}>
+                    <ReceiptRow tone="info" label="Service fee" value={money(earningsReport.serviceFee, summary)} />
+                    <ReceiptRow
+                      tone="info"
+                      label="Zone commission"
+                      value={money(earningsReport.platformCommission, summary)}
+                    />
+                    <ReceiptRow
+                      tone="info"
+                      label="Admin / platform take"
+                      value={money(earningsReport.platformTake, summary)}
+                      strong
+                    />
+                  </div>
+                </ReceiptCard>
+              </div>
+              <p style={{ margin: "12px 0 0", fontSize: 12, color: "#6b7280", lineHeight: 1.5 }}>
+                {formulas.adminTake ||
+                  "Admin take = service fee + zone commission. Net of customer refunds on paid invoices."}
               </p>
-            ) : null}
-          </div>
-            </>
-          )}
-        </div>
+            </div>
+
+            <div style={{ ...CARD, marginBottom: 16 }}>
+              <p style={{ margin: "0 0 4px", fontSize: 11, fontWeight: 700, letterSpacing: "0.04em", color: "#0f766e", textTransform: "uppercase" }}>
+                Card vs cash
+              </p>
+              <p style={{ margin: "0 0 12px", fontSize: 13, color: "#4b5563", lineHeight: 1.5 }}>
+                {formulas.payMix ||
+                  "How many paid orders and unique customers used card vs cash at this shop."}
+              </p>
+              <DirectoryMetrics
+                items={[
+                  {
+                    label: "Card orders",
+                    value: earningsReport.card?.orders ?? 0,
+                    tone: "navy",
+                    hint: `${earningsReport.card?.customers ?? 0} customers`,
+                  },
+                  {
+                    label: "Cash orders",
+                    value: earningsReport.cash?.orders ?? 0,
+                    tone: "warning",
+                    hint: `${earningsReport.cash?.customers ?? 0} customers`,
+                  },
+                  {
+                    label: "Unique customers",
+                    value: earningsReport.customers ?? 0,
+                    tone: "brand",
+                    hint: earningsReport.customersWhoUsedBoth
+                      ? `${earningsReport.customersWhoUsedBoth} used both card and cash`
+                      : `${earningsReport.ordersPaid || 0} paid orders`,
+                  },
+                ]}
+              />
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))",
+                  gap: 12,
+                  marginTop: 12,
+                }}
+              >
+                {channelReportRows.map((row) => (
+                  <ReceiptCard
+                    key={row.key}
+                    title={
+                      <DirectoryDotPill
+                        tone={row.key === "cash" ? "warning" : row.key === "mixed" ? "info" : "navy"}
+                      >
+                        {row.channel}
+                      </DirectoryDotPill>
+                    }
+                    badge={`${row.orders ?? 0} orders · ${row.customers ?? 0} customers`}
+                  >
+                    <ReceiptRow label="Gross" value={money(row.gross, summary)} />
+                    <ReceiptRow label="Services" value={money(row.laundry, summary)} />
+                    <ReceiptRow label="Admin take" value={money(row.platformTake, summary)} />
+                    <ReceiptRow label="Shop net" value={money(row.shopNet, summary)} strong />
+                  </ReceiptCard>
+                ))}
+              </div>
+              {Number(earningsReport.mixed?.orders || 0) > 0 ? (
+                <p style={{ margin: "10px 0 0", fontSize: 12, color: "#6b7280", lineHeight: 1.5 }}>
+                  Mixed orders are a subset of cash: booked on card, remaining balance
+                  collected in cash.
+                </p>
+              ) : null}
+            </div>
+          </>
+        )
       ) : null}
 
       <div style={{ ...CARD, marginBottom: 16 }}>

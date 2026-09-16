@@ -103,6 +103,99 @@ export function mergeInvoiceDetailsFromResponse(responseData) {
       invoiceDetails?.subTotal ??
       responseData?.subTotal ??
       resolveOrderSubtotal(invoiceDetails, { servicesSubtotal }),
+    // The server's settlement math (same object the agent/customer apps render).
+    // It lives at the top level of the response, not inside invoiceDetails —
+    // carry it so the invoice view never falls back to a stale orderAmount.
+    paymentSummary: responseData?.paymentSummary ?? invoiceDetails?.paymentSummary ?? null,
+    amountDueNow:
+      responseData?.amountDueNow ??
+      responseData?.paymentSummary?.amountDueNow ??
+      invoiceDetails?.amountDueNow,
+    totalItems: responseData?.totalItems ?? invoiceDetails?.totalItems,
+    extraTip: responseData?.extraTip ?? invoiceDetails?.extraTip,
+  };
+}
+
+/**
+ * One settlement view for admin invoice screens — mirrors the agent app's
+ * receipt blocks (Order summary → Paid at booking → Amount due now).
+ * Prefers the server paymentSummary; falls back to the same formula the
+ * backend uses (buildAdminInvoicePreview) when the summary is missing.
+ */
+export function resolveInvoiceSettlement(source, fallback = {}) {
+  const ps = source?.paymentSummary || null;
+  const paymentType = String(
+    ps?.paymentType || source?.paymentType || fallback.paymentType || "card"
+  )
+    .toLowerCase()
+    .trim();
+  const isCash = paymentType === "cash";
+
+  if (ps?.orderSummary) {
+    const os = ps.orderSummary;
+    const paid = ps.paidAtBooking || {};
+    const totalPaid = roundInvoiceMoney(paid.totalPaid);
+    return {
+      paymentType,
+      isCash,
+      laundrySubtotal: roundInvoiceMoney(os.laundrySubtotal ?? ps.laundrySubtotal),
+      minimumAdjustment: roundInvoiceMoney(os.minimumAdjustment ?? ps.minimumAdjustment),
+      effectiveLaundry: roundInvoiceMoney(
+        os.effectiveLaundry ?? ps.effectiveLaundry ?? os.laundrySubtotal
+      ),
+      serviceFee: roundInvoiceMoney(os.serviceFee),
+      driverTip: roundInvoiceMoney(os.driverTip),
+      discount: roundInvoiceMoney(os.discount),
+      totalOrderAmount: roundInvoiceMoney(os.totalOrderAmount),
+      paidAtBooking: {
+        minimumOrderPayment: roundInvoiceMoney(paid.minimumOrderPayment),
+        serviceFee: roundInvoiceMoney(paid.serviceFee),
+        driverTip: roundInvoiceMoney(paid.driverTip),
+        totalPaid,
+      },
+      amountDueNow: roundInvoiceMoney(ps.amountDueNow ?? source?.amountDueNow),
+      paymentStatus: ps.billingPaymentStatus || source?.billingDetail?.paymentStatus || "",
+      balanceCollectedVia: ps.balanceCollectedVia || source?.balanceCollectedVia || null,
+      fromServer: true,
+    };
+  }
+
+  const laundry = roundInvoiceMoney(fallback.laundrySubtotal);
+  const serviceFee = roundInvoiceMoney(fallback.serviceCharge);
+  const minimum = roundInvoiceMoney(fallback.minimumOrderFee);
+  const tip = roundInvoiceMoney(fallback.driverTip);
+  const discount = roundInvoiceMoney(fallback.discount);
+  const preview = buildAdminInvoicePreview({
+    paymentType,
+    laundrySubtotal: laundry,
+    serviceCharge: serviceFee,
+    minimumOrderFee: minimum,
+    driverTip: tip,
+    prepaidDriverTip: fallback.prepaidDriverTip,
+    discount,
+  });
+  const prepaidTip = isCash ? 0 : tip;
+  const totalPaid = isCash ? 0 : roundInvoiceMoney(minimum + serviceFee + prepaidTip);
+  return {
+    paymentType,
+    isCash,
+    laundrySubtotal: laundry,
+    minimumAdjustment: isCash ? roundInvoiceMoney(Math.max(0, minimum - laundry)) : 0,
+    effectiveLaundry: isCash ? roundInvoiceMoney(Math.max(laundry, minimum)) : laundry,
+    serviceFee,
+    driverTip: tip,
+    discount,
+    totalOrderAmount: preview.totalOrderAmount,
+    paidAtBooking: {
+      minimumOrderPayment: isCash ? 0 : minimum,
+      serviceFee: isCash ? 0 : serviceFee,
+      driverTip: prepaidTip,
+      totalPaid,
+    },
+    amountDueNow: preview.total,
+    paymentStatus: source?.billingDetail?.paymentStatus || "",
+    balanceCollectedVia: source?.balanceCollectedVia || null,
+    fromServer: false,
   };
 }
 

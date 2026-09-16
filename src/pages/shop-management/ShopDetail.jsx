@@ -784,18 +784,6 @@ export default function ShopDetails() {
             >
               Call shop
             </Button>
-            <Button
-              variant="secondary"
-              onClick={handleGenerateReport}
-              disabled={!revenueSnapshot?.data}
-              title={
-                revenueSnapshot?.data
-                  ? "Generate a full PDF report for this shop"
-                  : "Loading shop metrics…"
-              }
-            >
-              Report
-            </Button>
             {shopSettlementPath(id) ? (
               <Button
                 variant="secondary"

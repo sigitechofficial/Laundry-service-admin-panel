@@ -4,6 +4,7 @@ import {
   resolveDisplayCurrency,
 } from "../../../utilities/formatters";
 import {
+  resolveInvoiceSettlement,
   resolveOrderSubtotal,
   resolveServicesSubtotal,
   splitAdminTips,
@@ -73,11 +74,23 @@ export function buildInvoiceView(invoiceDetails, fallbackShopName = "") {
     "justDray cleaner";
   const items = (invoiceDetails?.customerSelectedServices || [])
     .filter((it) => Number(it?.items) > 0)
-    .map((it, idx) => ({
+    .map((it, idx) => {
+      // categoryPrice = price charged on this line (zone-resolved snapshot at
+      // booking/invoice time). subCategory.price = live master catalog price.
+      const rate = Number(it?.categoryPrice || it?.subCategory?.price || 0);
+      const masterRate = Number(it?.subCategory?.price);
+      const zonePriced =
+        Number.isFinite(masterRate) &&
+        masterRate > 0 &&
+        it?.categoryPrice != null &&
+        Math.abs(rate - masterRate) >= 0.005;
+      return {
       id: it?.id || idx + 1,
       name: it?.subCategory?.name || it?.category?.name || it?.service?.name || "Item",
       qty: Number(it?.items) || 0,
-      rate: Number(it?.categoryPrice || it?.subCategory?.price || 0),
+      rate,
+      masterRate: Number.isFinite(masterRate) ? masterRate : null,
+      zonePriced,
       serviceName: it?.service?.name || "",
       addOns: (it?.addOns || []).map((ad) => ({
         name: ad?.name || ad?.addOnService?.name || ad?.service?.name || ad?.title || "Add-on",
@@ -89,7 +102,8 @@ export function buildInvoiceView(invoiceDetails, fallbackShopName = "") {
         .map((pref) => pref?.preferenceValue?.value)
         .filter(Boolean),
       instruction: it?.serviceInstruction || "",
-    }));
+      };
+    });
   const addOns = items.reduce(
     (sum, item) =>
       sum +
@@ -108,17 +122,25 @@ export function buildInvoiceView(invoiceDetails, fallbackShopName = "") {
     serviceCharge,
     minimumOrderFee,
   });
-  const grandTotal = Number(
-    invoiceDetails?.paymentSummary?.orderSummary?.totalOrderAmount ??
-      invoiceDetails?.orderAmount ??
-      invoiceDetails?.billingDetail?.total ??
-      orderSubtotal
-  );
   const pickupWindow = `${invoiceDetails?.collectionTimeFrom || "N/A"}-${invoiceDetails?.collectionTimeTo || "N/A"}`;
   const deliveryWindow = `${invoiceDetails?.deliveryTimeFrom || "N/A"}-${invoiceDetails?.deliveryTimeTo || "N/A"}`;
   const computedTotalItems = items.reduce((sum, item) => sum + (Number(item.qty) || 0), 0);
   const tip = splitAdminTips(invoiceDetails).bookingTip || Number(invoiceDetails?.billingDetail?.tip ?? 0);
+  // Settlement = server paymentSummary (what the apps show). Fallback recomputes
+  // with the same formula so we never display a stale/zero orderAmount.
+  const settlement = resolveInvoiceSettlement(invoiceDetails, {
+    paymentType: invoiceDetails?.paymentType,
+    laundrySubtotal: servicesSubtotal,
+    serviceCharge,
+    minimumOrderFee,
+    driverTip: tip,
+    prepaidDriverTip: invoiceDetails?.billingDetail?.prepaidDriverTip,
+    discount,
+  });
+  const grandTotal = settlement.totalOrderAmount;
   return {
+    settlement,
+    amountDue: settlement.amountDueNow,
     invoiceNo,
     customerName,
     dateText,
@@ -183,6 +205,44 @@ export function printHtmlDocument(html) {
   };
 }
 
+/**
+ * Settlement rows for print formats — same blocks as the agent receipt:
+ * Order summary → Paid at booking → Amount due now.
+ */
+function settlementHtml(view, { rowClass = "row", grandClass = "row grand", headClass = "row strong", lineClass = "line" } = {}) {
+  const s = view.settlement || {};
+  const paid = s.paidAtBooking || {};
+  const m = (v) => invoiceMoney(view, v);
+  const rows = [];
+  rows.push(`<div class="${headClass}"><span>Order summary (${s.isCash ? "Cash" : "Card"})</span><span></span></div>`);
+  rows.push(`<div class="${rowClass}"><span>Laundry subtotal</span><span>${m(s.laundrySubtotal)}</span></div>`);
+  if (s.isCash && Number(s.minimumAdjustment) > 0) {
+    rows.push(`<div class="${rowClass}"><span>Minimum order top-up</span><span>${m(s.minimumAdjustment)}</span></div>`);
+  }
+  rows.push(`<div class="${rowClass}"><span>Service fee</span><span>${m(s.serviceFee)}</span></div>`);
+  if (Number(s.driverTip) > 0) rows.push(`<div class="${rowClass}"><span>Tip</span><span>${m(s.driverTip)}</span></div>`);
+  if (Number(s.discount) > 0) rows.push(`<div class="${rowClass}"><span>Discount</span><span>-${m(s.discount)}</span></div>`);
+  rows.push(`<div class="${grandClass}"><span>Total order amount</span><span>${m(s.totalOrderAmount)}</span></div>`);
+  if (Number(paid.totalPaid) > 0) {
+    rows.push(`<div class="${lineClass}"></div>`);
+    rows.push(`<div class="${headClass}"><span>Paid at booking</span><span></span></div>`);
+    if (Number(paid.minimumOrderPayment) > 0) {
+      rows.push(`<div class="${rowClass}"><span>Minimum order payment</span><span>${m(paid.minimumOrderPayment)}</span></div>`);
+    }
+    if (Number(paid.serviceFee) > 0) rows.push(`<div class="${rowClass}"><span>Service fee</span><span>${m(paid.serviceFee)}</span></div>`);
+    if (Number(paid.driverTip) > 0) rows.push(`<div class="${rowClass}"><span>Tip</span><span>${m(paid.driverTip)}</span></div>`);
+    rows.push(`<div class="${headClass}"><span>Total paid</span><span>${m(paid.totalPaid)}</span></div>`);
+  }
+  rows.push(`<div class="${lineClass}"></div>`);
+  rows.push(`<div class="${grandClass}"><span>Amount due now</span><span>${m(s.amountDueNow)}</span></div>`);
+  if (Number(paid.totalPaid) > 0) {
+    rows.push(`<div class="${rowClass}" style="color:#6b7280;font-size:0.85em"><span>${m(s.totalOrderAmount)} total − ${m(paid.totalPaid)} already paid</span><span></span></div>`);
+  } else if (s.isCash) {
+    rows.push(`<div class="${rowClass}" style="color:#6b7280;font-size:0.85em"><span>Collected in cash at delivery</span><span></span></div>`);
+  }
+  return rows.join("");
+}
+
 export function a4InvoiceHtml(view) {
   const rows = view.items
     .map((item, idx) => {
@@ -201,7 +261,10 @@ export function a4InvoiceHtml(view) {
       const instructionRow = item.instruction
         ? `<div class="itemMuted">${item.instruction}</div>`
         : "";
-      return `<tr><td class="center">${idx + 1}</td><td class="itemCell"><div class="itemTitle">${item.serviceName ? `${item.serviceName} - ` : ""}${item.name}</div>${addonRows}${prefRow}${instructionRow}</td><td class="right">${item.qty}</td><td class="right">${invoiceMoney(view, item.rate)}</td><td class="right">${invoiceMoney(view, item.qty * item.rate)}</td></tr>`;
+      const zoneRow = item.zonePriced
+        ? `<div class="itemMuted">Zone price · master ${invoiceMoney(view, item.masterRate)}</div>`
+        : "";
+      return `<tr><td class="center">${idx + 1}</td><td class="itemCell"><div class="itemTitle">${item.serviceName ? `${item.serviceName} - ` : ""}${item.name}</div>${addonRows}${prefRow}${instructionRow}${zoneRow}</td><td class="right">${item.qty}</td><td class="right">${invoiceMoney(view, item.rate)}</td><td class="right">${invoiceMoney(view, item.qty * item.rate)}</td></tr>`;
     })
     .join("");
   return `<!doctype html><html><head><meta charset="utf-8"/><title>A4 Receipt</title>
@@ -227,9 +290,11 @@ export function a4InvoiceHtml(view) {
     .itemTitle{font-weight:700}
     .itemSubRow{display:flex;justify-content:space-between;gap:10px;color:#374151;font-size:12px;margin-top:2px}
     .itemMuted{font-size:12px;color:#6b7280;margin-top:2px}
-    .totals{margin-left:auto;width:280px;margin-top:10px}
+    .totals{margin-left:auto;width:320px;margin-top:10px}
     .totals .row{display:flex;justify-content:space-between;padding:4px 0;font-size:14px}
-    .totals .grand{font-weight:700;font-size:24px;padding-top:6px}
+    .totals .strong{font-weight:700;font-size:12px;letter-spacing:.04em;text-transform:uppercase;color:#6b7280;padding-top:8px}
+    .totals .grand{font-weight:700;font-size:18px;padding-top:6px}
+    .totals .line{border-top:1px dashed #cbd5e1;margin:6px 0}
   </style>
   </head><body><div class="sheet">
     <div class="top">
@@ -256,12 +321,7 @@ export function a4InvoiceHtml(view) {
       <tbody>${rows}</tbody>
     </table>
     <div class="totals">
-      <div class="row"><span>Services subtotal</span><span>${invoiceMoney(view, view.servicesSubtotal)}</span></div>
-      <div class="row"><span>Minimum Order Fee</span><span>-${invoiceMoney(view, Math.abs(view.minimumOrderFee || 0))}</span></div>
-      <div class="row"><span>Service Charge</span><span>${invoiceMoney(view, view.serviceCharge)}</span></div>
-      <div class="row"><span>Subtotal</span><span>${invoiceMoney(view, view.subtotal)}</span></div>
-      <div class="row"><span>Discount</span><span>${invoiceMoney(view, view.discount)}</span></div>
-      <div class="row grand"><span>Grand Total</span><span>${invoiceMoney(view, view.grandTotal)}</span></div>
+      ${settlementHtml(view)}
     </div>
   </div></body></html>`;
 }
@@ -275,7 +335,7 @@ export function thermalInvoiceHtml(view) {
       return `<div class="row strong"><span>${item.qty}x ${item.serviceName ? `${item.serviceName} - ` : ""}${item.name}</span><span>${invoiceMoney(view, item.qty * item.rate)}</span></div>${addonRows}`;
     })
     .join("");
-  return `<!doctype html><html><head><meta charset="utf-8"/><title>58mm Thermal</title><style>body{font-family:'Courier New',monospace}.ticket{width:58mm;margin:0 auto;padding:8px}.row{display:flex;justify-content:space-between;font-size:11px}.subrow{display:flex;justify-content:space-between;font-size:10px;padding-left:8px;color:#374151}.line{border-top:1px dashed #333;margin:6px 0}.strong{font-weight:700}</style></head><body><div class="ticket"><div style="text-align:center;font-weight:700">justDray cleaner</div><div style="text-align:center;font-size:11px">Customer Receipt</div><div style="text-align:center;font-size:10px">Format: 58mm Thermal</div><div class="line"></div><div class="row"><span>Invoice</span><span>${view.invoiceNo}</span></div><div class="row"><span>Date</span><span>${view.dateText}</span></div><div class="row"><span>Pickup</span><span>${view.pickupWindow}</span></div><div class="row"><span>Delivery</span><span>${view.deliveryWindow}</span></div><div class="line"></div><div><b>${view.customerName}</b></div><div style="font-size:10px">${view.emailOrPhone || ""}</div><div style="font-size:10px">${view.addressText}</div><div class="line"></div><div class="row strong"><span>Items (${view.totalItems})</span><span>Amount</span></div>${itemRows}<div class="line"></div><div class="row"><span>Services subtotal</span><span>${invoiceMoney(view, view.servicesSubtotal)}</span></div><div class="row"><span>Minimum Order Fee</span><span>-${invoiceMoney(view, Math.abs(view.minimumOrderFee || 0))}</span></div><div class="row"><span>Service Charge</span><span>${invoiceMoney(view, view.serviceCharge)}</span></div><div class="row"><span>Subtotal</span><span>${invoiceMoney(view, view.subtotal)}</span></div><div class="row"><span>Discount</span><span>${invoiceMoney(view, view.discount)}</span></div><div class="line"></div><div class="row strong" style="font-size:18px"><span>Total</span><span>${invoiceMoney(view, view.grandTotal)}</span></div></div></body></html>`;
+  return `<!doctype html><html><head><meta charset="utf-8"/><title>58mm Thermal</title><style>body{font-family:'Courier New',monospace}.ticket{width:58mm;margin:0 auto;padding:8px}.row{display:flex;justify-content:space-between;font-size:11px}.subrow{display:flex;justify-content:space-between;font-size:10px;padding-left:8px;color:#374151}.line{border-top:1px dashed #333;margin:6px 0}.strong{font-weight:700}</style></head><body><div class="ticket"><div style="text-align:center;font-weight:700">justDray cleaner</div><div style="text-align:center;font-size:11px">Customer Receipt</div><div style="text-align:center;font-size:10px">Format: 58mm Thermal</div><div class="line"></div><div class="row"><span>Invoice</span><span>${view.invoiceNo}</span></div><div class="row"><span>Date</span><span>${view.dateText}</span></div><div class="row"><span>Pickup</span><span>${view.pickupWindow}</span></div><div class="row"><span>Delivery</span><span>${view.deliveryWindow}</span></div><div class="line"></div><div><b>${view.customerName}</b></div><div style="font-size:10px">${view.emailOrPhone || ""}</div><div style="font-size:10px">${view.addressText}</div><div class="line"></div><div class="row strong"><span>Items (${view.totalItems})</span><span>Amount</span></div>${itemRows}<div class="line"></div>${settlementHtml(view, { rowClass: "row", grandClass: "row strong", headClass: "row strong", lineClass: "line" })}</div></body></html>`;
 }
 
 export function invoicePrintHtml(view, format) {
