@@ -1,6 +1,7 @@
 import { Button } from "../../design-system";
 import {
-  formatBookingWindow,
+  formatCalendarDate,
+  formatClock,
   formatMoney,
 } from "../../utilities/formatters";
 import {
@@ -23,6 +24,23 @@ const TIMING_LABEL = {
 
 export function timingLabel(code) {
   return TIMING_LABEL[code] || "—";
+}
+
+/** Booking window cell: date on top, time slot stacked below. */
+export function BookingWindowCell({ date, from, to }) {
+  const dateText = formatCalendarDate(date);
+  if (dateText === "—") return <span style={{ color: "#9ca3af" }}>—</span>;
+  const start = formatClock(from);
+  const end = formatClock(to);
+  const timeText = start && end ? `${start} – ${end}` : start || "";
+  return (
+    <div style={{ display: "flex", flexDirection: "column", lineHeight: 1.3 }}>
+      <span style={{ fontWeight: 600 }}>{dateText}</span>
+      {timeText ? (
+        <span style={{ color: "#6b7280", fontSize: 12 }}>{timeText}</span>
+      ) : null}
+    </div>
+  );
 }
 
 export function TimingPill({ value, kind }) {
@@ -78,18 +96,24 @@ export function buildShopOrderFinanceColumns({
     {
       key: "collected",
       header: "Collection",
-      render: (row) =>
-        formatBookingWindow(
-          row.collectionDate,
-          row.collectionTimeFrom,
-          row.collectionTimeTo
-        ),
+      render: (row) => (
+        <BookingWindowCell
+          date={row.collectionDate}
+          from={row.collectionTimeFrom}
+          to={row.collectionTimeTo}
+        />
+      ),
     },
     {
       key: "delivery",
       header: "Delivery",
-      render: (row) =>
-        formatBookingWindow(row.deliveryDate, row.deliveryTimeFrom, row.deliveryTimeTo),
+      render: (row) => (
+        <BookingWindowCell
+          date={row.deliveryDate}
+          from={row.deliveryTimeFrom}
+          to={row.deliveryTimeTo}
+        />
+      ),
     },
     {
       key: "timing",

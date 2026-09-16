@@ -47,7 +47,7 @@ import { BlockUserButton, AnonymizeDeleteModal } from "../user-management/UserBl
 import { isAccountBlocked } from "../../utilities/accountBlocked";
 import ShopRoutingPolicyCard from "./ShopRoutingPolicyCard";
 import ShopRevenueTab from "./ShopRevenueTab";
-import { buildShopOrderFinanceColumns, PunctualityMetrics } from "./shopOrderFinanceColumns";
+import { buildShopOrderFinanceColumns } from "./shopOrderFinanceColumns";
 import { shopSettlementPath } from "../reports/reportUi";
 import { buildShopReportModel, shopReportHtml } from "./shopReportDocument";
 import { printHtmlDocument } from "../order-management/invoice/invoiceView";
@@ -669,11 +669,6 @@ export default function ShopDetails() {
     [navigate, shopCurrencySymbol]
   );
 
-  const punctualityItems = PunctualityMetrics({
-    stats:
-      revenueSnapshot?.data?.lifetimePunctuality || shop?.punctuality || null,
-  });
-
   const ownerName =
     [biz?.firstName, biz?.lastName].filter(Boolean).join(" ") || "—";
   const shopPhoneRaw =
@@ -950,16 +945,6 @@ export default function ShopDetails() {
           { label: "Completion", value: `${completionRate}%`, tone: "success" },
         ]}
       />
-      {punctualityItems?.length ? (
-        <>
-          <p className="jd-lead" style={{ margin: 0 }}>
-            Pickup and delivery timing across collected orders (early = before the
-            slot, on time = inside the window, late = after the slot).
-          </p>
-          <DirectoryMetrics items={punctualityItems} />
-        </>
-      ) : null}
-
       <div style={TAB_ROW}>
         {TABS.map((tab) => (
           <Button
