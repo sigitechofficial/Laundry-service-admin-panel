@@ -927,7 +927,7 @@ export default function AgentSettlementDetail() {
                 </StepCard>
 
                 <StepCard eyebrow="2 · Where it went" eyebrowColor="#047857" tone="success">
-                  <StepRow tone="success" label="Shop keeps" hint="Laundry share + booking tips" value={money(report.shopNet, summary)} />
+                  <StepRow tone="success" label="Shop keeps" hint="Agent earning on each paid invoice" value={money(report.shopNet, summary)} />
                   <StepRow tone="success" op="add" label="Zone commission → platform" hint="Platform’s share of laundry" value={money(report.platformCommission, summary)} />
                   <StepRow tone="success" op="add" label="Service fee → platform" value={money(report.serviceFee, summary)} />
                   {report.driverEarnings > 0 ? (
@@ -944,8 +944,8 @@ export default function AgentSettlementDetail() {
                       label="Difference vs customers paid"
                       hint={
                         report.splitDifference > 0
-                          ? "Split exceeds what customers paid — usually discounts the platform absorbed, or minimum-order top-ups"
-                          : "Customers paid more than the split — usually rounding or unallocated charges"
+                          ? "Split is higher than what customers paid — usually a minimum-order floor credited to the shop, a discount the platform absorbed, or tips settled on the tips rail"
+                          : "Customers paid more than the split — usually tips settled separately, rounding, or unallocated charges"
                       }
                       value={money(Math.abs(report.splitDifference), summary)}
                       muted
