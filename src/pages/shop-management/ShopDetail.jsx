@@ -110,6 +110,7 @@ const TABS = [
   { value: "overview", label: "Overview" },
   { value: "orders", label: "Orders" },
   { value: "revenue", label: "Revenue" },
+  { value: "report", label: "Report" },
   { value: "reviews", label: "Reviews" },
   { value: "staff", label: "Staff" },
   { value: "documents", label: "Documents" },
@@ -688,28 +689,49 @@ export default function ShopDetails() {
     .filter(Boolean)
     .join(" · ");
 
-  const handleGenerateReport = () => {
-    const model = buildShopReportModel({
-      shop: {
-        name: shopName,
-        id: shop?.id,
-        owner: ownerName,
-        address: fullAddress,
-        phone: shopPhoneRaw || "—",
-        email: biz?.email || shop?.email || "—",
-        zone: addr?.zone?.name || revenueSnapshot?.data?.shop?.zoneName || "—",
-        established: shop?.createdAt
-          ? formatDate(shop.createdAt, "MMMM YYYY")
-          : "—",
-      },
-      revenue: revenueSnapshot?.data || null,
-      ratings: shopRatingSummary,
-      currencySymbol: shopCurrencySymbol,
-      ordersTotal: orders.length,
-      pendingCount: pendingOrdersCount,
+  const reportModel = useMemo(
+    () =>
+      buildShopReportModel({
+        shop: {
+          name: shopName,
+          id: shop?.id,
+          owner: ownerName,
+          address: fullAddress,
+          phone: shopPhoneRaw || "—",
+          email: biz?.email || shop?.email || "—",
+          zone: addr?.zone?.name || revenueSnapshot?.data?.shop?.zoneName || "—",
+          established: shop?.createdAt
+            ? formatDate(shop.createdAt, "MMMM YYYY")
+            : "—",
+        },
+        revenue: revenueSnapshot?.data || null,
+        ratings: shopRatingSummary,
+        currencySymbol: shopCurrencySymbol,
+        ordersTotal: orders.length,
+        pendingCount: pendingOrdersCount,
+        completionRate,
+      }),
+    [
+      shopName,
+      shop,
+      ownerName,
+      fullAddress,
+      shopPhoneRaw,
+      biz,
+      addr,
+      revenueSnapshot,
+      shopRatingSummary,
+      shopCurrencySymbol,
+      orders.length,
+      pendingOrdersCount,
       completionRate,
-    });
-    printHtmlDocument(shopReportHtml(model));
+    ]
+  );
+
+  const reportHtml = useMemo(() => shopReportHtml(reportModel), [reportModel]);
+
+  const handleGenerateReport = () => {
+    printHtmlDocument(reportHtml);
   };
 
   if (isLoading) return <Delay />;
@@ -1043,15 +1065,32 @@ export default function ShopDetails() {
               <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 8 }}>
                 {openingHours.map((row) => {
                   const time = row.enabled ? `${row.start} - ${row.end}` : "Closed";
+                  const isToday = row.day === todayName;
                   return (
                     <div
                       key={row.day}
                       style={{ display: "flex", justifyContent: "space-between", gap: 12 }}
                     >
-                      <span>
-                        {row.day === todayName ? `${row.day.slice(0, 3)} Today` : row.day}
+                      <span
+                        style={
+                          isToday
+                            ? { color: "var(--brand, #00028B)", fontWeight: 700 }
+                            : undefined
+                        }
+                      >
+                        {row.day}
                       </span>
-                      <span style={{ color: time === "Closed" ? "var(--danger)" : "inherit" }}>
+                      <span
+                        style={{
+                          color:
+                            time === "Closed"
+                              ? "var(--danger)"
+                              : isToday
+                                ? "var(--brand, #00028B)"
+                                : "inherit",
+                          fontWeight: isToday ? 700 : undefined,
+                        }}
+                      >
                         {time}
                       </span>
                     </div>
@@ -1147,6 +1186,42 @@ export default function ShopDetails() {
 
       {activeTab === "revenue" && (
         <ShopRevenueTab shopId={id} fallbackSymbol={shopCurrencySymbol} />
+      )}
+
+      {activeTab === "report" && (
+        <div style={{ display: "grid", gap: 16 }}>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              gap: 12,
+              flexWrap: "wrap",
+            }}
+          >
+            <div>
+              <strong>Shop report</strong>
+              <p className="jd-lead" style={{ margin: "4px 0 0" }}>
+                Full snapshot — orders, ratings, pickup/delivery punctuality,
+                earnings, payment mix and tips. Download the whole report as a PDF.
+              </p>
+            </div>
+            <Button onClick={handleGenerateReport}>Download PDF</Button>
+          </div>
+          <div style={{ ...CARD, padding: 0, overflow: "hidden" }}>
+            <iframe
+              title="Shop report preview"
+              srcDoc={reportHtml}
+              style={{
+                width: "100%",
+                height: "1500px",
+                border: "none",
+                display: "block",
+                background: "#f1f5f9",
+              }}
+            />
+          </div>
+        </div>
       )}
 
       {activeTab === "reviews" && (

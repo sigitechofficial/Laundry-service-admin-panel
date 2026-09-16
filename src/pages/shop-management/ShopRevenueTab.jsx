@@ -18,7 +18,7 @@ import {
   DirectoryTableWrap,
 } from "../directory-table/directoryTable";
 import { downloadReportCsv, shopSettlementPath } from "../reports/reportUi.js";
-import { buildShopOrderFinanceColumns, PunctualityMetrics } from "./shopOrderFinanceColumns";
+import { buildShopOrderFinanceColumns } from "./shopOrderFinanceColumns";
 
 const CARD = {
   padding: 16,
@@ -460,23 +460,6 @@ export default function ShopRevenueTab({ shopId, fallbackSymbol = "£" }) {
           },
         ]}
       />
-      {payload.punctuality ? (
-        <>
-          <p className="jd-lead" style={{ margin: 0 }}>
-            Pickup and delivery timing in this date range. Early = before the booked
-            slot, on time = inside the window, late = after the slot.
-          </p>
-          <DirectoryMetrics
-            items={
-              PunctualityMetrics({
-                stats: payload.punctuality,
-                prefix: "",
-              }) || []
-            }
-          />
-        </>
-      ) : null}
-
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 16 }}>
         <div style={CARD}>
           <strong>Period breakdown</strong>
