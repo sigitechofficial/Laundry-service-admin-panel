@@ -52,6 +52,7 @@ import {
   getAddOnsForCategoryRow,
   normalizeAddOnServicesList,
 } from "./serviceAddOnsUtils";
+import { buildCatalogExports, downloadCatalogCsv } from "./catalogCsv";
 
 const SERVICE_ICONS = [
   { pattern: /wash\s*&\s*fold|wash and fold|fold/i, icon: MdLocalLaundryService },
@@ -486,6 +487,7 @@ export default function ServiceDashboard() {
   });
   const [categoryModalOpen, setCategoryModalOpen] = useState(false);
   const [configureOpen, setConfigureOpen] = useState(false);
+  const [downloadMenuOpen, setDownloadMenuOpen] = useState(false);
 
   const { success, error } = useToaster();
   const {
@@ -579,6 +581,13 @@ export default function ServiceDashboard() {
     return () => window.removeEventListener("mousedown", close);
   }, [menuServiceId]);
 
+  useEffect(() => {
+    if (!downloadMenuOpen) return;
+    const close = () => setDownloadMenuOpen(false);
+    window.addEventListener("mousedown", close);
+    return () => window.removeEventListener("mousedown", close);
+  }, [downloadMenuOpen]);
+
   const selectedService = orderedServices?.find((s) => s.id === selectedServiceId);
 
   const allCategories = Array.isArray(categoriesResponse?.data)
@@ -598,6 +607,29 @@ export default function ServiceDashboard() {
     });
     return map;
   }, [allSubCategories]);
+
+  const catalogExports = useMemo(
+    () =>
+      buildCatalogExports({
+        services: orderedServices,
+        categories: allCategories,
+        subCategories: allSubCategories,
+        addOns: addOnsList,
+      }),
+    [orderedServices, allCategories, allSubCategories, addOnsList]
+  );
+
+  const handleDownloadCsv = useCallback((exp) => {
+    downloadCatalogCsv(exp.filename, exp.columns, exp.rows);
+    setDownloadMenuOpen(false);
+  }, []);
+
+  const handleDownloadAllCsv = useCallback(() => {
+    catalogExports.forEach((exp) =>
+      downloadCatalogCsv(exp.filename, exp.columns, exp.rows)
+    );
+    setDownloadMenuOpen(false);
+  }, [catalogExports]);
 
   const rawTableRows = useMemo(() => {
     if (!serviceConfigData?.data?.serviceCategoriesData || !selectedService)
@@ -883,6 +915,66 @@ export default function ServiceDashboard() {
                 onChange={(e) => setGlobalSearch(e.target.value)}
               />
             </Field>
+          </div>
+          <div
+            style={{ position: "relative" }}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <Button
+              variant="secondary"
+              onClick={() => setDownloadMenuOpen((open) => !open)}
+              aria-haspopup="menu"
+              aria-expanded={downloadMenuOpen}
+            >
+              Download CSV
+            </Button>
+            {downloadMenuOpen ? (
+              <div
+                role="menu"
+                style={{
+                  position: "absolute",
+                  right: 0,
+                  top: "100%",
+                  marginTop: 4,
+                  zIndex: 40,
+                  minWidth: 240,
+                  padding: 6,
+                  background: "var(--surface)",
+                  border: "1px solid var(--line)",
+                  borderRadius: "var(--r-md)",
+                  boxShadow: "var(--e-3)",
+                  display: "grid",
+                  gap: 2,
+                }}
+              >
+                {catalogExports.map((exp) => (
+                  <Button
+                    key={exp.key}
+                    variant="ghost"
+                    size="sm"
+                    style={{ justifyContent: "flex-start", width: "100%" }}
+                    onClick={() => handleDownloadCsv(exp)}
+                  >
+                    {exp.label} ({exp.rows?.length ?? 0})
+                  </Button>
+                ))}
+                <div
+                  style={{ height: 1, background: "var(--line)", margin: "4px 0" }}
+                />
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  style={{
+                    justifyContent: "flex-start",
+                    width: "100%",
+                    fontWeight: 600,
+                  }}
+                  onClick={handleDownloadAllCsv}
+                >
+                  Download all
+                </Button>
+              </div>
+            ) : null}
           </div>
           <Button variant="secondary" onClick={() => setConfigureOpen(true)}>
             Configure
