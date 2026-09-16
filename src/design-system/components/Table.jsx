@@ -30,7 +30,12 @@ function inferRole(col) {
   const header =
     typeof col.header === "string" ? col.header.trim().toLowerCase() : "";
   if (key === "actions" || header === "actions") return "actions";
-  if (MONEY_KEY.test(key) || MONEY_HEADER.test(header)) return "money";
+  if (MONEY_KEY.test(key) || MONEY_HEADER.test(header)) {
+    // Timestamp keys that mention money words (lastCashRemittedAt, paidOutAt…)
+    // are not amounts — keep their default text layout.
+    if (/(at|date|time)$/i.test(key) && !/rate$/i.test(key)) return "text";
+    return "money";
+  }
   if (key === "status" || header === "status") return "status";
   if (DATE_KEY.test(key) || DATE_HEADER.test(header)) return "date";
   return "text";
