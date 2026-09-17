@@ -315,6 +315,7 @@ export default function Shops() {
             totalRows={totalRows}
             onPageChange={tableFilters.setPage}
             onPageSizeChange={tableFilters.setPageSize}
+            noun="shops"
           />
         }
       >
