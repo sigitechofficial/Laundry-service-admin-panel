@@ -336,6 +336,57 @@ button.tool {
   color: var(--ink);
 }
 
+.exportBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 14px;
+  border: 1px solid #d7dce4;
+  border-radius: 10px;
+  background: var(--surface);
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--n-700);
+  white-space: nowrap;
+  cursor: pointer;
+  flex: 0 0 auto;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.exportBtn:hover:not(:disabled) {
+  background: #f4f6fb;
+  border-color: #c3cad6;
+  color: var(--ink);
+}
+
+.exportBtn:focus-visible {
+  outline: 2px solid var(--accent, #4f46e5);
+  outline-offset: 2px;
+}
+
+.exportBtn:disabled {
+  cursor: progress;
+  opacity: 0.65;
+}
+
+.exportIcon {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+}
+
+.exportCount {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: #eef2ff;
+  color: #3730a3;
+  font-size: 11.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
 .morePanel {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));

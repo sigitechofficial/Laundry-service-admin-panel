@@ -1,9 +1,10 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useSelector } from "react-redux";
 import { Button, Modal, PageHeader, Select, Table } from "../../design-system";
 import { formatDate, formatAmount, resolveCurrencySymbol } from "../../utilities/formatters";
 import { formatUserPhone } from "../../utilities/contactLinks";
+import { csvFormat } from "../../utilities/csvExport";
+import { useCsvExport } from "../../hooks/useCsvExport";
 import {
   DirectoryActionBlock,
   DirectoryActionDelete,
@@ -12,6 +13,7 @@ import {
   DirectoryActionView,
   DirectoryClearButton,
   DirectoryDateInput,
+  DirectoryExportButton,
   DirectoryIdentity,
   DirectoryMetric,
   DirectoryMetrics,
@@ -24,10 +26,12 @@ import {
   DirectoryToolbarEnd,
 } from "../directory-table/directoryTable";
 import { joinMeta } from "../directory-table/directoryTableUtils";
+import ListPagination from "../order-management/ListPagination";
 import { BlockUserModal } from "../user-management/UserBlockActions";
 import {
   useGetAllCustomersCountQuery,
   useGetAllCustomersQuery,
+  useLazyGetAllCustomersQuery,
   useDeleteCustomerMutation,
 } from "../../store/services/api";
 import { Delay } from "../../components/shared/Loaders";
@@ -37,98 +41,176 @@ import { canStaffPerform } from "../../utilities/employeeFeatureAccess";
 import { isAccountBlocked } from "../../utilities/accountBlocked";
 import AddCustomerModal from "./AddCustomerModal";
 
+const SEARCH_DEBOUNCE_MS = 400;
+const DEFAULT_PAGE_SIZE = 25;
+
 const NAME_SORT_OPTIONS = [
   { value: "asc", label: "A → Z" },
   { value: "desc", label: "Z → A" },
 ];
 
-function compareCustomerRows(a, b, sortBy, sortDir) {
-  const dir = sortDir === "asc" ? 1 : -1;
-  const av = a?.[sortBy];
-  const bv = b?.[sortBy];
+const STATUS_OPTIONS = [
+  { value: "", label: "All statuses" },
+  { value: "active", label: "Active" },
+  { value: "blocked", label: "Blocked" },
+];
 
-  if (sortBy === "name") {
-    const an = String(av ?? "").trim();
-    const bn = String(bv ?? "").trim();
-    // Blank / "—" names always sink to the bottom, either direction.
-    const aBlank = !an || an === "—";
-    const bBlank = !bn || bn === "—";
-    if (aBlank && bBlank) return (Number(a?.id) || 0) - (Number(b?.id) || 0);
-    if (aBlank) return 1;
-    if (bBlank) return -1;
-    const byName = an.localeCompare(bn, undefined, {
-      sensitivity: "base",
-      numeric: true,
-      ignorePunctuation: true,
-    });
-    if (byName !== 0) return byName * dir;
-    return ((Number(a?.id) || 0) - (Number(b?.id) || 0)) * dir;
-  }
+/** Table column key → server `sortBy`. Columns missing here are not server-sortable. */
+const TABLE_SORT_TO_API = {
+  name: "name",
+  totalOrders: "bookingCount",
+  amountSpent: "totalAmountSpent",
+};
 
-  if (typeof av === "number" && typeof bv === "number") {
-    return (av - bv) * dir;
-  }
-  if (typeof av === "boolean" || typeof bv === "boolean") {
-    return ((av ? 1 : 0) - (bv ? 1 : 0)) * dir;
-  }
-  const byText = String(av ?? "").localeCompare(String(bv ?? ""), undefined, {
-    sensitivity: "base",
-    numeric: true,
-  });
-  if (byText !== 0) return byText * dir;
-  return ((Number(a?.id) || 0) - (Number(b?.id) || 0)) * dir;
+function customerFullName(customer) {
+  return `${customer?.firstName || ""} ${customer?.lastName || ""}`.trim();
 }
 
-function matchesSearch(row, term) {
-  if (!term) return true;
-  const q = term.toLowerCase();
-  return Object.entries(row).some(([key, value]) => {
-    if (key === "actions") return false;
-    return String(value ?? "").toLowerCase().includes(q);
-  });
-}
-
-function matchesDateRange(row, dateRange) {
-  if (!dateRange.startDate && !dateRange.endDate) return true;
-  if (!row.createdAt) return false;
-
-  const createdAt = new Date(row.createdAt);
-  if (Number.isNaN(createdAt.getTime())) return false;
-
-  const start = dateRange.startDate
-    ? new Date(`${dateRange.startDate}T00:00:00`)
-    : null;
-  const end = dateRange.endDate
-    ? new Date(`${dateRange.endDate}T23:59:59.999`)
-    : null;
-
-  return (!start || createdAt >= start) && (!end || createdAt <= end);
-}
+/** CSV columns operate on the raw API customer row (export mode returns the same shape). */
+const CUSTOMER_CSV_COLUMNS = [
+  { header: "Customer ID", key: "id" },
+  { header: "Name", value: (c) => customerFullName(c) },
+  { header: "Email", key: "email" },
+  { header: "Phone", value: (c) => formatUserPhone(c) },
+  { header: "Country code", key: "countryCode" },
+  { header: "Status", value: (c) => (isAccountBlocked(c) ? "Blocked" : "Active") },
+  { header: "Orders", value: (c) => Number(c?.bookingCount || 0) },
+  { header: "Amount spent", value: (c) => csvFormat.money(c?.totalAmountSpent) },
+  { header: "Last order date", value: (c) => csvFormat.date(c?.lastBookingDate) },
+  { header: "Signed up", value: (c) => csvFormat.date(c?.createdAt) },
+];
 
 export default function CustomerManagement() {
   const navigate = useNavigate();
   const { success, error: showError } = useToaster();
-  const [dateRange, setDateRange] = useState({ startDate: "", endDate: "" });
-  const [searchTerm, setSearchTerm] = useState("");
+
+  // Filters (server-side)
+  const [searchInput, setSearchInput] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [status, setStatusState] = useState("");
+  const [dateRange, setDateRangeState] = useState({ startDate: "", endDate: "" });
+  const [sortBy, setSortByState] = useState("name");
+  const [sortDir, setSortDirState] = useState("asc");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSizeState] = useState(DEFAULT_PAGE_SIZE);
+
+  // UI state
   const [modalData, setModalData] = useState({ open: false, data: "" });
   const [blockRow, setBlockRow] = useState(null);
   const [addOpen, setAddOpen] = useState(false);
-  const [sortBy, setSortBy] = useState("name");
-  const [sortDir, setSortDir] = useState("asc");
 
-  const { isLoading, isError, error: customersError, refetch } = useGetAllCustomersQuery();
+  useEffect(() => {
+    const handle = window.setTimeout(() => {
+      setDebouncedSearch(searchInput.trim());
+    }, SEARCH_DEBOUNCE_MS);
+    return () => window.clearTimeout(handle);
+  }, [searchInput]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch]);
+
+  const setStatus = useCallback((value) => {
+    setStatusState(value ?? "");
+    setPage(1);
+  }, []);
+
+  const handleDateChange = useCallback((part, value) => {
+    setDateRangeState((prev) => ({ ...prev, [part]: value }));
+    setPage(1);
+  }, []);
+
+  const setPageSize = useCallback((size) => {
+    setPageSizeState(size);
+    setPage(1);
+  }, []);
+
+  const handleSort = useCallback(
+    (key) => {
+      if (!TABLE_SORT_TO_API[key]) return;
+      if (key === sortBy) {
+        setSortDirState((dir) => (dir === "asc" ? "desc" : "asc"));
+      } else {
+        setSortByState(key);
+        // Name defaults A→Z; numeric columns default high→low.
+        setSortDirState(key === "name" ? "asc" : "desc");
+      }
+      setPage(1);
+    },
+    [sortBy]
+  );
+
+  const handleNameSortDir = useCallback((value) => {
+    setSortByState("name");
+    setSortDirState(value === "desc" ? "desc" : "asc");
+    setPage(1);
+  }, []);
+
+  const clearFilters = useCallback(() => {
+    setSearchInput("");
+    setDebouncedSearch("");
+    setStatusState("");
+    setDateRangeState({ startDate: "", endDate: "" });
+    setPage(1);
+  }, []);
+
+  const hasActiveFilters = Boolean(
+    searchInput || status || dateRange.startDate || dateRange.endDate
+  );
+
+  /** Filter + sort params shared by the paged query and the CSV export. */
+  const filterParams = useMemo(
+    () => ({
+      search: debouncedSearch || undefined,
+      status: status || undefined,
+      startDate: dateRange.startDate || undefined,
+      endDate: dateRange.endDate || undefined,
+      sortBy: TABLE_SORT_TO_API[sortBy] || "name",
+      sortDir,
+    }),
+    [debouncedSearch, status, dateRange.startDate, dateRange.endDate, sortBy, sortDir]
+  );
+
+  const apiParams = useMemo(
+    () => ({ ...filterParams, page, limit: pageSize }),
+    [filterParams, page, pageSize]
+  );
+
+  const {
+    data: customersResponse,
+    isLoading,
+    isFetching,
+    isError,
+    error: customersError,
+    refetch,
+  } = useGetAllCustomersQuery(apiParams, { refetchOnMountOrArgChange: true });
   const { data, refetch: refetchCount } = useGetAllCustomersCountQuery();
   const [deleteCustomer, { isLoading: isDeleting }] = useDeleteCustomerMutation();
-  const customers = useSelector((state) => state.apiData.customers);
+  const [fetchCustomersForExport] = useLazyGetAllCustomersQuery();
   const canCreateCustomer = canStaffPerform("customerManagement", "create");
+
+  const customers = useMemo(
+    () => customersResponse?.data?.customers || [],
+    [customersResponse?.data?.customers]
+  );
+  const pagination = customersResponse?.data?.pagination;
+  const totalRows = Number(pagination?.totalRecords ?? customers.length) || 0;
+
+  // After a delete on the last page the requested page can fall past the end; snap back.
+  const totalPages = Number(pagination?.totalPages) || 1;
+  useEffect(() => {
+    if (!isFetching && totalRows > 0 && page > totalPages) {
+      setPage(totalPages);
+    }
+  }, [isFetching, totalRows, page, totalPages]);
 
   const customersData = useMemo(
     () =>
-      (customers || []).map((cus, index) => ({
+      customers.map((cus, index) => ({
         id: cus.id,
-        sl: index + 1,
+        sl: (page - 1) * pageSize + index + 1,
         customerId: cus.id,
-        name: `${cus?.firstName || ""} ${cus?.lastName || ""}`.trim() || "—",
+        name: customerFullName(cus) || "—",
         email: cus?.email,
         phoneNumber: formatUserPhone(cus),
         amountSpent: cus?.totalAmountSpent,
@@ -142,38 +224,41 @@ export default function CustomerManagement() {
         blocked: isAccountBlocked(cus),
         changeStatus: cus?.status,
       })),
-    [customers]
+    [customers, page, pageSize]
   );
 
-  const visibleRows = useMemo(() => {
-    const filtered = customersData.filter(
-      (row) => matchesSearch(row, searchTerm) && matchesDateRange(row, dateRange)
-    );
-    return [...filtered].sort((a, b) => compareCustomerRows(a, b, sortBy, sortDir));
-  }, [customersData, dateRange, searchTerm, sortBy, sortDir]);
+  const fetchAllForExport = useCallback(
+    () =>
+      fetchCustomersForExport({ ...filterParams, export: true })
+        .unwrap()
+        .then((res) => ({
+          rows: res?.data?.customers || [],
+          pagination: res?.data?.pagination || null,
+        })),
+    [fetchCustomersForExport, filterParams]
+  );
 
-  const handleDateChange = (part, value) => {
-    setDateRange((prev) => ({ ...prev, [part]: value }));
-  };
+  const csvFilenameFilters = useMemo(
+    () => ({
+      search: debouncedSearch,
+      status,
+      from: dateRange.startDate,
+      to: dateRange.endDate,
+    }),
+    [debouncedSearch, status, dateRange.startDate, dateRange.endDate]
+  );
 
-  const handleSearchChange = (value) => {
-    setSearchTerm(value);
-  };
+  const csv = useCsvExport({
+    filenameBase: "customers",
+    columns: CUSTOMER_CSV_COLUMNS,
+    fetchAll: fetchAllForExport,
+    filenameFilters: csvFilenameFilters,
+  });
 
-  const handleSort = useCallback((key) => {
-    if (key === sortBy) {
-      setSortDir((dir) => (dir === "asc" ? "desc" : "asc"));
-      return;
-    }
-    setSortBy(key);
-    // Name defaults A→Z; numeric/status columns default high→low.
-    setSortDir(key === "name" ? "asc" : "desc");
-  }, [sortBy]);
-
-  const handleNameSortDir = useCallback((value) => {
-    setSortBy("name");
-    setSortDir(value === "desc" ? "desc" : "asc");
-  }, []);
+  const refreshAll = useCallback(() => {
+    refetch();
+    refetchCount();
+  }, [refetch, refetchCount]);
 
   const closeDeleteModal = () => setModalData({ open: false, data: "" });
 
@@ -184,6 +269,7 @@ export default function CustomerManagement() {
     if (res?.data?.status === "1") {
       closeDeleteModal();
       success(res?.data?.message);
+      refreshAll();
     } else {
       showError(getApiErrorMessage(res?.error, "Failed to delete customer."));
     }
@@ -207,7 +293,6 @@ export default function CustomerManagement() {
     {
       key: "status",
       header: "Status",
-      sortable: true,
       render: (row) => (
         <DirectoryStatusPill
           active={!isAccountBlocked(row)}
@@ -259,9 +344,9 @@ export default function CustomerManagement() {
     },
   ];
 
-  if (isLoading) return <Delay />;
+  if (isLoading && !customersResponse) return <Delay />;
 
-  if (isError) {
+  if (isError && !customersResponse) {
     return (
       <div style={{ textAlign: "center", padding: 28 }}>
         <p className="jd-lead" style={{ margin: "0 0 12px" }}>
@@ -273,6 +358,12 @@ export default function CustomerManagement() {
       </div>
     );
   }
+
+  const emptyMessage = isFetching
+    ? "Loading customers…"
+    : hasActiveFilters
+      ? "No customers match these filters"
+      : "No customers found";
 
   return (
     <div>
@@ -300,10 +391,19 @@ export default function CustomerManagement() {
           <DirectoryToolbar>
             <DirectorySearch
               id="customer-search"
-              value={searchTerm}
-              onChange={handleSearchChange}
-              placeholder="Search by customer ID, name, email…"
+              value={searchInput}
+              onChange={setSearchInput}
+              placeholder="Search by customer ID, name, email, phone…"
             />
+            <DirectoryToolSelect>
+              <Select
+                aria-label="Customer status"
+                value={status}
+                onChange={setStatus}
+                options={STATUS_OPTIONS}
+                placeholder="All statuses"
+              />
+            </DirectoryToolSelect>
             <DirectoryToolSelect>
               <Select
                 aria-label="Sort customers by name"
@@ -316,34 +416,42 @@ export default function CustomerManagement() {
               id="customer-start-date"
               value={dateRange.startDate}
               onChange={(value) => handleDateChange("startDate", value)}
-              aria-label="Start date"
-              title="Start date"
+              aria-label="Signed up from"
+              title="Signed up from"
             />
             <DirectoryDateInput
               id="customer-end-date"
               value={dateRange.endDate}
               onChange={(value) => handleDateChange("endDate", value)}
-              aria-label="End date"
-              title="End date"
+              aria-label="Signed up to"
+              title="Signed up to"
             />
-            {searchTerm || dateRange.startDate || dateRange.endDate ? (
-              <DirectoryToolbarEnd>
-                <DirectoryClearButton
-                  onClick={() => {
-                    handleSearchChange("");
-                    setDateRange({ startDate: "", endDate: "" });
-                  }}
-                />
-              </DirectoryToolbarEnd>
-            ) : null}
+            <DirectoryToolbarEnd>
+              {hasActiveFilters ? <DirectoryClearButton onClick={clearFilters} /> : null}
+              <DirectoryExportButton
+                onClick={csv.run}
+                loading={csv.isExporting}
+                count={totalRows}
+              />
+            </DirectoryToolbarEnd>
           </DirectoryToolbar>
+        }
+        footer={
+          <ListPagination
+            page={page}
+            pageSize={pageSize}
+            totalRows={totalRows}
+            onPageChange={setPage}
+            onPageSizeChange={setPageSize}
+            noun="customers"
+          />
         }
       >
         <Table
           columns={columns}
-          rows={visibleRows}
+          rows={customersData}
           rowKey={(row) => row.id}
-          empty="No customers found"
+          empty={emptyMessage}
           sortBy={sortBy}
           sortDir={sortDir}
           onSort={handleSort}
@@ -353,10 +461,7 @@ export default function CustomerManagement() {
       <AddCustomerModal
         open={addOpen}
         onClose={() => setAddOpen(false)}
-        onSuccess={() => {
-          refetch();
-          refetchCount();
-        }}
+        onSuccess={refreshAll}
       />
 
       <BlockUserModal
@@ -367,7 +472,7 @@ export default function CustomerManagement() {
         isBlocked={isAccountBlocked(blockRow)}
         onSuccess={() => {
           setBlockRow(null);
-          refetch();
+          refreshAll();
         }}
       />
 

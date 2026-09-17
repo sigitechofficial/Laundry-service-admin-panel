@@ -71,17 +71,19 @@ export function OrderPageHeader({ title, description, actions }) {
   );
 }
 
-export function OrderHeaderActions({ onExport, showNewOrder = true }) {
+export function OrderHeaderActions({ onExport, exporting = false, showNewOrder = true }) {
   return (
     <>
       {onExport ? (
         <button
           type="button"
           onClick={onExport}
-          className="inline-flex h-10 items-center gap-2 rounded-[10px] border border-[#d7dce4] bg-white px-4 text-[13.5px] font-semibold text-[#38424f] hover:bg-[#f4f5f8]"
+          disabled={exporting}
+          aria-busy={exporting || undefined}
+          className="inline-flex h-10 items-center gap-2 rounded-[10px] border border-[#d7dce4] bg-white px-4 text-[13.5px] font-semibold text-[#38424f] hover:bg-[#f4f5f8] disabled:cursor-wait disabled:opacity-60"
         >
           <IconDownload />
-          Export
+          {exporting ? "Preparing…" : "Export"}
         </button>
       ) : null}
       {showNewOrder ? (

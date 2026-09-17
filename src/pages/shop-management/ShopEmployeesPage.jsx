@@ -5,12 +5,16 @@ import {
   Select,
   Table,
 } from "../../design-system";
+import { formatUserPhone } from "../../utilities/contactLinks";
+import { csvFormat } from "../../utilities/csvExport";
+import { useCsvExport } from "../../hooks/useCsvExport";
 import {
   DirectoryActionDelete,
   DirectoryActionEdit,
   DirectoryActions,
   DirectoryActionView,
   DirectoryClearButton,
+  DirectoryExportButton,
   DirectoryIdentity,
   DirectoryMetrics,
   DirectorySearch,
@@ -30,6 +34,31 @@ import {
 } from "../../store/services/api";
 import { Delay } from "../../components/shared/Loaders";
 
+const STATUS_OPTIONS = [
+  { value: "", label: "All statuses" },
+  { value: "active", label: "Active" },
+  { value: "inactive", label: "Inactive" },
+];
+
+const SHOP_EMPLOYEE_CSV_COLUMNS = [
+  { header: "Employee ID", key: "id" },
+  { header: "Name", key: "name" },
+  { header: "Email", value: (row) => (row.email === "—" ? "" : row.email) },
+  { header: "Phone", key: "phoneCsv" },
+  { header: "Country code", key: "countryCode" },
+  { header: "Shop ID", key: "shopId" },
+  { header: "Shop", value: (row) => (row.shopName === "—" ? "" : row.shopName) },
+  { header: "Role", value: (row) => (row.role === "—" ? "" : row.role) },
+  { header: "Status", value: (row) => (row.status ? "Active" : "Inactive") },
+  { header: "Created", value: (row) => csvFormat.date(row.createdAt) },
+  { header: "Updated", value: (row) => csvFormat.date(row.updatedAt) },
+];
+
+function matchesStatus(row, status) {
+  if (!status) return true;
+  return status === "active" ? Boolean(row.status) : !row.status;
+}
+
 function matchesSearch(row, term) {
   if (!term) return true;
   const q = term.toLowerCase();
@@ -42,6 +71,8 @@ function matchesSearch(row, term) {
 
 export default function ShopEmployeesPage() {
   const [selectedShop, setSelectedShop] = useState("");
+  const [selectedRole, setSelectedRole] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [addEmployeeModalOpen, setAddEmployeeModalOpen] = useState(false);
   const [employeeToEdit, setEmployeeToEdit] = useState(null);
@@ -87,20 +118,65 @@ export default function ShopEmployeesPage() {
         name: [emp.firstName, emp.lastName].filter(Boolean).join(" ") || "—",
         email: emp.email ?? "—",
         phone: phoneDisplay,
+        phoneCsv: formatUserPhone(emp),
+        countryCode: emp.countryCode ?? "",
         shopId: emp.shopInfo?.id ?? null,
         shopName: emp.shopInfo?.shopName ?? "—",
+        roleId: emp.role?.id ?? emp.roleId ?? null,
         role: emp.role?.name ?? "—",
         status: emp.status,
+        createdAt: emp.createdAt,
+        updatedAt: emp.updatedAt,
       };
     });
   }, [employees]);
+
+  const roleOptions = useMemo(() => {
+    const seen = new Map();
+    allEmployees.forEach((row) => {
+      if (row.roleId == null) return;
+      const key = String(row.roleId);
+      if (!seen.has(key)) seen.set(key, row.role);
+    });
+    return [
+      { value: "", label: "All roles" },
+      ...[...seen.entries()]
+        .map(([value, label]) => ({ value, label }))
+        .sort((a, b) => String(a.label).localeCompare(String(b.label))),
+    ];
+  }, [allEmployees]);
 
   const filteredByShop = useMemo(() => {
     const byShop = !selectedShop
       ? allEmployees
       : allEmployees.filter((e) => String(e.shopId) === String(selectedShop));
-    return byShop.filter((row) => matchesSearch(row, searchTerm));
-  }, [allEmployees, selectedShop, searchTerm]);
+    return byShop.filter(
+      (row) =>
+        (!selectedRole || String(row.roleId ?? "") === String(selectedRole)) &&
+        matchesStatus(row, statusFilter) &&
+        matchesSearch(row, searchTerm)
+    );
+  }, [allEmployees, selectedShop, selectedRole, statusFilter, searchTerm]);
+
+  const hasActiveFilters = Boolean(searchTerm || selectedShop || selectedRole || statusFilter);
+
+  const csvFilenameFilters = useMemo(() => {
+    const shopLabel = shopOptions.find((o) => o.value === String(selectedShop))?.label;
+    const roleLabel = roleOptions.find((o) => o.value === String(selectedRole))?.label;
+    return {
+      search: searchTerm.trim(),
+      shop: selectedShop ? shopLabel || selectedShop : "",
+      role: selectedRole ? roleLabel || selectedRole : "",
+      status: statusFilter,
+    };
+  }, [searchTerm, selectedShop, shopOptions, selectedRole, roleOptions, statusFilter]);
+
+  const csv = useCsvExport({
+    filenameBase: "shop-employees",
+    columns: SHOP_EMPLOYEE_CSV_COLUMNS,
+    rows: filteredByShop,
+    filenameFilters: csvFilenameFilters,
+  });
 
   const totalCount = allEmployees.length;
   const activeCount = allEmployees.filter((e) => e.status).length;
@@ -214,16 +290,41 @@ export default function ShopEmployeesPage() {
                 disabled={shopsLoading}
               />
             </DirectoryToolSelect>
-            {searchTerm || selectedShop ? (
-              <DirectoryToolbarEnd>
+            <DirectoryToolSelect>
+              <Select
+                aria-label="Role"
+                value={selectedRole}
+                onChange={(value) => setSelectedRole(value ?? "")}
+                options={roleOptions}
+                placeholder="All roles"
+              />
+            </DirectoryToolSelect>
+            <DirectoryToolSelect>
+              <Select
+                aria-label="Status"
+                value={statusFilter}
+                onChange={(value) => setStatusFilter(value ?? "")}
+                options={STATUS_OPTIONS}
+                placeholder="All statuses"
+              />
+            </DirectoryToolSelect>
+            <DirectoryToolbarEnd>
+              {hasActiveFilters ? (
                 <DirectoryClearButton
                   onClick={() => {
                     setSearchTerm("");
                     setSelectedShop("");
+                    setSelectedRole("");
+                    setStatusFilter("");
                   }}
                 />
-              </DirectoryToolbarEnd>
-            ) : null}
+              ) : null}
+              <DirectoryExportButton
+                onClick={csv.run}
+                loading={csv.isExporting}
+                count={filteredByShop.length}
+              />
+            </DirectoryToolbarEnd>
           </DirectoryToolbar>
         }
       >

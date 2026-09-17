@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { TbPlus, TbTrash } from "../../shared/icons/index";
 import { Button, Field, Input, Modal, PageHeader, Select, Table } from "../../design-system";
 import { PaginationBar, Toggle } from "../misc-kit";
@@ -7,11 +7,17 @@ import {
   DirectoryActionEdit,
   DirectoryActions,
   DirectoryActionView,
+  DirectoryClearButton,
+  DirectoryExportButton,
+  DirectorySearch,
   DirectoryStatusPill,
   DirectoryTableWrap,
   DirectoryToolSelect,
   DirectoryToolbar,
+  DirectoryToolbarEnd,
 } from "../directory-table/directoryTable";
+import { useCsvExport } from "../../hooks/useCsvExport";
+import { csvFormat } from "../../utilities/csvExport";
 import {
   PolicyDetailRow,
   PolicyDetailSection,
@@ -61,6 +67,68 @@ function parseCancellationPoliciesPayload(response) {
   return [];
 }
 
+const SEARCH_DEBOUNCE_MS = 400;
+
+function minutesToHours(minutes) {
+  const n = Number(minutes);
+  if (!Number.isFinite(n) || n === 0) return "";
+  return (n / 60).toFixed(2);
+}
+
+/** CSV columns operate on the raw API policy row plus a resolved `zoneName`. */
+const CANCELLATION_CSV_COLUMNS = [
+  { header: "Policy ID", key: "id" },
+  { header: "Name", value: (p) => p?.name || "" },
+  { header: "Description", value: (p) => p?.description || "" },
+  { header: "Zone", value: (p) => p?.zoneName || "" },
+  { header: "Zone ID", value: (p) => p?.zoneId ?? "" },
+  { header: "Currency", value: (p) => p?.cancellationConfig?.prePickupAbsoluteCurrency || "" },
+  {
+    header: "Pre-pickup fee",
+    value: (p) => csvFormat.money(p?.cancellationConfig?.prePickupAbsoluteAmount),
+  },
+  { header: "Pre-pickup %", value: (p) => p?.cancellationConfig?.prePickupPercentage ?? "" },
+  {
+    header: "Free window (hours)",
+    value: (p) => minutesToHours(p?.cancellationConfig?.prePickupFreeChargeWindowMinutes),
+  },
+  {
+    header: "First cancellation leniency",
+    value: (p) => csvFormat.bool(p?.cancellationConfig?.prePickupFirstCancellationLeniency),
+  },
+  {
+    header: "Unprocessed fee",
+    value: (p) => csvFormat.money(p?.cancellationConfig?.unprocessedAbsoluteAmount),
+  },
+  {
+    header: "Unprocessed % (prepaid)",
+    value: (p) =>
+      p?.cancellationConfig?.unprocessedOrderValuePercentage ??
+      p?.cancellationConfig?.unprocessedPercentage ??
+      "",
+  },
+  {
+    header: "Allow cancel unprocessed",
+    value: (p) => csvFormat.bool(p?.cancellationConfig?.allowCancelUnprocessed),
+  },
+  { header: "Courtesy window (days)", value: (p) => p?.cancellationConfig?.courtesyWindowDays ?? "" },
+  {
+    header: "Courtesy cap",
+    value: (p) => csvFormat.money(p?.cancellationConfig?.courtesyCapAmount),
+  },
+  { header: "Courtesy count", value: (p) => p?.cancellationConfig?.courtesyCount ?? "" },
+  {
+    header: "Customer leniency",
+    value: (p) => csvFormat.bool(p?.cancellationConfig?.customerLeniencyEnabled),
+  },
+  { header: "Active", value: (p) => csvFormat.bool(p?.isActive) },
+  { header: "Default", value: (p) => csvFormat.bool(p?.isDefault) },
+  { header: "Effective from", value: (p) => csvFormat.date(p?.effectiveFrom) },
+  { header: "Effective to", value: (p) => csvFormat.date(p?.effectiveTo) },
+  { header: "Created", value: (p) => csvFormat.dateTime(p?.createdAt) },
+  { header: "Updated", value: (p) => csvFormat.dateTime(p?.updatedAt) },
+];
+
 /** Backend may omit isActive on list items; treat unknown as active when using isActive=1 filter */
 function isPolicyConsideredActive(p) {
   const v = p?.isActive;
@@ -83,6 +151,8 @@ export default function CancellationPolicy() {
   const [reasonIds, setReasonIds] = useState([]); // Store IDs for deletion
 
   const [selectedZoneFilter, setSelectedZoneFilter] = useState("");
+  const [searchInput, setSearchInput] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
   const [overlapModalOpen, setOverlapModalOpen] = useState(false);
@@ -93,18 +163,36 @@ export default function CancellationPolicy() {
   const [viewModalOpen, setViewModalOpen] = useState(false);
   const [viewingPolicy, setViewingPolicy] = useState(null);
 
+  useEffect(() => {
+    const handle = window.setTimeout(() => {
+      setDebouncedSearch(searchInput.trim());
+    }, SEARCH_DEBOUNCE_MS);
+    return () => window.clearTimeout(handle);
+  }, [searchInput]);
+
   // Reset page to 1 when filters change
   useEffect(() => {
     setPage(1);
-  }, [selectedZoneFilter, limit]);
+  }, [selectedZoneFilter, debouncedSearch, limit]);
+
+  /** Filter params shared by the paged query and the CSV export. */
+  const listFilterParams = useMemo(
+    () => ({
+      ...(selectedZoneFilter !== "" && { zoneId: selectedZoneFilter }),
+      ...(debouncedSearch && { search: debouncedSearch }),
+    }),
+    [selectedZoneFilter, debouncedSearch]
+  );
 
   const filterParams = {
-    ...(selectedZoneFilter !== "" && { zoneId: selectedZoneFilter }),
+    ...listFilterParams,
     ...(page && { page }),
     ...(limit && { limit }),
   };
 
-  const { data: policiesResponse, isLoading, refetch } = useGetCancellationPoliciesQuery(filterParams);
+  const { data: policiesResponse, isLoading, isFetching, refetch } =
+    useGetCancellationPoliciesQuery(filterParams);
+  const [fetchPoliciesForExport] = useLazyGetCancellationPoliciesQuery();
   const [addCancellationPolicy, { isLoading: isAdding }] = useAddCancellationPolicyMutation();
   const [updateCancellationPolicy, { isLoading: isUpdating }] = useUpdateCancellationPolicyMutation();
   const [deleteCancellationPolicy, { isLoading: isDeleting }] = useDeleteCancellationPolicyMutation();
@@ -137,6 +225,49 @@ export default function CancellationPolicy() {
 
   const policies = policiesResponse?.data?.policies || [];
   const pagination = policiesResponse?.data?.pagination || {};
+  const totalRows = Number(pagination.totalRecords ?? pagination.total ?? 0) || 0;
+  const hasListFilters = Boolean(selectedZoneFilter || searchInput.trim());
+
+  const resolveZoneNameForCsv = useCallback(
+    (policy) =>
+      policy?.zone?.name ||
+      zonesList.find((z) => String(z.id) === String(policy?.zoneId))?.name ||
+      "",
+    [zonesList]
+  );
+
+  const mapPolicyToCsvRow = useCallback(
+    (policy) => ({ ...policy, zoneName: resolveZoneNameForCsv(policy) }),
+    [resolveZoneNameForCsv]
+  );
+
+  const fetchAllForExport = useCallback(async () => {
+    // `false` → never serve the export from a cached page response.
+    const res = await fetchPoliciesForExport(
+      { ...listFilterParams, export: true },
+      false
+    ).unwrap();
+    return {
+      rows: res?.data?.policies || [],
+      pagination: res?.data?.pagination || null,
+    };
+  }, [fetchPoliciesForExport, listFilterParams]);
+
+  const csvFilenameFilters = useMemo(
+    () => ({
+      zone: zoneOptions.find((z) => String(z.value) === String(selectedZoneFilter))?.label || "",
+      search: debouncedSearch,
+    }),
+    [zoneOptions, selectedZoneFilter, debouncedSearch]
+  );
+
+  const csv = useCsvExport({
+    filenameBase: "cancellation-policies",
+    columns: CANCELLATION_CSV_COLUMNS,
+    fetchAll: fetchAllForExport,
+    filenameFilters: csvFilenameFilters,
+    mapRow: mapPolicyToCsvRow,
+  });
 
   const {
     control,
@@ -878,6 +1009,12 @@ export default function CancellationPolicy() {
             <DirectoryTableWrap
               toolbar={
                 <DirectoryToolbar>
+                  <DirectorySearch
+                    id="cancellation-policy-search"
+                    value={searchInput}
+                    onChange={setSearchInput}
+                    placeholder="Search policy name, description or zone…"
+                  />
                   <DirectoryToolSelect>
                     <Select
                       aria-label="Filter by zone"
@@ -887,13 +1024,31 @@ export default function CancellationPolicy() {
                       placeholder="All zones"
                     />
                   </DirectoryToolSelect>
+                  <DirectoryToolbarEnd>
+                    {hasListFilters ? (
+                      <DirectoryClearButton
+                        onClick={() => {
+                          setSelectedZoneFilter("");
+                          setSearchInput("");
+                          setDebouncedSearch("");
+                          setPage(1);
+                        }}
+                      />
+                    ) : null}
+                    {isFetching ? <span className="jd-field__hint">Refreshing…</span> : null}
+                    <DirectoryExportButton
+                      onClick={csv.run}
+                      loading={csv.isExporting}
+                      count={totalRows}
+                    />
+                  </DirectoryToolbarEnd>
                 </DirectoryToolbar>
               }
               footer={
                 <PaginationBar
                   page={page}
                   limit={limit}
-                  total={pagination.total || 0}
+                  total={totalRows}
                   onPageChange={setPage}
                   onLimitChange={(next) => {
                     setLimit(next);
@@ -906,7 +1061,7 @@ export default function CancellationPolicy() {
                 columns={columns}
                 rows={policiesData}
                 rowKey={(row, i) => row.id ?? row.sl ?? i}
-                empty="No policies yet"
+                empty={hasListFilters ? "No policies match these filters" : "No policies yet"}
                 stickyLeft={1}
               />
             </DirectoryTableWrap>

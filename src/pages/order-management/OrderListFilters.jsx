@@ -108,6 +108,7 @@ export default function OrderListFilters({
   onClearFilters,
   hasActiveFilters,
   onDownload,
+  downloading = false,
   extra,
   showSort = true,
   sortBy = DEFAULT_ORDER_LIST_SORT_BY,
@@ -327,9 +328,11 @@ export default function OrderListFilters({
           <button
             type="button"
             onClick={onDownload}
-            className={`${styles.tool} ${styles.iconTool} hover:bg-[#f4f5f8]`}
-            aria-label="Download"
-            title="Download"
+            disabled={downloading}
+            aria-busy={downloading || undefined}
+            className={`${styles.tool} ${styles.iconTool} hover:bg-[#f4f5f8] disabled:cursor-wait disabled:opacity-60`}
+            aria-label={downloading ? "Preparing download…" : "Download CSV"}
+            title={downloading ? "Preparing download…" : "Download CSV"}
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4 text-[#5c6673]">
               <path d="M12 3v12M8 11l4 4 4-4M4 21h16" />

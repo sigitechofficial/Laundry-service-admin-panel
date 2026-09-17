@@ -1,4 +1,5 @@
 import { formatAmount } from "../../utilities/formatters";
+import { downloadCsv } from "../../utilities/csvExport";
 
 export function unwrapReport(response) {
   const payload = response?.data || {};
@@ -29,25 +30,9 @@ export function reportShare(part, whole, digits = 1) {
   return `${((numerator / denominator) * 100).toFixed(digits)}%`;
 }
 
-function csvEscape(value) {
-  return `"${String(value ?? "").replace(/"/g, '""')}"`;
-}
-
+/** Same column contract as utilities/csvExport ({ header, key | value(row) }). */
 export function downloadReportCsv(filename, columns, rows) {
-  const head = columns.map((c) => csvEscape(c.header));
-  const lines = [head.join(",")];
-  rows.forEach((row) => {
-    lines.push(columns.map((c) => csvEscape(c.value ? c.value(row) : row[c.key])).join(","));
-  });
-  const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
+  return downloadCsv(filename, columns, rows || []);
 }
 
 export function reportDetailPath(base, id) {

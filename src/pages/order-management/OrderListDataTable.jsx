@@ -47,6 +47,7 @@ export default function OrderListDataTable({
   isTableLoading = false,
   searchPlaceholder = "Search by order ID, customer, shop or service…",
   onDownload,
+  downloading = false,
   emptyText,
   lead,
   tableLayout = "default",
@@ -78,6 +79,8 @@ export default function OrderListDataTable({
       onDownload();
       return;
     }
+    // Page-only fallback: writes just the rows currently rendered. Tabs should
+    // pass `onDownload` (useOrderListCsvExport) to export the whole filtered set.
     downloadOrderListCsv(data || [], "orders_export.csv");
   };
 
@@ -104,6 +107,7 @@ export default function OrderListDataTable({
           onClearFilters={onClearFilters}
           hasActiveFilters={hasActiveFilters}
           onDownload={showDownload ? handleDownload : undefined}
+          downloading={downloading}
           showSort={showSort}
           sortBy={sortBy}
           onSortByChange={onSortByChange}

@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import {
   useGetAllCompleteOrdersQuery,
   useGetAllOrderStatusesQuery,
+  useLazyGetAllCompleteOrdersQuery,
 } from "../../../store/services/api";
 import DeleteOrderModal from "../order-modals/DeleteOrderModal";
 import AssignOrderModal from "../order-modals/AssignOrderModal";
@@ -12,6 +13,7 @@ import { useOrderListTableFilters } from "../useOrderListTableFilters";
 import OrderListDataTable from "../OrderListDataTable";
 import { useOrderListPageQueries } from "../useOrderListPageQueries";
 import { useOrderListStatsQuery } from "../useOrderListStatsQuery";
+import { useOrderListCsvExport } from "../useOrderListCsvExport";
 import { OrderError, OrderMetrics, OrderPageHeader } from "../OrderWorkspace";
 
 export default function CompleteOrders() {
@@ -39,6 +41,14 @@ export default function CompleteOrders() {
     () => (Array.isArray(statusesResponse?.data) ? statusesResponse.data : []),
     [statusesResponse?.data]
   );
+  const [fetchCompleteOrders] = useLazyGetAllCompleteOrdersQuery();
+  const csv = useOrderListCsvExport({
+    tableFilters,
+    fetchList: fetchCompleteOrders,
+    pickRows,
+    filenameBase: "orders-completed",
+    orderStatuses,
+  });
   const [deleteModal, setDeleteModal] = useState({ open: false, orderId: null });
   const [assignModal, setAssignModal] = useState({
     open: false,
@@ -114,6 +124,8 @@ export default function CompleteOrders() {
           sortDir={tableFilters.sortDir}
           onSortDirChange={tableFilters.setSortDir}
           isTableLoading={isTableLoading}
+          onDownload={csv.run}
+          downloading={csv.isExporting}
         />
       </div>
       <DeleteOrderModal

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { TbTrash } from "../../shared/icons/index";
 import { Button, Field, Input, Modal, Select, Table } from "../../design-system";
 import { PaginationBar, Toggle } from "../misc-kit";
@@ -8,12 +8,16 @@ import {
   DirectoryActions,
   DirectoryActionView,
   DirectoryClearButton,
+  DirectoryExportButton,
+  DirectorySearch,
   DirectoryStatusPill,
   DirectoryTableWrap,
   DirectoryToolSelect,
   DirectoryToolbar,
   DirectoryToolbarEnd,
 } from "../directory-table/directoryTable";
+import { useCsvExport } from "../../hooks/useCsvExport";
+import { csvFormat } from "../../utilities/csvExport";
 import {
   PolicyDetailRow,
   PolicyDetailSection,
@@ -50,6 +54,76 @@ import { Delay } from "../../components/shared/Loaders";
 import dayjs from "dayjs";
 import { useSelector } from "react-redux";
 
+const SEARCH_DEBOUNCE_MS = 400;
+
+function rescheduleConfigOf(policy) {
+  return policy?.rescheduleConfig || policy?.reschedulePolicyConfig || policy || {};
+}
+
+/** CSV columns operate on the raw API policy row plus a resolved `zoneName`. */
+const RESCHEDULE_CSV_COLUMNS = [
+  { header: "Policy ID", key: "id" },
+  { header: "Name", value: (p) => p?.name || "" },
+  { header: "Description", value: (p) => p?.description || "" },
+  { header: "Zone", value: (p) => p?.zoneName || "" },
+  { header: "Zone ID", value: (p) => p?.zoneId ?? "" },
+  {
+    header: "Currency",
+    value: (p) => {
+      const c = rescheduleConfigOf(p);
+      return c.atPickupAbsoluteCurrency || c.atDeliveryAbsoluteCurrency || c.currency || "";
+    },
+  },
+  {
+    header: "Pickup reschedule fee",
+    value: (p) => {
+      const c = rescheduleConfigOf(p);
+      return csvFormat.money(c.atPickupAbsoluteAmount ?? c.pickupRescheduleFee);
+    },
+  },
+  { header: "Pickup %", value: (p) => rescheduleConfigOf(p).atPickupPercentage ?? "" },
+  {
+    header: "Pickup courtesy count",
+    value: (p) => rescheduleConfigOf(p).atPickupCourtesyCount ?? "",
+  },
+  {
+    header: "Pickup courtesy enabled",
+    value: (p) => csvFormat.bool(rescheduleConfigOf(p).atPickupCourtesyCountEnabled),
+  },
+  {
+    header: "Delivery reschedule fee",
+    value: (p) => {
+      const c = rescheduleConfigOf(p);
+      return csvFormat.money(c.atDeliveryAbsoluteAmount ?? c.deliveryRescheduleFee);
+    },
+  },
+  { header: "Delivery %", value: (p) => rescheduleConfigOf(p).atDeliveryPercentage ?? "" },
+  {
+    header: "Delivery courtesy count",
+    value: (p) => rescheduleConfigOf(p).atDeliveryCourtesyCount ?? "",
+  },
+  {
+    header: "Delivery courtesy enabled",
+    value: (p) => csvFormat.bool(rescheduleConfigOf(p).atDeliveryCourtesyCountEnabled),
+  },
+  { header: "Courtesy window (days)", value: (p) => rescheduleConfigOf(p).courtesyWindowDays ?? "" },
+  {
+    header: "Courtesy cap",
+    value: (p) => csvFormat.money(rescheduleConfigOf(p).courtesyCapAmount),
+  },
+  { header: "Courtesy count", value: (p) => rescheduleConfigOf(p).courtesyCount ?? "" },
+  {
+    header: "Customer leniency",
+    value: (p) => csvFormat.bool(rescheduleConfigOf(p).customerLeniencyEnabled),
+  },
+  { header: "Active", value: (p) => csvFormat.bool(p?.isActive) },
+  { header: "Default", value: (p) => csvFormat.bool(p?.isDefault) },
+  { header: "Effective from", value: (p) => csvFormat.date(p?.effectiveFrom) },
+  { header: "Effective to", value: (p) => csvFormat.date(p?.effectiveTo) },
+  { header: "Created", value: (p) => csvFormat.dateTime(p?.createdAt) },
+  { header: "Updated", value: (p) => csvFormat.dateTime(p?.updatedAt) },
+];
+
 export default function ReschedulePolicyContent({
   onAddButtonRef,
   zoneId: externalZoneId,
@@ -69,6 +143,8 @@ export default function ReschedulePolicyContent({
     externalZoneId !== undefined ? externalZoneId : selectedZoneIdLocal;
   const setSelectedZoneId =
     typeof onZoneIdChange === "function" ? onZoneIdChange : setSelectedZoneIdLocal;
+  const [searchInput, setSearchInput] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
   const [overlapModalOpen, setOverlapModalOpen] = useState(false);
@@ -80,8 +156,15 @@ export default function ReschedulePolicyContent({
   const [viewingPolicy, setViewingPolicy] = useState(null);
 
   useEffect(() => {
+    const handle = window.setTimeout(() => {
+      setDebouncedSearch(searchInput.trim());
+    }, SEARCH_DEBOUNCE_MS);
+    return () => window.clearTimeout(handle);
+  }, [searchInput]);
+
+  useEffect(() => {
     setPage(1);
-  }, [isActiveFilter, isDefaultFilter, selectedZoneId, limit]);
+  }, [isActiveFilter, isDefaultFilter, selectedZoneId, debouncedSearch, limit]);
 
   const { data: zonesQueryData } = useGetAllZonesQuery(undefined, {
     refetchOnMountOrArgChange: false,
@@ -101,15 +184,24 @@ export default function ReschedulePolicyContent({
     [currencyUnitsPayload, currencyUnitsRedux]
   );
 
+  /** Filter params shared by the paged query and the CSV export. */
+  const listFilterParams = useMemo(
+    () => ({
+      ...(isActiveFilter !== "" && { isActive: isActiveFilter }),
+      ...(isDefaultFilter !== "" && { isDefault: isDefaultFilter }),
+      ...(selectedZoneId !== "" && { zoneId: selectedZoneId }),
+      ...(debouncedSearch && { search: debouncedSearch }),
+    }),
+    [isActiveFilter, isDefaultFilter, selectedZoneId, debouncedSearch]
+  );
+
   const filterParams = {
-    ...(isActiveFilter !== "" && { isActive: isActiveFilter }),
-    ...(isDefaultFilter !== "" && { isDefault: isDefaultFilter }),
-    ...(selectedZoneId !== "" && { zoneId: selectedZoneId }),
+    ...listFilterParams,
     ...(page && { page }),
     ...(limit && { limit }),
   };
 
-  const { data: policiesResponse, isLoading, refetch } =
+  const { data: policiesResponse, isLoading, isFetching, refetch } =
     useGetReschedulePoliciesQuery(filterParams);
   const [addReschedulePolicy, { isLoading: isAdding }] =
     useAddReschedulePolicyMutation();
@@ -120,11 +212,57 @@ export default function ReschedulePolicyContent({
   const [fetchZoneById] = useLazyGetZoneByIdQuery();
   const [fetchOverlapPolicies, { data: overlapPoliciesResponse, isFetching: overlapPoliciesLoading }] =
     useLazyGetReschedulePoliciesQuery();
+  const [fetchPoliciesForExport] = useLazyGetReschedulePoliciesQuery();
 
   const isSubmitting = isAdding || isUpdating;
 
   const policies = policiesResponse?.data?.policies || [];
   const pagination = policiesResponse?.data?.pagination || {};
+  const totalRows = Number(pagination.totalRecords ?? pagination.total ?? 0) || 0;
+  const hasListFilters = Boolean(
+    isActiveFilter || isDefaultFilter || selectedZoneId || searchInput.trim()
+  );
+
+  const mapPolicyToCsvRow = useCallback(
+    (policy) => ({
+      ...policy,
+      zoneName:
+        policy?.zone?.name ||
+        zonesList.find((z) => String(z.id) === String(policy?.zoneId))?.name ||
+        "",
+    }),
+    [zonesList]
+  );
+
+  const fetchAllForExport = useCallback(async () => {
+    // `false` → never serve the export from a cached page response.
+    const res = await fetchPoliciesForExport(
+      { ...listFilterParams, export: true },
+      false
+    ).unwrap();
+    return {
+      rows: res?.data?.policies || [],
+      pagination: res?.data?.pagination || null,
+    };
+  }, [fetchPoliciesForExport, listFilterParams]);
+
+  const csvFilenameFilters = useMemo(
+    () => ({
+      zone: zonesList.find((z) => String(z.id) === String(selectedZoneId))?.name || "",
+      status: isActiveFilter === "1" ? "active" : isActiveFilter === "0" ? "inactive" : "",
+      default: isDefaultFilter === "1" ? "default" : isDefaultFilter === "0" ? "not-default" : "",
+      search: debouncedSearch,
+    }),
+    [zonesList, selectedZoneId, isActiveFilter, isDefaultFilter, debouncedSearch]
+  );
+
+  const csv = useCsvExport({
+    filenameBase: "reschedule-policies",
+    columns: RESCHEDULE_CSV_COLUMNS,
+    fetchAll: fetchAllForExport,
+    filenameFilters: csvFilenameFilters,
+    mapRow: mapPolicyToCsvRow,
+  });
 
   const getNextVersionName = () => {
     const versions = policies
@@ -600,6 +738,12 @@ export default function ReschedulePolicyContent({
         <DirectoryTableWrap
           toolbar={
             <DirectoryToolbar>
+              <DirectorySearch
+                id="reschedule-policy-search"
+                value={searchInput}
+                onChange={setSearchInput}
+                placeholder="Search policy name, description or zone…"
+              />
               {showZoneFilter ? (
                 <DirectoryToolSelect>
                   <Select
@@ -637,24 +781,33 @@ export default function ReschedulePolicyContent({
                   placeholder="All default"
                 />
               </DirectoryToolSelect>
-              {isActiveFilter || isDefaultFilter || selectedZoneId ? (
-                <DirectoryToolbarEnd>
+              <DirectoryToolbarEnd>
+                {hasListFilters ? (
                   <DirectoryClearButton
                     onClick={() => {
                       setIsActiveFilter("");
                       setIsDefaultFilter("");
                       setSelectedZoneId("");
+                      setSearchInput("");
+                      setDebouncedSearch("");
+                      setPage(1);
                     }}
                   />
-                </DirectoryToolbarEnd>
-              ) : null}
+                ) : null}
+                {isFetching ? <span className="jd-field__hint">Refreshing…</span> : null}
+                <DirectoryExportButton
+                  onClick={csv.run}
+                  loading={csv.isExporting}
+                  count={totalRows}
+                />
+              </DirectoryToolbarEnd>
             </DirectoryToolbar>
           }
           footer={
             <PaginationBar
               page={page}
               limit={limit}
-              total={pagination.total || 0}
+              total={totalRows}
               onPageChange={(newPage) => setPage(newPage)}
               onLimitChange={(newPageSize) => {
                 setLimit(newPageSize);
@@ -667,7 +820,7 @@ export default function ReschedulePolicyContent({
             columns={columns}
             rows={policiesData}
             rowKey={(row, i) => row.id ?? row.sl ?? i}
-            empty="No policies yet"
+            empty={hasListFilters ? "No policies match these filters" : "No policies yet"}
             stickyLeft={1}
           />
         </DirectoryTableWrap>

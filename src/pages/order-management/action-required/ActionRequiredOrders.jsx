@@ -1,17 +1,19 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { LuExternalLink } from "react-icons/lu";
 import dayjs from "dayjs";
 import { useNavigate } from "react-router-dom";
 import useToaster from "../../../components/ui/Toaster";
 import {
   useGetActionRequiredOrdersQuery,
-  useGetAllOrderStatusesQuery,
+  useLazyGetActionRequiredOrdersQuery,
 } from "../../../store/services/api";
 import { getApiErrorMessage } from "../../../store/services/apiErrors";
 import { DATE_TIME_FORMAT, formatDate } from "../../../utilities/formatters";
 import { formatUserPhone } from "../../../utilities/contactLinks";
-import { matchesOrderListSearch } from "../listSearch";
+import { useCsvExport } from "../../../hooks/useCsvExport";
+import { csvFormat } from "../../../utilities/csvExport";
 import OrderListDataTable from "../OrderListDataTable";
+import { DEFAULT_ORDER_LIST_SORT_DIR, normalizeOrderListSortDir } from "../orderListQuery";
 import AssignOrderModal from "../order-modals/AssignOrderModal";
 import OrderAssignActionButton from "../order-modals/OrderAssignActionButton";
 import {
@@ -29,8 +31,9 @@ import {
   StatusDotPill,
 } from "../orderListTable";
 import {
+  ORDER_LIST_CSV_COLUMNS,
   customerDetailsPath,
-  downloadOrderListCsv,
+  mapBookingToOrderListRow,
   resolveCustomerId,
   resolveLaundryShopId,
   resolveOrderSchedulePhase,
@@ -61,6 +64,48 @@ const FILTERS = [
   { value: "overdue_delivery", label: "Overdue delivery" },
   { value: "delivery_failed", label: "Delivery" },
 ];
+
+const SEARCH_DEBOUNCE_MS = 400;
+const DEFAULT_PAGE_SIZE = 25;
+const DEFAULT_SORT_BY = "priority";
+
+/** Server `sortBy` allowlist for admin/action-required-orders. */
+const ACTION_REQUIRED_SORT_BY = Object.freeze({
+  priority: "priority",
+  updatedAt: "updatedAt",
+  createdAt: "createdAt",
+  collectionDate: "collectionDate",
+  deliveryDate: "deliveryDate",
+  orderAmount: "orderAmount",
+  lastPaymentFailureAt: "lastPaymentFailureAt",
+});
+
+const ACTION_REQUIRED_SORT_OPTIONS = [
+  { value: "priority", label: "Priority" },
+  { value: "updatedAt", label: "Last updated" },
+  { value: "createdAt", label: "Order placed" },
+  { value: "collectionDate", label: "Pickup" },
+  { value: "deliveryDate", label: "Delivery" },
+  { value: "orderAmount", label: "Amount" },
+  { value: "lastPaymentFailureAt", label: "Last payment failure" },
+];
+
+/** Leading "Reason" column, then the shared order-list CSV columns. */
+const ACTION_REQUIRED_CSV_COLUMNS = [
+  { header: "Reason", value: (row) => csvFormat.list(row.actionReasons) },
+  ...ORDER_LIST_CSV_COLUMNS,
+  { header: "Zone", value: (row) => row.zoneName || "" },
+];
+
+function mapActionRequiredToCsvRow(item) {
+  return {
+    ...mapBookingToOrderListRow(item),
+    actionReasons: Array.isArray(item?.reasonLabels) && item.reasonLabels.length
+      ? item.reasonLabels
+      : item?.reasons || [],
+    zoneName: item?.zoneName || "",
+  };
+}
 
 function openPathForItem(item) {
   if (item.reasons?.includes("payment_failed")) {
@@ -102,25 +147,38 @@ export default function ActionRequiredOrders() {
   const { error: showError } = useToaster();
   const [filter, setFilter] = useState("all");
   const [zoneId, setZoneId] = useState("");
-  const [statusId, setStatusId] = useState("");
   const [dateRange, setDateRange] = useState(null);
   const [searchInput, setSearchInput] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [sortBy, setSortByState] = useState(DEFAULT_SORT_BY);
+  const [sortDir, setSortDirState] = useState(DEFAULT_ORDER_LIST_SORT_DIR);
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(25);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [assignModal, setAssignModal] = useState({
     open: false,
     orderId: null,
     booking: null,
   });
 
-  const { data: statusesResponse } = useGetAllOrderStatusesQuery();
-  const orderStatuses = useMemo(
-    () => (Array.isArray(statusesResponse?.data) ? statusesResponse.data : []),
-    [statusesResponse?.data]
-  );
+  useEffect(() => {
+    const handle = window.setTimeout(() => {
+      setDebouncedSearch(searchInput.trim());
+    }, SEARCH_DEBOUNCE_MS);
+    return () => window.clearTimeout(handle);
+  }, [searchInput]);
 
-  const listParams = useMemo(() => {
-    const params = {};
+  const setSortBy = useCallback((value) => {
+    const key = String(value || "").trim();
+    setSortByState(ACTION_REQUIRED_SORT_BY[key] ? key : DEFAULT_SORT_BY);
+  }, []);
+
+  const setSortDir = useCallback((value) => {
+    setSortDirState(normalizeOrderListSortDir(value));
+  }, []);
+
+  /** Filter + sort params shared by the paged query and the CSV export. */
+  const filterParams = useMemo(() => {
+    const params = { sortBy, sortDir };
     if (filter !== "all") params.reason = filter;
     if (zoneId != null && String(zoneId).trim() !== "") {
       params.zoneId = String(zoneId);
@@ -129,21 +187,26 @@ export default function ActionRequiredOrders() {
       params.startDate = dayjs(dateRange.startDate).format("YYYY-MM-DD");
       params.endDate = dayjs(dateRange.endDate).format("YYYY-MM-DD");
     }
+    if (debouncedSearch) params.search = debouncedSearch;
     return params;
-  }, [filter, zoneId, dateRange]);
+  }, [filter, zoneId, dateRange, debouncedSearch, sortBy, sortDir]);
+
+  const listParams = useMemo(
+    () => ({ ...filterParams, page, limit: pageSize }),
+    [filterParams, page, pageSize]
+  );
 
   const hasActiveFilters = Boolean(
     (zoneId != null && String(zoneId).trim() !== "") ||
-      (statusId != null && String(statusId).trim() !== "") ||
       (dateRange?.startDate && dateRange?.endDate) ||
       searchInput.trim() !== ""
   );
 
   const clearFilters = () => {
     setZoneId("");
-    setStatusId("");
     setDateRange(null);
     setSearchInput("");
+    setDebouncedSearch("");
     setPage(1);
   };
 
@@ -156,6 +219,7 @@ export default function ActionRequiredOrders() {
     refetch,
     isFetching,
   } = useGetActionRequiredOrdersQuery(listParams);
+  const [fetchActionRequiredForExport] = useLazyGetActionRequiredOrdersQuery();
 
   useEffect(() => {
     if (isError) {
@@ -171,16 +235,18 @@ export default function ActionRequiredOrders() {
   const countsByReason = payload?.data?.countsByReason || {};
   const total =
     payload?.data?.totalCount ?? payload?.data?.count ?? items.length;
-
-  const visibleItems = useMemo(() => {
-    if (statusId == null || String(statusId).trim() === "") return items;
-    const want = Number(statusId);
-    return items.filter((row) => Number(row.bookingStatusId) === want);
-  }, [items, statusId]);
+  const pagination = payload?.data?.pagination;
+  const totalRows =
+    Number(
+      pagination?.totalRecords ??
+        payload?.data?.filteredCount ??
+        payload?.data?.count ??
+        items.length
+    ) || 0;
 
   const tableData = useMemo(
     () =>
-      visibleItems.map((row) => {
+      items.map((row) => {
         const placedRaw = row.createdAt;
         const pickupDateTime = row.collectionDate
           ? formatDate(row.collectionDate, DATE_TIME_FORMAT)
@@ -232,22 +298,44 @@ export default function ActionRequiredOrders() {
           _booking: row,
         };
       }),
-    [visibleItems]
+    [items]
   );
 
-  const searchedRows = useMemo(
-    () => tableData.filter((row) => matchesOrderListSearch(row, searchInput)),
-    [tableData, searchInput]
-  );
-
-  const pagedRows = useMemo(() => {
-    const start = (page - 1) * pageSize;
-    return searchedRows.slice(start, start + pageSize);
-  }, [searchedRows, page, pageSize]);
-
+  // Any filter / search / sort / page-size change restarts from page 1.
   useEffect(() => {
     setPage(1);
-  }, [filter, zoneId, statusId, dateRange, searchInput, pageSize]);
+  }, [filter, zoneId, dateRange, debouncedSearch, pageSize, sortBy, sortDir]);
+
+  const fetchAllForExport = useCallback(async () => {
+    // `false` → never serve the export from a cached page response.
+    const res = await fetchActionRequiredForExport(
+      { ...filterParams, export: true },
+      false
+    ).unwrap();
+    return {
+      rows: res?.data?.items || [],
+      pagination: res?.data?.pagination || null,
+    };
+  }, [fetchActionRequiredForExport, filterParams]);
+
+  const csvFilenameFilters = useMemo(
+    () => ({
+      reason: filter !== "all" ? filter : "",
+      zone: zoneId,
+      search: debouncedSearch,
+      from: dateRange?.startDate ? csvFormat.date(dateRange.startDate) : "",
+      to: dateRange?.endDate ? csvFormat.date(dateRange.endDate) : "",
+    }),
+    [filter, zoneId, debouncedSearch, dateRange?.startDate, dateRange?.endDate]
+  );
+
+  const csv = useCsvExport({
+    filenameBase: "action-required-orders",
+    columns: ACTION_REQUIRED_CSV_COLUMNS,
+    fetchAll: fetchAllForExport,
+    filenameFilters: csvFilenameFilters,
+    mapRow: mapActionRequiredToCsvRow,
+  });
 
   const columns = useMemo(
     () => [
@@ -407,9 +495,8 @@ export default function ActionRequiredOrders() {
                 {isFetching ? "Refreshing…" : "Refresh"}
               </button>
               <OrderHeaderActions
-                onExport={() =>
-                  downloadOrderListCsv(searchedRows, "action_required_orders.csv")
-                }
+                onExport={csv.run}
+                exporting={csv.isExporting}
                 showNewOrder={false}
               />
             </>
@@ -454,9 +541,9 @@ export default function ActionRequiredOrders() {
         />
 
         <OrderListDataTable
-          data={pagedRows}
+          data={tableData}
           columns={columns}
-          totalRows={searchedRows.length}
+          totalRows={totalRows}
           page={page}
           pageSize={pageSize}
           onPageChange={setPage}
@@ -466,23 +553,25 @@ export default function ActionRequiredOrders() {
           }}
           zoneId={zoneId}
           onZoneIdChange={setZoneId}
-          statusId={statusId}
-          onStatusIdChange={setStatusId}
           dateRange={dateRange}
           onDateRangeChange={setDateRange}
-          orderStatuses={orderStatuses}
-          showStatusFilter
+          // Booking status is not a server param on this endpoint; reason chips cover it.
+          showStatusFilter={false}
           onClearFilters={clearFilters}
           hasActiveFilters={hasActiveFilters}
           searchInput={searchInput}
           onSearchInputChange={setSearchInput}
           isTableLoading={isTableLoading}
-          // Hidden: 7-query merge is capped (~150 of ~543). Sorting that slice would lie.
-          showSort={false}
-          searchPlaceholder="Search action-required orders..."
-          onDownload={() =>
-            downloadOrderListCsv(searchedRows, "action_required_orders.csv")
-          }
+          showSort
+          sortBy={sortBy}
+          onSortByChange={setSortBy}
+          sortDir={sortDir}
+          onSortDirChange={setSortDir}
+          sortOptions={ACTION_REQUIRED_SORT_OPTIONS}
+          defaultSortBy={DEFAULT_SORT_BY}
+          searchPlaceholder="Search by track ID, booking ID, customer, shop or zone…"
+          onDownload={csv.run}
+          downloading={csv.isExporting}
           emptyText={emptyText}
           tableLayout="fluid"
           lead={

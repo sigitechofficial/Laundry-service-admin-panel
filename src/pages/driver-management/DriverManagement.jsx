@@ -1,8 +1,10 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Button, Modal, PageHeader, Table } from "../../design-system";
+import { Button, Modal, PageHeader, Select, Table } from "../../design-system";
 import { formatAmount, formatDate, resolveCurrencySymbol } from "../../utilities/formatters";
 import { formatUserPhone } from "../../utilities/contactLinks";
+import { csvFormat } from "../../utilities/csvExport";
+import { useCsvExport } from "../../hooks/useCsvExport";
 import {
   DirectoryActionDelete,
   DirectoryActionEdit,
@@ -10,6 +12,7 @@ import {
   DirectoryActionView,
   DirectoryClearButton,
   DirectoryDateInput,
+  DirectoryExportButton,
   DirectoryIdentity,
   DirectoryMetric,
   DirectoryMetrics,
@@ -17,6 +20,7 @@ import {
   DirectorySearch,
   DirectoryStatusPill,
   DirectoryTableWrap,
+  DirectoryToolSelect,
   DirectoryToolbar,
   DirectoryToolbarEnd,
   DirectoryViewModal,
@@ -29,6 +33,35 @@ import {
 } from "../../store/services/api";
 import { Delay } from "../../components/shared/Loaders";
 import useToaster from "../../components/ui/Toaster";
+
+const STATUS_OPTIONS = [
+  { value: "", label: "All statuses" },
+  { value: "active", label: "Active" },
+  { value: "inactive", label: "Inactive" },
+];
+
+const DRIVER_CSV_COLUMNS = [
+  { header: "Driver ID", key: "driverId" },
+  { header: "First name", key: "firstName" },
+  { header: "Last name", key: "lastName" },
+  { header: "Email", key: "email" },
+  { header: "Phone", key: "phone" },
+  { header: "Country code", key: "countryCode" },
+  { header: "Role", key: "role" },
+  { header: "Type", value: (row) => (row.laundaryShopId ? "Shop agent" : "Freelance") },
+  { header: "Shop ID", key: "laundaryShopId" },
+  { header: "Total orders", key: "totalOrders" },
+  { header: "Completed orders", key: "completedOrders" },
+  { header: "Pending orders", key: "pendingOrders" },
+  { header: "Earnings", value: (row) => csvFormat.money(row.driverEarnings) },
+  { header: "Status", value: (row) => (row.status ? "Active" : "Inactive") },
+  { header: "Created", value: (row) => csvFormat.date(row.createdAt) },
+];
+
+function matchesStatus(row, status) {
+  if (!status) return true;
+  return status === "active" ? Boolean(row.status) : !row.status;
+}
 
 function matchesSearch(row, term) {
   if (!term) return true;
@@ -61,6 +94,7 @@ export default function DriverManagement() {
   const { success, error: showError } = useToaster();
   const [dateRange, setDateRange] = useState({ startDate: "", endDate: "" });
   const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
   const [isNewDriverModalOpen, setIsNewDriverModalOpen] = useState(false);
   const [isEditDriverModalOpen, setIsEditDriverModalOpen] = useState(false);
   const [selectedDriver, setSelectedDriver] = useState(null);
@@ -68,7 +102,7 @@ export default function DriverManagement() {
   const [driverToDelete, setDriverToDelete] = useState(null);
   const [viewRow, setViewRow] = useState(null);
 
-  const { data: driversResponse, isLoading, refetch: refetchDrivers } = useGetAllDriverMiniDetailsQuery();
+  const { data: driversResponse, isLoading, refetch: refetchDrivers } = useGetAllDriverMiniDetailsQuery({ includeInactive: 1 });
   const [deleteDriver, { isLoading: isDeleting }] = useDeleteDriverMutation();
 
   const drivers = useMemo(() => driversResponse?.data || [], [driversResponse?.data]);
@@ -114,10 +148,34 @@ export default function DriverManagement() {
   const visibleRows = useMemo(
     () =>
       driversData.filter(
-        (row) => matchesSearch(row, searchTerm) && matchesDateRange(row, dateRange)
+        (row) =>
+          matchesStatus(row, statusFilter) &&
+          matchesSearch(row, searchTerm) &&
+          matchesDateRange(row, dateRange)
       ),
-    [dateRange, driversData, searchTerm]
+    [dateRange, driversData, searchTerm, statusFilter]
   );
+
+  const hasActiveFilters = Boolean(
+    searchTerm || statusFilter || dateRange.startDate || dateRange.endDate
+  );
+
+  const csvFilenameFilters = useMemo(
+    () => ({
+      search: searchTerm.trim(),
+      status: statusFilter,
+      from: dateRange.startDate,
+      to: dateRange.endDate,
+    }),
+    [searchTerm, statusFilter, dateRange.startDate, dateRange.endDate]
+  );
+
+  const csv = useCsvExport({
+    filenameBase: "drivers",
+    columns: DRIVER_CSV_COLUMNS,
+    rows: visibleRows,
+    filenameFilters: csvFilenameFilters,
+  });
 
   const driverStats = useMemo(() => {
     const list = Array.isArray(drivers) ? drivers : [];
@@ -258,6 +316,15 @@ export default function DriverManagement() {
               onChange={handleSearchChange}
               placeholder="Search by driver ID, name, email…"
             />
+            <DirectoryToolSelect>
+              <Select
+                aria-label="Driver status"
+                value={statusFilter}
+                onChange={(value) => setStatusFilter(value ?? "")}
+                options={STATUS_OPTIONS}
+                placeholder="All statuses"
+              />
+            </DirectoryToolSelect>
             <DirectoryDateInput
               id="driver-start-date"
               value={dateRange.startDate}
@@ -272,16 +339,22 @@ export default function DriverManagement() {
               aria-label="End date"
               title="End date"
             />
-            {searchTerm || dateRange.startDate || dateRange.endDate ? (
-              <DirectoryToolbarEnd>
+            <DirectoryToolbarEnd>
+              {hasActiveFilters ? (
                 <DirectoryClearButton
                   onClick={() => {
                     handleSearchChange("");
+                    setStatusFilter("");
                     setDateRange({ startDate: "", endDate: "" });
                   }}
                 />
-              </DirectoryToolbarEnd>
-            ) : null}
+              ) : null}
+              <DirectoryExportButton
+                onClick={csv.run}
+                loading={csv.isExporting}
+                count={visibleRows.length}
+              />
+            </DirectoryToolbarEnd>
           </DirectoryToolbar>
         }
       >

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { Button, Field, Input, Modal, Select, Table } from "../../design-system";
 import { PaginationBar, Toggle } from "../misc-kit";
 import {
@@ -7,12 +7,16 @@ import {
   DirectoryActions,
   DirectoryActionView,
   DirectoryClearButton,
+  DirectoryExportButton,
+  DirectorySearch,
   DirectoryStatusPill,
   DirectoryTableWrap,
   DirectoryToolSelect,
   DirectoryToolbar,
   DirectoryToolbarEnd,
 } from "../directory-table/directoryTable";
+import { useCsvExport } from "../../hooks/useCsvExport";
+import { csvFormat } from "../../utilities/csvExport";
 import {
   PolicyDetailRow,
   PolicyDetailSection,
@@ -49,6 +53,55 @@ import {
 import { Delay } from "../../components/shared/Loaders";
 import dayjs from "dayjs";
 import { useSelector } from "react-redux";
+
+const SEARCH_DEBOUNCE_MS = 400;
+
+/** CSV columns operate on the raw API policy row plus a resolved `zoneName`. */
+const NO_SHOW_CSV_COLUMNS = [
+  { header: "Policy ID", key: "id" },
+  { header: "Name", value: (p) => p?.name || "" },
+  { header: "Description", value: (p) => p?.description || "" },
+  { header: "Zone", value: (p) => p?.zoneName || "" },
+  { header: "Zone ID", value: (p) => p?.zoneId ?? "" },
+  { header: "Currency", value: (p) => p?.noShowPolicyConfig?.currency || "" },
+  { header: "Fee type", value: (p) => p?.noShowPolicyConfig?.feeType || "" },
+  { header: "Unified fee", value: (p) => csvFormat.bool(p?.noShowPolicyConfig?.useUnifiedFee) },
+  { header: "Pickup no-show fee", value: (p) => csvFormat.money(p?.noShowPolicyConfig?.pickupNoShowFee) },
+  {
+    header: "Delivery no-show fee",
+    value: (p) => csvFormat.money(p?.noShowPolicyConfig?.deliveryNoShowFee),
+  },
+  { header: "Storage fee / day", value: (p) => csvFormat.money(p?.noShowPolicyConfig?.storageFeePerDay) },
+  { header: "Percentage fee", value: (p) => p?.noShowPolicyConfig?.percentageFee ?? "" },
+  { header: "Enabled for pickup", value: (p) => csvFormat.bool(p?.noShowPolicyConfig?.enableForPickup) },
+  {
+    header: "Enabled for delivery",
+    value: (p) => csvFormat.bool(p?.noShowPolicyConfig?.enableForDelivery),
+  },
+  { header: "Grace minutes on site", value: (p) => p?.noShowPolicyConfig?.graceMinutesOnSite ?? "" },
+  { header: "Driver late SLA (min)", value: (p) => p?.noShowPolicyConfig?.driverLateSLA ?? "" },
+  { header: "Waiver type", value: (p) => p?.noShowPolicyConfig?.waiverType || "" },
+  {
+    header: "Absolute waiver",
+    value: (p) => csvFormat.money(p?.noShowPolicyConfig?.absoluteWaiverAmount),
+  },
+  { header: "Percentage waiver", value: (p) => p?.noShowPolicyConfig?.percentageWaiverAmount ?? "" },
+  {
+    header: "Auto-forgive first no-show",
+    value: (p) => csvFormat.bool(p?.noShowPolicyConfig?.autoForgiveFirstNoShow),
+  },
+  { header: "Auto-forgive count", value: (p) => p?.noShowPolicyConfig?.autoForgiveCount ?? "" },
+  { header: "Auto-forgive period (days)", value: (p) => p?.noShowPolicyConfig?.autoForgivePeriod ?? "" },
+  { header: "Per-customer cap", value: (p) => p?.noShowPolicyConfig?.perCustomerCap ?? "" },
+  { header: "Cap window (days)", value: (p) => p?.noShowPolicyConfig?.capWindowDays ?? "" },
+  { header: "Active", value: (p) => csvFormat.bool(p?.isActive) },
+  { header: "Default", value: (p) => csvFormat.bool(p?.isDefault) },
+  { header: "Effective from", value: (p) => csvFormat.date(p?.effectiveFrom) },
+  { header: "Effective to", value: (p) => csvFormat.date(p?.effectiveTo) },
+  { header: "Created", value: (p) => csvFormat.dateTime(p?.createdAt) },
+  { header: "Updated", value: (p) => csvFormat.dateTime(p?.updatedAt) },
+];
+
 export default function NoShowPolicyContent({
   onAddButtonRef,
   zoneId: externalZoneId,
@@ -69,6 +122,8 @@ export default function NoShowPolicyContent({
     externalZoneId !== undefined ? externalZoneId : selectedZoneIdLocal;
   const setSelectedZoneId =
     typeof onZoneIdChange === "function" ? onZoneIdChange : setSelectedZoneIdLocal;
+  const [searchInput, setSearchInput] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
   const [overlapModalOpen, setOverlapModalOpen] = useState(false);
@@ -78,10 +133,18 @@ export default function NoShowPolicyContent({
   const [overlapPolicyFetchAll, setOverlapPolicyFetchAll] = useState(false);
   const [viewModalOpen, setViewModalOpen] = useState(false);
   const [viewingPolicy, setViewingPolicy] = useState(null);
+
+  useEffect(() => {
+    const handle = window.setTimeout(() => {
+      setDebouncedSearch(searchInput.trim());
+    }, SEARCH_DEBOUNCE_MS);
+    return () => window.clearTimeout(handle);
+  }, [searchInput]);
+
   // Reset page to 1 when filters change
   useEffect(() => {
     setPage(1);
-  }, [isActiveFilter, isDefaultFilter, selectedZoneId, limit]);
+  }, [isActiveFilter, isDefaultFilter, selectedZoneId, debouncedSearch, limit]);
 
   const { data: zonesQueryData } = useGetAllZonesQuery(undefined, {
     refetchOnMountOrArgChange: false,
@@ -101,26 +164,82 @@ export default function NoShowPolicyContent({
     [currencyUnitsPayload, currencyUnitsRedux]
   );
 
+  /** Filter params shared by the paged query and the CSV export. */
+  const listFilterParams = useMemo(
+    () => ({
+      ...(isActiveFilter !== "" && { isActive: isActiveFilter }),
+      ...(isDefaultFilter !== "" && { isDefault: isDefaultFilter }),
+      ...(selectedZoneId !== "" && { zoneId: selectedZoneId }),
+      ...(debouncedSearch && { search: debouncedSearch }),
+    }),
+    [isActiveFilter, isDefaultFilter, selectedZoneId, debouncedSearch]
+  );
+
   const filterParams = {
-    ...(isActiveFilter !== "" && { isActive: isActiveFilter }),
-    ...(isDefaultFilter !== "" && { isDefault: isDefaultFilter }),
-    ...(selectedZoneId !== "" && { zoneId: selectedZoneId }),
+    ...listFilterParams,
     ...(page && { page }),
     ...(limit && { limit }),
   };
 
-  const { data: policiesResponse, isLoading, refetch } = useGetNoShowPoliciesQuery(filterParams);
+  const { data: policiesResponse, isLoading, isFetching, refetch } =
+    useGetNoShowPoliciesQuery(filterParams);
   const [addNoShowPolicy, { isLoading: isAdding }] = useAddNoShowPolicyMutation();
   const [updateNoShowPolicy, { isLoading: isUpdating }] = useUpdateNoShowPolicyMutation();
   const [deleteNoShowPolicy, { isLoading: isDeleting }] = useDeleteNoShowPolicyMutation();
   const [fetchZoneById] = useLazyGetZoneByIdQuery();
   const [fetchOverlapPolicies, { data: overlapPoliciesResponse, isFetching: overlapPoliciesLoading }] =
     useLazyGetNoShowPoliciesQuery();
+  const [fetchPoliciesForExport] = useLazyGetNoShowPoliciesQuery();
 
   const isSubmitting = isAdding || isUpdating;
 
   const policies = policiesResponse?.data?.policies || [];
   const pagination = policiesResponse?.data?.pagination || {};
+  const totalRows = Number(pagination.totalRecords ?? pagination.total ?? 0) || 0;
+  const hasListFilters = Boolean(
+    isActiveFilter || isDefaultFilter || selectedZoneId || searchInput.trim()
+  );
+
+  const mapPolicyToCsvRow = useCallback(
+    (policy) => ({
+      ...policy,
+      zoneName:
+        policy?.zone?.name ||
+        zonesList.find((z) => String(z.id) === String(policy?.zoneId))?.name ||
+        "",
+    }),
+    [zonesList]
+  );
+
+  const fetchAllForExport = useCallback(async () => {
+    // `false` → never serve the export from a cached page response.
+    const res = await fetchPoliciesForExport(
+      { ...listFilterParams, export: true },
+      false
+    ).unwrap();
+    return {
+      rows: res?.data?.policies || [],
+      pagination: res?.data?.pagination || null,
+    };
+  }, [fetchPoliciesForExport, listFilterParams]);
+
+  const csvFilenameFilters = useMemo(
+    () => ({
+      zone: zonesList.find((z) => String(z.id) === String(selectedZoneId))?.name || "",
+      status: isActiveFilter === "1" ? "active" : isActiveFilter === "0" ? "inactive" : "",
+      default: isDefaultFilter === "1" ? "default" : isDefaultFilter === "0" ? "not-default" : "",
+      search: debouncedSearch,
+    }),
+    [zonesList, selectedZoneId, isActiveFilter, isDefaultFilter, debouncedSearch]
+  );
+
+  const csv = useCsvExport({
+    filenameBase: "no-show-policies",
+    columns: NO_SHOW_CSV_COLUMNS,
+    fetchAll: fetchAllForExport,
+    filenameFilters: csvFilenameFilters,
+    mapRow: mapPolicyToCsvRow,
+  });
 
   const getNextVersionName = () => {
     const versions = policies
@@ -631,6 +750,12 @@ export default function NoShowPolicyContent({
       <DirectoryTableWrap
         toolbar={
           <DirectoryToolbar>
+            <DirectorySearch
+              id="no-show-policy-search"
+              value={searchInput}
+              onChange={setSearchInput}
+              placeholder="Search policy name, description or zone…"
+            />
             {showZoneFilter ? (
               <DirectoryToolSelect>
                 <Select
@@ -668,24 +793,33 @@ export default function NoShowPolicyContent({
                 placeholder="All default"
               />
             </DirectoryToolSelect>
-            {isActiveFilter || isDefaultFilter || selectedZoneId ? (
-              <DirectoryToolbarEnd>
+            <DirectoryToolbarEnd>
+              {hasListFilters ? (
                 <DirectoryClearButton
                   onClick={() => {
                     setIsActiveFilter("");
                     setIsDefaultFilter("");
                     setSelectedZoneId("");
+                    setSearchInput("");
+                    setDebouncedSearch("");
+                    setPage(1);
                   }}
                 />
-              </DirectoryToolbarEnd>
-            ) : null}
+              ) : null}
+              {isFetching ? <span className="jd-field__hint">Refreshing…</span> : null}
+              <DirectoryExportButton
+                onClick={csv.run}
+                loading={csv.isExporting}
+                count={totalRows}
+              />
+            </DirectoryToolbarEnd>
           </DirectoryToolbar>
         }
         footer={
           <PaginationBar
             page={page}
             limit={limit}
-            total={pagination.total || 0}
+            total={totalRows}
             onPageChange={(newPage) => {
               setPage(newPage);
             }}
@@ -700,7 +834,7 @@ export default function NoShowPolicyContent({
           columns={columns}
           rows={policiesData}
           rowKey={(row, i) => row.id ?? row.sl ?? i}
-          empty="No policies yet"
+          empty={hasListFilters ? "No policies match these filters" : "No policies yet"}
           stickyLeft={1}
         />
       </DirectoryTableWrap>

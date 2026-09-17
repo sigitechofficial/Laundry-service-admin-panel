@@ -11,6 +11,7 @@ export default function ListPagination({
   totalRows,
   onPageChange,
   onPageSizeChange,
+  noun = "orders",
 }) {
   const safePageSize = pageSize || 25;
   const totalPages = Math.max(1, Math.ceil((totalRows || 0) / safePageSize));
@@ -21,11 +22,11 @@ export default function ListPagination({
     <div className="flex flex-wrap items-center justify-between gap-4">
       <p className="m-0 text-[13px] text-[#5c6673] tabular-nums">
         {totalRows === 0 ? (
-          "No orders"
+          `No ${noun}`
         ) : (
           <>
             Showing <b className="font-semibold text-[#0e131c]">{start}–{end}</b> of{" "}
-            <b className="font-semibold text-[#0e131c]">{totalRows}</b> orders
+            <b className="font-semibold text-[#0e131c]">{totalRows}</b> {noun}
           </>
         )}
       </p>

@@ -1,11 +1,16 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import { Button, Field, Modal, Table, Textarea } from "../../design-system";
 import { DATE_TIME_FORMAT, formatDate } from "../../utilities/formatters";
+import { formatUserPhone } from "../../utilities/contactLinks";
+import { csvFormat } from "../../utilities/csvExport";
+import { useCsvExport } from "../../hooks/useCsvExport";
 import {
   DirectoryActions,
   DirectoryActionView,
   DirectoryClearButton,
+  DirectoryDateInput,
   DirectoryDotPill,
+  DirectoryExportButton,
   DirectoryIdentity,
   DirectoryMetrics,
   DirectorySearch,
@@ -30,6 +35,22 @@ const TAB_ROW = {
   marginBottom: 12,
 };
 
+const EMPTY_DATE_RANGE = { startDate: "", endDate: "" };
+
+const AGENT_CSV_COLUMNS = [
+  { header: "Agent ID", key: "id" },
+  { header: "First name", key: "firstName" },
+  { header: "Last name", key: "lastName" },
+  { header: "Email", value: (row) => (row.email === "-" ? "" : row.email) },
+  { header: "Phone", key: "phoneCsv" },
+  { header: "Country code", key: "countryCode" },
+  { header: "Shop", value: (row) => (row.shopName === "-" ? "" : row.shopName) },
+  { header: "Address", value: (row) => (row.address === "-" ? "" : row.address) },
+  { header: "Status", key: "statusLabel" },
+  { header: "Rejection reason", value: (row) => (row.rejectionReason === "-" ? "" : row.rejectionReason) },
+  { header: "Registered", value: (row) => csvFormat.date(row.createdAt) },
+];
+
 function matchesSearch(row, term) {
   if (!term) return true;
   const q = term.toLowerCase();
@@ -41,10 +62,24 @@ function matchesSearch(row, term) {
   );
 }
 
+function matchesDateRange(row, dateRange) {
+  if (!dateRange.startDate && !dateRange.endDate) return true;
+  if (!row.createdAt) return false;
+
+  const createdAt = new Date(row.createdAt);
+  if (Number.isNaN(createdAt.getTime())) return false;
+
+  const start = dateRange.startDate ? new Date(`${dateRange.startDate}T00:00:00`) : null;
+  const end = dateRange.endDate ? new Date(`${dateRange.endDate}T23:59:59.999`) : null;
+
+  return (!start || createdAt >= start) && (!end || createdAt <= end);
+}
+
 export default function PendingAgents() {
   const { success, error: showError } = useToaster();
   const [tab, setTab] = useState("pending");
   const [searchTerm, setSearchTerm] = useState("");
+  const [dateRange, setDateRange] = useState(EMPTY_DATE_RANGE);
 
   const {
     data: pendingResponse,
@@ -93,24 +128,60 @@ export default function PendingAgents() {
         return {
           id: agent.id,
           sl: index + 1,
+          firstName: agent.firstName || "",
+          lastName: agent.lastName || "",
           name: `${agent.firstName || ""} ${agent.lastName || ""}`.trim() || "-",
           email: agent.email || "-",
           phone: agent.countryCode
             ? `${agent.countryCode} ${agent.phoneNum || ""}`.trim()
             : agent.phoneNum || "-",
+          phoneCsv: formatUserPhone(agent),
+          countryCode: agent.countryCode || "",
           shopName: agent.shopName || "-",
           address: addressParts.join(", ") || "-",
           rejectionReason: agent.rejectionReason || "-",
+          statusLabel: isRejectedTab ? "Rejected" : "Pending",
+          createdAt: agent.createdAt,
           registeredAt: formatDate(agent.createdAt, DATE_TIME_FORMAT),
         };
       }),
-    [agents]
+    [agents, isRejectedTab]
   );
 
   const visibleRows = useMemo(
-    () => tableData.filter((row) => matchesSearch(row, searchTerm)),
-    [tableData, searchTerm]
+    () =>
+      tableData.filter(
+        (row) => matchesSearch(row, searchTerm) && matchesDateRange(row, dateRange)
+      ),
+    [tableData, searchTerm, dateRange]
   );
+
+  const hasActiveFilters = Boolean(searchTerm || dateRange.startDate || dateRange.endDate);
+
+  const csvFilenameFilters = useMemo(
+    () => ({
+      search: searchTerm.trim(),
+      from: dateRange.startDate,
+      to: dateRange.endDate,
+    }),
+    [searchTerm, dateRange.startDate, dateRange.endDate]
+  );
+
+  const csv = useCsvExport({
+    filenameBase: isRejectedTab ? "rejected-agents" : "pending-agents",
+    columns: AGENT_CSV_COLUMNS,
+    rows: visibleRows,
+    filenameFilters: csvFilenameFilters,
+  });
+
+  const clearFilters = useCallback(() => {
+    setSearchTerm("");
+    setDateRange(EMPTY_DATE_RANGE);
+  }, []);
+
+  const handleDateChange = useCallback((part, value) => {
+    setDateRange((prev) => ({ ...prev, [part]: value }));
+  }, []);
 
   const isApprovalSuccess = (res) => res?.status === "1" || res?.status === 1;
 
@@ -263,7 +334,7 @@ export default function PendingAgents() {
           variant={tab === "pending" ? "primary" : "secondary"}
           onClick={() => {
             setTab("pending");
-            setSearchTerm("");
+            clearFilters();
           }}
         >
           Pending
@@ -273,7 +344,7 @@ export default function PendingAgents() {
           variant={tab === "rejected" ? "primary" : "secondary"}
           onClick={() => {
             setTab("rejected");
-            setSearchTerm("");
+            clearFilters();
           }}
         >
           Rejected
@@ -321,11 +392,28 @@ export default function PendingAgents() {
                 isRejectedTab ? "Search rejected agents..." : "Search pending agents..."
               }
             />
-            {searchTerm ? (
-              <DirectoryToolbarEnd>
-                <DirectoryClearButton onClick={() => setSearchTerm("")} />
-              </DirectoryToolbarEnd>
-            ) : null}
+            <DirectoryDateInput
+              id="agent-registered-start"
+              value={dateRange.startDate}
+              onChange={(value) => handleDateChange("startDate", value)}
+              aria-label="Registered from"
+              title="Registered from"
+            />
+            <DirectoryDateInput
+              id="agent-registered-end"
+              value={dateRange.endDate}
+              onChange={(value) => handleDateChange("endDate", value)}
+              aria-label="Registered to"
+              title="Registered to"
+            />
+            <DirectoryToolbarEnd>
+              {hasActiveFilters ? <DirectoryClearButton onClick={clearFilters} /> : null}
+              <DirectoryExportButton
+                onClick={csv.run}
+                loading={csv.isExporting}
+                count={visibleRows.length}
+              />
+            </DirectoryToolbarEnd>
           </DirectoryToolbar>
         }
       >

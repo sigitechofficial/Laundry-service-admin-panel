@@ -40,6 +40,33 @@ export const api = createApi({
       return Number.isNaN(numericId) ? undefined : numericId;
     };
 
+    /**
+     * Shared query-string builder for admin list endpoints (non-order lists).
+     * Drops empty values; `export: true` → `export=1` (whole filtered set for CSV).
+     * Any extra keys (zoneId, status, shopId, …) pass through when non-empty.
+     */
+    const listQueryParams = (params = {}) => {
+      const q = {};
+      Object.entries(params || {}).forEach(([key, value]) => {
+        if (value == null) return;
+        if (typeof value === "string" && value.trim() === "") return;
+        if (key === "export") {
+          if (value === true || value === 1 || value === "1") q.export = 1;
+          return;
+        }
+        if (key === "search") {
+          q.search = String(value).trim();
+          return;
+        }
+        if (key === "sortDir") {
+          q.sortDir = String(value).trim().toLowerCase();
+          return;
+        }
+        q[key] = value;
+      });
+      return q;
+    };
+
     const orderListQueryParams = (params = {}) => {
       const {
         page = 1,
@@ -54,8 +81,11 @@ export const api = createApi({
         includeCounts,
         sortBy,
         sortDir,
+        export: exportMode,
       } = params;
       const q = { page, limit };
+      // CSV download: server returns the whole filtered set (capped) in one window.
+      if (exportMode === true || exportMode === 1 || exportMode === "1") q.export = 1;
       if (zoneId != null && String(zoneId).trim() !== "") q.zoneId = zoneId;
       if (shopId != null && String(shopId).trim() !== "") q.shopId = shopId;
       if (status != null && String(status).trim() !== "") q.status = status;
@@ -560,10 +590,18 @@ export const api = createApi({
 
     //Customers
 
+    /**
+     * Server-side customer directory.
+     * params: { search, status: "active"|"blocked", startDate, endDate,
+     *           sortBy: name|email|createdAt|bookingCount|totalAmountSpent|lastBookingDate,
+     *           sortDir, page, limit, export }
+     * → data: { customers: [], pagination: { currentPage, totalPages, totalRecords, recordsPerPage, hasNextPage, hasPrevPage, exportMode, truncated } }
+     */
     getAllCustomers: builder.query({
-      query: () => ({
+      query: (params = {}) => ({
         url: `admin/getAllCustomers`,
         method: "GET",
+        params: listQueryParams(params),
       }),
       providesTags: ["Customers"],
     }),
@@ -756,30 +794,22 @@ export const api = createApi({
       keepUnusedDataFor: 60,
     }),
 
+    /** params: { search, zoneId, startDate, endDate, sortBy, sortDir, page, limit, export } */
     getPaymentFailures: builder.query({
-      query: (params = {}) => {
-        const q = {};
-        if (params.sortBy != null && String(params.sortBy).trim() !== "") {
-          q.sortBy = String(params.sortBy).trim();
-        }
-        if (params.sortDir != null && String(params.sortDir).trim() !== "") {
-          q.sortDir = String(params.sortDir).trim().toLowerCase();
-        }
-        if (params.limit != null) q.limit = params.limit;
-        return {
-          url: "admin/payment-failures",
-          method: "GET",
-          params: q,
-        };
-      },
+      query: (params = {}) => ({
+        url: "admin/payment-failures",
+        method: "GET",
+        params: listQueryParams(params),
+      }),
       providesTags: ["PaymentFailures"],
     }),
 
+    /** params: { reason, zoneId, startDate, endDate, search, page, limit, export } */
     getActionRequiredOrders: builder.query({
       query: (params = {}) => ({
         url: "admin/action-required-orders",
         method: "GET",
-        params,
+        params: listQueryParams(params),
       }),
       providesTags: ["ActionRequiredOrders", "PaymentFailures", "Orders"],
       refetchOnMountOrArgChange: true,
@@ -803,11 +833,12 @@ export const api = createApi({
       keepUnusedDataFor: 600,
     }),
 
+    /** params: { search, zoneId, status, startDate, endDate, page, limit, export } */
     getShopsData: builder.query({
       query: (params = {}) => ({
         url: "admin/getShopsData",
         method: "GET",
-        params,
+        params: listQueryParams(params),
       }),
       providesTags: ["Shops"],
     }),
@@ -879,11 +910,12 @@ export const api = createApi({
       invalidatesTags: ["PendingAgents", "RejectedAgents", "Shops"],
     }),
 
+    /** params: { search, page, limit, export } */
     getAgentsCashDue: builder.query({
       query: (params = {}) => ({
         url: "admin/agents/cash-due",
         method: "GET",
-        params,
+        params: listQueryParams(params),
       }),
       providesTags: ["AgentSettlement"],
     }),
@@ -1354,10 +1386,12 @@ export const api = createApi({
       }),
     }),
 
+    /** params: { includeInactive: 1 } → directory view incl. blocked drivers (default active-only for pickers) */
     getAllDriverMiniDetails: builder.query({
-      query: () => ({
+      query: (params = {}) => ({
         url: "admin/allDriverMiniDetails",
         method: "GET",
+        params: listQueryParams(params),
       }),
     }),
 
@@ -1461,10 +1495,12 @@ export const api = createApi({
       }),
     }),
 
+    /** params: { includeInactive: 1 } → directory view incl. deactivated staff (default active-only) */
     getAdminEmployees: builder.query({
-      query: () => ({
+      query: (params = {}) => ({
         url: "admin/getAdminEmployess",
         method: "GET",
+        params: listQueryParams(params),
       }),
     }),
 
@@ -1619,7 +1655,7 @@ export const api = createApi({
 
     getCancellationPolicies: builder.query({
       query: (params = {}) => {
-        const { isActive, isDefault, page, limit, zoneId } = params;
+        const { isActive, isDefault, page, limit, zoneId, search, export: exportMode } = params;
         const queryParams = new URLSearchParams();
         
         if (isActive !== undefined && isActive !== null && isActive !== "") {
@@ -1636,6 +1672,12 @@ export const api = createApi({
         }
         if (limit !== undefined && limit !== null && limit !== "") {
           queryParams.append("limit", limit);
+        }
+        if (search != null && String(search).trim() !== "") {
+          queryParams.append("search", String(search).trim());
+        }
+        if (exportMode === true || exportMode === 1 || exportMode === "1") {
+          queryParams.append("export", "1");
         }
         
         const queryString = queryParams.toString();
@@ -1829,7 +1871,7 @@ export const api = createApi({
 
     getNoShowPolicies: builder.query({
       query: (params = {}) => {
-        const { isActive, isDefault, page, limit, zoneId } = params;
+        const { isActive, isDefault, page, limit, zoneId, search, export: exportMode } = params;
         const queryParams = new URLSearchParams();
         
         if (isActive !== undefined && isActive !== null && isActive !== "") {
@@ -1846,6 +1888,12 @@ export const api = createApi({
         }
         if (limit !== undefined && limit !== null && limit !== "") {
           queryParams.append("limit", limit);
+        }
+        if (search != null && String(search).trim() !== "") {
+          queryParams.append("search", String(search).trim());
+        }
+        if (exportMode === true || exportMode === 1 || exportMode === "1") {
+          queryParams.append("export", "1");
         }
         
         const queryString = queryParams.toString();
@@ -1885,7 +1933,7 @@ export const api = createApi({
 
     getReschedulePolicies: builder.query({
       query: (params = {}) => {
-        const { isActive, isDefault, page, limit, zoneId } = params;
+        const { isActive, isDefault, page, limit, zoneId, search, export: exportMode } = params;
         const queryParams = new URLSearchParams();
         if (isActive !== undefined && isActive !== null && isActive !== "") {
           queryParams.append("isActive", isActive);
@@ -1901,6 +1949,12 @@ export const api = createApi({
         }
         if (limit !== undefined && limit !== null && limit !== "") {
           queryParams.append("limit", limit);
+        }
+        if (search != null && String(search).trim() !== "") {
+          queryParams.append("search", String(search).trim());
+        }
+        if (exportMode === true || exportMode === 1 || exportMode === "1") {
+          queryParams.append("export", "1");
         }
         const queryString = queryParams.toString();
         const url = queryString
@@ -2136,10 +2190,11 @@ export const api = createApi({
       providesTags: ["ComplianceReport"],
     }),
 
+    /** params: { from, to, shopId, driverId, overridesOnly, search, page, limit, export } */
     getComplianceEvents: builder.query({
       query: (params = {}) => {
         const q = new URLSearchParams();
-        Object.entries(params).forEach(([k, v]) => {
+        Object.entries(listQueryParams(params)).forEach(([k, v]) => {
           if (v != null && v !== "") q.set(k, v);
         });
         const qs = q.toString();
@@ -2280,6 +2335,7 @@ export const {
   useUnAssignServiceFromCategoriesMutation,
   useUnAssignServiceFromPreferencesMutation,
   useGetAllCustomersQuery,
+  useLazyGetAllCustomersQuery,
   useGetAllCustomersCountQuery,
   useGetCustomerByIdQuery,
   useAddCustomerMutation,
@@ -2288,21 +2344,30 @@ export const {
   useEditCustomerMutation,
   useGetOrdersCountQuery,
   useGetAllOrderQuery,
+  useLazyGetAllOrderQuery,
   useGetPendingOrdersQuery,
+  useLazyGetPendingOrdersQuery,
   useGetAllCompleteOrdersQuery,
+  useLazyGetAllCompleteOrdersQuery,
   useGetCancelledOrdersQuery,
+  useLazyGetCancelledOrdersQuery,
   useGetOnHoldBookingsQuery,
+  useLazyGetOnHoldBookingsQuery,
   useGetPaymentFailuresQuery,
+  useLazyGetPaymentFailuresQuery,
   useGetActionRequiredOrdersQuery,
+  useLazyGetActionRequiredOrdersQuery,
   useResolvePaymentFailureMutation,
   useGetAllOrderStatusesQuery,
   useGetShopsDataQuery,
+  useLazyGetShopsDataQuery,
   useGetShopDetailsQuery,
   useGetShopRevenueQuery,
   useGetPendingAgentsQuery,
   useGetRejectedAgentsQuery,
   useUpdateAgentApprovalMutation,
   useGetAgentsCashDueQuery,
+  useLazyGetAgentsCashDueQuery,
   useGetPendingRemittancesQuery,
   useGetPendingWithdrawalsQuery,
   useApproveWithdrawalMutation,
@@ -2453,6 +2518,7 @@ export const {
   useUpdateFailAttemptReasonMutation,
   useGetGeofenceOverrideReportQuery,
   useGetComplianceEventsQuery,
+  useLazyGetComplianceEventsQuery,
   useGetBookingAssignableShopsQuery,
   useAssignBookingToShopMutation,
   useGetAllCouponsQuery,

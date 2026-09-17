@@ -1,5 +1,6 @@
 import dayjs from "dayjs";
 import { formatUserPhone } from "../../utilities/contactLinks";
+import { downloadCsv } from "../../utilities/csvExport";
 import { canAdminAssignOrReassignFromBooking } from "../../shared/adminAssignGate";
 import { resolveOrderStatusTitle } from "../../shared/orderEditStatusGate";
 import { isInvoiceIssued } from "../../shared/invoiceLifecycle";
@@ -432,68 +433,44 @@ export function mapBookingToOrderListRow(booking) {
       statusChangedAt: booking?.lastStatusChange?.at
         ? formatDate(booking.lastStatusChange.at, DATE_TIME_FORMAT)
         : "",
-      paymentHold: paymentWaitingAdmin ? "Payment hold — admin" : "",
       type: isRecurringAutoCreated ? "Recurring" : "Manual",
     },
   };
 }
 
-function csvEscape(value) {
-  return `"${String(value ?? "").replace(/"/g, '""')}"`;
-}
+const x = (row) => row?._export || {};
 
+/** CSV columns for every order list tab (rows from mapBookingToOrderListRow). */
+export const ORDER_LIST_CSV_COLUMNS = [
+  { header: "Order", value: (r) => x(r).orderId || r.orderId || "" },
+  { header: "Placed", value: (r) => x(r).orderDateTime || r.orderDateTime || "" },
+  { header: "Customer", value: (r) => x(r).customerName || r.customer || "" },
+  { header: "Phone", value: (r) => x(r).customerPhone || r.phone || "" },
+  { header: "Shop", value: (r) => x(r).shopName || r.shopName || "" },
+  { header: "Services", value: (r) => x(r).serviceType || r.serviceType || "" },
+  { header: "Type", value: (r) => x(r).type || (r.isRecurringAutoCreated ? "Recurring" : "Manual") },
+  { header: "Items", value: (r) => x(r).totalItems ?? r.totalItems ?? "" },
+  { header: "Pickup", value: (r) => x(r).pickupDateTime || r.pickupDateTime || "" },
+  { header: "Delivery", value: (r) => x(r).deliveryDateTime || r.deliveryDateTime || "" },
+  { header: "Pickup driver", value: (r) => x(r).pickupDriver || "" },
+  { header: "Delivery driver", value: (r) => x(r).deliveryDriver || "" },
+  { header: "Payment method", value: (r) => x(r).paymentMethod || r.paymentMethod || "" },
+  { header: "Upfront", value: (r) => x(r).upfront || r.upfrontLabel || "" },
+  { header: "Final amount", value: (r) => x(r).finalAmount || r.finalLabel || "" },
+  { header: "Invoice", value: (r) => x(r).invoiceStatus || "" },
+  { header: "Status", value: (r) => x(r).status || r.OrderStatus || r.status || "" },
+  { header: "Payment hold", value: (r) => x(r).paymentHold || "" },
+  { header: "Status changed by", value: (r) => x(r).statusChangedBy || "" },
+  { header: "Status changed at", value: (r) => x(r).statusChangedAt || "" },
+];
+
+/**
+ * Download order rows as CSV. Prefer useCsvExport + ORDER_LIST_CSV_COLUMNS with
+ * an `export: 1` fetch so the file covers the whole filtered set; this helper
+ * only writes the rows it is given.
+ */
 export function downloadOrderListCsv(rows = [], filename = "orders_export.csv") {
-  const head = [
-    "Order",
-    "Placed",
-    "Customer",
-    "Phone",
-    "Shop",
-    "Services",
-    "Type",
-    "Items",
-    "Pickup",
-    "Delivery",
-    "Payment method",
-    "Upfront",
-    "Final amount",
-    "Status",
-    "Status changed by",
-    "Status changed at",
-  ];
-  const lines = [head.join(",")];
-  rows.forEach((row) => {
-    const x = row._export || {};
-    lines.push(
-      [
-        x.orderId || row.orderId || "",
-        x.orderDateTime || row.orderDateTime || "",
-        csvEscape(x.customerName || row.customer || ""),
-        csvEscape(x.customerPhone || row.phone || ""),
-        csvEscape(x.shopName || row.shopName || ""),
-        csvEscape(x.serviceType || row.serviceType || ""),
-        x.type || (row.isRecurringAutoCreated ? "Recurring" : "Manual"),
-        x.totalItems ?? row.totalItems ?? "",
-        csvEscape(x.pickupDateTime || row.pickupDateTime || ""),
-        csvEscape(x.deliveryDateTime || row.deliveryDateTime || ""),
-        csvEscape(x.paymentMethod || row.paymentMethod || ""),
-        csvEscape(x.upfront || row.upfrontLabel || ""),
-        csvEscape(x.finalAmount || row.finalLabel || ""),
-        x.status || row.OrderStatus || row.status || "",
-        csvEscape(x.statusChangedBy || ""),
-        csvEscape(x.statusChangedAt || ""),
-      ].join(",")
-    );
-  });
-  const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
+  return downloadCsv(filename, ORDER_LIST_CSV_COLUMNS, rows);
 }
 
 export function tabOrderMetricItems({

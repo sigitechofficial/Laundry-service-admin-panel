@@ -44,6 +44,7 @@ import {
   DirectoryActionEdit,
   DirectoryActions,
   DirectoryActionView,
+  DirectoryExportButton,
   DirectoryIdentity,
   DirectoryMetric,
   DirectoryMetrics,
@@ -52,7 +53,10 @@ import {
   DirectoryStatusPill,
   DirectoryTableWrap,
   DirectoryToolbar,
+  DirectoryToolbarEnd,
 } from "../directory-table/directoryTable";
+import { useCsvExport } from "../../hooks/useCsvExport";
+import { csvFormat } from "../../utilities/csvExport";
 import { joinMeta } from "../directory-table/directoryTableUtils";
 import {
   GoogleMap,
@@ -234,31 +238,20 @@ function currencyMatchesCountry(currencyName, country) {
   return String(currencyName || "").trim().toUpperCase() === meta.code;
 }
 
-function csvEscape(value) {
-  const s = String(value ?? "");
-  if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
-  return s;
-}
-
-function downloadZonesCsv(rows, columns) {
-  const exportCols = (columns || []).filter(
-    (c) => c.field && c.field !== "actions" && c.headerName
-  );
-  const header = exportCols.map((c) => csvEscape(c.headerName)).join(",");
-  const lines = (rows || []).map((row) =>
-    exportCols.map((c) => csvEscape(row[c.field])).join(",")
-  );
-  const csv = [header, ...lines].join("\r\n");
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `zones-${new Date().toISOString().slice(0, 10)}.csv`;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
-}
+/** CSV columns for the zones list (rows from `zonesData` / `filteredZonesData`). */
+const ZONE_CSV_COLUMNS = [
+  { header: "SL", key: "sl" },
+  { header: "Zone Name", key: "zoneName" },
+  { header: "City", value: (r) => (r.city === "—" ? "" : r.city) },
+  { header: "Postcodes", value: (r) => (r.postcodes === "—" ? "" : r.postcodes) },
+  { header: "Currency", value: (r) => (r.currency === "—" ? "" : r.currency) },
+  { header: "Payment Method", key: "paymentMethod" },
+  { header: "Zone Minimum", value: (r) => csvFormat.money(r.zoneMinimumAmountRaw) },
+  { header: "Service Fee", value: (r) => csvFormat.money(r.serviceChargeRaw) },
+  { header: "Agent commission %", value: (r) => (r.commission === "—" ? "" : r.commission) },
+  { header: "No of Shops", key: "noOfShops" },
+  { header: "Zone Assign", key: "zoneAssign" },
+];
 
 /** If Google’s viewport is larger than this for a full unit postcode, it’s closer to sector than unit — use tight hex. */
 const FULL_UNIT_MAX_VIEWPORT_DIAGONAL_KM = 1.15;
@@ -1278,20 +1271,22 @@ export default function ZoneManagement() {
     }
   };
 
-  // Column configuration for zone table
-  const zoneExportColumns = [
-    { field: "sl", headerName: "SL" },
-    { field: "zoneName", headerName: "Zone Name" },
-    { field: "city", headerName: "City" },
-    { field: "postcodes", headerName: "Postcodes" },
-    { field: "currency", headerName: "Currency" },
-    { field: "paymentMethod", headerName: "Payment Method" },
-    { field: "zoneMinimumAmount", headerName: "Zone Minimum" },
-    { field: "serviceFee", headerName: "Service Fee" },
-    { field: "commission", headerName: "Agent commission %" },
-    { field: "noOfShops", headerName: "No of Shops" },
-    { field: "zoneAssign", headerName: "Zone Assign" },
-  ];
+  const zoneCsvFilenameFilters = useMemo(
+    () => ({
+      search: zoneSearch.trim(),
+      city: filterCity,
+      payment: filterPaymentMethod,
+      assignment: filterAssignment,
+    }),
+    [zoneSearch, filterCity, filterPaymentMethod, filterAssignment]
+  );
+  const csv = useCsvExport({
+    filenameBase: "zones",
+    columns: ZONE_CSV_COLUMNS,
+    rows: filteredZonesData,
+    filenameFilters: zoneCsvFilenameFilters,
+    emptyMessage: "No zones to download.",
+  });
 
   const zoneColumns = [
     {
@@ -1594,15 +1589,6 @@ export default function ZoneManagement() {
   };
 
 
-  const handleDownload = () => {
-    if (!filteredZonesData?.length) {
-      showError("No zones to download.");
-      return;
-    }
-    downloadZonesCsv(filteredZonesData, zoneExportColumns);
-    success("Zones CSV downloaded.");
-  };
-
   const clearZoneFilters = () => {
     setFilterCity("");
     setFilterPaymentMethod("");
@@ -1709,7 +1695,7 @@ export default function ZoneManagement() {
     }
 
     const box = geometry.bounds || geometry.viewport;
-    let polygonPath = null;
+    let polygonPath;
     if (box) {
       polygonPath = [
         { lat: box.northeast.lat, lng: box.southwest.lng },
@@ -2227,15 +2213,10 @@ export default function ZoneManagement() {
         title="Zones"
         description="Service areas, postcodes, and zone fees."
         actions={
-          <>
-            <Button variant="secondary" onClick={handleDownload} disabled={!filteredZonesData.length}>
-              Export CSV
-            </Button>
-            <Button onClick={handleToggle}>
-              <TbPlus size={18} />
-              Add Zone
-            </Button>
-          </>
+          <Button onClick={handleToggle}>
+            <TbPlus size={18} />
+            Add Zone
+          </Button>
         }
       />
 
@@ -2268,6 +2249,14 @@ export default function ZoneManagement() {
               onClearFilters={clearZoneFilters}
               hasActiveFilters={hasZoneFilters}
             />
+            <DirectoryToolbarEnd>
+              <DirectoryExportButton
+                onClick={csv.run}
+                loading={csv.isExporting}
+                count={filteredZonesData.length}
+                disabled={!filteredZonesData.length}
+              />
+            </DirectoryToolbarEnd>
           </DirectoryToolbar>
         }
       >

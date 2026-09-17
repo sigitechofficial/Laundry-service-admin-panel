@@ -7,15 +7,21 @@ import {
   DirectoryActionEdit,
   DirectoryActions,
   DirectoryActionView,
+  DirectoryClearButton,
+  DirectoryExportButton,
   DirectoryFlagIdentity,
   DirectoryIdentity,
   DirectoryMetrics,
   DirectorySearch,
   DirectoryStatusPill,
   DirectoryTableWrap,
+  DirectoryToolSelect,
   DirectoryToolbar,
+  DirectoryToolbarEnd,
   DirectoryViewModal,
 } from "../directory-table/directoryTable";
+import { useCsvExport } from "../../hooks/useCsvExport";
+import { csvFormat } from "../../utilities/csvExport";
 import { useGoogleMaps } from "../../utilities/googleMapsConfig";
 import CountryFlag from "../../components/CountryFlag";
 import {
@@ -27,6 +33,22 @@ import {
 } from "../../store/services/api";
 import useToaster from "../../components/ui/Toaster";
 
+const STATUS_OPTIONS = [
+  { value: "", label: "All statuses" },
+  { value: "active", label: "Active" },
+  { value: "inactive", label: "Inactive" },
+];
+
+const CITY_CSV_COLUMNS = [
+  { header: "City ID", key: "cityId" },
+  { header: "City", key: "cityName" },
+  { header: "Country ID", value: (r) => r.countryId ?? "" },
+  { header: "Country", value: (r) => (r.countryName === "N/A" ? "" : r.countryName) },
+  { header: "Country code", key: "countryCode" },
+  { header: "Status", value: (r) => csvFormat.bool(r.status, "Active", "Inactive") },
+  { header: "Created", value: (r) => csvFormat.date(r.createdAt) },
+];
+
 export default function CitiesPage() {
   const { success, error: showError } = useToaster();
   const [cityModal, setCityModal] = useState({ open: false, data: null, isEdit: false });
@@ -34,6 +56,8 @@ export default function CitiesPage() {
   const [selectedCountryCode, setSelectedCountryCode] = useState(null);
   const [viewRow, setViewRow] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [countryFilter, setCountryFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
 
   const { isLoaded, mapsError } = useGoogleMaps();
 
@@ -46,7 +70,10 @@ export default function CitiesPage() {
   const [editCity, { isLoading: isEditingCity }] = useEditCityMutation();
   const [deleteCity, { isLoading: isDeletingCity }] = useDeleteCityMutation();
 
-  const countries = countriesResponse?.data || [];
+  const countries = useMemo(
+    () => (Array.isArray(countriesResponse?.data) ? countriesResponse.data : []),
+    [countriesResponse?.data]
+  );
 
   const { control, handleSubmit, reset, setValue, formState: { errors } } = useForm({
     defaultValues: { name: "", countryId: "", lat: "", lng: "" },
@@ -63,26 +90,57 @@ export default function CitiesPage() {
           countryName: city.country?.name || "N/A",
           countryCode: city.country?.shortName || "",
           countryFlag: city.country?.image || "",
-          countryId: city.countryId,
+          countryId: city.countryId ?? city.country?.id ?? null,
           status: city.status !== undefined && city.status !== null ? city.status : false,
+          createdAt: city.createdAt || city.created_at || null,
         }))
       : [];
   }, [citiesResponse?.data]);
 
   const visibleCities = useMemo(() => {
     const q = searchTerm.trim().toLowerCase();
-    if (!q) return citiesData;
-    return citiesData.filter((row) =>
+    let rows = citiesData;
+    if (countryFilter) {
+      rows = rows.filter((row) => String(row.countryId ?? "") === String(countryFilter));
+    }
+    if (statusFilter === "active") rows = rows.filter((row) => Boolean(row.status));
+    else if (statusFilter === "inactive") rows = rows.filter((row) => !row.status);
+    if (!q) return rows;
+    return rows.filter((row) =>
       [row.cityName, row.countryName, row.cityId].some((value) =>
         String(value ?? "").toLowerCase().includes(q)
       )
     );
-  }, [citiesData, searchTerm]);
+  }, [citiesData, searchTerm, countryFilter, statusFilter]);
 
   const countryOptions = countries.map((country) => ({
     value: country.id,
     label: country.name,
   }));
+  const countryFilterOptions = useMemo(
+    () => [
+      { value: "", label: "All countries" },
+      ...countries.map((country) => ({ value: String(country.id), label: country.name })),
+    ],
+    [countries]
+  );
+  const countryFilterLabel = useMemo(() => {
+    if (!countryFilter) return "";
+    const match = countries.find((c) => String(c.id) === String(countryFilter));
+    return match?.name || String(countryFilter);
+  }, [countries, countryFilter]);
+
+  const hasActiveFilters = Boolean(searchTerm.trim() || countryFilter || statusFilter);
+  const csvFilenameFilters = useMemo(
+    () => ({ search: searchTerm.trim(), country: countryFilterLabel, status: statusFilter }),
+    [searchTerm, countryFilterLabel, statusFilter]
+  );
+  const csv = useCsvExport({
+    filenameBase: "cities",
+    columns: CITY_CSV_COLUMNS,
+    rows: visibleCities,
+    filenameFilters: csvFilenameFilters,
+  });
 
   const closeCityModal = () => {
     setCityModal({ open: false, data: null, isEdit: false });
@@ -241,6 +299,41 @@ export default function CitiesPage() {
               onChange={setSearchTerm}
               placeholder="Search by city or country…"
             />
+            <DirectoryToolSelect>
+              <Select
+                aria-label="Country"
+                value={countryFilter}
+                onChange={setCountryFilter}
+                options={countryFilterOptions}
+                placeholder="All countries"
+              />
+            </DirectoryToolSelect>
+            <DirectoryToolSelect>
+              <Select
+                aria-label="City status"
+                value={statusFilter}
+                onChange={setStatusFilter}
+                options={STATUS_OPTIONS}
+                placeholder="All statuses"
+              />
+            </DirectoryToolSelect>
+            <DirectoryToolbarEnd>
+              {hasActiveFilters ? (
+                <DirectoryClearButton
+                  onClick={() => {
+                    setSearchTerm("");
+                    setCountryFilter("");
+                    setStatusFilter("");
+                  }}
+                />
+              ) : null}
+              <DirectoryExportButton
+                onClick={csv.run}
+                loading={csv.isExporting}
+                count={visibleCities.length}
+                disabled={!visibleCities.length}
+              />
+            </DirectoryToolbarEnd>
           </DirectoryToolbar>
         }
       >
@@ -248,7 +341,7 @@ export default function CitiesPage() {
           columns={columns}
           rows={visibleCities}
           rowKey={(row) => row.id}
-          empty="No cities yet"
+          empty={hasActiveFilters ? "No cities match these filters." : "No cities yet"}
         />
       </DirectoryTableWrap>
 

@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import {
   useGetPendingOrdersQuery,
   useGetAllOrderStatusesQuery,
+  useLazyGetPendingOrdersQuery,
 } from "../../../store/services/api";
 import DeleteOrderModal from "../order-modals/DeleteOrderModal";
 import AssignOrderModal from "../order-modals/AssignOrderModal";
@@ -12,6 +13,7 @@ import { useOrderListTableFilters } from "../useOrderListTableFilters";
 import OrderListDataTable from "../OrderListDataTable";
 import { useOrderListPageQueries } from "../useOrderListPageQueries";
 import { useOrderListStatsQuery } from "../useOrderListStatsQuery";
+import { useOrderListCsvExport } from "../useOrderListCsvExport";
 import { OrderError, OrderMetrics, OrderPageHeader } from "../OrderWorkspace";
 
 export default function PendingOrders() {
@@ -39,6 +41,14 @@ export default function PendingOrders() {
     () => (Array.isArray(statusesResponse?.data) ? statusesResponse.data : []),
     [statusesResponse?.data]
   );
+  const [fetchPendingOrders] = useLazyGetPendingOrdersQuery();
+  const csv = useOrderListCsvExport({
+    tableFilters,
+    fetchList: fetchPendingOrders,
+    pickRows,
+    filenameBase: "orders-pending",
+    orderStatuses,
+  });
   const [deleteModal, setDeleteModal] = useState({ open: false, orderId: null });
   const [assignModal, setAssignModal] = useState({
     open: false,
@@ -114,6 +124,8 @@ export default function PendingOrders() {
           sortDir={tableFilters.sortDir}
           onSortDirChange={tableFilters.setSortDir}
           isTableLoading={isTableLoading}
+          onDownload={csv.run}
+          downloading={csv.isExporting}
         />
       </div>
       <DeleteOrderModal

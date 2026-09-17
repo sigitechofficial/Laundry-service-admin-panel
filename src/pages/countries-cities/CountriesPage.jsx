@@ -1,21 +1,27 @@
 import { useMemo, useState, useRef } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { Autocomplete } from "@react-google-maps/api";
-import { Button, Field, Input, Modal, PageHeader, Table } from "../../design-system";
+import { Button, Field, Input, Modal, PageHeader, Select, Table } from "../../design-system";
 import {
   DirectoryActionDelete,
   DirectoryActionEdit,
   DirectoryActions,
   DirectoryActionView,
+  DirectoryClearButton,
+  DirectoryExportButton,
   DirectoryFlagIdentity,
   DirectoryIdentity,
   DirectoryMetrics,
   DirectorySearch,
   DirectoryStatusPill,
   DirectoryTableWrap,
+  DirectoryToolSelect,
   DirectoryToolbar,
+  DirectoryToolbarEnd,
   DirectoryViewModal,
 } from "../directory-table/directoryTable";
+import { useCsvExport } from "../../hooks/useCsvExport";
+import { csvFormat } from "../../utilities/csvExport";
 import { useGoogleMaps } from "../../utilities/googleMapsConfig";
 import CountryFlag from "../../components/CountryFlag";
 import {
@@ -26,6 +32,20 @@ import {
 } from "../../store/services/api";
 import useToaster from "../../components/ui/Toaster";
 
+const STATUS_OPTIONS = [
+  { value: "", label: "All statuses" },
+  { value: "active", label: "Active" },
+  { value: "inactive", label: "Inactive" },
+];
+
+const COUNTRY_CSV_COLUMNS = [
+  { header: "Country ID", key: "countryId" },
+  { header: "Country", key: "countryName" },
+  { header: "Code", key: "countryCode" },
+  { header: "Status", value: (r) => csvFormat.bool(r.status, "Active", "Inactive") },
+  { header: "Created", value: (r) => csvFormat.date(r.createdAt) },
+];
+
 export default function CountriesPage() {
   const { success, error: showError } = useToaster();
   const [countryModal, setCountryModal] = useState({ open: false, data: null, isEdit: false });
@@ -33,6 +53,7 @@ export default function CountriesPage() {
   const [flagPreview, setFlagPreview] = useState(null);
   const [viewRow, setViewRow] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
 
   const { isLoaded, mapsError } = useGoogleMaps();
 
@@ -59,19 +80,35 @@ export default function CountriesPage() {
           countryCode: country.shortName || "",
           countryFlag: country.image || "",
           status: country.status !== undefined && country.status !== null ? country.status : false,
+          createdAt: country.createdAt || country.created_at || null,
         }))
       : [];
   }, [countriesResponse?.data]);
 
   const visibleCountries = useMemo(() => {
     const q = searchTerm.trim().toLowerCase();
-    if (!q) return countriesData;
-    return countriesData.filter((row) =>
+    let rows = countriesData;
+    if (statusFilter === "active") rows = rows.filter((row) => Boolean(row.status));
+    else if (statusFilter === "inactive") rows = rows.filter((row) => !row.status);
+    if (!q) return rows;
+    return rows.filter((row) =>
       [row.countryName, row.countryCode, row.countryId].some((value) =>
         String(value ?? "").toLowerCase().includes(q)
       )
     );
-  }, [countriesData, searchTerm]);
+  }, [countriesData, searchTerm, statusFilter]);
+
+  const hasActiveFilters = Boolean(searchTerm.trim() || statusFilter);
+  const csvFilenameFilters = useMemo(
+    () => ({ search: searchTerm.trim(), status: statusFilter }),
+    [searchTerm, statusFilter]
+  );
+  const csv = useCsvExport({
+    filenameBase: "countries",
+    columns: COUNTRY_CSV_COLUMNS,
+    rows: visibleCountries,
+    filenameFilters: csvFilenameFilters,
+  });
 
   const closeCountryModal = () => {
     setCountryModal({ open: false, data: null, isEdit: false });
@@ -247,6 +284,31 @@ export default function CountriesPage() {
               onChange={setSearchTerm}
               placeholder="Search by country name or code…"
             />
+            <DirectoryToolSelect>
+              <Select
+                aria-label="Country status"
+                value={statusFilter}
+                onChange={setStatusFilter}
+                options={STATUS_OPTIONS}
+                placeholder="All statuses"
+              />
+            </DirectoryToolSelect>
+            <DirectoryToolbarEnd>
+              {hasActiveFilters ? (
+                <DirectoryClearButton
+                  onClick={() => {
+                    setSearchTerm("");
+                    setStatusFilter("");
+                  }}
+                />
+              ) : null}
+              <DirectoryExportButton
+                onClick={csv.run}
+                loading={csv.isExporting}
+                count={visibleCountries.length}
+                disabled={!visibleCountries.length}
+              />
+            </DirectoryToolbarEnd>
           </DirectoryToolbar>
         }
       >
@@ -254,7 +316,7 @@ export default function CountriesPage() {
           columns={columns}
           rows={visibleCountries}
           rowKey={(row) => row.id}
-          empty="No countries yet"
+          empty={hasActiveFilters ? "No countries match these filters." : "No countries yet"}
         />
       </DirectoryTableWrap>
 

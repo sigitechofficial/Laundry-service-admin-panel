@@ -3,7 +3,9 @@ import { Delay } from "../../components/shared/Loaders";
 import { useMemo, useState, useCallback } from "react";
 import { Button, Field, Input, Modal, Table } from "../../design-system";
 import {
+  useGetAllZonesQuery,
   useGetShopsDataQuery,
+  useLazyGetShopsDataQuery,
   useEditShopMutation,
 } from "../../store/services/api";
 import useToaster from "../../components/ui/Toaster";
@@ -12,11 +14,18 @@ import { useShopListTableFilters } from "./useShopListTableFilters";
 import ShopDirectoryToolbar from "./ShopDirectoryToolbar";
 import ListPagination from "../order-management/ListPagination";
 import { useOrderListPageData } from "../order-management/useOrderListPageData";
-import { buildShopListColumns, mapShopToRow } from "./shopListTable";
+import {
+  SHOP_LIST_CSV_COLUMNS,
+  buildShopListColumns,
+  mapShopToCsvRow,
+  mapShopToRow,
+} from "./shopListTable";
 import {
   DirectoryTableWrap,
   DirectoryViewModal,
 } from "../directory-table/directoryTable";
+import { useCsvExport } from "../../hooks/useCsvExport";
+import { csvFormat } from "../../utilities/csvExport";
 import { formatMoney, resolveCurrencySymbol } from "../../utilities/formatters";
 import styles from "./ShopDirectory.module.css";
 
@@ -71,6 +80,52 @@ export default function Shops() {
   }, [listQuery.currentData, listQuery.data]);
 
   const [editShop, { isLoading: isEditing }] = useEditShopMutation();
+
+  // ── CSV export: whole filtered set, not the visible page ──────────────────
+  const [fetchShops] = useLazyGetShopsDataQuery();
+  const { data: zonesRes } = useGetAllZonesQuery(undefined, {
+    skip: !tableFilters.zoneId,
+  });
+  const zoneLabel = useMemo(() => {
+    if (!tableFilters.zoneId) return "";
+    const raw = zonesRes?.data;
+    const zones = Array.isArray(raw) ? raw : raw?.zones ?? raw?.data ?? [];
+    const zone = (Array.isArray(zones) ? zones : []).find(
+      (z) => String(z.id ?? z.zoneId ?? "") === String(tableFilters.zoneId)
+    );
+    return zone?.name ?? zone?.zoneName ?? String(tableFilters.zoneId);
+  }, [tableFilters.zoneId, zonesRes?.data]);
+  const csvFilenameFilters = useMemo(
+    () => ({
+      search: tableFilters.debouncedSearch || "",
+      zone: zoneLabel,
+      status: tableFilters.statusId || "",
+      from: csvFormat.date(tableFilters.dateRange?.startDate),
+      to: csvFormat.date(tableFilters.dateRange?.endDate),
+    }),
+    [
+      tableFilters.debouncedSearch,
+      tableFilters.statusId,
+      tableFilters.dateRange?.startDate,
+      tableFilters.dateRange?.endDate,
+      zoneLabel,
+    ]
+  );
+  const apiParams = tableFilters.apiParams;
+  const fetchAllShops = useCallback(async () => {
+    // export=1 → the API ignores page/limit and returns the whole filtered set
+    // (server cap 5000) with pagination.exportMode / truncated.
+    const res = await fetchShops({ ...apiParams, export: true }, false).unwrap();
+    const rows = Array.isArray(res?.data?.AllShopsData) ? res.data.AllShopsData : [];
+    return { rows, pagination: res?.data?.pagination || null };
+  }, [apiParams, fetchShops]);
+  const csv = useCsvExport({
+    filenameBase: "shops",
+    columns: SHOP_LIST_CSV_COLUMNS,
+    fetchAll: fetchAllShops,
+    filenameFilters: csvFilenameFilters,
+    mapRow: mapShopToCsvRow,
+  });
 
   const shopsData = useMemo(
     () => shops.map((item) => mapShopToRow(item)),
@@ -248,6 +303,9 @@ export default function Shops() {
             onClearFilters={tableFilters.clearFilters}
             hasActiveFilters={tableFilters.hasActiveFilters}
             isRefreshing={Boolean(isTableLoading && shopsData.length)}
+            onExport={csv.run}
+            isExporting={csv.isExporting}
+            exportCount={totalRows}
           />
         }
         footer={

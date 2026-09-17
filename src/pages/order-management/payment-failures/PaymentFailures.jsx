@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import dayjs from "dayjs";
 import { Button, Field, Modal, Textarea } from "../../../design-system";
 import useToaster from "../../../components/ui/Toaster";
 import { formatUserPhone } from "../../../utilities/contactLinks";
 import { useNavigate } from "react-router-dom";
 import {
   useGetPaymentFailuresQuery,
+  useLazyGetPaymentFailuresQuery,
   useResolvePaymentFailureMutation,
 } from "../../../store/services/api";
 import {
@@ -12,7 +14,8 @@ import {
   formatDate,
   formatAmount,
 } from "../../../utilities/formatters";
-import { matchesOrderListSearch } from "../listSearch";
+import { useCsvExport } from "../../../hooks/useCsvExport";
+import { csvFormat } from "../../../utilities/csvExport";
 import OrderListDataTable from "../OrderListDataTable";
 import {
   DEFAULT_ORDER_LIST_SORT_DIR,
@@ -29,7 +32,11 @@ import {
   OrderIdLink,
   StatusDotPill,
 } from "../orderListTable";
-import { customerDetailsPath, resolveCustomerId } from "../orderListUtils";
+import {
+  customerDetailsPath,
+  resolveCustomerId,
+  resolveShopName,
+} from "../orderListUtils";
 import {
   DirectoryActionView,
 } from "../../directory-table/DirectoryActionIcon";
@@ -106,19 +113,111 @@ function IconRefresh() {
   );
 }
 
+const SEARCH_DEBOUNCE_MS = 400;
+const DEFAULT_PAGE_SIZE = 25;
+
+function customerFullName(customer) {
+  return [customer?.firstName, customer?.lastName].filter(Boolean).join(" ").trim();
+}
+
+function failureAmountDue(row) {
+  return row?.billingDetail?.total ?? row?.orderAmount ?? null;
+}
+
+function failureAttemptCount(row) {
+  const explicit =
+    row?.paymentAttemptCount ??
+    row?.autoChargeAttempts ??
+    row?.paymentFlags?.attemptCount;
+  if (explicit != null && explicit !== "") return Number(explicit) || 0;
+  const attempts = Array.isArray(row?.invoicePaymentAttempts) ? row.invoicePaymentAttempts : [];
+  if (!attempts.length) return 0;
+  const maxAttemptNumber = attempts.reduce(
+    (max, attempt) => Math.max(max, Number(attempt?.attemptNumber) || 0),
+    0
+  );
+  return maxAttemptNumber || attempts.length;
+}
+
+/** CSV columns operate on the raw API failure row (export mode returns the same shape). */
+const PAYMENT_FAILURE_CSV_COLUMNS = [
+  { header: "Order ID", key: "id" },
+  { header: "Track ID", value: (row) => row?.orderTrackId || "" },
+  {
+    header: "Customer",
+    value: (row) => customerFullName(row?.customer) || row?.customer?.email || "",
+  },
+  { header: "Phone", value: (row) => formatUserPhone(row?.customer) },
+  { header: "Email", value: (row) => row?.customer?.email || "" },
+  { header: "Shop", value: (row) => resolveShopName(row) || row?.shopName || "" },
+  { header: "Amount due", value: (row) => csvFormat.money(failureAmountDue(row)) },
+  { header: "Attempts", value: (row) => failureAttemptCount(row) },
+  { header: "Last failure at", value: (row) => csvFormat.dateTime(row?.lastPaymentFailureAt) },
+  { header: "Failure code", value: (row) => row?.lastPaymentFailureCode || "" },
+  {
+    header: "Failure reason",
+    value: (row) =>
+      formatFailureReason(
+        row?.lastPaymentFailureCode,
+        row?.lastPaymentFailureMessage,
+        row?.failureReasonDisplay || row?.paymentFlags?.paymentFailureReason
+      ),
+  },
+  {
+    header: "Status",
+    value: (row) =>
+      row?.bookingStatusLabel ||
+      (row?.bookingStatusId != null ? `Status ${row.bookingStatusId}` : ""),
+  },
+  {
+    header: "Payment gate",
+    value: (row) => (row?.paymentDeliveryGate === "waiting_admin" ? "Payment hold" : "Payment failed"),
+  },
+  { header: "Zone", value: (row) => row?.zoneName || row?.zone?.name || "" },
+];
+
 export default function PaymentFailures() {
   const navigate = useNavigate();
   const { success, error: showError } = useToaster();
   const [sortBy, setSortByState] = useState(DEFAULT_PAYMENT_FAILURE_SORT_BY);
   const [sortDir, setSortDirState] = useState(DEFAULT_ORDER_LIST_SORT_DIR);
+  const [zoneId, setZoneIdState] = useState("");
+  const [dateRange, setDateRangeState] = useState(null);
+  const [searchInput, setSearchInput] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+
+  useEffect(() => {
+    const handle = window.setTimeout(() => {
+      setDebouncedSearch(searchInput.trim());
+    }, SEARCH_DEBOUNCE_MS);
+    return () => window.clearTimeout(handle);
+  }, [searchInput]);
+
+  /** Filter + sort params shared by the paged query and the CSV export. */
+  const filterParams = useMemo(() => {
+    const params = { sortBy, sortDir };
+    if (zoneId != null && String(zoneId).trim() !== "") params.zoneId = String(zoneId);
+    if (dateRange?.startDate && dateRange?.endDate) {
+      params.startDate = dayjs(dateRange.startDate).format("YYYY-MM-DD");
+      params.endDate = dayjs(dateRange.endDate).format("YYYY-MM-DD");
+    }
+    if (debouncedSearch) params.search = debouncedSearch;
+    return params;
+  }, [sortBy, sortDir, zoneId, dateRange, debouncedSearch]);
+
+  const listParams = useMemo(
+    () => ({ ...filterParams, page, limit: pageSize }),
+    [filterParams, page, pageSize]
+  );
+
   const { data, isLoading, isError, refetch, isFetching } =
-    useGetPaymentFailuresQuery({ sortBy, sortDir });
+    useGetPaymentFailuresQuery(listParams);
+  const [fetchFailuresForExport] = useLazyGetPaymentFailuresQuery();
   const [resolveFailure, { isLoading: isResolving }] =
     useResolvePaymentFailureMutation();
 
-  const [searchInput, setSearchInput] = useState("");
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(25);
   const [modal, setModal] = useState({
     open: false,
     bookingId: null,
@@ -133,6 +232,15 @@ export default function PaymentFailures() {
   );
   const failureTotal =
     data?.data?.totalCount ?? data?.data?.count ?? failures.length;
+  const pagination = data?.data?.pagination;
+  const totalRows =
+    Number(pagination?.totalRecords ?? data?.data?.count ?? failures.length) || 0;
+
+  const hasActiveFilters = Boolean(
+    searchInput.trim() ||
+      (zoneId != null && String(zoneId).trim() !== "") ||
+      (dateRange?.startDate && dateRange?.endDate)
+  );
 
   const tableData = useMemo(
     () =>
@@ -175,19 +283,55 @@ export default function PaymentFailures() {
     [failures]
   );
 
-  const searchedRows = useMemo(
-    () => tableData.filter((row) => matchesOrderListSearch(row, searchInput)),
-    [tableData, searchInput]
-  );
-
-  const pagedRows = useMemo(() => {
-    const start = (page - 1) * pageSize;
-    return searchedRows.slice(start, start + pageSize);
-  }, [searchedRows, page, pageSize]);
-
+  // Any filter / search / sort / page-size change restarts from page 1.
   useEffect(() => {
     setPage(1);
-  }, [searchInput, pageSize, sortBy, sortDir]);
+  }, [debouncedSearch, zoneId, dateRange, pageSize, sortBy, sortDir]);
+
+  const setZoneId = useCallback((value) => {
+    setZoneIdState(value ?? "");
+  }, []);
+
+  const setDateRange = useCallback((value) => {
+    setDateRangeState(value || null);
+  }, []);
+
+  const clearFilters = useCallback(() => {
+    setSearchInput("");
+    setDebouncedSearch("");
+    setZoneIdState("");
+    setDateRangeState(null);
+    setPage(1);
+  }, []);
+
+  const fetchAllForExport = useCallback(async () => {
+    // `false` → never serve the export from a cached page response.
+    const res = await fetchFailuresForExport(
+      { ...filterParams, export: true },
+      false
+    ).unwrap();
+    return {
+      rows: res?.data?.failures || [],
+      pagination: res?.data?.pagination || null,
+    };
+  }, [fetchFailuresForExport, filterParams]);
+
+  const csvFilenameFilters = useMemo(
+    () => ({
+      search: debouncedSearch,
+      zone: zoneId,
+      from: dateRange?.startDate ? csvFormat.date(dateRange.startDate) : "",
+      to: dateRange?.endDate ? csvFormat.date(dateRange.endDate) : "",
+    }),
+    [debouncedSearch, zoneId, dateRange?.startDate, dateRange?.endDate]
+  );
+
+  const csv = useCsvExport({
+    filenameBase: "payment-failures",
+    columns: PAYMENT_FAILURE_CSV_COLUMNS,
+    fetchAll: fetchAllForExport,
+    filenameFilters: csvFilenameFilters,
+  });
 
   const setSortBy = useCallback((value) => {
     setSortByState(
@@ -355,7 +499,7 @@ export default function PaymentFailures() {
     <div className="min-w-0">
       <OrderPageHeader
         title="Payment Failures"
-        description={`Resolve card auto-charge exceptions without losing order context.${failures.length < failureTotal ? ` The API returned ${failures.length} of ${failureTotal} failures.` : ""}`}
+        description="Resolve card auto-charge exceptions without losing order context. Search, zone and date filters run on the server so exports cover the whole filtered set."
         actions={
           <button
             type="button"
@@ -384,18 +528,18 @@ export default function PaymentFailures() {
             hint: "Waiting for an admin decision",
           },
           {
-            label: "Visible results",
-            value: searchedRows.length,
+            label: "Matching filters",
+            value: totalRows,
             tone: "neutral",
-            hint: searchInput.trim() ? "Matching search" : "Currently loaded",
+            hint: hasActiveFilters ? "Search, zone and date applied" : "All failures",
           },
         ]}
       />
 
       <OrderListDataTable
-        data={pagedRows}
+        data={tableData}
         columns={columns}
-        totalRows={searchedRows.length}
+        totalRows={totalRows}
         page={page}
         pageSize={pageSize}
         onPageChange={setPage}
@@ -403,12 +547,19 @@ export default function PaymentFailures() {
           setPageSize(size);
           setPage(1);
         }}
+        zoneId={zoneId}
+        onZoneIdChange={setZoneId}
+        dateRange={dateRange}
+        onDateRangeChange={setDateRange}
         showStatusFilter={false}
+        onClearFilters={clearFilters}
+        hasActiveFilters={hasActiveFilters}
         searchInput={searchInput}
         onSearchInputChange={setSearchInput}
-        searchPlaceholder="Search by order, customer, phone or failure..."
+        searchPlaceholder="Search by order, customer, phone or email…"
         showSort
-        showDownload={false}
+        onDownload={csv.run}
+        downloading={csv.isExporting}
         sortBy={sortBy}
         onSortByChange={setSortBy}
         sortDir={sortDir}
@@ -418,8 +569,8 @@ export default function PaymentFailures() {
         isTableLoading={isTableLoading}
         tableLayout="grow"
         emptyText={
-          searchInput.trim()
-            ? "No payment failures match this search"
+          hasActiveFilters
+            ? "No payment failures match these filters"
             : "No payment failures"
         }
       />

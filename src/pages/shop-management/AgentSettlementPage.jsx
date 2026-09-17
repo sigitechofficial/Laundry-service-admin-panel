@@ -6,7 +6,7 @@ export default function AgentSettlementPage() {
     <div>
       <PageHeader
         title="Agent Cash Settlement"
-        description="Record cash collected from agents and confirm remittances"
+        description="Record cash collected from agents, confirm remittances, and export settlement lists to CSV"
       />
       <AgentSettlement />
     </div>

@@ -30,6 +30,7 @@ import {
 import {
   DirectoryActionView,
   DirectoryClearButton,
+  DirectoryExportButton,
   DirectoryMetrics,
   DirectorySearch,
   DirectoryStatusPill,
@@ -38,6 +39,23 @@ import {
   DirectoryToolbar,
   DirectoryToolbarEnd,
 } from "../directory-table/directoryTable";
+import { useCsvExport } from "../../hooks/useCsvExport";
+import { csvFormat } from "../../utilities/csvExport";
+
+/** CSV columns for the per-zone fee snapshot (rows from `policiesData`). */
+const OVERALL_POLICY_CSV_COLUMNS = [
+  { header: "Zone ID", key: "zoneId" },
+  { header: "Zone", value: (r) => (r.zoneName === "—" ? "" : r.zoneName) },
+  { header: "City", key: "cityName" },
+  { header: "Country", key: "countryName" },
+  {
+    header: "Status",
+    value: (r) => (r.statusKnown ? csvFormat.bool(r.isActive, "Active", "Inactive") : ""),
+  },
+  { header: "Delivery fee", value: (r) => csvFormat.money(r.deliveryFee) },
+  { header: "Currency", key: "currencyCode" },
+  { header: "Updated", value: (r) => csvFormat.date(r.updatedAt) },
+];
 
 function cityLabel(zone, cities) {
   return (
@@ -104,7 +122,9 @@ export default function OverallPolicies() {
       .map((zone) => {
         const code = currencyCodeFromZone(zone, currencyUnitsList);
         const symbol = resolvePolicyCurrencySymbol({ zone, code, currencyUnits: currencyUnitsList });
-        const place = [cityLabel(zone, cities), countryLabel(zone, countries)].filter(Boolean).join(" · ");
+        const cityName = cityLabel(zone, cities);
+        const countryName = countryLabel(zone, countries);
+        const place = [cityName, countryName].filter(Boolean).join(" · ");
         const active =
           zone.status === true ||
           zone.status === 1 ||
@@ -122,6 +142,8 @@ export default function OverallPolicies() {
           zoneId: zone.id,
           zoneName: zone.name || "—",
           place: place || "—",
+          cityName,
+          countryName,
           deliveryFee: zone.serviceCharge,
           feeLabel: formatPolicyMoney(zone.serviceCharge, symbol, code),
           currencyCode: code || "",
@@ -133,6 +155,24 @@ export default function OverallPolicies() {
         };
       });
   }, [zones, selectedZone, selectedCity, selectedCountry, search, cities, countries, currencyUnitsList]);
+
+  const hasActiveFilters = Boolean(search || selectedZone || selectedCity || selectedCountry);
+  const csvFilenameFilters = useMemo(() => {
+    const nameOf = (list, id) =>
+      id ? (list || []).find((item) => String(item.id) === String(id))?.name || String(id) : "";
+    return {
+      search: search.trim(),
+      zone: nameOf(zones, selectedZone),
+      city: nameOf(cities, selectedCity),
+      country: nameOf(countries, selectedCountry),
+    };
+  }, [search, zones, selectedZone, cities, selectedCity, countries, selectedCountry]);
+  const csv = useCsvExport({
+    filenameBase: "zone-policies",
+    columns: OVERALL_POLICY_CSV_COLUMNS,
+    rows: policiesData,
+    filenameFilters: csvFilenameFilters,
+  });
 
   const averageDeliveryFee = useMemo(() => {
     const fees = (zones || [])
@@ -240,8 +280,8 @@ export default function OverallPolicies() {
                 placeholder="All countries"
               />
             </DirectoryToolSelect>
-            {search || selectedZone || selectedCity || selectedCountry ? (
-              <DirectoryToolbarEnd>
+            <DirectoryToolbarEnd>
+              {hasActiveFilters ? (
                 <DirectoryClearButton
                   onClick={() => {
                     setSearch("");
@@ -250,8 +290,14 @@ export default function OverallPolicies() {
                     setSelectedCountry("");
                   }}
                 />
-              </DirectoryToolbarEnd>
-            ) : null}
+              ) : null}
+              <DirectoryExportButton
+                onClick={csv.run}
+                loading={csv.isExporting}
+                count={policiesData.length}
+                disabled={!policiesData.length}
+              />
+            </DirectoryToolbarEnd>
           </DirectoryToolbar>
         }
       >

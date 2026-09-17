@@ -168,6 +168,56 @@ export function DirectoryClearButton({ onClick, children = "Clear" }) {
   );
 }
 
+function IconDownload() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      className={chrome.exportIcon}
+    >
+      <path d="M12 3v12" />
+      <path d="m7 10 5 5 5-5" />
+      <path d="M4 19h16" />
+    </svg>
+  );
+}
+
+/**
+ * Toolbar "Download CSV" — same look on every module. Pair with useCsvExport.
+ * `count` (optional) shows how many rows the export will contain.
+ */
+export function DirectoryExportButton({
+  onClick,
+  loading = false,
+  disabled = false,
+  count,
+  label = "Download CSV",
+  title,
+}) {
+  const showCount = Number.isFinite(count) && count >= 0;
+  return (
+    <button
+      type="button"
+      className={chrome.exportBtn}
+      onClick={onClick}
+      disabled={disabled || loading}
+      aria-busy={loading || undefined}
+      title={title || (showCount ? `${label} (${count.toLocaleString()} rows)` : label)}
+    >
+      <IconDownload />
+      <span>{loading ? "Preparing…" : label}</span>
+      {showCount && !loading ? (
+        <span className={chrome.exportCount}>{count.toLocaleString()}</span>
+      ) : null}
+    </button>
+  );
+}
+
 export function DirectoryMorePanel({ children }) {
   return <div className={chrome.morePanel}>{children}</div>;
 }

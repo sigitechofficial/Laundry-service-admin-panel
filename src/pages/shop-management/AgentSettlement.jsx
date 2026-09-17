@@ -1,10 +1,11 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Button,
   Field,
   Input,
   Modal,
+  Select,
   Table,
   Textarea,
 } from "../../design-system";
@@ -17,19 +18,28 @@ import {
   formatMoney,
   resolveCurrencySymbol,
 } from "../../utilities/formatters";
+import { formatPhoneWithCountryCode } from "../../utilities/contactLinks";
+import { csvFormat } from "../../utilities/csvExport";
+import { useCsvExport } from "../../hooks/useCsvExport";
 import {
   DirectoryActions,
   DirectoryActionView,
+  DirectoryClearButton,
+  DirectoryExportButton,
   DirectoryIdentity,
   DirectoryMetrics,
   DirectoryMoney,
   DirectorySearch,
   DirectoryTableWrap,
   DirectoryToolbar,
+  DirectoryToolbarEnd,
+  DirectoryToolSelect,
   DirectoryViewModal,
 } from "../directory-table/directoryTable";
+import ListPagination from "../order-management/ListPagination";
 import {
   useGetAgentsCashDueQuery,
+  useLazyGetAgentsCashDueQuery,
   useGetPendingRemittancesQuery,
   useGetPendingWithdrawalsQuery,
   useConfirmCashRemittanceMutation,
@@ -88,6 +98,77 @@ const FORMULA_CARD = {
   marginBottom: 16,
 };
 
+const SEARCH_DEBOUNCE_MS = 400;
+const CASH_DUE_DEFAULT_PAGE_SIZE = 20;
+const CASH_DUE_DEFAULT_SORT_BY = "cashDueToPlatform";
+
+/** Server `sortBy` allowlist for admin/agents/cash-due. */
+const CASH_DUE_SORT_OPTIONS = [
+  { value: "cashDueToPlatform", label: "Sort: Cash due" },
+  { value: "shopName", label: "Sort: Shop" },
+  { value: "agentName", label: "Sort: Agent" },
+];
+
+const SORT_DIR_OPTIONS = [
+  { value: "desc", label: "High → low / Z → A" },
+  { value: "asc", label: "Low → high / A → Z" },
+];
+
+/** Table header key → server `sortBy`. Other cash-due columns are not server-sortable. */
+const CASH_DUE_TABLE_SORT_TO_API = {
+  name: "shopName",
+  cashDueLabel: "cashDueToPlatform",
+};
+
+/** CSV columns operate on the raw API cash-due row (export mode returns the same shape). */
+const CASH_DUE_CSV_COLUMNS = [
+  { header: "Shop ID", key: "shopId" },
+  { header: "Shop", value: (a) => a?.shopName || "" },
+  { header: "Agent / owner", value: (a) => a?.agentName || "" },
+  { header: "Owner user ID", key: "agentUserId" },
+  { header: "Email", value: (a) => a?.agentEmail || "" },
+  {
+    header: "Phone",
+    value: (a) => formatPhoneWithCountryCode(a?.agentCountryCode, a?.agentPhone),
+  },
+  { header: "Address", value: (a) => a?.shopAddress || "" },
+  { header: "Currency", value: (a) => a?.currency || "" },
+  { header: "Cash collected", value: (a) => csvFormat.money(a?.totalCashCollected) },
+  { header: "Cash remitted", value: (a) => csvFormat.money(a?.totalCashRemitted) },
+  { header: "Pending remittance", value: (a) => csvFormat.money(a?.pendingCashRemittance) },
+  { header: "Cash due to platform", value: (a) => csvFormat.money(a?.cashDueToPlatform) },
+  { header: "Platform owes agent", value: (a) => csvFormat.money(a?.platformOwesAgent) },
+  { header: "Total paid out", value: (a) => csvFormat.money(a?.totalAgentPayouts) },
+  { header: "Total withdrawn", value: (a) => csvFormat.money(a?.totalWithdrawn) },
+  { header: "Last remitted at", value: (a) => csvFormat.dateTime(a?.lastCashRemittedAt) },
+];
+
+/** Client-side rows (already mapped for the table). */
+const REMITTANCE_CSV_COLUMNS = [
+  { header: "Remittance ID", key: "id" },
+  { header: "Shop ID", key: "shopId" },
+  { header: "Owner user ID", key: "agentUserId" },
+  { header: "Agent", value: (r) => (r.name === "-" ? "" : r.name) },
+  { header: "Email", value: (r) => (r.email === "-" ? "" : r.email) },
+  { header: "Currency", value: (r) => r.currency || "" },
+  { header: "Amount", value: (r) => csvFormat.money(r.amount) },
+  { header: "Note", value: (r) => (r.description === "-" ? "" : r.description) },
+  { header: "Submitted at", value: (r) => csvFormat.dateTime(r.submittedAtMs || null) },
+];
+
+const WITHDRAWAL_CSV_COLUMNS = [
+  { header: "Withdrawal ID", key: "id" },
+  { header: "Shop ID", key: "shopId" },
+  { header: "Owner user ID", key: "agentUserId" },
+  { header: "Shop / agent", value: (r) => (r.name === "-" ? "" : r.name) },
+  { header: "Email", value: (r) => (r.email === "-" ? "" : r.email) },
+  { header: "Currency", value: (r) => r.currency || "" },
+  { header: "Amount", value: (r) => csvFormat.money(r.amount) },
+  { header: "Stripe Connect ready", value: (r) => csvFormat.bool(r.connectReady) },
+  { header: "Note", value: (r) => (r.description === "-" ? "" : r.description) },
+  { header: "Requested at", value: (r) => csvFormat.dateTime(r.submittedAtMs || null) },
+];
+
 function matchesSearch(row, term) {
   if (!term) return true;
   const q = term.toLowerCase();
@@ -119,23 +200,61 @@ export default function AgentSettlement() {
   const { success, error: showError } = useToaster();
   const [tab, setTab] = useState("cash-due");
   const [searchTerm, setSearchTerm] = useState("");
-  const [sortBy, setSortBy] = useState("cashDue");
+  // Client-side sort for the remittance / withdrawal tabs (small, already-loaded pages).
+  const [sortBy, setSortBy] = useState("submittedAtMs");
   const [sortDir, setSortDir] = useState("desc");
+  // Server-side search / sort / paging for the cash-due tab.
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [cashSortBy, setCashSortBy] = useState(CASH_DUE_DEFAULT_SORT_BY);
+  const [cashSortDir, setCashSortDir] = useState("desc");
+  const [cashPage, setCashPage] = useState(1);
+  const [cashPageSize, setCashPageSizeState] = useState(CASH_DUE_DEFAULT_PAGE_SIZE);
   const [remittancePage, setRemittancePage] = useState(1);
   const [withdrawalPage, setWithdrawalPage] = useState(1);
   const [actionModal, setActionModal] = useState(emptyActionModal);
   const [viewRow, setViewRow] = useState(null);
   const actingRef = useRef(false);
 
+  useEffect(() => {
+    const handle = window.setTimeout(() => {
+      setDebouncedSearch(searchTerm.trim());
+    }, SEARCH_DEBOUNCE_MS);
+    return () => window.clearTimeout(handle);
+  }, [searchTerm]);
+
+  // Any cash-due filter / sort / page-size change restarts from page 1.
+  useEffect(() => {
+    setCashPage(1);
+  }, [debouncedSearch, cashSortBy, cashSortDir, cashPageSize]);
+
+  const setCashPageSize = useCallback((size) => {
+    setCashPageSizeState(size);
+    setCashPage(1);
+  }, []);
+
+  /** Filter + sort params shared by the paged cash-due query and its CSV export. */
+  const cashDueFilterParams = useMemo(
+    () => ({
+      search: debouncedSearch || undefined,
+      sortBy: cashSortBy,
+      sortDir: cashSortDir,
+    }),
+    [debouncedSearch, cashSortBy, cashSortDir]
+  );
+
+  const cashDueParams = useMemo(
+    () => ({ ...cashDueFilterParams, page: cashPage, limit: cashPageSize }),
+    [cashDueFilterParams, cashPage, cashPageSize]
+  );
+
   const {
     data: cashDueResponse,
     isLoading: cashDueLoading,
+    isFetching: cashDueFetching,
     isError: cashDueError,
     refetch: refetchCashDue,
-  } = useGetAgentsCashDueQuery(
-    { page: 1, limit: 100 },
-    { skip: tab !== "cash-due" }
-  );
+  } = useGetAgentsCashDueQuery(cashDueParams, { skip: tab !== "cash-due" });
+  const [fetchCashDueForExport] = useLazyGetAgentsCashDueQuery();
 
   const {
     data: remittanceResponse,
@@ -185,6 +304,9 @@ export default function AgentSettlement() {
     () => cashDueResponse?.data?.agents || [],
     [cashDueResponse?.data?.agents]
   );
+  const cashDuePagination = cashDueResponse?.data?.pagination || {};
+  const cashDueTotalRows =
+    Number(cashDuePagination.totalRecords ?? cashDuePagination.total ?? cashDueAgents.length) || 0;
   const remittances = useMemo(
     () => remittanceResponse?.data?.remittances || [],
     [remittanceResponse?.data?.remittances]
@@ -197,6 +319,23 @@ export default function AgentSettlement() {
   const withdrawalPagination = withdrawalResponse?.data?.pagination || {};
 
   const summary = useMemo(() => {
+    const symbols = new Set(
+      cashDueAgents.map((agent) => resolveCurrencySymbol(agent, { applyDefault: true }))
+    );
+    const currencySymbol = symbols.size === 1 ? [...symbols][0] : "";
+    // Prefer server totals (whole filtered set); fall back to page sums for older APIs.
+    const serverSummary = cashDueResponse?.data?.summary;
+    if (serverSummary && typeof serverSummary === "object") {
+      return {
+        totalCashDue: Number(serverSummary.totalCashDue || 0),
+        totalPending: Number(serverSummary.totalPending || 0),
+        totalPayable: Number(serverSummary.totalPayable || 0),
+        totalRemitted: Number(serverSummary.totalRemitted || 0),
+        totalReleased: Number(serverSummary.totalReleased || 0),
+        currencySymbol,
+        fromServer: true,
+      };
+    }
     const totalCashDue = cashDueAgents.reduce(
       (sum, row) => sum + Number(row.cashDueToPlatform || 0),
       0
@@ -217,18 +356,16 @@ export default function AgentSettlement() {
       (sum, row) => sum + Number(row.totalAgentPayouts || 0),
       0
     );
-    const symbols = new Set(
-      cashDueAgents.map((agent) => resolveCurrencySymbol(agent, { applyDefault: true }))
-    );
     return {
       totalCashDue,
       totalPending,
       totalPayable,
       totalRemitted,
       totalReleased,
-      currencySymbol: symbols.size === 1 ? [...symbols][0] : "",
+      currencySymbol,
+      fromServer: false,
     };
-  }, [cashDueAgents]);
+  }, [cashDueAgents, cashDueResponse?.data?.summary]);
 
   const cashDueTableData = useMemo(
     () =>
@@ -237,7 +374,8 @@ export default function AgentSettlement() {
         shopId: agent.shopId,
         agentUserId: agent.agentUserId,
         rowKey: `cash-${agent.shopId ?? agent.agentUserId ?? "unknown"}-${index}`,
-        sl: index + 1,
+        sl: (cashPage - 1) * cashPageSize + index + 1,
+        phone: formatPhoneWithCountryCode(agent.agentCountryCode, agent.agentPhone),
         name: agent.shopName || agent.agentName || "-",
         email: agent.agentEmail || "-",
         shopName: agent.shopName || "-",
@@ -263,7 +401,7 @@ export default function AgentSettlement() {
           ? new Date(agent.lastCashRemittedAt).getTime() || 0
           : 0,
       })),
-    [cashDueAgents]
+    [cashDueAgents, cashPage, cashPageSize]
   );
 
   const remittanceTableData = useMemo(
@@ -307,14 +445,8 @@ export default function AgentSettlement() {
     [withdrawals, withdrawalPage]
   );
 
-  const visibleCashDue = useMemo(() => {
-    const filtered = cashDueTableData.filter((row) =>
-      matchesSearch(row, searchTerm)
-    );
-    return [...filtered].sort((a, b) =>
-      compareSettlementRows(a, b, sortBy, sortDir)
-    );
-  }, [cashDueTableData, searchTerm, sortBy, sortDir]);
+  // Cash-due search / sort / paging are server-side; rows arrive already shaped.
+  const visibleCashDue = cashDueTableData;
 
   const visibleRemittances = useMemo(() => {
     const filtered = remittanceTableData.filter((row) =>
@@ -345,17 +477,94 @@ export default function AgentSettlement() {
     });
   }, []);
 
+  /** Cash-due header clicks map to the server allowlist; unknown keys are ignored. */
+  const handleCashDueSort = useCallback(
+    (key) => {
+      const apiKey = CASH_DUE_TABLE_SORT_TO_API[key];
+      if (!apiKey) return;
+      if (apiKey === cashSortBy) {
+        setCashSortDir((dir) => (dir === "asc" ? "desc" : "asc"));
+      } else {
+        setCashSortBy(apiKey);
+        setCashSortDir(apiKey === "cashDueToPlatform" ? "desc" : "asc");
+      }
+    },
+    [cashSortBy]
+  );
+
+  const cashDueTableSortKey = useMemo(
+    () =>
+      Object.keys(CASH_DUE_TABLE_SORT_TO_API).find(
+        (key) => CASH_DUE_TABLE_SORT_TO_API[key] === cashSortBy
+      ) || null,
+    [cashSortBy]
+  );
+
   const switchTab = useCallback((nextTab) => {
     setTab(nextTab);
     setSearchTerm("");
+    setDebouncedSearch("");
     if (nextTab === "cash-due") {
-      setSortBy("cashDue");
-      setSortDir("desc");
+      setCashPage(1);
     } else {
       setSortBy("submittedAtMs");
       setSortDir("desc");
     }
   }, []);
+
+  const clearCashDueFilters = useCallback(() => {
+    setSearchTerm("");
+    setDebouncedSearch("");
+    setCashSortBy(CASH_DUE_DEFAULT_SORT_BY);
+    setCashSortDir("desc");
+    setCashPage(1);
+  }, []);
+
+  const fetchAllCashDueForExport = useCallback(async () => {
+    // `false` → never serve the export from a cached page response.
+    const res = await fetchCashDueForExport(
+      { ...cashDueFilterParams, export: true },
+      false
+    ).unwrap();
+    return {
+      rows: res?.data?.agents || [],
+      pagination: res?.data?.pagination || null,
+    };
+  }, [fetchCashDueForExport, cashDueFilterParams]);
+
+  const cashDueCsvFilters = useMemo(
+    () => ({ search: debouncedSearch, sort: cashSortBy !== CASH_DUE_DEFAULT_SORT_BY ? cashSortBy : "" }),
+    [debouncedSearch, cashSortBy]
+  );
+
+  const cashDueCsv = useCsvExport({
+    filenameBase: "agent-cash-settlement",
+    columns: CASH_DUE_CSV_COLUMNS,
+    fetchAll: fetchAllCashDueForExport,
+    filenameFilters: cashDueCsvFilters,
+  });
+
+  const remittanceCsvFilters = useMemo(
+    () => ({ search: searchTerm.trim(), page: remittancePage > 1 ? remittancePage : "" }),
+    [searchTerm, remittancePage]
+  );
+  const remittanceCsv = useCsvExport({
+    filenameBase: "pending-remittances",
+    columns: REMITTANCE_CSV_COLUMNS,
+    rows: visibleRemittances,
+    filenameFilters: remittanceCsvFilters,
+  });
+
+  const withdrawalCsvFilters = useMemo(
+    () => ({ search: searchTerm.trim(), page: withdrawalPage > 1 ? withdrawalPage : "" }),
+    [searchTerm, withdrawalPage]
+  );
+  const withdrawalCsv = useCsvExport({
+    filenameBase: "withdrawal-requests",
+    columns: WITHDRAWAL_CSV_COLUMNS,
+    rows: visibleWithdrawals,
+    filenameFilters: withdrawalCsvFilters,
+  });
 
   const openActionModal = useCallback((type, row) => {
     const maxAmount =
@@ -511,7 +720,6 @@ export default function AgentSettlement() {
         key: "name",
         header: "Agent",
         sortable: true,
-        sortKey: "name",
         render: (row) => (
           <DirectoryIdentity
             name={row.shopName && row.shopName !== "-" ? row.shopName : row.name}
@@ -525,6 +733,7 @@ export default function AgentSettlement() {
                 ? row.name
                 : null,
               row.agentUserId ? `Owner #${row.agentUserId}` : null,
+              row.phone || null,
               row.shopAddress,
             ]
               .filter(Boolean)
@@ -537,46 +746,37 @@ export default function AgentSettlement() {
         header: "Cash due",
         align: "right",
         sortable: true,
-        sortKey: "cashDue",
         render: (row) => <DirectoryMoney>{row.cashDueLabel}</DirectoryMoney>,
       },
+      // Server sort allowlist is cashDueToPlatform | shopName | agentName; the
+      // remaining money columns are display-only so a header click never lies.
       {
         key: "totalCashCollected",
         header: "Cash collected",
         align: "right",
-        sortable: true,
-        sortKey: "totalCashCollectedRaw",
         render: (row) => <DirectoryMoney>{row.totalCashCollected}</DirectoryMoney>,
       },
       {
         key: "totalCashRemitted",
         header: "Cash already sent",
         align: "right",
-        sortable: true,
-        sortKey: "totalCashRemittedRaw",
         render: (row) => <DirectoryMoney>{row.totalCashRemitted}</DirectoryMoney>,
       },
       {
         key: "platformOwesLabel",
         header: "Still payable",
         align: "right",
-        sortable: true,
-        sortKey: "platformOwes",
         render: (row) => <DirectoryMoney>{row.platformOwesLabel}</DirectoryMoney>,
       },
       {
         key: "totalPaidOut",
         header: "Already released",
         align: "right",
-        sortable: true,
-        sortKey: "totalPaidOutRaw",
         render: (row) => <DirectoryMoney>{row.totalPaidOut}</DirectoryMoney>,
       },
       {
         key: "lastCashRemittedAt",
         header: "Last cash sent",
-        sortable: true,
-        sortKey: "lastCashRemittedAtMs",
         render: (row) => row.lastCashRemittedAt,
       },
       {
@@ -784,6 +984,16 @@ export default function AgentSettlement() {
     Math.ceil((withdrawalPagination.total || 0) / 20)
   );
 
+  // Cash-due totals are summed from the rows on screen; the endpoint has no
+  // aggregate block, so label them honestly instead of implying a grand total.
+  const summaryHint = summary.fromServer
+    ? cashDueTotalRows
+      ? `All ${cashDueTotalRows} matching shops`
+      : undefined
+    : cashDueTotalRows > cashDueAgents.length
+      ? `Page ${cashPage} · ${cashDueAgents.length} of ${cashDueTotalRows} shops`
+      : undefined;
+
   const tabError =
     tab === "cash-due"
       ? cashDueError
@@ -805,21 +1015,25 @@ export default function AgentSettlement() {
             label: "Still to collect",
             value: formatMoney(summary.totalCashDue, summary.currencySymbol),
             tone: "warning",
+            hint: summaryHint,
           },
           {
             label: "Already collected from agents",
             value: formatMoney(summary.totalRemitted, summary.currencySymbol),
             tone: "navy",
+            hint: summaryHint,
           },
           {
             label: "Still payable",
             value: formatMoney(summary.totalPayable, summary.currencySymbol),
             tone: "success",
+            hint: summaryHint,
           },
           {
             label: "Already sent to Stripe Connect",
             value: formatMoney(summary.totalReleased, summary.currencySymbol),
             tone: "success",
+            hint: summaryHint,
           },
         ]}
       />
@@ -922,19 +1136,62 @@ export default function AgentSettlement() {
                 id="cash-due-search"
                 value={searchTerm}
                 onChange={setSearchTerm}
-                placeholder="Search name, email, address…"
+                placeholder="Search shop, owner, email, phone, address or ID…"
               />
+              <DirectoryToolSelect>
+                <Select
+                  aria-label="Sort cash-due list by"
+                  value={cashSortBy}
+                  onChange={(value) => setCashSortBy(value || CASH_DUE_DEFAULT_SORT_BY)}
+                  options={CASH_DUE_SORT_OPTIONS}
+                />
+              </DirectoryToolSelect>
+              <DirectoryToolSelect>
+                <Select
+                  aria-label="Sort direction"
+                  value={cashSortDir}
+                  onChange={(value) => setCashSortDir(value === "asc" ? "asc" : "desc")}
+                  options={SORT_DIR_OPTIONS}
+                />
+              </DirectoryToolSelect>
+              <DirectoryToolbarEnd>
+                {searchTerm || cashSortBy !== CASH_DUE_DEFAULT_SORT_BY || cashSortDir !== "desc" ? (
+                  <DirectoryClearButton onClick={clearCashDueFilters} />
+                ) : null}
+                {cashDueFetching ? (
+                  <span className="jd-field__hint">Refreshing…</span>
+                ) : null}
+                <DirectoryExportButton
+                  onClick={cashDueCsv.run}
+                  loading={cashDueCsv.isExporting}
+                  count={cashDueTotalRows}
+                />
+              </DirectoryToolbarEnd>
             </DirectoryToolbar>
+          }
+          footer={
+            <ListPagination
+              page={cashPage}
+              pageSize={cashPageSize}
+              totalRows={cashDueTotalRows}
+              onPageChange={setCashPage}
+              onPageSizeChange={setCashPageSize}
+              noun="shops"
+            />
           }
         >
           <Table
             columns={cashDueColumns}
             rows={visibleCashDue}
             rowKey={(row) => row.rowKey}
-            empty="No agents with settlement activity yet"
-            sortBy={sortBy}
-            sortDir={sortDir}
-            onSort={handleSort}
+            empty={
+              debouncedSearch
+                ? "No shops match this search"
+                : "No agents with settlement activity yet"
+            }
+            sortBy={cashDueTableSortKey}
+            sortDir={cashSortDir}
+            onSort={handleCashDueSort}
           />
         </DirectoryTableWrap>
       ) : tab === "remittances" ? (
@@ -947,6 +1204,14 @@ export default function AgentSettlement() {
                 onChange={setSearchTerm}
                 placeholder="Search name, email…"
               />
+              <DirectoryToolbarEnd>
+                <DirectoryExportButton
+                  onClick={remittanceCsv.run}
+                  loading={remittanceCsv.isExporting}
+                  count={visibleRemittances.length}
+                  title="Download CSV of the rows currently loaded on this page"
+                />
+              </DirectoryToolbarEnd>
             </DirectoryToolbar>
           }
           footer={
@@ -994,6 +1259,14 @@ export default function AgentSettlement() {
                 onChange={setSearchTerm}
                 placeholder="Search shop, agent, email…"
               />
+              <DirectoryToolbarEnd>
+                <DirectoryExportButton
+                  onClick={withdrawalCsv.run}
+                  loading={withdrawalCsv.isExporting}
+                  count={visibleWithdrawals.length}
+                  title="Download CSV of the rows currently loaded on this page"
+                />
+              </DirectoryToolbarEnd>
             </DirectoryToolbar>
           }
           footer={

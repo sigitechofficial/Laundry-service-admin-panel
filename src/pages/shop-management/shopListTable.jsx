@@ -1,5 +1,6 @@
 import { formatMoney, resolveCurrencySymbol } from "../../utilities/formatters";
 import { formatPhoneWithCountryCode } from "../../utilities/contactLinks";
+import { csvFormat } from "../../utilities/csvExport";
 import {
   DirectoryActionDelete,
   DirectoryActionEdit,
@@ -56,6 +57,38 @@ export function mapShopToRow(item) {
     changeStatus: statusValue,
   };
 }
+
+/** Table row + owner/created fields the CSV needs (same API item as mapShopToRow). */
+export function mapShopToCsvRow(item) {
+  const biz = item?.businessInfo;
+  const ownerName = [biz?.firstName, biz?.lastName].filter(Boolean).join(" ").trim();
+  return {
+    ...mapShopToRow(item),
+    ownerName,
+    currencyCode: item?.addressDb?.zone?.currencyUnitZ?.name ?? "",
+    createdAt: item?.createdAt ?? item?.created_at ?? null,
+  };
+}
+
+/** CSV columns for the Shops directory (rows from mapShopToCsvRow). */
+export const SHOP_LIST_CSV_COLUMNS = [
+  { header: "Shop ID", key: "id" },
+  { header: "Shop name", key: "name" },
+  { header: "Owner", key: "ownerName" },
+  { header: "Email", key: "email" },
+  { header: "Phone", key: "phoneNumber" },
+  { header: "Zone", value: (r) => (r.zone === "-" ? "" : r.zone) },
+  { header: "City", value: (r) => (r.city === "-" ? "" : r.city) },
+  { header: "Country", value: (r) => (r.country === "-" ? "" : r.country) },
+  { header: "Address", value: (r) => (r.address === "-" ? "" : r.address) },
+  { header: "Status", value: (r) => csvFormat.bool(r.status, "Active", "Inactive") },
+  { header: "Orders", key: "totalOrders" },
+  { header: "Pending orders", key: "pendingOrders" },
+  { header: "Revenue", value: (r) => csvFormat.money(r.amountSpent) },
+  { header: "Currency", key: "currencyCode" },
+  { header: "Employees", value: (r) => (r.employees == null ? "" : r.employees) },
+  { header: "Registered", value: (r) => csvFormat.date(r.createdAt) },
+];
 
 export function buildShopListColumns({ navigate, onView, onEdit, onDelete }) {
   return [

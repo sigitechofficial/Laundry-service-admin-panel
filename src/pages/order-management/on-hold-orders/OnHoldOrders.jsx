@@ -3,11 +3,13 @@ import { useNavigate } from "react-router-dom";
 import {
   useGetOnHoldBookingsQuery,
   useGetAllOrderStatusesQuery,
+  useLazyGetOnHoldBookingsQuery,
 } from "../../../store/services/api";
 import DeleteOrderModal from "../order-modals/DeleteOrderModal";
 import AssignOrderModal from "../order-modals/AssignOrderModal";
 import { useOrderListColumns } from "../useOrderListColumns";
 import {
+  ORDER_LIST_CSV_COLUMNS,
   mapBookingToOrderListRow,
   tabOrderMetricItems,
 } from "../orderListUtils";
@@ -15,6 +17,7 @@ import { useOrderListTableFilters } from "../useOrderListTableFilters";
 import OrderListDataTable from "../OrderListDataTable";
 import { useOrderListPageQueries } from "../useOrderListPageQueries";
 import { useOrderListStatsQuery } from "../useOrderListStatsQuery";
+import { useOrderListCsvExport } from "../useOrderListCsvExport";
 import { OrderError, OrderMetrics, OrderPageHeader } from "../OrderWorkspace";
 
 function onHoldBookingsFromResponse(data) {
@@ -24,6 +27,21 @@ function onHoldBookingsFromResponse(data) {
     []
   );
 }
+
+function mapOnHoldBookingToRow(booking) {
+  return {
+    ...mapBookingToOrderListRow(booking),
+    onHoldReason: booking?.onHoldReason || booking?.OnHoldOtherReason || "—",
+  };
+}
+
+const ON_HOLD_CSV_COLUMNS = [
+  ...ORDER_LIST_CSV_COLUMNS,
+  {
+    header: "Why on hold",
+    value: (row) => (row.onHoldReason === "—" ? "" : row.onHoldReason || ""),
+  },
+];
 
 export default function OnHoldOrders() {
   const navigate = useNavigate();
@@ -50,6 +68,16 @@ export default function OnHoldOrders() {
     () => (Array.isArray(statusesResponse?.data) ? statusesResponse.data : []),
     [statusesResponse?.data]
   );
+  const [fetchOnHoldBookings] = useLazyGetOnHoldBookingsQuery();
+  const csv = useOrderListCsvExport({
+    tableFilters,
+    fetchList: fetchOnHoldBookings,
+    pickRows,
+    filenameBase: "orders-on-hold",
+    orderStatuses,
+    columns: ON_HOLD_CSV_COLUMNS,
+    mapRow: mapOnHoldBookingToRow,
+  });
   const [deleteModal, setDeleteModal] = useState({ open: false, orderId: null });
   const [assignModal, setAssignModal] = useState({
     open: false,
@@ -63,11 +91,7 @@ export default function OnHoldOrders() {
   };
 
   const customersData = useMemo(
-    () =>
-      orderBookings.map((booking) => ({
-        ...mapBookingToOrderListRow(booking),
-        onHoldReason: booking?.onHoldReason || booking?.OnHoldOtherReason || "—",
-      })),
+    () => orderBookings.map(mapOnHoldBookingToRow),
     [orderBookings]
   );
 
@@ -148,6 +172,8 @@ export default function OnHoldOrders() {
           sortDir={tableFilters.sortDir}
           onSortDirChange={tableFilters.setSortDir}
           isTableLoading={isTableLoading}
+          onDownload={csv.run}
+          downloading={csv.isExporting}
         />
       </div>
       <DeleteOrderModal

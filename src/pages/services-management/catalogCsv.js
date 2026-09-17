@@ -2,9 +2,7 @@
 // categories, sub-categories/items, and add-ons). Kept self-contained so the
 // dashboard can offer one-click downloads without pulling in report UI code.
 
-function csvEscape(value) {
-  return `"${String(value ?? "").replace(/"/g, '""')}"`;
-}
+import { downloadCsv } from "../../utilities/csvExport";
 
 function stripHtml(value) {
   return String(value ?? "")
@@ -18,26 +16,7 @@ function statusLabel(value) {
 
 /** Download an array of rows as a CSV file using the given column definitions. */
 export function downloadCatalogCsv(filename, columns, rows) {
-  const head = columns.map((c) => csvEscape(c.header));
-  const lines = [head.join(",")];
-  (rows || []).forEach((row) => {
-    lines.push(
-      columns
-        .map((c) => csvEscape(c.value ? c.value(row) : row[c.key]))
-        .join(",")
-    );
-  });
-  const blob = new Blob([lines.join("\n")], {
-    type: "text/csv;charset=utf-8;",
-  });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
+  return downloadCsv(filename, columns, rows || []);
 }
 
 function dateStamp() {

@@ -1,6 +1,9 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Button, Modal, PageHeader, Table } from "../../design-system";
+import { Button, Modal, PageHeader, Select, Table } from "../../design-system";
+import { formatUserPhone } from "../../utilities/contactLinks";
+import { csvFormat } from "../../utilities/csvExport";
+import { useCsvExport } from "../../hooks/useCsvExport";
 import {
   DirectoryActionDelete,
   DirectoryActionEdit,
@@ -8,21 +11,54 @@ import {
   DirectoryActionView,
   DirectoryClearButton,
   DirectoryDateInput,
+  DirectoryExportButton,
   DirectoryIdentity,
   DirectoryMetrics,
   DirectorySearch,
   DirectoryStatusPill,
   DirectoryTableWrap,
+  DirectoryToolSelect,
   DirectoryToolbar,
   DirectoryToolbarEnd,
   DirectoryViewModal,
 } from "../directory-table/directoryTable";
 import { joinMeta } from "../directory-table/directoryTableUtils";
-import { useGetAdminEmployeesQuery, useDeleteAdminEmployeeMutation } from "../../store/services/api";
+import {
+  useGetAdminEmployeesQuery,
+  useDeleteAdminEmployeeMutation,
+  useGetAllRolesQuery,
+} from "../../store/services/api";
 import { Delay } from "../../components/shared/Loaders";
 import useToaster from "../../components/ui/Toaster";
 import AddEmployeeModal from "./employee-modals/AddEmployeeModal";
 import { extractAdminEmployees } from "./extractAdminEmployees";
+
+const STATUS_OPTIONS = [
+  { value: "", label: "All statuses" },
+  { value: "active", label: "Active" },
+  { value: "inactive", label: "Inactive" },
+];
+
+const EMPLOYEE_CSV_COLUMNS = [
+  { header: "Employee ID", key: "employeeId" },
+  { header: "Name", key: "name" },
+  { header: "Email", value: (row) => (row.email === "—" ? "" : row.email) },
+  { header: "Phone", key: "phone" },
+  { header: "Country code", key: "countryCode" },
+  { header: "Role", key: "roleName" },
+  { header: "Status", value: (row) => (row.status ? "Active" : "Inactive") },
+  { header: "Created", value: (row) => csvFormat.date(row.createdAt) },
+];
+
+function matchesStatus(row, status) {
+  if (!status) return true;
+  return status === "active" ? Boolean(row.status) : !row.status;
+}
+
+function matchesRole(row, roleId) {
+  if (!roleId) return true;
+  return String(row.roleId ?? "") === String(roleId);
+}
 
 function matchesSearch(row, term) {
   if (!term) return true;
@@ -55,6 +91,8 @@ export default function EmployeeManagement() {
   const { success, error: showError } = useToaster();
   const [dateRange, setDateRange] = useState({ startDate: "", endDate: "" });
   const [searchTerm, setSearchTerm] = useState("");
+  const [roleFilter, setRoleFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [editEmployee, setEditEmployee] = useState(null);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
@@ -62,33 +100,91 @@ export default function EmployeeManagement() {
   const [viewRow, setViewRow] = useState(null);
 
   const { data, currentData, isLoading, isFetching, isUninitialized, isError, refetch } =
-    useGetAdminEmployeesQuery(undefined, { refetchOnMountOrArgChange: true });
+    useGetAdminEmployeesQuery({ includeInactive: 1 }, { refetchOnMountOrArgChange: true });
   const [deleteEmployee, { isLoading: isDeleting }] = useDeleteAdminEmployeeMutation();
   const payload = currentData ?? data;
   const adminEmployees = useMemo(() => extractAdminEmployees(payload), [payload]);
 
+  // The list endpoint only returns roleId; resolve names from the admin-portal role catalog.
+  const { data: rolesRes } = useGetAllRolesQuery("admin_portal");
+  const roleNameById = useMemo(() => {
+    const list = Array.isArray(rolesRes?.data) ? rolesRes.data : [];
+    return new Map(list.map((r) => [String(r.id), r.name]));
+  }, [rolesRes?.data]);
+
   const employeesData = useMemo(
     () =>
-      adminEmployees.map((emp, index) => ({
-        id: emp.id,
-        sl: index + 1,
-        employeeId: emp.id,
-        name: [emp.firstName, emp.lastName].filter(Boolean).join(" ") || "—",
-        email: emp.email ?? "—",
-        phoneNum: emp.phoneNum ?? "—",
-        status: emp.status,
-        createdAt: emp.createdAt,
-      })),
-    [adminEmployees]
+      adminEmployees.map((emp, index) => {
+        const roleId = emp.roleId ?? emp.role?.id ?? null;
+        return {
+          id: emp.id,
+          sl: index + 1,
+          employeeId: emp.id,
+          name: [emp.firstName, emp.lastName].filter(Boolean).join(" ") || "—",
+          email: emp.email ?? "—",
+          phoneNum: emp.phoneNum ?? "—",
+          phone: formatUserPhone(emp),
+          countryCode: emp.countryCode ?? "",
+          roleId,
+          roleName:
+            emp.role?.name ??
+            (roleId != null ? roleNameById.get(String(roleId)) : undefined) ??
+            (roleId != null ? `Role ${roleId}` : "—"),
+          status: emp.status,
+          createdAt: emp.createdAt,
+        };
+      }),
+    [adminEmployees, roleNameById]
   );
+
+  const roleOptions = useMemo(() => {
+    const seen = new Map();
+    employeesData.forEach((row) => {
+      if (row.roleId == null) return;
+      const key = String(row.roleId);
+      if (!seen.has(key)) seen.set(key, row.roleName);
+    });
+    return [
+      { value: "", label: "All roles" },
+      ...[...seen.entries()]
+        .map(([value, label]) => ({ value, label }))
+        .sort((a, b) => String(a.label).localeCompare(String(b.label))),
+    ];
+  }, [employeesData]);
 
   const visibleRows = useMemo(
     () =>
       employeesData.filter(
-        (row) => matchesSearch(row, searchTerm) && matchesDateRange(row, dateRange)
+        (row) =>
+          matchesRole(row, roleFilter) &&
+          matchesStatus(row, statusFilter) &&
+          matchesSearch(row, searchTerm) &&
+          matchesDateRange(row, dateRange)
       ),
-    [dateRange, employeesData, searchTerm]
+    [dateRange, employeesData, roleFilter, searchTerm, statusFilter]
   );
+
+  const hasActiveFilters = Boolean(
+    searchTerm || roleFilter || statusFilter || dateRange.startDate || dateRange.endDate
+  );
+
+  const csvFilenameFilters = useMemo(
+    () => ({
+      search: searchTerm.trim(),
+      role: roleFilter ? roleNameById.get(String(roleFilter)) || roleFilter : "",
+      status: statusFilter,
+      from: dateRange.startDate,
+      to: dateRange.endDate,
+    }),
+    [searchTerm, roleFilter, roleNameById, statusFilter, dateRange.startDate, dateRange.endDate]
+  );
+
+  const csv = useCsvExport({
+    filenameBase: "employees",
+    columns: EMPLOYEE_CSV_COLUMNS,
+    rows: visibleRows,
+    filenameFilters: csvFilenameFilters,
+  });
 
   const showInitialLoader =
     payload == null && !isError && (isUninitialized || isLoading || isFetching);
@@ -152,7 +248,7 @@ export default function EmployeeManagement() {
       render: (row) => (
         <DirectoryIdentity
           name={row.name}
-          meta={joinMeta(row.email, row.phoneNum)}
+          meta={joinMeta(row.email, row.phoneNum, row.roleName !== "—" ? row.roleName : null)}
           id={row.employeeId}
         />
       ),
@@ -227,6 +323,24 @@ export default function EmployeeManagement() {
                   onChange={handleSearchChange}
                   placeholder="Search by ID, name, email…"
                 />
+                <DirectoryToolSelect>
+                  <Select
+                    aria-label="Employee role"
+                    value={roleFilter}
+                    onChange={(value) => setRoleFilter(value ?? "")}
+                    options={roleOptions}
+                    placeholder="All roles"
+                  />
+                </DirectoryToolSelect>
+                <DirectoryToolSelect>
+                  <Select
+                    aria-label="Employee status"
+                    value={statusFilter}
+                    onChange={(value) => setStatusFilter(value ?? "")}
+                    options={STATUS_OPTIONS}
+                    placeholder="All statuses"
+                  />
+                </DirectoryToolSelect>
                 <DirectoryDateInput
                   id="employee-start-date"
                   value={dateRange.startDate}
@@ -241,16 +355,23 @@ export default function EmployeeManagement() {
                   aria-label="End date"
                   title="End date"
                 />
-                {searchTerm || dateRange.startDate || dateRange.endDate ? (
-                  <DirectoryToolbarEnd>
+                <DirectoryToolbarEnd>
+                  {hasActiveFilters ? (
                     <DirectoryClearButton
                       onClick={() => {
                         handleSearchChange("");
+                        setRoleFilter("");
+                        setStatusFilter("");
                         setDateRange({ startDate: "", endDate: "" });
                       }}
                     />
-                  </DirectoryToolbarEnd>
-                ) : null}
+                  ) : null}
+                  <DirectoryExportButton
+                    onClick={csv.run}
+                    loading={csv.isExporting}
+                    count={visibleRows.length}
+                  />
+                </DirectoryToolbarEnd>
               </DirectoryToolbar>
             }
           >
@@ -277,6 +398,7 @@ export default function EmployeeManagement() {
           { label: "Employee ID", value: viewRow?.employeeId },
           { label: "Email", value: viewRow?.email },
           { label: "Phone", value: viewRow?.phoneNum },
+          { label: "Role", value: viewRow?.roleName },
           { label: "Status", value: viewRow?.status ? "Active" : "Inactive" },
         ]}
       />

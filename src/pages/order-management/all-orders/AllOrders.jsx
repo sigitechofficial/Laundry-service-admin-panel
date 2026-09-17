@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import {
   useGetAllOrderQuery,
   useGetAllOrderStatusesQuery,
+  useLazyGetAllOrderQuery,
 } from "../../../store/services/api";
 import DeleteOrderModal from "../order-modals/DeleteOrderModal";
 import AssignOrderModal from "../order-modals/AssignOrderModal";
@@ -12,7 +13,8 @@ import { useOrderListTableFilters } from "../useOrderListTableFilters";
 import OrderListDataTable from "../OrderListDataTable";
 import { useOrderListPageQueries } from "../useOrderListPageQueries";
 import { useOrderListStatsQuery } from "../useOrderListStatsQuery";
-import { allOrderMetricItems, downloadOrderListCsv } from "../orderListUtils";
+import { useOrderListCsvExport } from "../useOrderListCsvExport";
+import { allOrderMetricItems } from "../orderListUtils";
 import {
   OrderError,
   OrderHeaderActions,
@@ -44,6 +46,14 @@ export default function ShopManagement() {
     () => (Array.isArray(statusesResponse?.data) ? statusesResponse.data : []),
     [statusesResponse?.data]
   );
+  const [fetchAllOrders] = useLazyGetAllOrderQuery();
+  const csv = useOrderListCsvExport({
+    tableFilters,
+    fetchList: fetchAllOrders,
+    pickRows,
+    filenameBase: "orders-all",
+    orderStatuses,
+  });
   const [deleteModal, setDeleteModal] = useState({ open: false, orderId: null });
   const [assignModal, setAssignModal] = useState({
     open: false,
@@ -76,9 +86,7 @@ export default function ShopManagement() {
           title="Order Management"
           description="Track, filter and act on every order. Cards, table and filters share the same zone, date and status selection."
           actions={
-            <OrderHeaderActions
-              onExport={() => downloadOrderListCsv(customersData, "orders_export.csv")}
-            />
+            <OrderHeaderActions onExport={csv.run} exporting={csv.isExporting} />
           }
         />
 
@@ -123,6 +131,8 @@ export default function ShopManagement() {
           sortDir={tableFilters.sortDir}
           onSortDirChange={tableFilters.setSortDir}
           isTableLoading={isTableLoading}
+          onDownload={csv.run}
+          downloading={csv.isExporting}
         />
       </div>
       <DeleteOrderModal

@@ -4,6 +4,7 @@ import { Field, Input, Select } from "../../design-system";
 import { useGetAllZonesQuery } from "../../store/services/api";
 import {
   DirectoryClearButton,
+  DirectoryExportButton,
   DirectoryMorePanel,
   DirectorySearch,
   DirectoryTool,
@@ -41,6 +42,9 @@ export default function ShopDirectoryToolbar({
   onClearFilters,
   hasActiveFilters,
   isRefreshing = false,
+  onExport,
+  isExporting = false,
+  exportCount,
 }) {
   const [moreOpen, setMoreOpen] = useState(false);
   const [draftStart, setDraftStart] = useState(toDateInput(dateRange?.startDate));
@@ -115,6 +119,13 @@ export default function ShopDirectoryToolbar({
         <DirectoryToolbarEnd>
           {hasActiveFilters ? <DirectoryClearButton onClick={onClearFilters} /> : null}
           {isRefreshing ? <span style={{ fontSize: 13, color: "#5c6673" }}>Refreshing…</span> : null}
+          {onExport ? (
+            <DirectoryExportButton
+              onClick={onExport}
+              loading={isExporting}
+              count={exportCount}
+            />
+          ) : null}
         </DirectoryToolbarEnd>
       </DirectoryToolbar>
 
