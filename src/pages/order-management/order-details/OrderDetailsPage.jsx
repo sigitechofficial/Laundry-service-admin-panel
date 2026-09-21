@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { Badge, Button, Modal, PageHeader, Select } from "../../../design-system";
 import dayjs from "dayjs";
 import { Delay } from "../../../components/shared/Loaders";
@@ -103,10 +103,17 @@ function StarRating({ value = 0 }) {
   );
 }
 
+// Bump this when the intended default-open state changes — it invalidates
+// any "0"/"1" a viewer's browser already remembered under the old key, so
+// everyone sees the new defaults once instead of getting stuck on a stale
+// collapsed state from before this behavior existed.
+const COLLAPSIBLE_STORAGE_VERSION = "v2";
+
 function CollapsibleCard({ title, dotColor, storageKey, defaultOpen = false, children }) {
+  const storageId = `od-sec-${COLLAPSIBLE_STORAGE_VERSION}-${storageKey}`;
   const [open, setOpen] = useState(() => {
     try {
-      const v = localStorage.getItem(`od-sec-${storageKey}`);
+      const v = localStorage.getItem(storageId);
       return v === null ? defaultOpen : v === "1";
     } catch {
       return defaultOpen;
@@ -116,7 +123,7 @@ function CollapsibleCard({ title, dotColor, storageKey, defaultOpen = false, chi
     setOpen((o) => {
       const next = !o;
       try {
-        localStorage.setItem(`od-sec-${storageKey}`, next ? "1" : "0");
+        localStorage.setItem(storageId, next ? "1" : "0");
       } catch {
         /* ignore storage errors */
       }
@@ -729,6 +736,19 @@ export default function OrderDetailsPage() {
     .filter(Boolean)
     .join(", ");
   const shopZoneName = orderData?.zoneName || orderData?.zone?.name || "";
+  const shopServicesOffered = shopBusinessInfo?.matchProfileOptions || "";
+  const shopPayoutConnected = Boolean(shopBusinessInfo?.isConnectAccountConnected);
+  const shopAgentActive = shopAgent?.status !== false;
+  const shopApprovalStatus = String(shopAgent?.agentApprovalStatus || "").toLowerCase();
+  const shopApprovalLabel = shopApprovalStatus
+    ? shopApprovalStatus.charAt(0).toUpperCase() + shopApprovalStatus.slice(1)
+    : "";
+  const shopApprovalTone =
+    shopApprovalStatus === "approved"
+      ? "success"
+      : shopApprovalStatus === "rejected"
+        ? "danger"
+        : "warning";
 
   // Whichever contact modal is currently open — keeps the tel:/WhatsApp
   // handlers and the Modal markup shared between customer and shop.
@@ -2210,34 +2230,75 @@ export default function OrderDetailsPage() {
           </CollapsibleCard>
 
           <CollapsibleCard title="Shop" storageKey="shop" defaultOpen={true} dotColor="#C4B5FD">
-            <div className="space-y-3" style={{ padding: 20 }}>
+            <div style={{ padding: 20 }}>
               {orderData?.laundryShop ? (
                 <>
-                  <OdMetaRow
-                    label="Shop Name"
-                    value={shopName || "Not assigned"}
-                    valueTo={shopDetailsPath(shopBusinessInfoId) || undefined}
-                  />
-                  <OdMetaRow label="Agent" value={shopAgentName || "—"} />
-                  <OdMetaRow label="Email" value={shopEmail || "—"} />
-                  <OdMetaRow label="Phone" value={shopPhone || "—"} />
-                  <OdMetaRow label="Address" value={shopAddress || "—"} />
-                  <OdMetaRow label="Zone" value={shopZoneName || "—"} />
-                  <OdMetaRow label="Frequency" value={orderData?.frequency || "Just Once"} />
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    onClick={openShopContactModal}
-                    disabled={!canCallShop}
-                  >
-                    Call shop
-                  </Button>
+                  {/* Header: shop name + at-a-glance status */}
+                  <div style={{ marginBottom: 14 }}>
+                    <Link
+                      to={shopDetailsPath(shopBusinessInfoId) || "#"}
+                      style={{
+                        fontSize: 15,
+                        fontWeight: 700,
+                        color: "#0F172A",
+                        textDecoration: "none",
+                      }}
+                    >
+                      {shopName || "Not assigned"}
+                    </Link>
+                    <div
+                      className="flex items-center flex-wrap"
+                      style={{ gap: 6, marginTop: 6 }}
+                    >
+                      <Badge tone={shopAgentActive ? "success" : "danger"}>
+                        {shopAgentActive ? "Active" : "Blocked"}
+                      </Badge>
+                      {shopApprovalLabel ? (
+                        <Badge tone={shopApprovalTone}>{shopApprovalLabel}</Badge>
+                      ) : null}
+                      <Badge tone={shopPayoutConnected ? "success" : "warning"}>
+                        {shopPayoutConnected ? "Payouts connected" : "Payouts not set up"}
+                      </Badge>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <OdMetaRow label="Agent" value={shopAgentName || "—"} />
+                    <OdMetaRow label="Email" value={shopEmail || "—"} />
+                    <OdMetaRow label="Phone" value={shopPhone || "—"} />
+                    <OdMetaRow label="Address" value={shopAddress || "—"} />
+                    <OdMetaRow label="Zone" value={shopZoneName || "—"} />
+                    {shopServicesOffered ? (
+                      <OdMetaRow label="Services offered" value={shopServicesOffered} />
+                    ) : null}
+                    <OdMetaRow label="Frequency" value={orderData?.frequency || "Just Once"} />
+                  </div>
+
+                  <div className="flex items-center flex-wrap" style={{ gap: 8, marginTop: 14 }}>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={openShopContactModal}
+                      disabled={!canCallShop}
+                    >
+                      Call shop
+                    </Button>
+                    {shopBusinessInfoId ? (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => navigate(shopDetailsPath(shopBusinessInfoId))}
+                      >
+                        View shop profile
+                      </Button>
+                    ) : null}
+                  </div>
                 </>
               ) : (
-                <>
+                <div className="space-y-3">
                   <OdMetaRow label="Shop Name" value="Not assigned" />
                   <OdMetaRow label="Frequency" value={orderData?.frequency || "Just Once"} />
-                </>
+                </div>
               )}
             </div>
           </CollapsibleCard>
