@@ -778,6 +778,85 @@ export default function OrderDetailsPage() {
         ? 0
         : totalAmount)
   );
+  const earningsBreakdown = useMemo(() => {
+    const agentCommissionPercent = toNumber(commercialTerms?.agentCommissionPercent);
+    const platformCommissionPercent = toNumber(
+      commercialTerms?.platformCommissionPercent,
+      Math.max(0, 100 - agentCommissionPercent)
+    );
+
+    const commissionBase = toNumber(
+      commercialTerms?.commissionBaseAmount ??
+        paymentSummary?.orderSummary?.effectiveLaundry ??
+        paymentSummary?.orderSummary?.laundrySubtotal ??
+        servicesAddedAmount
+    );
+    const agentLaundryShare = toNumber(
+      commercialTerms?.agentCommissionAmount ??
+        (commissionBase * agentCommissionPercent) / 100
+    );
+    const platformLaundryShare = toNumber(
+      commercialTerms?.platformCommissionAmount ??
+        Math.max(0, commissionBase - agentLaundryShare)
+    );
+    const driverTip = toNumber(
+      paymentSummary?.orderSummary?.driverTip ?? tipAmount
+    );
+    const serviceFeeRevenue = toNumber(
+      commercialTerms?.serviceCharge ??
+        paymentSummary?.orderSummary?.serviceFee ??
+        serviceChargeAmount
+    );
+
+    const agentTotal = toNumber(
+      commercialTerms?.agentEarningWithTip ??
+        agentLaundryShare + driverTip
+    );
+    const adminTotal = toNumber(platformLaundryShare + serviceFeeRevenue);
+
+    const customerGross = toNumber(
+      paymentSummary?.orderSummary?.totalOrderAmount ?? totalAmount
+    );
+    const discount = toNumber(
+      paymentSummary?.orderSummary?.discount ??
+        orderData?.billingDetail?.discount ??
+        0
+    );
+    const refunded = toNumber(totalRefunded);
+    const customerNet = Math.max(0, customerGross - discount - refunded);
+    const billingStatus = String(
+      paymentSummary?.billingPaymentStatus ??
+        orderData?.billingDetail?.paymentStatus ??
+        "pending"
+    ).toLowerCase();
+
+    return {
+      agentCommissionPercent,
+      platformCommissionPercent,
+      commissionBase,
+      agentLaundryShare,
+      platformLaundryShare,
+      driverTip,
+      serviceFeeRevenue,
+      agentTotal,
+      adminTotal,
+      customerGross,
+      discount,
+      refunded,
+      customerNet,
+      projected: billingStatus !== "paid",
+    };
+  }, [
+    commercialTerms,
+    paymentSummary,
+    servicesAddedAmount,
+    tipAmount,
+    serviceChargeAmount,
+    totalAmount,
+    orderData?.billingDetail?.discount,
+    orderData?.billingDetail?.paymentStatus,
+    totalRefunded,
+  ]);
   const invoiceView = useMemo(
     () => buildInvoiceView(invoiceDetails, shopName),
     [invoiceDetails, shopName]
@@ -2182,6 +2261,114 @@ export default function OrderDetailsPage() {
                   ) : null}
                 </>
               ) : null}
+              <div className={styles.earningsWrap}>
+                <div>
+                  <p className={styles.earningsTitle}>Who earns what (this order)</p>
+                  <p className={styles.earningsSubtitle}>
+                    {earningsBreakdown.projected
+                      ? "Projected split from current invoice terms."
+                      : "Final split from paid invoice terms."}
+                  </p>
+                </div>
+                <div className={styles.earningsTotals}>
+                  <div className={`${styles.earningsTotalCard} ${styles.earningsTotalCardAgent}`}>
+                    <p className={styles.earningsTotalLabel}>Shop / Agent total</p>
+                    <p className={styles.earningsTotalValue}>
+                      {formatMoney(earningsBreakdown.agentTotal, paymentCurrencySymbol)}
+                    </p>
+                  </div>
+                  <div className={`${styles.earningsTotalCard} ${styles.earningsTotalCardAdmin}`}>
+                    <p className={styles.earningsTotalLabel}>Admin / Platform total</p>
+                    <p className={styles.earningsTotalValue}>
+                      {formatMoney(earningsBreakdown.adminTotal, paymentCurrencySymbol)}
+                    </p>
+                  </div>
+                </div>
+
+                <div className={styles.earningsBlock}>
+                  <p className={styles.earningsBlockTitle}>Shop / Agent amount includes</p>
+                  <div className={styles.earningsRow}>
+                    <span>
+                      Laundry share ({earningsBreakdown.agentCommissionPercent}% of{" "}
+                      {formatMoney(earningsBreakdown.commissionBase, paymentCurrencySymbol)})
+                    </span>
+                    <strong>
+                      {formatMoney(earningsBreakdown.agentLaundryShare, paymentCurrencySymbol)}
+                    </strong>
+                  </div>
+                  <div className={styles.earningsRow}>
+                    <span>Driver tip</span>
+                    <strong>
+                      {formatMoney(earningsBreakdown.driverTip, paymentCurrencySymbol)}
+                    </strong>
+                  </div>
+                  <div className={`${styles.earningsRow} ${styles.earningsRowStrong}`}>
+                    <span>Shop / Agent total</span>
+                    <strong>
+                      {formatMoney(earningsBreakdown.agentTotal, paymentCurrencySymbol)}
+                    </strong>
+                  </div>
+                </div>
+
+                <div className={styles.earningsBlock}>
+                  <p className={styles.earningsBlockTitle}>Admin / Platform amount includes</p>
+                  <div className={styles.earningsRow}>
+                    <span>
+                      Platform commission ({earningsBreakdown.platformCommissionPercent}% of{" "}
+                      {formatMoney(earningsBreakdown.commissionBase, paymentCurrencySymbol)})
+                    </span>
+                    <strong>
+                      {formatMoney(earningsBreakdown.platformLaundryShare, paymentCurrencySymbol)}
+                    </strong>
+                  </div>
+                  <div className={styles.earningsRow}>
+                    <span>Service fee</span>
+                    <strong>
+                      {formatMoney(earningsBreakdown.serviceFeeRevenue, paymentCurrencySymbol)}
+                    </strong>
+                  </div>
+                  <div className={`${styles.earningsRow} ${styles.earningsRowStrong}`}>
+                    <span>Admin / Platform total</span>
+                    <strong>
+                      {formatMoney(earningsBreakdown.adminTotal, paymentCurrencySymbol)}
+                    </strong>
+                  </div>
+                </div>
+
+                <div className={styles.earningsBlock}>
+                  <p className={styles.earningsBlockTitle}>Customer bill context</p>
+                  <div className={styles.earningsRow}>
+                    <span>Gross customer bill</span>
+                    <strong>
+                      {formatMoney(earningsBreakdown.customerGross, paymentCurrencySymbol)}
+                    </strong>
+                  </div>
+                  <div className={styles.earningsRow}>
+                    <span>Discount</span>
+                    <strong>
+                      −{formatMoney(earningsBreakdown.discount, paymentCurrencySymbol)}
+                    </strong>
+                  </div>
+                  <div className={styles.earningsRow}>
+                    <span>Refunded so far</span>
+                    <strong>
+                      −{formatMoney(earningsBreakdown.refunded, paymentCurrencySymbol)}
+                    </strong>
+                  </div>
+                  <div className={`${styles.earningsRow} ${styles.earningsRowStrong}`}>
+                    <span>Net customer paid / collectible</span>
+                    <strong>
+                      {formatMoney(earningsBreakdown.customerNet, paymentCurrencySymbol)}
+                    </strong>
+                  </div>
+                </div>
+                {Number(extraTipAmount) > 0 ? (
+                  <p className={styles.earningsFootnote}>
+                    Post-complete extra tip {formatMoney(extraTipAmount, paymentCurrencySymbol)} is
+                    tracked separately from this invoice split.
+                  </p>
+                ) : null}
+              </div>
               <div className="flex justify-between gap-3 items-center">
                 <p style={{ margin: 0, color: "var(--muted)",  fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em" }}>
                   Status
