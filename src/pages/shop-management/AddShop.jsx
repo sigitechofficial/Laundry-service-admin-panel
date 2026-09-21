@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Autocomplete } from "@react-google-maps/api";
-import { Badge, Button, Field, Input, PageHeader, Select, Textarea } from "../../design-system";
+import { Badge, Button, Field, Input, PageHeader, PasswordInput, Select, Textarea } from "../../design-system";
 import {
   useGetAllServicesQuery,
   useGetAllCountriesQuery,
@@ -229,6 +229,22 @@ export default function ShopProfile() {
       }
       return { ...s, [field]: value };
     });
+  };
+
+  // Country code: a single leading "+" then up to 4 digits (e.g. +44, +971).
+  // Letters and extra symbols are stripped as the user types, not just on
+  // submit, so the field can never hold "44abc" or "++1".
+  const handleCountryCode = (e) => {
+    const raw = e?.target?.value ?? e;
+    const digits = String(raw).replace(/\D/g, "").slice(0, 4);
+    setFormData((s) => ({ ...s, countryCode: `+${digits}` }));
+  };
+
+  // Phone: national digits only, capped at 11 (UK "07911123456").
+  const handlePhone = (e) => {
+    const raw = e?.target?.value ?? e;
+    const digits = String(raw).replace(/\D/g, "").slice(0, 11);
+    setFormData((s) => ({ ...s, phoneNum: digits }));
   };
 
   const handleZoneChange = (e) => {
@@ -528,47 +544,54 @@ export default function ShopProfile() {
                 <Field
                   label={labelWithReq("Password", true)}
                   htmlFor="add-shop-password"
+                  hint={!accountErrors.password ? "At least 6 characters" : undefined}
                   error={accountErrors.password}
                 >
-                  <Input
+                  <PasswordInput
                     id="add-shop-password"
-                    type="password"
                     placeholder="••••••••"
                     value={formData.password}
                     onChange={handleChange("password")}
                     error={Boolean(accountErrors.password)}
                     disabled={accountLocked}
-                    autoComplete="new-password"
-                  />
-                </Field>
-                <Field
-                  label={labelWithReq("Country code", true)}
-                  htmlFor="add-shop-country-code"
-                  error={accountErrors.countryCode}
-                >
-                  <Input
-                    id="add-shop-country-code"
-                    placeholder="+44"
-                    value={formData.countryCode}
-                    onChange={handleChange("countryCode")}
-                    error={Boolean(accountErrors.countryCode)}
-                    disabled={accountLocked}
+                    maxLength={64}
                   />
                 </Field>
                 <Field
                   label={labelWithReq("Phone", true)}
                   htmlFor="add-shop-phone"
-                  error={accountErrors.phoneNum}
+                  hint={
+                    !accountErrors.phoneNum && !accountErrors.countryCode
+                      ? "Digits only, e.g. 07911123456"
+                      : undefined
+                  }
+                  error={accountErrors.countryCode || accountErrors.phoneNum}
                 >
-                  <Input
-                    id="add-shop-phone"
-                    placeholder="7123456789"
-                    value={formData.phoneNum}
-                    onChange={handleChange("phoneNum")}
-                    error={Boolean(accountErrors.phoneNum)}
-                    disabled={accountLocked}
-                    autoComplete="tel"
-                  />
+                  <div style={{ display: "flex", gap: 8, alignItems: "stretch" }}>
+                    <Input
+                      id="add-shop-country-code"
+                      aria-label="Country code"
+                      placeholder="+44"
+                      value={formData.countryCode}
+                      onChange={handleCountryCode}
+                      error={Boolean(accountErrors.countryCode)}
+                      disabled={accountLocked}
+                      inputMode="numeric"
+                      style={{ flex: "0 0 84px", width: 84, textAlign: "center" }}
+                    />
+                    <Input
+                      id="add-shop-phone"
+                      placeholder="7123456789"
+                      value={formData.phoneNum}
+                      onChange={handlePhone}
+                      error={Boolean(accountErrors.phoneNum || accountErrors.countryCode)}
+                      disabled={accountLocked}
+                      inputMode="numeric"
+                      autoComplete="tel"
+                      maxLength={11}
+                      style={{ flex: 1, minWidth: 0 }}
+                    />
+                  </div>
                 </Field>
               </div>
             </Section>
