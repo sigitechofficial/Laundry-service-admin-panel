@@ -103,6 +103,82 @@ function StarRating({ value = 0 }) {
   );
 }
 
+function CollapsibleCard({ title, dotColor, storageKey, defaultOpen = false, children }) {
+  const [open, setOpen] = useState(() => {
+    try {
+      const v = localStorage.getItem(`od-sec-${storageKey}`);
+      return v === null ? defaultOpen : v === "1";
+    } catch {
+      return defaultOpen;
+    }
+  });
+  const toggle = () =>
+    setOpen((o) => {
+      const next = !o;
+      try {
+        localStorage.setItem(`od-sec-${storageKey}`, next ? "1" : "0");
+      } catch {
+        /* ignore storage errors */
+      }
+      return next;
+    });
+  return (
+    <div style={CARD}>
+      <button
+        type="button"
+        onClick={toggle}
+        aria-expanded={open}
+        style={{
+          width: "100%",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 8,
+          padding: "14px 20px",
+          background: "var(--surface)",
+          border: "none",
+          borderBottom: open ? "1px solid var(--line)" : "none",
+          cursor: "pointer",
+          textAlign: "left",
+        }}
+      >
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+          {dotColor ? (
+            <span style={{ width: 6, height: 6, borderRadius: "50%", background: dotColor }} />
+          ) : null}
+          <span
+            style={{
+              color: "var(--muted)",
+              fontSize: 12,
+              fontWeight: 700,
+              letterSpacing: "0.08em",
+              textTransform: "uppercase",
+            }}
+          >
+            {title}
+          </span>
+        </span>
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          style={{
+            color: "#94A3B8",
+            transform: open ? "rotate(180deg)" : "rotate(0deg)",
+            transition: "transform 150ms ease",
+          }}
+        >
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+      </button>
+      {open ? <div>{children}</div> : null}
+    </div>
+  );
+}
+
 function statusBadgeTone(status) {
   const normalized = String(status || "").toLowerCase();
   if (normalized.includes("complete")) return "success";
@@ -2105,8 +2181,7 @@ export default function OrderDetailsPage() {
         </div>
 
         <div className={styles.stack}>
-          <div style={CARD}>
-            <OdSectionTitle>Customer</OdSectionTitle>
+          <CollapsibleCard title="Customer" storageKey="customer" defaultOpen={true}>
             <div className="space-y-3" style={{ padding: 20 }}>
               {orderData?.customer ? (
                 <>
@@ -2132,10 +2207,42 @@ export default function OrderDetailsPage() {
                 <p style={{ margin: 0, fontSize: 13, color: "#64748B" }}>No customer linked</p>
               )}
             </div>
-          </div>
+          </CollapsibleCard>
 
-          <div style={CARD}>
-            <OdSectionTitle>Recurring</OdSectionTitle>
+          <CollapsibleCard title="Shop" storageKey="shop" defaultOpen={true} dotColor="#C4B5FD">
+            <div className="space-y-3" style={{ padding: 20 }}>
+              {orderData?.laundryShop ? (
+                <>
+                  <OdMetaRow
+                    label="Shop Name"
+                    value={shopName || "Not assigned"}
+                    valueTo={shopDetailsPath(shopBusinessInfoId) || undefined}
+                  />
+                  <OdMetaRow label="Agent" value={shopAgentName || "—"} />
+                  <OdMetaRow label="Email" value={shopEmail || "—"} />
+                  <OdMetaRow label="Phone" value={shopPhone || "—"} />
+                  <OdMetaRow label="Address" value={shopAddress || "—"} />
+                  <OdMetaRow label="Zone" value={shopZoneName || "—"} />
+                  <OdMetaRow label="Frequency" value={orderData?.frequency || "Just Once"} />
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={openShopContactModal}
+                    disabled={!canCallShop}
+                  >
+                    Call shop
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <OdMetaRow label="Shop Name" value="Not assigned" />
+                  <OdMetaRow label="Frequency" value={orderData?.frequency || "Just Once"} />
+                </>
+              )}
+            </div>
+          </CollapsibleCard>
+
+          <CollapsibleCard title="Recurring" storageKey="recurring">
             <div className="space-y-3" style={{ padding: 20 }}>
               <OdMetaRow
                 label="Plan"
@@ -2168,10 +2275,9 @@ export default function OrderDetailsPage() {
                 }
               />
             </div>
-          </div>
+          </CollapsibleCard>
 
-          <div style={CARD}>
-            <OdSectionTitle>Payment</OdSectionTitle>
+          <CollapsibleCard title="Payment" storageKey="payment" defaultOpen={true}>
             <div className="space-y-3" style={{ padding: 20 }}>
               <div className={`${styles.due} ${invoiceGenerated && amountDueNow > 0 ? styles.dueWarn : styles.dueOk}`}>
                 <p className={styles.dueLabel}>Amount due</p>
@@ -2432,58 +2538,9 @@ export default function OrderDetailsPage() {
                 </Badge>
               </div>
             </div>
-          </div>
+          </CollapsibleCard>
 
-          <div style={CARD}>
-            <div style={{ ...SECTION_HEAD }}>
-              <div className="flex items-center gap-1.5">
-                <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#C4B5FD" }} />
-                <p style={{ margin: 0, color: "var(--muted)",  fontSize: 12, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}>
-                  Shop
-                </p>
-              </div>
-            </div>
-            <div className="space-y-3" style={{ padding: 20 }}>
-              {orderData?.laundryShop ? (
-                <>
-                  <OdMetaRow
-                    label="Shop Name"
-                    value={shopName || "Not assigned"}
-                    valueTo={shopDetailsPath(shopBusinessInfoId) || undefined}
-                  />
-                  <OdMetaRow label="Agent" value={shopAgentName || "—"} />
-                  <OdMetaRow label="Email" value={shopEmail || "—"} />
-                  <OdMetaRow label="Phone" value={shopPhone || "—"} />
-                  <OdMetaRow label="Address" value={shopAddress || "—"} />
-                  <OdMetaRow label="Zone" value={shopZoneName || "—"} />
-                  <OdMetaRow label="Frequency" value={orderData?.frequency || "Just Once"} />
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    onClick={openShopContactModal}
-                    disabled={!canCallShop}
-                  >
-                    Call shop
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <OdMetaRow label="Shop Name" value="Not assigned" />
-                  <OdMetaRow label="Frequency" value={orderData?.frequency || "Just Once"} />
-                </>
-              )}
-            </div>
-          </div>
-
-          <div style={CARD}>
-            <div style={{ ...SECTION_HEAD }}>
-              <div className="flex items-center gap-1.5">
-                <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#FBBF24" }} />
-                <p style={{ margin: 0, color: "var(--muted)",  fontSize: 12, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}>
-                  Customer Review
-                </p>
-              </div>
-            </div>
+          <CollapsibleCard title="Customer Review" storageKey="review" dotColor="#FBBF24">
             <div className="space-y-3" style={{ padding: 20 }}>
               {!shopReview ? (
                 <p style={{ margin: 0, fontSize: 13, color: "#64748B" }}>
@@ -2519,17 +2576,9 @@ export default function OrderDetailsPage() {
                 </>
               )}
             </div>
-          </div>
+          </CollapsibleCard>
 
-          <div style={CARD}>
-            <div style={{ ...SECTION_HEAD }}>
-              <div className="flex items-center gap-1.5">
-                <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#60A5FA" }} />
-                <p style={{ margin: 0, color: "var(--muted)",  fontSize: 12, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}>
-                  Delivery Address
-                </p>
-              </div>
-            </div>
+          <CollapsibleCard title="Delivery Address" storageKey="deliveryAddress" dotColor="#60A5FA">
             <div className="space-y-3" style={{ padding: 20 }}>
               <p style={{ margin: 0,  color: "#2563EB", fontWeight: 700, fontSize: 12 }}>
                 DELIVERY LOCATION
@@ -2546,17 +2595,9 @@ export default function OrderDetailsPage() {
                 </p>
               </div>
             </div>
-          </div>
+          </CollapsibleCard>
 
-          <div style={CARD}>
-            <div style={{ ...SECTION_HEAD }}>
-              <div className="flex items-center gap-1.5">
-                <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#FBBF24" }} />
-                <p style={{ margin: 0, color: "var(--muted)",  fontSize: 12, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}>
-                  Drivers
-                </p>
-              </div>
-            </div>
+          <CollapsibleCard title="Drivers" storageKey="drivers" dotColor="#FBBF24">
             <div className="space-y-3" style={{ padding: 20 }}>
               <div>
                 <p style={{ margin: 0,  color: "#2563EB", fontWeight: 700, fontSize: 12 }}>
@@ -2622,17 +2663,9 @@ export default function OrderDetailsPage() {
                 ) : null}
               </div>
             </div>
-          </div>
+          </CollapsibleCard>
 
-          <div style={CARD}>
-            <div style={{ ...SECTION_HEAD }}>
-              <div className="flex items-center gap-1.5">
-                <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#F87171" }} />
-                <p style={{ margin: 0, color: "var(--muted)",  fontSize: 12, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}>
-                  Attempt outcomes
-                </p>
-              </div>
-            </div>
+          <CollapsibleCard title="Attempt outcomes" storageKey="attempts" dotColor="#F87171">
             <div className="space-y-3" style={{ padding: 20 }}>
               {attemptRows.length ? (
                 attemptRows.map((attempt) => {
@@ -2692,14 +2725,14 @@ export default function OrderDetailsPage() {
                 </p>
               )}
             </div>
-          </div>
+          </CollapsibleCard>
 
           {Array.isArray(orderData?.agentDeclines) &&
           orderData.agentDeclines.length > 0 ? (
-            <div style={CARD}>
-              <OdSectionTitle>
-                Declined by shops ({orderData.agentDeclines.length})
-              </OdSectionTitle>
+            <CollapsibleCard
+              title={`Declined by shops (${orderData.agentDeclines.length})`}
+              storageKey="declines"
+            >
               <div style={{ display: "grid", gap: 10 }}>
                 {orderData.agentDeclines.map((d) => (
                   <div
@@ -2743,13 +2776,12 @@ export default function OrderDetailsPage() {
                   </div>
                 ))}
               </div>
-            </div>
+            </CollapsibleCard>
           ) : null}
 
-          <div style={CARD}>
-            <OdSectionTitle>Activity</OdSectionTitle>
+          <CollapsibleCard title="Activity" storageKey="activity">
             <OdTimeline rows={activityRows} />
-          </div>
+          </CollapsibleCard>
 
         </div>
       </div>
