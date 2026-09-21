@@ -20,14 +20,20 @@ import { buildCurrencyUnitsList } from "../../utilities/zonesList";
 import {
   DEFAULT_WORKING_DAYS,
   MACHINERY_COUNT_OPTIONS,
+  SHOP_PROFILE_OPTIONS,
+  SHOP_PROFILE_VALUES,
   WIZARD_STEPS,
   buildAddressPayload,
   buildBusinessPayload,
   buildRegisterPayload,
   formatHoursSummary,
   getAccountErrors,
+  getLocationErrors,
+  getOperationsErrors,
   isAccountComplete,
   isLocationComplete,
+  isOperationsComplete,
+  profileLabel,
 } from "./addShopForm";
 import styles from "./AddShop.module.css";
 
@@ -200,7 +206,16 @@ export default function ShopProfile() {
     return [{ value: String(id), label }];
   }, [selectedZone, currencyUnitsList]);
 
+  const selectedCountry = useMemo(
+    () => countries.find((c) => String(c.id) === String(formData.countryId)) || null,
+    [countries, formData.countryId]
+  );
+
   const accountErrors = attempted && step === 0 ? getAccountErrors(formData) : {};
+  const locationErrors =
+    attempted && step === 1 ? getLocationErrors(formData, selectedCountry) : {};
+  const operationsErrors =
+    attempted && step === 2 ? getOperationsErrors(formData) : {};
   const busy = isRegistering || isAddingAddress || isAddingBusiness;
 
   const handleChange = (field) => (e) => {
@@ -314,7 +329,7 @@ export default function ShopProfile() {
 
   const handleStep2Next = async () => {
     setAttempted(true);
-    if (!isLocationComplete(formData)) return;
+    if (!isLocationComplete(formData, selectedCountry)) return;
     if (!registeredUserId) {
       error("Missing user id");
       return;
@@ -339,6 +354,8 @@ export default function ShopProfile() {
   };
 
   const handleStep3Next = () => {
+    setAttempted(true);
+    if (!isOperationsComplete(formData)) return;
     goToStep(3);
   };
 
@@ -644,7 +661,7 @@ export default function ShopProfile() {
                   label={labelWithReq("Address", true)}
                   htmlFor="add-shop-address"
                   hint="Start typing, then pick a result to fill coordinates"
-                  error={attempted && !isLocationComplete(formData) ? "Address is required" : undefined}
+                  error={locationErrors.streetAddress}
                 >
                   {isGoogleMapsLoaded ? (
                     <Autocomplete
@@ -654,7 +671,7 @@ export default function ShopProfile() {
                       onPlaceChanged={handleAddressPlaceChanged}
                     >
                       <input
-                        className={`jd-input${attempted && !isLocationComplete(formData) ? " is-error" : ""}`}
+                        className={`jd-input${locationErrors.streetAddress ? " is-error" : ""}`}
                         id="add-shop-address"
                         placeholder="Start typing to search address…"
                         value={formData.streetAddress}
@@ -704,7 +721,11 @@ export default function ShopProfile() {
                   }}
                 />
               </Field>
-              <Field label="Postal code" htmlFor="add-shop-postal">
+              <Field
+                label={labelWithReq("Postal code", true)}
+                htmlFor="add-shop-postal"
+                error={locationErrors.postalcode}
+              >
                 <Input
                   id="add-shop-postal"
                   placeholder="Postal code"
@@ -713,6 +734,7 @@ export default function ShopProfile() {
                     setAddressSaved(false);
                     handleChange("postalcode")(e);
                   }}
+                  error={Boolean(locationErrors.postalcode)}
                 />
               </Field>
               {formData.lat && formData.lng ? (
@@ -742,36 +764,64 @@ export default function ShopProfile() {
               description="Shown on the shop record. Shop name can be added later if you do not have it yet."
             >
               <div className={styles.grid}>
-                <Field label="Shop name (business name)" htmlFor="add-shop-name">
+                <Field
+                  label={labelWithReq("Shop name (business name)", true)}
+                  htmlFor="add-shop-name"
+                  error={operationsErrors.shopName}
+                >
                   <Input
                     id="add-shop-name"
                     placeholder="Shop name"
                     value={formData.shopName}
                     onChange={handleChange("shopName")}
+                    error={Boolean(operationsErrors.shopName)}
                   />
                 </Field>
                 <Field
-                  label="Match profile options"
-                  htmlFor="add-shop-profile"
-                  hint="e.g. Laundry Shop"
+                  label={labelWithReq("Shop profile", true)}
+                  hint={
+                    !operationsErrors.matchProfileOptions
+                      ? "How this shop processes laundry"
+                      : undefined
+                  }
+                  error={operationsErrors.matchProfileOptions}
                 >
-                  <Input
-                    id="add-shop-profile"
-                    placeholder="e.g. Laundry Shop"
+                  <Select
+                    aria-label="Shop profile"
                     value={formData.matchProfileOptions}
-                    onChange={handleChange("matchProfileOptions")}
+                    onChange={(v) => {
+                      const value = v?.target?.value ?? v;
+                      setFormData((s) => ({
+                        ...s,
+                        matchProfileOptions: value,
+                        // Drop stale free-text when leaving "Other" so the
+                        // backend never rejects it.
+                        otherText:
+                          value === SHOP_PROFILE_VALUES.OTHER ? s.otherText : "",
+                      }));
+                    }}
+                    options={SHOP_PROFILE_OPTIONS}
+                    placeholder="Select a profile"
+                    error={Boolean(operationsErrors.matchProfileOptions)}
                   />
                 </Field>
-                <div className={styles.spanAll}>
-                  <Field label="Other text (optional)" htmlFor="add-shop-other">
-                    <Textarea
-                      id="add-shop-other"
-                      rows={3}
-                      value={formData.otherText}
-                      onChange={handleChange("otherText")}
-                    />
-                  </Field>
-                </div>
+                {formData.matchProfileOptions === SHOP_PROFILE_VALUES.OTHER ? (
+                  <div className={styles.spanAll}>
+                    <Field
+                      label={labelWithReq("Describe the profile", true)}
+                      htmlFor="add-shop-other"
+                      error={operationsErrors.otherText}
+                    >
+                      <Textarea
+                        id="add-shop-other"
+                        rows={3}
+                        placeholder="Describe how this shop processes laundry"
+                        value={formData.otherText}
+                        onChange={handleChange("otherText")}
+                      />
+                    </Field>
+                  </div>
+                ) : null}
               </div>
             </Section>
 
@@ -779,6 +829,11 @@ export default function ShopProfile() {
               title="Services"
               description="Select the services this shop will fulfil. Turnaround hours appear only for selected services."
             >
+              {operationsErrors.services ? (
+                <div className={`${styles.banner} ${styles.bannerDanger}`}>
+                  <span>{operationsErrors.services}</span>
+                </div>
+              ) : null}
               {servicesError ? (
                 <div className={`${styles.banner} ${styles.bannerDanger}`}>
                   <span>Could not load services.</span>
@@ -843,6 +898,11 @@ export default function ShopProfile() {
               title="Opening hours"
               description="Closed days send null open/close times. Default is 09:00–18:00, Sunday closed."
             >
+              {operationsErrors.workingDays ? (
+                <div className={`${styles.banner} ${styles.bannerDanger}`}>
+                  <span>{operationsErrors.workingDays}</span>
+                </div>
+              ) : null}
               <div className={styles.hours}>
                 <div className={styles.hourHead}>
                   <span>Day</span>
@@ -1009,7 +1069,13 @@ export default function ShopProfile() {
                 <dt>Shop name</dt>
                 <dd>{formData.shopName || "—"}</dd>
                 <dt>Profile</dt>
-                <dd>{formData.matchProfileOptions || "—"}</dd>
+                <dd>{profileLabel(formData.matchProfileOptions)}</dd>
+                {formData.matchProfileOptions === SHOP_PROFILE_VALUES.OTHER ? (
+                  <>
+                    <dt>Profile detail</dt>
+                    <dd>{formData.otherText || "—"}</dd>
+                  </>
+                ) : null}
                 <dt>Services</dt>
                 <dd>
                   {formData.services.length
