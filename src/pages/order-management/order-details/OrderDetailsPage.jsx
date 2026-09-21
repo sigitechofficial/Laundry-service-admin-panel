@@ -612,25 +612,32 @@ export default function OrderDetailsPage() {
       group.items.reduce((itemSum, item) => itemSum + (Number(item?.qty) || 0), 0),
     0
   );
-  // Collection "Items counted" = agent pickup-proof count (0 until an agent counts).
-  const pickupItemsDisplayCount = pickupItemsCount;
-  // Delivery "Items counted": prefer the agent's delivery-proof count; when the
-  // agent skipped it (proof count 0) fall back to the finalized/draft invoice item
-  // total so the card reflects the items actually invoiced instead of showing 0.
+  // Collection "Items counted": prefer the agent's pickup-proof count; when the
+  // agent hasn't counted yet, fall back to what the customer declared at
+  // booking so the card shows a real estimate instead of a misleading 0.
+  const pickupItemsDisplayCount =
+    pickupItemsCount > 0 ? pickupItemsCount : customerDeclaredItems;
+  // Collection "Bags": same fallback chain as items.
+  const pickupBagsDisplayCount =
+    pickupBagsCount > 0 ? pickupBagsCount : customerDeclaredBags;
+  // Delivery "Items counted": prefer the agent's delivery-proof count; then the
+  // finalized/draft invoice item total (what was actually invoiced); then the
+  // customer's original declaration — never show a bare 0 when a better
+  // estimate already exists.
   const deliveryItemsDisplayCount =
     deliveryItemsCount > 0
       ? deliveryItemsCount
-      : invoiceGenerated
+      : invoiceGenerated && invoiceItemsTotal > 0
       ? invoiceItemsTotal
-      : 0;
-  // Delivery bag fallback: prefer pickup-confirmed count (driver picked up X bags,
-  // should return X bags), then 0 (not customer-declared) when delivery hasn't happened.
+      : customerDeclaredItems;
+  // Delivery "Bags": prefer delivery-proof, then pickup-confirmed (driver
+  // should return what they picked up), then the customer's declaration.
   const deliveryBagsDisplayCount =
     deliveryBagsCount > 0
       ? deliveryBagsCount
       : pickupBagsCount > 0
       ? pickupBagsCount
-      : 0;
+      : customerDeclaredBags;
 
   const addOnsTotalAmount = useMemo(() => {
     return selectedServiceGroups.reduce(
@@ -1366,7 +1373,7 @@ export default function OrderDetailsPage() {
                 </p>
                 <div className={styles.proofGrid}>
                   <OdStatCell label="Items counted" value={pickupItemsDisplayCount || 0} warnZero />
-                  <OdStatCell label="Bags" value={pickupBagsCount} warnZero />
+                  <OdStatCell label="Bags" value={pickupBagsDisplayCount || 0} warnZero />
                 </div>
                 <div>
                   {pickupProofs.some((p) => p.note) && (
