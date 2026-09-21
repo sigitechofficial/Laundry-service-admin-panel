@@ -107,7 +107,7 @@ function StarRating({ value = 0 }) {
 // any "0"/"1" a viewer's browser already remembered under the old key, so
 // everyone sees the new defaults once instead of getting stuck on a stale
 // collapsed state from before this behavior existed.
-const COLLAPSIBLE_STORAGE_VERSION = "v2";
+const COLLAPSIBLE_STORAGE_VERSION = "v3";
 
 function CollapsibleCard({ title, dotColor, storageKey, defaultOpen = false, children }) {
   const storageId = `od-sec-${COLLAPSIBLE_STORAGE_VERSION}-${storageKey}`;
@@ -2201,7 +2201,7 @@ export default function OrderDetailsPage() {
         </div>
 
         <div className={styles.stack}>
-          <CollapsibleCard title="Customer" storageKey="customer" defaultOpen={true}>
+          <CollapsibleCard title="Customer" storageKey="customer">
             <div className="space-y-3" style={{ padding: 20 }}>
               {orderData?.customer ? (
                 <>
@@ -2229,7 +2229,7 @@ export default function OrderDetailsPage() {
             </div>
           </CollapsibleCard>
 
-          <CollapsibleCard title="Shop" storageKey="shop" defaultOpen={true} dotColor="#C4B5FD">
+          <CollapsibleCard title="Shop" storageKey="shop" dotColor="#C4B5FD">
             <div style={{ padding: 20 }}>
               {orderData?.laundryShop ? (
                 <>
@@ -2338,7 +2338,7 @@ export default function OrderDetailsPage() {
             </div>
           </CollapsibleCard>
 
-          <CollapsibleCard title="Payment" storageKey="payment" defaultOpen={true}>
+          <CollapsibleCard title="Payment" storageKey="payment">
             <div className="space-y-3" style={{ padding: 20 }}>
               <div className={`${styles.due} ${invoiceGenerated && amountDueNow > 0 ? styles.dueWarn : styles.dueOk}`}>
                 <p className={styles.dueLabel}>Amount due</p>
