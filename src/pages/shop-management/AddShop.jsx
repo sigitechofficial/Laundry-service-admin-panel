@@ -329,6 +329,17 @@ export default function ShopProfile() {
     }));
   };
 
+  // Apply one turnaround to every selected service in a single click.
+  const setAllServiceTimes = (value) => {
+    setFormData((s) => {
+      const next = { ...s.serviceTimes };
+      (s.services || []).forEach((id) => {
+        next[id] = value || undefined;
+      });
+      return { ...s, serviceTimes: next };
+    });
+  };
+
   const setWorkingDay = (index, field, value) => {
     setFormData((s) => {
       const next = [...(s.bussinessWorkingDays || [])];
@@ -912,6 +923,36 @@ export default function ShopProfile() {
                   })}
                 </div>
               )}
+
+              {formData.services?.length > 1 ? (
+                <div
+                  className="flex items-center flex-wrap"
+                  style={{
+                    gap: 10,
+                    marginTop: 16,
+                    padding: "10px 12px",
+                    background: "#EEF2FF",
+                    border: "1px solid #C7D2FE",
+                    borderRadius: 10,
+                  }}
+                >
+                  <span style={{ fontSize: 13, fontWeight: 600, color: "#3730A3" }}>
+                    Set the same turnaround for all {formData.services.length} services
+                  </span>
+                  <div style={{ minWidth: 190 }}>
+                    <Select
+                      aria-label="Apply turnaround to all services"
+                      value=""
+                      onChange={(v) => {
+                        const val = v?.target?.value ?? v;
+                        if (val) setAllServiceTimes(val);
+                      }}
+                      options={TURNAROUND_OPTIONS}
+                      placeholder="Apply to all…"
+                    />
+                  </div>
+                </div>
+              ) : null}
 
               {formData.services?.length > 0 ? (
                 <div className={styles.grid} style={{ marginTop: 16 }}>
