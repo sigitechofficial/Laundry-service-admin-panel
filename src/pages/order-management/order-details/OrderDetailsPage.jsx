@@ -2412,14 +2412,44 @@ export default function OrderDetailsPage() {
                   <OdMetaRow label="Method" value={paymentMethodDisplay} />
                 </div>
                 {canChangePaymentMethod ? (
-                  <Button
-                    size="sm"
-                    variant="ghost"
+                  <button
+                    type="button"
                     onClick={() => setPaymentMethodModalOpen(true)}
                     title="Change how the balance is collected (card / cash)"
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 6,
+                      flexShrink: 0,
+                      padding: "6px 12px",
+                      fontSize: 12.5,
+                      fontWeight: 600,
+                      color: "#4338CA",
+                      background: "#EEF2FF",
+                      border: "1px solid #C7D2FE",
+                      borderRadius: 999,
+                      cursor: "pointer",
+                      lineHeight: 1,
+                    }}
                   >
-                    Change
-                  </Button>
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden
+                    >
+                      <path d="M17 3l4 4-4 4" />
+                      <path d="M21 7H7" />
+                      <path d="M7 21l-4-4 4-4" />
+                      <path d="M3 17h14" />
+                    </svg>
+                    Switch to {effectivePaymentMethod === "cash" ? "card" : "cash"}
+                  </button>
                 ) : null}
               </div>
               <OdMetaRow
