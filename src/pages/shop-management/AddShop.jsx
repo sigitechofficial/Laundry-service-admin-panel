@@ -268,9 +268,31 @@ export default function ShopProfile() {
       if (place?.formatted_address) {
         const lat = place.geometry?.location?.lat?.() ?? "";
         const lng = place.geometry?.location?.lng?.() ?? "";
+
+        // Pull district / province / postcode straight out of the picked
+        // result so the admin doesn't have to retype them (same idea as the
+        // agent app's postcode lookup autofill).
+        const parts = Array.isArray(place.address_components)
+          ? place.address_components
+          : [];
+        const pick = (...types) => {
+          for (const t of types) {
+            const c = parts.find((p) => (p.types || []).includes(t));
+            if (c?.long_name) return c.long_name;
+          }
+          return "";
+        };
+        const postcode = pick("postal_code");
+        // UK: postal_town is the town (e.g. "London"); fall back to locality.
+        const district = pick("postal_town", "locality", "sublocality", "neighborhood");
+        const province = pick("administrative_area_level_2", "administrative_area_level_1");
+
         setFormData((s) => ({
           ...s,
           streetAddress: place.formatted_address,
+          district: district || s.district,
+          province: province || s.province,
+          postalcode: postcode || s.postalcode,
           lat: lat ? String(lat) : s.lat,
           lng: lng ? String(lng) : s.lng,
           coordinates: lat && lng ? `${lat},${lng}` : s.coordinates,
