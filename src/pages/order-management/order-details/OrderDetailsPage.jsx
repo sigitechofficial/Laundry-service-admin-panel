@@ -50,12 +50,18 @@ import OrderAssignActionButton from "../order-modals/OrderAssignActionButton";
 import { canAdminAssignOrReassignFromBooking } from "../../../shared/adminAssignGate";
 import InvoiceDetailModal from "../invoice/InvoiceDetailModal";
 import IssueRefundModal from "./IssueRefundModal";
+import ChangePaymentMethodModal from "./ChangePaymentMethodModal";
 import {
   buildInvoiceView,
   invoicePrintHtml,
   printHtmlDocument,
 } from "../invoice/invoiceView";
-import { customerDetailsPath, resolveShopBusinessInfoId, shopDetailsPath } from "../orderListUtils";
+import {
+  customerDetailsPath,
+  resolvePaymentMethodLabel,
+  resolveShopBusinessInfoId,
+  shopDetailsPath,
+} from "../orderListUtils";
 import {
   OdCard,
   OdEmptyInvoice,
@@ -707,6 +713,7 @@ export default function OrderDetailsPage() {
   const [invoiceDetails, setInvoiceDetails] = useState(null);
   const [assignModalOpen, setAssignModalOpen] = useState(false);
   const [refundModalOpen, setRefundModalOpen] = useState(false);
+  const [paymentMethodModalOpen, setPaymentMethodModalOpen] = useState(false);
   const [customerCompareExpanded, setCustomerCompareExpanded] = useState(false);
   // null | "customer" | "shop" — which party's contact modal is open.
   const [contactModal, setContactModal] = useState(null);
@@ -881,6 +888,32 @@ export default function OrderDetailsPage() {
         ? 0
         : totalAmount)
   );
+
+  // Effective balance-collection method + whether admin can convert it.
+  const bookedPaymentType = String(
+    paymentSummary?.paymentType ?? orderData?.paymentType ?? "card"
+  ).toLowerCase();
+  const effectivePaymentMethod = String(
+    paymentSummary?.balancePaymentMethod ??
+      orderData?.balancePaymentMethod ??
+      bookedPaymentType
+  ).toLowerCase();
+  const balanceAlreadyByCard =
+    String(orderData?.balanceCollectedVia || "").toLowerCase() === "card";
+  const billingPaid =
+    String(
+      paymentSummary?.billingPaymentStatus ?? orderData?.billingDetail?.paymentStatus ?? ""
+    ).toLowerCase() === "paid";
+  // Available while there is still a balance to collect and it wasn't already
+  // taken by card. (Cash→card is offered but the modal blocks pure-cash bookings.)
+  const canChangePaymentMethod =
+    invoiceGenerated && amountDueNow > 0.02 && !(billingPaid) && !balanceAlreadyByCard;
+  const paymentMethodDisplay = resolvePaymentMethodLabel({
+    paymentType: bookedPaymentType,
+    balanceCollectedVia: orderData?.balanceCollectedVia,
+    balancePaymentMethod: paymentSummary?.balancePaymentMethod ?? orderData?.balancePaymentMethod,
+  });
+  const paymentMethodEvents = orderData?.paymentMethodEvents || [];
   const earningsBreakdown = useMemo(() => {
     const agentCommissionPercent = toNumber(commercialTerms?.agentCommissionPercent);
     const platformCommissionPercent = toNumber(
@@ -1114,8 +1147,27 @@ export default function OrderDetailsPage() {
     };
   });
 
+  const paymentMethodActivityRows = paymentMethodEvents.map((ev) => {
+    const from = String(ev.fromMethod || "").toLowerCase();
+    const to = String(ev.toMethod || "").toLowerCase();
+    const who = personName(ev.actedByUser);
+    const reason = ev.reasonText || ev.reasonCode || "";
+    const parts = [
+      `Payment method ${from ? `${from} → ` : ""}${to || "changed"}`,
+      reason,
+      ev.note ? `“${ev.note}”` : "",
+      who ? `by ${who}` : "",
+    ].filter(Boolean);
+    return {
+      text: parts.join(" · "),
+      time: formatDate(ev.createdAt, "ddd DD MMM · HH:mm"),
+      tone: "system",
+    };
+  });
+
   const activityRows = [
     ...attemptActivityRows,
+    ...paymentMethodActivityRows,
     ...assignmentActivityRows,
     {
       text: `Order ${statusBadge.label.toLowerCase()}`,
@@ -2355,10 +2407,21 @@ export default function OrderDetailsPage() {
                     : "TBD"}
                 </p>
               </div>
-              <OdMetaRow
-                label="Method"
-                value={formatPaymentType(paymentSummary?.paymentType ?? orderData?.paymentType)}
-              />
+              <div className="flex items-center" style={{ gap: 8 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <OdMetaRow label="Method" value={paymentMethodDisplay} />
+                </div>
+                {canChangePaymentMethod ? (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setPaymentMethodModalOpen(true)}
+                    title="Change how the balance is collected (card / cash)"
+                  >
+                    Change
+                  </Button>
+                ) : null}
+              </div>
               <OdMetaRow
                 label="Services added"
                 value={formatMoney(servicesAddedAmount, paymentCurrencySymbol)}
@@ -2879,6 +2942,16 @@ export default function OrderDetailsPage() {
       bookingId={bookingId || orderId}
       currencySymbol={paymentCurrencySymbol}
       onClose={() => setRefundModalOpen(false)}
+      onSuccess={() => refetchOrder()}
+    />
+    <ChangePaymentMethodModal
+      open={paymentMethodModalOpen}
+      bookingId={bookingId || orderId}
+      currentMethod={effectivePaymentMethod}
+      bookedType={bookedPaymentType}
+      amountDueNow={amountDueNow}
+      currencySymbol={paymentCurrencySymbol}
+      onClose={() => setPaymentMethodModalOpen(false)}
       onSuccess={() => refetchOrder()}
     />
     <Modal

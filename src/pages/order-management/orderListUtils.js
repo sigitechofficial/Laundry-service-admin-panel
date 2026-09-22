@@ -50,7 +50,7 @@ function titleCasePaymentMethod(value) {
  * collected differently from how the order was booked (cash→card switch at
  * delivery), show both so admins are not misled by the booking-time method.
  */
-function resolvePaymentMethodLabel(booking) {
+export function resolvePaymentMethodLabel(booking) {
   const booked = titleCasePaymentMethod(booking?.paymentType);
   const collected = titleCasePaymentMethod(
     booking?.balanceCollectedVia ?? booking?.balancePaymentMethod
