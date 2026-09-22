@@ -20,6 +20,7 @@ import { buildCurrencyUnitsList } from "../../utilities/zonesList";
 import {
   DEFAULT_WORKING_DAYS,
   MACHINERY_COUNT_OPTIONS,
+  TURNAROUND_OPTIONS,
   SHOP_PROFILE_OPTIONS,
   SHOP_PROFILE_VALUES,
   WIZARD_STEPS,
@@ -321,10 +322,10 @@ export default function ShopProfile() {
     }));
   };
 
-  const setServiceTimeRequired = (serviceId, hours) => {
+  const setServiceTimeRequired = (serviceId, value) => {
     setFormData((s) => ({
       ...s,
-      serviceTimes: { ...s.serviceTimes, [serviceId]: hours === "" ? undefined : Number(hours) || 0 },
+      serviceTimes: { ...s.serviceTimes, [serviceId]: value || undefined },
     }));
   };
 
@@ -921,16 +922,16 @@ export default function ShopProfile() {
                     return (
                       <Field
                         key={serviceId}
-                        label={`${label} · hours required`}
-                        htmlFor={`service-time-${serviceId}`}
+                        label={`${label} · turnaround`}
                       >
-                        <Input
-                          id={`service-time-${serviceId}`}
-                          type="number"
-                          min={0}
-                          placeholder="e.g. 24"
+                        <Select
+                          aria-label={`${label} turnaround`}
                           value={formData.serviceTimes?.[serviceId] ?? ""}
-                          onChange={(e) => setServiceTimeRequired(serviceId, e.target.value)}
+                          onChange={(v) =>
+                            setServiceTimeRequired(serviceId, v?.target?.value ?? v)
+                          }
+                          options={TURNAROUND_OPTIONS}
+                          placeholder="Select turnaround"
                         />
                       </Field>
                     );

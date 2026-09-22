@@ -10,6 +10,20 @@ import { validatePostalCodeForCountry } from "../../utilities/postalCodeValidati
 export const MACHINERY_COUNT_OPTIONS = ["0", "1-2", "3-5", "5+"];
 
 /**
+ * Turnaround per service. These must match the agentSelectServices
+ * .serviceTimeRequired ENUM byte-for-byte ('N/A' | '24 Hours' | '48 Hours' |
+ * 'More Than 48 Hours') — sending a number (the old behaviour) truncates and
+ * 500s the create. Keep in sync with backend model + the agent app options.
+ */
+export const TURNAROUND_OPTIONS = [
+  { value: "N/A", label: "N/A" },
+  { value: "24 Hours", label: "24 Hours" },
+  { value: "48 Hours", label: "48 Hours" },
+  { value: "More Than 48 Hours", label: "More than 48 hours" },
+];
+const TURNAROUND_VALUE_SET = new Set(TURNAROUND_OPTIONS.map((o) => o.value));
+
+/**
  * The shop "profile" is a fixed backend ENUM
  * (bussinessInformation.matchProfileOptions). These strings must match the
  * server enum BYTE-FOR-BYTE (note the missing space after each hyphen and the
@@ -255,11 +269,13 @@ export function buildBusinessPayload(formData) {
 
   const serviceTimes = (formData.services || [])
     .map((serviceId) => {
-      const hours = formData.serviceTimes?.[serviceId];
-      if (hours == null || hours === "") return null;
+      const bucket = formData.serviceTimes?.[serviceId];
+      // Only send a valid ENUM bucket; anything else is dropped so it can't
+      // truncate/500 the create.
+      if (!bucket || !TURNAROUND_VALUE_SET.has(bucket)) return null;
       return {
         serviceId: Number(serviceId) || serviceId,
-        serviceTimeRequired: Number(hours) || 0,
+        serviceTimeRequired: bucket,
       };
     })
     .filter(Boolean);
