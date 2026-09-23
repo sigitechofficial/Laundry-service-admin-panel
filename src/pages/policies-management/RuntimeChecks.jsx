@@ -51,6 +51,10 @@ export default function RuntimeChecks() {
   const [preferredShopEnabled, setPreferredShopEnabled] = useState(true);
   const [preferredShopWindowMinutes, setPreferredShopWindowMinutes] = useState("10");
   const [zoneCatalogOverlaysEnabled, setZoneCatalogOverlaysEnabled] = useState(false);
+  const [recurringAutoCreate, setRecurringAutoCreate] = useState(true);
+  const [recurringMaxFailures, setRecurringMaxFailures] = useState("3");
+  const [recurringTestMode, setRecurringTestMode] = useState(false);
+  const [recurringTestMinutes, setRecurringTestMinutes] = useState("3");
 
   useEffect(() => {
     const next = data?.data?.settings;
@@ -81,6 +85,18 @@ export default function RuntimeChecks() {
     }
     if (next.zoneCatalogOverridesEnabled != null) {
       setZoneCatalogOverlaysEnabled(Boolean(next.zoneCatalogOverridesEnabled.value));
+    }
+    if (next.recurringAutoCreateEnabled != null) {
+      setRecurringAutoCreate(Boolean(next.recurringAutoCreateEnabled.value));
+    }
+    if (next.recurringMaxFailuresBeforePause != null) {
+      setRecurringMaxFailures(String(next.recurringMaxFailuresBeforePause.value ?? 3));
+    }
+    if (next.recurringTestModeEnabled != null) {
+      setRecurringTestMode(Boolean(next.recurringTestModeEnabled.value));
+    }
+    if (next.recurringTestIntervalMinutes != null) {
+      setRecurringTestMinutes(String(next.recurringTestIntervalMinutes.value ?? 3));
     }
   }, [data]);
 
@@ -114,6 +130,18 @@ export default function RuntimeChecks() {
       return;
     }
 
+    const recurringFailures = Number(recurringMaxFailures);
+    if (!Number.isInteger(recurringFailures) || recurringFailures < 1 || recurringFailures > 10) {
+      showError("Recurring max failures must be between 1 and 10");
+      return;
+    }
+
+    const recurringMinutes = Number(recurringTestMinutes);
+    if (recurringTestMode && (!Number.isInteger(recurringMinutes) || recurringMinutes < 1)) {
+      showError("Recurring test interval must be a whole number of at least 1 minute");
+      return;
+    }
+
     try {
       await updateSettings({
         geofenceBypassEnabled: geofenceBypass,
@@ -125,6 +153,10 @@ export default function RuntimeChecks() {
         preferredShopEnabled,
         preferredShopWindowMinutes: windowMins,
         zoneCatalogOverridesEnabled: zoneCatalogOverlaysEnabled,
+        recurringAutoCreateEnabled: recurringAutoCreate,
+        recurringMaxFailuresBeforePause: recurringFailures,
+        recurringTestModeEnabled: recurringTestMode,
+        recurringTestIntervalMinutes: recurringMinutes,
       }).unwrap();
       success("Runtime checks saved. They apply without a server restart.");
       refetch();
@@ -281,6 +313,74 @@ export default function RuntimeChecks() {
                 ? "not set in .env (defaults off)"
                 : String(settings.zoneCatalogOverridesEnabled.envValue)}
             </p>
+          </DirectoryFormCard>
+
+          <DirectoryFormCard
+            title="Recurring orders"
+            hint="Recurring bookings (Weekly / Every two weeks / Every four weeks) auto-generate the next order one interval AFTER the order date — not immediately after delivery. A background scheduler creates the next order when its time arrives."
+          >
+            <Toggle
+              checked={recurringAutoCreate}
+              onChange={(e) => setRecurringAutoCreate(e.target.checked)}
+              label="Enable recurring auto-create"
+            />
+            <p className="jd-field__hint" style={{ margin: "8px 0 16px" }}>
+              Env fallback ({settings.recurringAutoCreateEnabled?.envKey || "RECURRING_AUTO_CREATE_ENABLED"}):{" "}
+              {settings.recurringAutoCreateEnabled?.envValue == null
+                ? "not set in .env (defaults on)"
+                : String(settings.recurringAutoCreateEnabled.envValue)}
+            </p>
+
+            <div style={{ display: "grid", gap: 12 }}>
+              <Field
+                label="Max generation failures before pause"
+                htmlFor="rc-recurring-failures"
+                hint="Auto-pause a recurring plan after this many consecutive generation failures. Min 1, max 10."
+              >
+                <Input
+                  id="rc-recurring-failures"
+                  type="number"
+                  min={1}
+                  max={10}
+                  value={recurringMaxFailures}
+                  onChange={(e) => setRecurringMaxFailures(e.target.value)}
+                  style={{ maxWidth: 120 }}
+                />
+              </Field>
+            </div>
+
+            <div style={{ marginTop: 16 }}>
+              <Notice tone={recurringTestMode ? "warning" : "info"}>
+                {recurringTestMode
+                  ? `TEST MODE ON. Every recurring order regenerates after ${recurringTestMinutes || "?"} minute(s) instead of its real weekly/2-weekly/4-weekly cadence. Turn OFF on production.`
+                  : "Test mode is OFF. Recurring orders use their real cadence (Weekly = 7 days, etc.)."}
+              </Notice>
+              <div style={{ marginTop: 12 }}>
+                <Toggle
+                  checked={recurringTestMode}
+                  onChange={(e) => setRecurringTestMode(e.target.checked)}
+                  label="Enable recurring test mode (compress interval to minutes)"
+                />
+              </div>
+              {recurringTestMode && (
+                <div style={{ marginTop: 16 }}>
+                  <Field
+                    label="Test interval (minutes)"
+                    htmlFor="rc-recurring-test-minutes"
+                    hint="e.g. 3 = the next recurring order is generated 3 minutes after the previous one, so the whole cycle can be verified without waiting days."
+                  >
+                    <Input
+                      id="rc-recurring-test-minutes"
+                      type="number"
+                      min={1}
+                      value={recurringTestMinutes}
+                      onChange={(e) => setRecurringTestMinutes(e.target.value)}
+                      style={{ maxWidth: 120 }}
+                    />
+                  </Field>
+                </div>
+              )}
+            </div>
           </DirectoryFormCard>
 
           <Button onClick={handleSave} disabled={saving}>

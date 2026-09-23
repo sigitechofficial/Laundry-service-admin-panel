@@ -1452,6 +1452,21 @@ export const api = createApi({
       ],
     }),
 
+    changeOrderPaymentMethod: builder.mutation({
+      query: ({ bookingId, body }) => ({
+        url: `admin/bookings/${bookingId}/payment-method`,
+        method: "PATCH",
+        body, // { method: "cash"|"card", reasonCode?, reason, note? }
+      }),
+      invalidatesTags: (_r, _e, arg) => [
+        "Orders",
+        "AgentSettlement",
+        "PaymentFailures",
+        "ActionRequiredOrders",
+        { type: "Orders", id: arg.bookingId },
+      ],
+    }),
+
     getServiceDetailWithBookingSelection: builder.query({
       query: (bookingId) => ({
         url: `admin/serviceDetailWithBookingSelection/${bookingId}`,
@@ -2455,6 +2470,7 @@ export const {
   useLazyGetRefundPreviewQuery,
   useListBookingRefundsQuery,
   useIssueBookingRefundMutation,
+  useChangeOrderPaymentMethodMutation,
   useGetServiceDetailWithBookingSelectionQuery,
   useGetOrderItemsSheetQuery,
   useLazyInvoiceCreationQuery,

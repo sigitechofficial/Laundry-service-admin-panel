@@ -80,6 +80,7 @@ const NO_SHOW_CSV_COLUMNS = [
   },
   { header: "Grace minutes on site", value: (p) => p?.noShowPolicyConfig?.graceMinutesOnSite ?? "" },
   { header: "Driver late SLA (min)", value: (p) => p?.noShowPolicyConfig?.driverLateSLA ?? "" },
+  { header: "Waive fee if driver late", value: (p) => csvFormat.bool(p?.noShowPolicyConfig?.waiveFeeIfDriverLate) },
   { header: "Waiver type", value: (p) => p?.noShowPolicyConfig?.waiverType || "" },
   {
     header: "Absolute waiver",
@@ -289,6 +290,7 @@ export default function NoShowPolicyContent({
       percentageFee: "",
       graceMinutesOnSite: "",
       driverLateSLA: "",
+      waiveFeeIfDriverLate: true,
       callsMinutes: "",
       smsMinutes: "",
       // Delivery Options section removed from UI
@@ -402,6 +404,7 @@ export default function NoShowPolicyContent({
       // Timing Settings
       graceMinutesOnSite: config.graceMinutesOnSite || 0,
       driverLateSLA: config.driverLateSLA || 0,
+      waiveFeeIfDriverLate: config.waiveFeeIfDriverLate ?? true,
       callsMinutes: config.callsMinutes || 0,
       smsMinutes: config.smsMinutes || 0,
       // Delivery Options (removed)
@@ -445,6 +448,7 @@ export default function NoShowPolicyContent({
       percentageFee: "",
       graceMinutesOnSite: "",
       driverLateSLA: "",
+      waiveFeeIfDriverLate: true,
       callsMinutes: "",
       smsMinutes: "",
       // Delivery Options section removed from UI
@@ -495,6 +499,7 @@ export default function NoShowPolicyContent({
       percentageFee: config.percentageFee?.toString() || "",
       graceMinutesOnSite: config.graceMinutesOnSite?.toString() || "",
       driverLateSLA: config.driverLateSLA?.toString() || "",
+      waiveFeeIfDriverLate: config.waiveFeeIfDriverLate ?? true,
       callsMinutes: config.callsMinutes?.toString() || "",
       smsMinutes: config.smsMinutes?.toString() || "",
       // Delivery Options section removed from UI
@@ -652,6 +657,7 @@ export default function NoShowPolicyContent({
         percentageFee: data.percentageFee ? parseFloat(data.percentageFee) : 0,
         graceMinutesOnSite: data.graceMinutesOnSite ? parseInt(data.graceMinutesOnSite) : 0,
         driverLateSLA: data.driverLateSLA ? parseInt(data.driverLateSLA) : 0,
+        waiveFeeIfDriverLate: data.waiveFeeIfDriverLate !== false,
         callsMinutes: data.callsMinutes ? parseInt(data.callsMinutes) : 0,
         smsMinutes: data.smsMinutes ? parseInt(data.smsMinutes) : 0,
         // Delivery Options removed from UI (not sent)
@@ -1119,6 +1125,16 @@ export default function NoShowPolicyContent({
                   <Field label={"Driver Late SLA (Minutes)"} hint={"Driver late SLA in minutes - auto-waive if exceeded. If the driver arrives later than this time, the no-show fee is automatically waived. Default: 30"}>
                       <Input type={"number"} placeholder={"Enter driver late SLA"} value={value || ""} onChange={(e) => onChange(e.target.value)} />
                     </Field>
+                )}
+              />
+              <Controller
+                name="waiveFeeIfDriverLate"
+                control={control}
+                render={({ field: { onChange, value } }) => (
+                  <div className="flex items-center gap-2">
+                    <input type="checkbox" checked={value !== false} onChange={(e) => onChange(e.target.checked)} />
+                    <span title={"When ON, the customer is not penalized and gets a free reschedule if the driver arrives after the scheduled window (beyond the Driver Late SLA grace above). Turn OFF to always charge the no-show fee regardless of driver lateness."}>{"Waive Fee If Driver Arrives Late"}</span>
+                  </div>
                 )}
               />
               <Controller

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { Badge, Button, Modal, PageHeader, Select } from "../../../design-system";
 import dayjs from "dayjs";
 import { Delay } from "../../../components/shared/Loaders";
@@ -50,12 +50,18 @@ import OrderAssignActionButton from "../order-modals/OrderAssignActionButton";
 import { canAdminAssignOrReassignFromBooking } from "../../../shared/adminAssignGate";
 import InvoiceDetailModal from "../invoice/InvoiceDetailModal";
 import IssueRefundModal from "./IssueRefundModal";
+import ChangePaymentMethodModal from "./ChangePaymentMethodModal";
 import {
   buildInvoiceView,
   invoicePrintHtml,
   printHtmlDocument,
 } from "../invoice/invoiceView";
-import { customerDetailsPath, resolveShopBusinessInfoId, shopDetailsPath } from "../orderListUtils";
+import {
+  customerDetailsPath,
+  resolvePaymentMethodLabel,
+  resolveShopBusinessInfoId,
+  shopDetailsPath,
+} from "../orderListUtils";
 import {
   OdCard,
   OdEmptyInvoice,
@@ -100,6 +106,89 @@ function StarRating({ value = 0 }) {
       <span style={{ color: "var(--warning)" }}>{"★".repeat(filled)}</span>
       <span style={{ color: "var(--n-300)" }}>{"★".repeat(5 - filled)}</span>
     </span>
+  );
+}
+
+// Bump this when the intended default-open state changes — it invalidates
+// any "0"/"1" a viewer's browser already remembered under the old key, so
+// everyone sees the new defaults once instead of getting stuck on a stale
+// collapsed state from before this behavior existed.
+const COLLAPSIBLE_STORAGE_VERSION = "v3";
+
+function CollapsibleCard({ title, dotColor, storageKey, defaultOpen = false, children }) {
+  const storageId = `od-sec-${COLLAPSIBLE_STORAGE_VERSION}-${storageKey}`;
+  const [open, setOpen] = useState(() => {
+    try {
+      const v = localStorage.getItem(storageId);
+      return v === null ? defaultOpen : v === "1";
+    } catch {
+      return defaultOpen;
+    }
+  });
+  const toggle = () =>
+    setOpen((o) => {
+      const next = !o;
+      try {
+        localStorage.setItem(storageId, next ? "1" : "0");
+      } catch {
+        /* ignore storage errors */
+      }
+      return next;
+    });
+  return (
+    <div style={CARD}>
+      <button
+        type="button"
+        onClick={toggle}
+        aria-expanded={open}
+        style={{
+          width: "100%",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 8,
+          padding: "14px 20px",
+          background: "var(--surface)",
+          border: "none",
+          borderBottom: open ? "1px solid var(--line)" : "none",
+          cursor: "pointer",
+          textAlign: "left",
+        }}
+      >
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+          {dotColor ? (
+            <span style={{ width: 6, height: 6, borderRadius: "50%", background: dotColor }} />
+          ) : null}
+          <span
+            style={{
+              color: "var(--muted)",
+              fontSize: 12,
+              fontWeight: 700,
+              letterSpacing: "0.08em",
+              textTransform: "uppercase",
+            }}
+          >
+            {title}
+          </span>
+        </span>
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          style={{
+            color: "#94A3B8",
+            transform: open ? "rotate(180deg)" : "rotate(0deg)",
+            transition: "transform 150ms ease",
+          }}
+        >
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+      </button>
+      {open ? <div>{children}</div> : null}
+    </div>
   );
 }
 
@@ -529,25 +618,32 @@ export default function OrderDetailsPage() {
       group.items.reduce((itemSum, item) => itemSum + (Number(item?.qty) || 0), 0),
     0
   );
-  // Collection "Items counted" = agent pickup-proof count (0 until an agent counts).
-  const pickupItemsDisplayCount = pickupItemsCount;
-  // Delivery "Items counted": prefer the agent's delivery-proof count; when the
-  // agent skipped it (proof count 0) fall back to the finalized/draft invoice item
-  // total so the card reflects the items actually invoiced instead of showing 0.
+  // Collection "Items counted": prefer the agent's pickup-proof count; when the
+  // agent hasn't counted yet, fall back to what the customer declared at
+  // booking so the card shows a real estimate instead of a misleading 0.
+  const pickupItemsDisplayCount =
+    pickupItemsCount > 0 ? pickupItemsCount : customerDeclaredItems;
+  // Collection "Bags": same fallback chain as items.
+  const pickupBagsDisplayCount =
+    pickupBagsCount > 0 ? pickupBagsCount : customerDeclaredBags;
+  // Delivery "Items counted": prefer the agent's delivery-proof count; then the
+  // finalized/draft invoice item total (what was actually invoiced); then the
+  // customer's original declaration — never show a bare 0 when a better
+  // estimate already exists.
   const deliveryItemsDisplayCount =
     deliveryItemsCount > 0
       ? deliveryItemsCount
-      : invoiceGenerated
+      : invoiceGenerated && invoiceItemsTotal > 0
       ? invoiceItemsTotal
-      : 0;
-  // Delivery bag fallback: prefer pickup-confirmed count (driver picked up X bags,
-  // should return X bags), then 0 (not customer-declared) when delivery hasn't happened.
+      : customerDeclaredItems;
+  // Delivery "Bags": prefer delivery-proof, then pickup-confirmed (driver
+  // should return what they picked up), then the customer's declaration.
   const deliveryBagsDisplayCount =
     deliveryBagsCount > 0
       ? deliveryBagsCount
       : pickupBagsCount > 0
       ? pickupBagsCount
-      : 0;
+      : customerDeclaredBags;
 
   const addOnsTotalAmount = useMemo(() => {
     return selectedServiceGroups.reduce(
@@ -617,6 +713,7 @@ export default function OrderDetailsPage() {
   const [invoiceDetails, setInvoiceDetails] = useState(null);
   const [assignModalOpen, setAssignModalOpen] = useState(false);
   const [refundModalOpen, setRefundModalOpen] = useState(false);
+  const [paymentMethodModalOpen, setPaymentMethodModalOpen] = useState(false);
   const [customerCompareExpanded, setCustomerCompareExpanded] = useState(false);
   // null | "customer" | "shop" — which party's contact modal is open.
   const [contactModal, setContactModal] = useState(null);
@@ -653,6 +750,19 @@ export default function OrderDetailsPage() {
     .filter(Boolean)
     .join(", ");
   const shopZoneName = orderData?.zoneName || orderData?.zone?.name || "";
+  const shopServicesOffered = shopBusinessInfo?.matchProfileOptions || "";
+  const shopPayoutConnected = Boolean(shopBusinessInfo?.isConnectAccountConnected);
+  const shopAgentActive = shopAgent?.status !== false;
+  const shopApprovalStatus = String(shopAgent?.agentApprovalStatus || "").toLowerCase();
+  const shopApprovalLabel = shopApprovalStatus
+    ? shopApprovalStatus.charAt(0).toUpperCase() + shopApprovalStatus.slice(1)
+    : "";
+  const shopApprovalTone =
+    shopApprovalStatus === "approved"
+      ? "success"
+      : shopApprovalStatus === "rejected"
+        ? "danger"
+        : "warning";
 
   // Whichever contact modal is currently open — keeps the tel:/WhatsApp
   // handlers and the Modal markup shared between customer and shop.
@@ -778,6 +888,111 @@ export default function OrderDetailsPage() {
         ? 0
         : totalAmount)
   );
+
+  // Effective balance-collection method + whether admin can convert it.
+  const bookedPaymentType = String(
+    paymentSummary?.paymentType ?? orderData?.paymentType ?? "card"
+  ).toLowerCase();
+  const effectivePaymentMethod = String(
+    paymentSummary?.balancePaymentMethod ??
+      orderData?.balancePaymentMethod ??
+      bookedPaymentType
+  ).toLowerCase();
+  const balanceAlreadyByCard =
+    String(orderData?.balanceCollectedVia || "").toLowerCase() === "card";
+  const billingPaid =
+    String(
+      paymentSummary?.billingPaymentStatus ?? orderData?.billingDetail?.paymentStatus ?? ""
+    ).toLowerCase() === "paid";
+  // Available while there is still a balance to collect and it wasn't already
+  // taken by card. (Cash→card is offered but the modal blocks pure-cash bookings.)
+  const canChangePaymentMethod =
+    invoiceGenerated && amountDueNow > 0.02 && !(billingPaid) && !balanceAlreadyByCard;
+  const paymentMethodDisplay = resolvePaymentMethodLabel({
+    paymentType: bookedPaymentType,
+    balanceCollectedVia: orderData?.balanceCollectedVia,
+    balancePaymentMethod: paymentSummary?.balancePaymentMethod ?? orderData?.balancePaymentMethod,
+  });
+  const paymentMethodEvents = orderData?.paymentMethodEvents || [];
+  const earningsBreakdown = useMemo(() => {
+    const agentCommissionPercent = toNumber(commercialTerms?.agentCommissionPercent);
+    const platformCommissionPercent = toNumber(
+      commercialTerms?.platformCommissionPercent,
+      Math.max(0, 100 - agentCommissionPercent)
+    );
+
+    const commissionBase = toNumber(
+      commercialTerms?.commissionBaseAmount ??
+        paymentSummary?.orderSummary?.effectiveLaundry ??
+        paymentSummary?.orderSummary?.laundrySubtotal ??
+        servicesAddedAmount
+    );
+    const agentLaundryShare = toNumber(
+      commercialTerms?.agentCommissionAmount ??
+        (commissionBase * agentCommissionPercent) / 100
+    );
+    const platformLaundryShare = toNumber(
+      commercialTerms?.platformCommissionAmount ??
+        Math.max(0, commissionBase - agentLaundryShare)
+    );
+    const driverTip = toNumber(
+      paymentSummary?.orderSummary?.driverTip ?? tipAmount
+    );
+    const serviceFeeRevenue = toNumber(
+      commercialTerms?.serviceCharge ??
+        paymentSummary?.orderSummary?.serviceFee ??
+        serviceChargeAmount
+    );
+
+    const agentTotal = toNumber(
+      commercialTerms?.agentEarningWithTip ??
+        agentLaundryShare + driverTip
+    );
+    const adminTotal = toNumber(platformLaundryShare + serviceFeeRevenue);
+
+    const customerGross = toNumber(
+      paymentSummary?.orderSummary?.totalOrderAmount ?? totalAmount
+    );
+    const discount = toNumber(
+      paymentSummary?.orderSummary?.discount ??
+        orderData?.billingDetail?.discount ??
+        0
+    );
+    const refunded = toNumber(totalRefunded);
+    const customerNet = Math.max(0, customerGross - discount - refunded);
+    const billingStatus = String(
+      paymentSummary?.billingPaymentStatus ??
+        orderData?.billingDetail?.paymentStatus ??
+        "pending"
+    ).toLowerCase();
+
+    return {
+      agentCommissionPercent,
+      platformCommissionPercent,
+      commissionBase,
+      agentLaundryShare,
+      platformLaundryShare,
+      driverTip,
+      serviceFeeRevenue,
+      agentTotal,
+      adminTotal,
+      customerGross,
+      discount,
+      refunded,
+      customerNet,
+      projected: billingStatus !== "paid",
+    };
+  }, [
+    commercialTerms,
+    paymentSummary,
+    servicesAddedAmount,
+    tipAmount,
+    serviceChargeAmount,
+    totalAmount,
+    orderData?.billingDetail?.discount,
+    orderData?.billingDetail?.paymentStatus,
+    totalRefunded,
+  ]);
   const invoiceView = useMemo(
     () => buildInvoiceView(invoiceDetails, shopName),
     [invoiceDetails, shopName]
@@ -932,8 +1147,27 @@ export default function OrderDetailsPage() {
     };
   });
 
+  const paymentMethodActivityRows = paymentMethodEvents.map((ev) => {
+    const from = String(ev.fromMethod || "").toLowerCase();
+    const to = String(ev.toMethod || "").toLowerCase();
+    const who = personName(ev.actedByUser);
+    const reason = ev.reasonText || ev.reasonCode || "";
+    const parts = [
+      `Payment method ${from ? `${from} → ` : ""}${to || "changed"}`,
+      reason,
+      ev.note ? `“${ev.note}”` : "",
+      who ? `by ${who}` : "",
+    ].filter(Boolean);
+    return {
+      text: parts.join(" · "),
+      time: formatDate(ev.createdAt, "ddd DD MMM · HH:mm"),
+      tone: "system",
+    };
+  });
+
   const activityRows = [
     ...attemptActivityRows,
+    ...paymentMethodActivityRows,
     ...assignmentActivityRows,
     {
       text: `Order ${statusBadge.label.toLowerCase()}`,
@@ -1191,7 +1425,7 @@ export default function OrderDetailsPage() {
                 </p>
                 <div className={styles.proofGrid}>
                   <OdStatCell label="Items counted" value={pickupItemsDisplayCount || 0} warnZero />
-                  <OdStatCell label="Bags" value={pickupBagsCount} warnZero />
+                  <OdStatCell label="Bags" value={pickupBagsDisplayCount || 0} warnZero />
                 </div>
                 <div>
                   {pickupProofs.some((p) => p.note) && (
@@ -2026,11 +2260,18 @@ export default function OrderDetailsPage() {
         </div>
 
         <div className={styles.stack}>
-          <div style={CARD}>
-            <OdSectionTitle>Customer</OdSectionTitle>
+          <CollapsibleCard title="Customer" storageKey="customer">
             <div className="space-y-3" style={{ padding: 20 }}>
               {orderData?.customer ? (
                 <>
+                  {orderData?.isReturningCustomerAtShop ? (
+                    <div style={{ marginBottom: 4 }}>
+                      <Badge tone="brand">
+                        Returning customer · {orderData.customerOrdersAtShop} completed order
+                        {orderData.customerOrdersAtShop === 1 ? "" : "s"} at this shop
+                      </Badge>
+                    </div>
+                  ) : null}
                   <OdMetaRow
                     label="Name"
                     value={
@@ -2053,10 +2294,83 @@ export default function OrderDetailsPage() {
                 <p style={{ margin: 0, fontSize: 13, color: "#64748B" }}>No customer linked</p>
               )}
             </div>
-          </div>
+          </CollapsibleCard>
 
-          <div style={CARD}>
-            <OdSectionTitle>Recurring</OdSectionTitle>
+          <CollapsibleCard title="Shop" storageKey="shop" dotColor="#C4B5FD">
+            <div style={{ padding: 20 }}>
+              {orderData?.laundryShop ? (
+                <>
+                  {/* Header: shop name + at-a-glance status */}
+                  <div style={{ marginBottom: 14 }}>
+                    <Link
+                      to={shopDetailsPath(shopBusinessInfoId) || "#"}
+                      style={{
+                        fontSize: 15,
+                        fontWeight: 700,
+                        color: "#0F172A",
+                        textDecoration: "none",
+                      }}
+                    >
+                      {shopName || "Not assigned"}
+                    </Link>
+                    <div
+                      className="flex items-center flex-wrap"
+                      style={{ gap: 6, marginTop: 6 }}
+                    >
+                      <Badge tone={shopAgentActive ? "success" : "danger"}>
+                        {shopAgentActive ? "Active" : "Blocked"}
+                      </Badge>
+                      {shopApprovalLabel ? (
+                        <Badge tone={shopApprovalTone}>{shopApprovalLabel}</Badge>
+                      ) : null}
+                      <Badge tone={shopPayoutConnected ? "success" : "warning"}>
+                        {shopPayoutConnected ? "Payouts connected" : "Payouts not set up"}
+                      </Badge>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <OdMetaRow label="Agent" value={shopAgentName || "—"} />
+                    <OdMetaRow label="Email" value={shopEmail || "—"} />
+                    <OdMetaRow label="Phone" value={shopPhone || "—"} />
+                    <OdMetaRow label="Address" value={shopAddress || "—"} />
+                    <OdMetaRow label="Zone" value={shopZoneName || "—"} />
+                    {shopServicesOffered ? (
+                      <OdMetaRow label="Services offered" value={shopServicesOffered} />
+                    ) : null}
+                    <OdMetaRow label="Frequency" value={orderData?.frequency || "Just Once"} />
+                  </div>
+
+                  <div className="flex items-center flex-wrap" style={{ gap: 8, marginTop: 14 }}>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={openShopContactModal}
+                      disabled={!canCallShop}
+                    >
+                      Call shop
+                    </Button>
+                    {shopBusinessInfoId ? (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => navigate(shopDetailsPath(shopBusinessInfoId))}
+                      >
+                        View shop profile
+                      </Button>
+                    ) : null}
+                  </div>
+                </>
+              ) : (
+                <div className="space-y-3">
+                  <OdMetaRow label="Shop Name" value="Not assigned" />
+                  <OdMetaRow label="Frequency" value={orderData?.frequency || "Just Once"} />
+                </div>
+              )}
+            </div>
+          </CollapsibleCard>
+
+          <CollapsibleCard title="Recurring" storageKey="recurring">
             <div className="space-y-3" style={{ padding: 20 }}>
               <OdMetaRow
                 label="Plan"
@@ -2089,10 +2403,9 @@ export default function OrderDetailsPage() {
                 }
               />
             </div>
-          </div>
+          </CollapsibleCard>
 
-          <div style={CARD}>
-            <OdSectionTitle>Payment</OdSectionTitle>
+          <CollapsibleCard title="Payment" storageKey="payment">
             <div className="space-y-3" style={{ padding: 20 }}>
               <div className={`${styles.due} ${invoiceGenerated && amountDueNow > 0 ? styles.dueWarn : styles.dueOk}`}>
                 <p className={styles.dueLabel}>Amount due</p>
@@ -2102,10 +2415,51 @@ export default function OrderDetailsPage() {
                     : "TBD"}
                 </p>
               </div>
-              <OdMetaRow
-                label="Method"
-                value={formatPaymentType(paymentSummary?.paymentType ?? orderData?.paymentType)}
-              />
+              <div className="flex items-center" style={{ gap: 8 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <OdMetaRow label="Method" value={paymentMethodDisplay} />
+                </div>
+                {canChangePaymentMethod ? (
+                  <button
+                    type="button"
+                    onClick={() => setPaymentMethodModalOpen(true)}
+                    title="Change how the balance is collected (card / cash)"
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 6,
+                      flexShrink: 0,
+                      padding: "6px 12px",
+                      fontSize: 12.5,
+                      fontWeight: 600,
+                      color: "#4338CA",
+                      background: "#EEF2FF",
+                      border: "1px solid #C7D2FE",
+                      borderRadius: 999,
+                      cursor: "pointer",
+                      lineHeight: 1,
+                    }}
+                  >
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden
+                    >
+                      <path d="M17 3l4 4-4 4" />
+                      <path d="M21 7H7" />
+                      <path d="M7 21l-4-4 4-4" />
+                      <path d="M3 17h14" />
+                    </svg>
+                    Switch to {effectivePaymentMethod === "cash" ? "card" : "cash"}
+                  </button>
+                ) : null}
+              </div>
               <OdMetaRow
                 label="Services added"
                 value={formatMoney(servicesAddedAmount, paymentCurrencySymbol)}
@@ -2182,6 +2536,114 @@ export default function OrderDetailsPage() {
                   ) : null}
                 </>
               ) : null}
+              <div className={styles.earningsWrap}>
+                <div>
+                  <p className={styles.earningsTitle}>Who earns what (this order)</p>
+                  <p className={styles.earningsSubtitle}>
+                    {earningsBreakdown.projected
+                      ? "Projected split from current invoice terms."
+                      : "Final split from paid invoice terms."}
+                  </p>
+                </div>
+                <div className={styles.earningsTotals}>
+                  <div className={`${styles.earningsTotalCard} ${styles.earningsTotalCardAgent}`}>
+                    <p className={styles.earningsTotalLabel}>Shop / Agent total</p>
+                    <p className={styles.earningsTotalValue}>
+                      {formatMoney(earningsBreakdown.agentTotal, paymentCurrencySymbol)}
+                    </p>
+                  </div>
+                  <div className={`${styles.earningsTotalCard} ${styles.earningsTotalCardAdmin}`}>
+                    <p className={styles.earningsTotalLabel}>Admin / Platform total</p>
+                    <p className={styles.earningsTotalValue}>
+                      {formatMoney(earningsBreakdown.adminTotal, paymentCurrencySymbol)}
+                    </p>
+                  </div>
+                </div>
+
+                <div className={styles.earningsBlock}>
+                  <p className={styles.earningsBlockTitle}>Shop / Agent amount includes</p>
+                  <div className={styles.earningsRow}>
+                    <span>
+                      Laundry share ({earningsBreakdown.agentCommissionPercent}% of{" "}
+                      {formatMoney(earningsBreakdown.commissionBase, paymentCurrencySymbol)})
+                    </span>
+                    <strong>
+                      {formatMoney(earningsBreakdown.agentLaundryShare, paymentCurrencySymbol)}
+                    </strong>
+                  </div>
+                  <div className={styles.earningsRow}>
+                    <span>Driver tip</span>
+                    <strong>
+                      {formatMoney(earningsBreakdown.driverTip, paymentCurrencySymbol)}
+                    </strong>
+                  </div>
+                  <div className={`${styles.earningsRow} ${styles.earningsRowStrong}`}>
+                    <span>Shop / Agent total</span>
+                    <strong>
+                      {formatMoney(earningsBreakdown.agentTotal, paymentCurrencySymbol)}
+                    </strong>
+                  </div>
+                </div>
+
+                <div className={styles.earningsBlock}>
+                  <p className={styles.earningsBlockTitle}>Admin / Platform amount includes</p>
+                  <div className={styles.earningsRow}>
+                    <span>
+                      Platform commission ({earningsBreakdown.platformCommissionPercent}% of{" "}
+                      {formatMoney(earningsBreakdown.commissionBase, paymentCurrencySymbol)})
+                    </span>
+                    <strong>
+                      {formatMoney(earningsBreakdown.platformLaundryShare, paymentCurrencySymbol)}
+                    </strong>
+                  </div>
+                  <div className={styles.earningsRow}>
+                    <span>Service fee</span>
+                    <strong>
+                      {formatMoney(earningsBreakdown.serviceFeeRevenue, paymentCurrencySymbol)}
+                    </strong>
+                  </div>
+                  <div className={`${styles.earningsRow} ${styles.earningsRowStrong}`}>
+                    <span>Admin / Platform total</span>
+                    <strong>
+                      {formatMoney(earningsBreakdown.adminTotal, paymentCurrencySymbol)}
+                    </strong>
+                  </div>
+                </div>
+
+                <div className={styles.earningsBlock}>
+                  <p className={styles.earningsBlockTitle}>Customer bill context</p>
+                  <div className={styles.earningsRow}>
+                    <span>Gross customer bill</span>
+                    <strong>
+                      {formatMoney(earningsBreakdown.customerGross, paymentCurrencySymbol)}
+                    </strong>
+                  </div>
+                  <div className={styles.earningsRow}>
+                    <span>Discount</span>
+                    <strong>
+                      −{formatMoney(earningsBreakdown.discount, paymentCurrencySymbol)}
+                    </strong>
+                  </div>
+                  <div className={styles.earningsRow}>
+                    <span>Refunded so far</span>
+                    <strong>
+                      −{formatMoney(earningsBreakdown.refunded, paymentCurrencySymbol)}
+                    </strong>
+                  </div>
+                  <div className={`${styles.earningsRow} ${styles.earningsRowStrong}`}>
+                    <span>Net customer paid / collectible</span>
+                    <strong>
+                      {formatMoney(earningsBreakdown.customerNet, paymentCurrencySymbol)}
+                    </strong>
+                  </div>
+                </div>
+                {Number(extraTipAmount) > 0 ? (
+                  <p className={styles.earningsFootnote}>
+                    Post-complete extra tip {formatMoney(extraTipAmount, paymentCurrencySymbol)} is
+                    tracked separately from this invoice split.
+                  </p>
+                ) : null}
+              </div>
               <div className="flex justify-between gap-3 items-center">
                 <p style={{ margin: 0, color: "var(--muted)",  fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em" }}>
                   Status
@@ -2245,58 +2707,9 @@ export default function OrderDetailsPage() {
                 </Badge>
               </div>
             </div>
-          </div>
+          </CollapsibleCard>
 
-          <div style={CARD}>
-            <div style={{ ...SECTION_HEAD }}>
-              <div className="flex items-center gap-1.5">
-                <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#C4B5FD" }} />
-                <p style={{ margin: 0, color: "var(--muted)",  fontSize: 12, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}>
-                  Shop
-                </p>
-              </div>
-            </div>
-            <div className="space-y-3" style={{ padding: 20 }}>
-              {orderData?.laundryShop ? (
-                <>
-                  <OdMetaRow
-                    label="Shop Name"
-                    value={shopName || "Not assigned"}
-                    valueTo={shopDetailsPath(shopBusinessInfoId) || undefined}
-                  />
-                  <OdMetaRow label="Agent" value={shopAgentName || "—"} />
-                  <OdMetaRow label="Email" value={shopEmail || "—"} />
-                  <OdMetaRow label="Phone" value={shopPhone || "—"} />
-                  <OdMetaRow label="Address" value={shopAddress || "—"} />
-                  <OdMetaRow label="Zone" value={shopZoneName || "—"} />
-                  <OdMetaRow label="Frequency" value={orderData?.frequency || "Just Once"} />
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    onClick={openShopContactModal}
-                    disabled={!canCallShop}
-                  >
-                    Call shop
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <OdMetaRow label="Shop Name" value="Not assigned" />
-                  <OdMetaRow label="Frequency" value={orderData?.frequency || "Just Once"} />
-                </>
-              )}
-            </div>
-          </div>
-
-          <div style={CARD}>
-            <div style={{ ...SECTION_HEAD }}>
-              <div className="flex items-center gap-1.5">
-                <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#FBBF24" }} />
-                <p style={{ margin: 0, color: "var(--muted)",  fontSize: 12, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}>
-                  Customer Review
-                </p>
-              </div>
-            </div>
+          <CollapsibleCard title="Customer Review" storageKey="review" dotColor="#FBBF24">
             <div className="space-y-3" style={{ padding: 20 }}>
               {!shopReview ? (
                 <p style={{ margin: 0, fontSize: 13, color: "#64748B" }}>
@@ -2332,17 +2745,9 @@ export default function OrderDetailsPage() {
                 </>
               )}
             </div>
-          </div>
+          </CollapsibleCard>
 
-          <div style={CARD}>
-            <div style={{ ...SECTION_HEAD }}>
-              <div className="flex items-center gap-1.5">
-                <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#60A5FA" }} />
-                <p style={{ margin: 0, color: "var(--muted)",  fontSize: 12, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}>
-                  Delivery Address
-                </p>
-              </div>
-            </div>
+          <CollapsibleCard title="Delivery Address" storageKey="deliveryAddress" dotColor="#60A5FA">
             <div className="space-y-3" style={{ padding: 20 }}>
               <p style={{ margin: 0,  color: "#2563EB", fontWeight: 700, fontSize: 12 }}>
                 DELIVERY LOCATION
@@ -2359,17 +2764,9 @@ export default function OrderDetailsPage() {
                 </p>
               </div>
             </div>
-          </div>
+          </CollapsibleCard>
 
-          <div style={CARD}>
-            <div style={{ ...SECTION_HEAD }}>
-              <div className="flex items-center gap-1.5">
-                <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#FBBF24" }} />
-                <p style={{ margin: 0, color: "var(--muted)",  fontSize: 12, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}>
-                  Drivers
-                </p>
-              </div>
-            </div>
+          <CollapsibleCard title="Drivers" storageKey="drivers" dotColor="#FBBF24">
             <div className="space-y-3" style={{ padding: 20 }}>
               <div>
                 <p style={{ margin: 0,  color: "#2563EB", fontWeight: 700, fontSize: 12 }}>
@@ -2435,17 +2832,9 @@ export default function OrderDetailsPage() {
                 ) : null}
               </div>
             </div>
-          </div>
+          </CollapsibleCard>
 
-          <div style={CARD}>
-            <div style={{ ...SECTION_HEAD }}>
-              <div className="flex items-center gap-1.5">
-                <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#F87171" }} />
-                <p style={{ margin: 0, color: "var(--muted)",  fontSize: 12, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}>
-                  Attempt outcomes
-                </p>
-              </div>
-            </div>
+          <CollapsibleCard title="Attempt outcomes" storageKey="attempts" dotColor="#F87171">
             <div className="space-y-3" style={{ padding: 20 }}>
               {attemptRows.length ? (
                 attemptRows.map((attempt) => {
@@ -2505,14 +2894,14 @@ export default function OrderDetailsPage() {
                 </p>
               )}
             </div>
-          </div>
+          </CollapsibleCard>
 
           {Array.isArray(orderData?.agentDeclines) &&
           orderData.agentDeclines.length > 0 ? (
-            <div style={CARD}>
-              <OdSectionTitle>
-                Declined by shops ({orderData.agentDeclines.length})
-              </OdSectionTitle>
+            <CollapsibleCard
+              title={`Declined by shops (${orderData.agentDeclines.length})`}
+              storageKey="declines"
+            >
               <div style={{ display: "grid", gap: 10 }}>
                 {orderData.agentDeclines.map((d) => (
                   <div
@@ -2556,13 +2945,12 @@ export default function OrderDetailsPage() {
                   </div>
                 ))}
               </div>
-            </div>
+            </CollapsibleCard>
           ) : null}
 
-          <div style={CARD}>
-            <OdSectionTitle>Activity</OdSectionTitle>
+          <CollapsibleCard title="Activity" storageKey="activity">
             <OdTimeline rows={activityRows} />
-          </div>
+          </CollapsibleCard>
 
         </div>
       </div>
@@ -2592,6 +2980,16 @@ export default function OrderDetailsPage() {
       bookingId={bookingId || orderId}
       currencySymbol={paymentCurrencySymbol}
       onClose={() => setRefundModalOpen(false)}
+      onSuccess={() => refetchOrder()}
+    />
+    <ChangePaymentMethodModal
+      open={paymentMethodModalOpen}
+      bookingId={bookingId || orderId}
+      currentMethod={effectivePaymentMethod}
+      bookedType={bookedPaymentType}
+      amountDueNow={amountDueNow}
+      currencySymbol={paymentCurrencySymbol}
+      onClose={() => setPaymentMethodModalOpen(false)}
       onSuccess={() => refetchOrder()}
     />
     <Modal

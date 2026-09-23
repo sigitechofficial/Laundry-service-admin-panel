@@ -112,6 +112,7 @@ const DELIVERY_OPTIONS = [
 const TABS = [
   { value: "overview", label: "Overview" },
   { value: "orders", label: "Orders" },
+  { value: "declined", label: "Declined" },
   { value: "revenue", label: "Revenue" },
   { value: "report", label: "Report" },
   { value: "reviews", label: "Reviews" },
@@ -445,7 +446,7 @@ export default function ShopDetails() {
       email: biz?.email || shop?.email || "",
       phone: biz?.phoneNum || shop?.phone || shop?.phoneNum || "",
       whatsapp: biz?.phoneNum || shop?.phone || shop?.phoneNum || "",
-      website: biz?.website || "",
+      website: shop?.website || biz?.website || "",
       addressLine1: addr?.streetAddress || "",
       addressLine2: addr?.district || "",
       city: addr?.city?.name || "",
@@ -565,7 +566,7 @@ export default function ShopDetails() {
       email: biz?.email || shop?.email || "",
       phone: biz?.phoneNum || shop?.phone || shop?.phoneNum || "",
       whatsapp: biz?.phoneNum || shop?.phone || shop?.phoneNum || "",
-      website: biz?.website || "",
+      website: shop?.website || biz?.website || "",
       addressLine1: addr?.streetAddress || "",
       addressLine2: addr?.district || "",
       city: addr?.city?.name || "",
@@ -1179,6 +1180,91 @@ export default function ShopDetails() {
               }
             />
           </DirectoryTableWrap>
+        </div>
+      )}
+
+      {activeTab === "declined" && (
+        <div>
+          <p className="jd-lead" style={{ margin: "0 0 12px" }}>
+            Orders this shop declined, with the reason they gave.
+          </p>
+          {(shop?.declines || []).length === 0 ? (
+            <div
+              style={{
+                padding: 24,
+                textAlign: "center",
+                color: "var(--muted)",
+                border: "1px dashed var(--line)",
+                borderRadius: 12,
+              }}
+            >
+              This shop has not declined any orders.
+            </div>
+          ) : (
+            <div style={{ display: "grid", gap: 10 }}>
+              {(shop?.declines || []).map((d) => (
+                <div
+                  key={d.id}
+                  style={{
+                    border: "1px solid var(--line)",
+                    borderRadius: 12,
+                    padding: 14,
+                    background: "#fff",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      gap: 12,
+                      flexWrap: "wrap",
+                      alignItems: "center",
+                    }}
+                  >
+                    <div style={{ fontWeight: 700, color: "#0F172A" }}>
+                      {d.orderTrackId ? `Order #${d.orderTrackId}` : `Booking #${d.bookingId}`}
+                    </div>
+                    <Badge tone="danger">Declined</Badge>
+                  </div>
+                  <div
+                    style={{
+                      marginTop: 8,
+                      padding: "8px 10px",
+                      background: "#FEF2F2",
+                      border: "1px solid #FECACA",
+                      borderRadius: 8,
+                      color: "#991B1B",
+                      fontSize: 13,
+                    }}
+                  >
+                    <span style={{ fontWeight: 600 }}>Reason: </span>
+                    {d.reason || "No reason provided"}
+                  </div>
+                  <div
+                    style={{
+                      marginTop: 8,
+                      display: "flex",
+                      gap: 16,
+                      flexWrap: "wrap",
+                      fontSize: 12,
+                      color: "var(--muted)",
+                    }}
+                  >
+                    {d.customerName ? <span>Customer: {d.customerName}</span> : null}
+                    {d.collectionDate ? (
+                      <span>Pickup: {dayjs(d.collectionDate).format("DD MMM YYYY")}</span>
+                    ) : null}
+                    {d.deliveryDate ? (
+                      <span>Delivery: {dayjs(d.deliveryDate).format("DD MMM YYYY")}</span>
+                    ) : null}
+                    <span>
+                      Declined: {dayjs(d.createdAt).format("DD MMM YYYY, h:mm A")}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

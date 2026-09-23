@@ -67,6 +67,7 @@ export default function AssignOrderModal({
   const toast = useToaster();
   const [selectedShopId, setSelectedShopId] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [returningOnly, setReturningOnly] = useState(false);
 
   const { data, isLoading, isError, error } =
     useGetBookingAssignableShopsQuery(bookingId, {
@@ -154,20 +155,27 @@ export default function AssignOrderModal({
           ? `Zone #${zoneId}`
           : "Unknown zone";
 
+  const returningShopCount = useMemo(
+    () => shops.filter((shop) => shop.isReturningCustomerAtShop).length,
+    [shops]
+  );
+
   const filteredShops = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    if (!q) return shops;
     return shops.filter((shop) => {
+      if (returningOnly && !shop.isReturningCustomerAtShop) return false;
+      if (!q) return true;
       const name = String(shop.shopName || "").toLowerCase();
       const id = String(shop.laundryShopId || "");
       return name.includes(q) || id.includes(q);
     });
-  }, [shops, searchQuery]);
+  }, [shops, searchQuery, returningOnly]);
 
   useEffect(() => {
     if (!open) {
       setSelectedShopId(null);
       setSearchQuery("");
+      setReturningOnly(false);
     }
   }, [open]);
 
@@ -327,6 +335,29 @@ export default function AssignOrderModal({
             />
           ) : null}
 
+          {hasShopList ? (
+            <label
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                fontSize: 13,
+                color: "var(--ink-2)",
+                cursor: returningShopCount ? "pointer" : "not-allowed",
+                opacity: returningShopCount ? 1 : 0.55,
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={returningOnly}
+                disabled={!returningShopCount}
+                onChange={(e) => setReturningOnly(e.target.checked)}
+              />
+              Returning customers only
+              {returningShopCount ? ` (${returningShopCount})` : ""}
+            </label>
+          ) : null}
+
           {shops.length === 0 ? (
             <div
               style={{
@@ -341,7 +372,9 @@ export default function AssignOrderModal({
             </div>
           ) : filteredShops.length === 0 ? (
             <p style={{ margin: 0, color: "var(--muted)" }}>
-              No shops match “{searchQuery.trim()}”.
+              {returningOnly
+                ? "No shops where this customer is a returning customer."
+                : `No shops match “${searchQuery.trim()}”.`}
             </p>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 380, overflowY: "auto" }}>
@@ -392,6 +425,14 @@ export default function AssignOrderModal({
                       <div style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 4 }}>
                         {shopHoursLabel(shop)}
                       </div>
+                      {shop.isReturningCustomerAtShop ? (
+                        <div style={{ marginTop: 6 }}>
+                          <Badge tone="brand">
+                            Returning · {shop.customerOrdersAtShop} completed order
+                            {shop.customerOrdersAtShop === 1 ? "" : "s"} here
+                          </Badge>
+                        </div>
+                      ) : null}
                     </div>
                   </button>
                 );
