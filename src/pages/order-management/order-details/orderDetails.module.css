@@ -333,6 +333,119 @@
   color: var(--success);
 }
 
+.earningsWrap {
+  margin-top: 2px;
+  padding: 12px;
+  border: 1px solid #dbe3f3;
+  border-radius: var(--r-sm);
+  background: #f8fbff;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.earningsTitle {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 800;
+  color: #1e3a8a;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.earningsSubtitle {
+  margin: 2px 0 0;
+  font-size: 11px;
+  color: #475569;
+}
+
+.earningsTotals {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+@media (min-width: 520px) {
+  .earningsTotals {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.earningsTotalCard {
+  border: 1px solid #d8e3fb;
+  border-radius: var(--r-sm);
+  padding: 8px 10px;
+  background: #fff;
+}
+
+.earningsTotalCardAgent {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+}
+
+.earningsTotalCardAdmin {
+  border-color: #bfdbfe;
+  background: #eff6ff;
+}
+
+.earningsTotalLabel {
+  margin: 0;
+  font-size: 11px;
+  color: #475569;
+  font-weight: 700;
+}
+
+.earningsTotalValue {
+  margin: 3px 0 0;
+  font-size: 18px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.earningsBlock {
+  border: 1px solid #dbe3f3;
+  border-radius: var(--r-sm);
+  background: #fff;
+  padding: 8px 10px;
+}
+
+.earningsBlockTitle {
+  margin: 0 0 6px;
+  font-size: 11px;
+  color: #334155;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.earningsRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 4px 0;
+  font-size: 12px;
+  color: #334155;
+}
+
+.earningsRow strong {
+  color: #0f172a;
+  font-size: 12px;
+}
+
+.earningsRowStrong {
+  margin-top: 4px;
+  padding-top: 7px;
+  border-top: 1px dashed #cdd7ec;
+  font-weight: 700;
+}
+
+.earningsFootnote {
+  margin: 0;
+  font-size: 11px;
+  color: #64748b;
+}
+
 .emptyInvoice {
   border: 1px dashed var(--brand-200);
   border-radius: var(--r-md);

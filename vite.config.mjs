@@ -108,6 +108,17 @@ function applyProductionEnv(env) {
     );
   }
 
+  // .env is tracked on `dev` with localhost URLs for local development.
+  // On Amplify (AWS_BRANCH set) these must be overridden with real defaults.
+  const isAmplify = !!(process.env.AWS_BRANCH || process.env.AWS_COMMIT_ID);
+  if (isAmplify && /localhost|127\.0\.0\.1/i.test(envValue(env, "VITE_API_BASE_URL"))) {
+    env.VITE_API_BASE_URL = defaults.VITE_API_BASE_URL;
+    process.env.VITE_API_BASE_URL = defaults.VITE_API_BASE_URL;
+    console.warn(
+      `[vite] VITE_API_BASE_URL was localhost on Amplify; forcing ${defaults.VITE_API_BASE_URL}`
+    );
+  }
+
   for (const key of REQUIRED_PRODUCTION_ENV) {
     if (envValue(env, key)) continue;
     const aliasHit = (PRODUCTION_ENV_ALIASES[key] || []).find((alias) =>
@@ -142,13 +153,13 @@ export default defineConfig(({ mode }) => {
   }
 
   const configuredApi = String(
-    env.VITE_API_BASE_URL || env.LAUNDRY_API_BASE_URL || "http://127.0.0.1:8083"
+    env.VITE_API_BASE_URL || env.LAUNDRY_API_BASE_URL || "http://127.0.0.1:3010"
   ).replace(/\/$/, "");
   const proxyTarget = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(
     configuredApi
   )
     ? configuredApi
-    : "http://127.0.0.1:8083";
+    : "http://127.0.0.1:3010";
 
   return {
   plugins: [react(), tailwindcss()],
