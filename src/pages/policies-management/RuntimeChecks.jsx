@@ -54,7 +54,11 @@ export default function RuntimeChecks() {
   const [recurringAutoCreate, setRecurringAutoCreate] = useState(true);
   const [recurringMaxFailures, setRecurringMaxFailures] = useState("3");
   const [recurringTestMode, setRecurringTestMode] = useState(false);
-  const [recurringTestMinutes, setRecurringTestMinutes] = useState("3");
+  const [recurringTestMinutesWeekly, setRecurringTestMinutesWeekly] = useState("3");
+  const [recurringTestMinutesEveryTwoWeeks, setRecurringTestMinutesEveryTwoWeeks] =
+    useState("3");
+  const [recurringTestMinutesEveryFourWeeks, setRecurringTestMinutesEveryFourWeeks] =
+    useState("3");
 
   useEffect(() => {
     const next = data?.data?.settings;
@@ -95,9 +99,22 @@ export default function RuntimeChecks() {
     if (next.recurringTestModeEnabled != null) {
       setRecurringTestMode(Boolean(next.recurringTestModeEnabled.value));
     }
-    if (next.recurringTestIntervalMinutes != null) {
-      setRecurringTestMinutes(String(next.recurringTestIntervalMinutes.value ?? 3));
-    }
+    // Prefer per-frequency values; fall back to the legacy shared interval so
+    // older DB rows still populate the new fields on first load.
+    const sharedFallback = String(next.recurringTestIntervalMinutes?.value ?? 3);
+    setRecurringTestMinutesWeekly(
+      String(next.recurringTestIntervalMinutesWeekly?.value ?? sharedFallback)
+    );
+    setRecurringTestMinutesEveryTwoWeeks(
+      String(
+        next.recurringTestIntervalMinutesEveryTwoWeeks?.value ?? sharedFallback
+      )
+    );
+    setRecurringTestMinutesEveryFourWeeks(
+      String(
+        next.recurringTestIntervalMinutesEveryFourWeeks?.value ?? sharedFallback
+      )
+    );
   }, [data]);
 
   const envHints = useMemo(() => {
@@ -136,10 +153,31 @@ export default function RuntimeChecks() {
       return;
     }
 
-    const recurringMinutes = Number(recurringTestMinutes);
-    if (recurringTestMode && (!Number.isInteger(recurringMinutes) || recurringMinutes < 1)) {
-      showError("Recurring test interval must be a whole number of at least 1 minute");
-      return;
+    const parseTestMinutes = (raw, label) => {
+      const n = Number(raw);
+      if (!Number.isInteger(n) || n < 1) {
+        showError(`${label} test interval must be a whole number of at least 1 minute`);
+        return null;
+      }
+      return n;
+    };
+
+    let weeklyMins = null;
+    let twoWeekMins = null;
+    let fourWeekMins = null;
+    if (recurringTestMode) {
+      weeklyMins = parseTestMinutes(recurringTestMinutesWeekly, "Weekly");
+      if (weeklyMins == null) return;
+      twoWeekMins = parseTestMinutes(
+        recurringTestMinutesEveryTwoWeeks,
+        "Every two weeks"
+      );
+      if (twoWeekMins == null) return;
+      fourWeekMins = parseTestMinutes(
+        recurringTestMinutesEveryFourWeeks,
+        "Every four weeks"
+      );
+      if (fourWeekMins == null) return;
     }
 
     try {
@@ -156,7 +194,15 @@ export default function RuntimeChecks() {
         recurringAutoCreateEnabled: recurringAutoCreate,
         recurringMaxFailuresBeforePause: recurringFailures,
         recurringTestModeEnabled: recurringTestMode,
-        recurringTestIntervalMinutes: recurringMinutes,
+        ...(recurringTestMode
+          ? {
+              recurringTestIntervalMinutesWeekly: weeklyMins,
+              recurringTestIntervalMinutesEveryTwoWeeks: twoWeekMins,
+              recurringTestIntervalMinutesEveryFourWeeks: fourWeekMins,
+              // Keep shared fallback in sync with Weekly so older readers stay sane.
+              recurringTestIntervalMinutes: weeklyMins,
+            }
+          : {}),
       }).unwrap();
       success("Runtime checks saved. They apply without a server restart.");
       refetch();
@@ -352,8 +398,8 @@ export default function RuntimeChecks() {
             <div style={{ marginTop: 16 }}>
               <Notice tone={recurringTestMode ? "warning" : "info"}>
                 {recurringTestMode
-                  ? `TEST MODE ON. Every recurring order regenerates after ${recurringTestMinutes || "?"} minute(s) instead of its real weekly/2-weekly/4-weekly cadence. Turn OFF on production.`
-                  : "Test mode is OFF. Recurring orders use their real cadence (Weekly = 7 days, etc.)."}
+                  ? `TEST MODE ON. Weekly → ${recurringTestMinutesWeekly || "?"} min · Every two weeks → ${recurringTestMinutesEveryTwoWeeks || "?"} min · Every four weeks → ${recurringTestMinutesEveryFourWeeks || "?"} min. Just Once never auto-generates. Turn OFF on production.`
+                  : "Test mode is OFF. Recurring orders use their real cadence (Weekly = 7 days, Every two weeks = 14 days, Every four weeks = 28 days)."}
               </Notice>
               <div style={{ marginTop: 12 }}>
                 <Toggle
@@ -363,18 +409,88 @@ export default function RuntimeChecks() {
                 />
               </div>
               {recurringTestMode && (
-                <div style={{ marginTop: 16 }}>
+                <div
+                  style={{
+                    marginTop: 16,
+                    display: "grid",
+                    gap: 14,
+                    padding: 14,
+                    borderRadius: "var(--r-md)",
+                    border: "1px solid var(--line)",
+                    background: "var(--canvas)",
+                  }}
+                >
+                  <p
+                    style={{
+                      margin: 0,
+                      fontSize: 12.5,
+                      color: "var(--muted)",
+                      lineHeight: 1.45,
+                    }}
+                  >
+                    Set each customer-app frequency’s test interval in minutes.
+                    Same value on all three = same behaviour as before; different
+                    values = each cadence regenerates on its own clock.
+                  </p>
+
                   <Field
-                    label="Test interval (minutes)"
-                    htmlFor="rc-recurring-test-minutes"
-                    hint="e.g. 3 = the next recurring order is generated 3 minutes after the previous one, so the whole cycle can be verified without waiting days."
+                    label="Just Once"
+                    htmlFor="rc-recurring-test-just-once"
+                    hint="Just Once never auto-generates a next order — no test interval."
                   >
                     <Input
-                      id="rc-recurring-test-minutes"
+                      id="rc-recurring-test-just-once"
+                      value="N/A — does not recur"
+                      disabled
+                      style={{ maxWidth: 220 }}
+                    />
+                  </Field>
+
+                  <Field
+                    label="Weekly (real = 7 days)"
+                    htmlFor="rc-recurring-test-weekly"
+                    hint="Minutes until the next Weekly order is generated in test mode."
+                  >
+                    <Input
+                      id="rc-recurring-test-weekly"
                       type="number"
                       min={1}
-                      value={recurringTestMinutes}
-                      onChange={(e) => setRecurringTestMinutes(e.target.value)}
+                      value={recurringTestMinutesWeekly}
+                      onChange={(e) => setRecurringTestMinutesWeekly(e.target.value)}
+                      style={{ maxWidth: 120 }}
+                    />
+                  </Field>
+
+                  <Field
+                    label="Every two weeks (real = 14 days)"
+                    htmlFor="rc-recurring-test-two-weeks"
+                    hint="Minutes until the next Every-two-weeks order is generated in test mode."
+                  >
+                    <Input
+                      id="rc-recurring-test-two-weeks"
+                      type="number"
+                      min={1}
+                      value={recurringTestMinutesEveryTwoWeeks}
+                      onChange={(e) =>
+                        setRecurringTestMinutesEveryTwoWeeks(e.target.value)
+                      }
+                      style={{ maxWidth: 120 }}
+                    />
+                  </Field>
+
+                  <Field
+                    label="Every four weeks (real = 28 days)"
+                    htmlFor="rc-recurring-test-four-weeks"
+                    hint="Minutes until the next Every-four-weeks order is generated in test mode."
+                  >
+                    <Input
+                      id="rc-recurring-test-four-weeks"
+                      type="number"
+                      min={1}
+                      value={recurringTestMinutesEveryFourWeeks}
+                      onChange={(e) =>
+                        setRecurringTestMinutesEveryFourWeeks(e.target.value)
+                      }
                       style={{ maxWidth: 120 }}
                     />
                   </Field>
