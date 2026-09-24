@@ -11,6 +11,7 @@ import {
   DirectoryActionView,
   DirectoryClearButton,
   DirectoryDateInput,
+  DirectoryDotPill,
   DirectoryExportButton,
   DirectoryIdentity,
   DirectoryMetrics,
@@ -86,6 +87,17 @@ function matchesDateRange(row, dateRange) {
   return (!start || createdAt >= start) && (!end || createdAt <= end);
 }
 
+function formatJoined(value) {
+  if (!value) return "—";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+}
+
 export default function EmployeeManagement() {
   const navigate = useNavigate();
   const { success, error: showError } = useToaster();
@@ -105,7 +117,8 @@ export default function EmployeeManagement() {
   const payload = currentData ?? data;
   const adminEmployees = useMemo(() => extractAdminEmployees(payload), [payload]);
 
-  // The list endpoint only returns roleId; resolve names from the admin-portal role catalog.
+  // The list endpoint only returns roleId; resolve human-readable names from
+  // the admin-portal role catalog so the table and view modal can show them.
   const { data: rolesRes } = useGetAllRolesQuery("admin_portal");
   const roleNameById = useMemo(() => {
     const list = Array.isArray(rolesRes?.data) ? rolesRes.data : [];
@@ -254,6 +267,16 @@ export default function EmployeeManagement() {
       ),
     },
     {
+      key: "role",
+      header: "Role",
+      render: (row) =>
+        row.roleName && row.roleName !== "—" ? (
+          <DirectoryDotPill tone="info">{row.roleName}</DirectoryDotPill>
+        ) : (
+          <span style={{ color: "var(--muted)" }}>—</span>
+        ),
+    },
+    {
       key: "status",
       header: "Status",
       render: (row) => <DirectoryStatusPill active={row.status} />,
@@ -396,10 +419,12 @@ export default function EmployeeManagement() {
         }}
         fields={[
           { label: "Employee ID", value: viewRow?.employeeId },
+          { label: "Role", value: viewRow?.roleName },
           { label: "Email", value: viewRow?.email },
           { label: "Phone", value: viewRow?.phoneNum },
           { label: "Role", value: viewRow?.roleName },
           { label: "Status", value: viewRow?.status ? "Active" : "Inactive" },
+          { label: "Joined", value: formatJoined(viewRow?.createdAt) },
         ]}
       />
 

@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Autocomplete } from "@react-google-maps/api";
-import { Badge, Button, Field, Input, PageHeader, Select, Textarea } from "../../design-system";
+import { Badge, Button, Field, Input, PageHeader, PasswordInput, Select, Textarea } from "../../design-system";
 import {
   useGetAllServicesQuery,
   useGetAllCountriesQuery,
@@ -20,14 +20,21 @@ import { buildCurrencyUnitsList } from "../../utilities/zonesList";
 import {
   DEFAULT_WORKING_DAYS,
   MACHINERY_COUNT_OPTIONS,
+  TURNAROUND_OPTIONS,
+  SHOP_PROFILE_OPTIONS,
+  SHOP_PROFILE_VALUES,
   WIZARD_STEPS,
   buildAddressPayload,
   buildBusinessPayload,
   buildRegisterPayload,
   formatHoursSummary,
   getAccountErrors,
+  getLocationErrors,
+  getOperationsErrors,
   isAccountComplete,
   isLocationComplete,
+  isOperationsComplete,
+  profileLabel,
 } from "./addShopForm";
 import styles from "./AddShop.module.css";
 
@@ -200,7 +207,16 @@ export default function ShopProfile() {
     return [{ value: String(id), label }];
   }, [selectedZone, currencyUnitsList]);
 
+  const selectedCountry = useMemo(
+    () => countries.find((c) => String(c.id) === String(formData.countryId)) || null,
+    [countries, formData.countryId]
+  );
+
   const accountErrors = attempted && step === 0 ? getAccountErrors(formData) : {};
+  const locationErrors =
+    attempted && step === 1 ? getLocationErrors(formData, selectedCountry) : {};
+  const operationsErrors =
+    attempted && step === 2 ? getOperationsErrors(formData) : {};
   const busy = isRegistering || isAddingAddress || isAddingBusiness;
 
   const handleChange = (field) => (e) => {
@@ -214,6 +230,22 @@ export default function ShopProfile() {
       }
       return { ...s, [field]: value };
     });
+  };
+
+  // Country code: a single leading "+" then up to 4 digits (e.g. +44, +971).
+  // Letters and extra symbols are stripped as the user types, not just on
+  // submit, so the field can never hold "44abc" or "++1".
+  const handleCountryCode = (e) => {
+    const raw = e?.target?.value ?? e;
+    const digits = String(raw).replace(/\D/g, "").slice(0, 4);
+    setFormData((s) => ({ ...s, countryCode: `+${digits}` }));
+  };
+
+  // Phone: national digits only, capped at 11 (UK "07911123456").
+  const handlePhone = (e) => {
+    const raw = e?.target?.value ?? e;
+    const digits = String(raw).replace(/\D/g, "").slice(0, 11);
+    setFormData((s) => ({ ...s, phoneNum: digits }));
   };
 
   const handleZoneChange = (e) => {
@@ -237,9 +269,31 @@ export default function ShopProfile() {
       if (place?.formatted_address) {
         const lat = place.geometry?.location?.lat?.() ?? "";
         const lng = place.geometry?.location?.lng?.() ?? "";
+
+        // Pull district / province / postcode straight out of the picked
+        // result so the admin doesn't have to retype them (same idea as the
+        // agent app's postcode lookup autofill).
+        const parts = Array.isArray(place.address_components)
+          ? place.address_components
+          : [];
+        const pick = (...types) => {
+          for (const t of types) {
+            const c = parts.find((p) => (p.types || []).includes(t));
+            if (c?.long_name) return c.long_name;
+          }
+          return "";
+        };
+        const postcode = pick("postal_code");
+        // UK: postal_town is the town (e.g. "London"); fall back to locality.
+        const district = pick("postal_town", "locality", "sublocality", "neighborhood");
+        const province = pick("administrative_area_level_2", "administrative_area_level_1");
+
         setFormData((s) => ({
           ...s,
           streetAddress: place.formatted_address,
+          district: district || s.district,
+          province: province || s.province,
+          postalcode: postcode || s.postalcode,
           lat: lat ? String(lat) : s.lat,
           lng: lng ? String(lng) : s.lng,
           coordinates: lat && lng ? `${lat},${lng}` : s.coordinates,
@@ -268,11 +322,22 @@ export default function ShopProfile() {
     }));
   };
 
-  const setServiceTimeRequired = (serviceId, hours) => {
+  const setServiceTimeRequired = (serviceId, value) => {
     setFormData((s) => ({
       ...s,
-      serviceTimes: { ...s.serviceTimes, [serviceId]: hours === "" ? undefined : Number(hours) || 0 },
+      serviceTimes: { ...s.serviceTimes, [serviceId]: value || undefined },
     }));
+  };
+
+  // Apply one turnaround to every selected service in a single click.
+  const setAllServiceTimes = (value) => {
+    setFormData((s) => {
+      const next = { ...s.serviceTimes };
+      (s.services || []).forEach((id) => {
+        next[id] = value || undefined;
+      });
+      return { ...s, serviceTimes: next };
+    });
   };
 
   const setWorkingDay = (index, field, value) => {
@@ -314,7 +379,7 @@ export default function ShopProfile() {
 
   const handleStep2Next = async () => {
     setAttempted(true);
-    if (!isLocationComplete(formData)) return;
+    if (!isLocationComplete(formData, selectedCountry)) return;
     if (!registeredUserId) {
       error("Missing user id");
       return;
@@ -339,6 +404,8 @@ export default function ShopProfile() {
   };
 
   const handleStep3Next = () => {
+    setAttempted(true);
+    if (!isOperationsComplete(formData)) return;
     goToStep(3);
   };
 
@@ -511,47 +578,54 @@ export default function ShopProfile() {
                 <Field
                   label={labelWithReq("Password", true)}
                   htmlFor="add-shop-password"
+                  hint={!accountErrors.password ? "At least 6 characters" : undefined}
                   error={accountErrors.password}
                 >
-                  <Input
+                  <PasswordInput
                     id="add-shop-password"
-                    type="password"
                     placeholder="••••••••"
                     value={formData.password}
                     onChange={handleChange("password")}
                     error={Boolean(accountErrors.password)}
                     disabled={accountLocked}
-                    autoComplete="new-password"
-                  />
-                </Field>
-                <Field
-                  label={labelWithReq("Country code", true)}
-                  htmlFor="add-shop-country-code"
-                  error={accountErrors.countryCode}
-                >
-                  <Input
-                    id="add-shop-country-code"
-                    placeholder="+44"
-                    value={formData.countryCode}
-                    onChange={handleChange("countryCode")}
-                    error={Boolean(accountErrors.countryCode)}
-                    disabled={accountLocked}
+                    maxLength={64}
                   />
                 </Field>
                 <Field
                   label={labelWithReq("Phone", true)}
                   htmlFor="add-shop-phone"
-                  error={accountErrors.phoneNum}
+                  hint={
+                    !accountErrors.phoneNum && !accountErrors.countryCode
+                      ? "Digits only, e.g. 07911123456"
+                      : undefined
+                  }
+                  error={accountErrors.countryCode || accountErrors.phoneNum}
                 >
-                  <Input
-                    id="add-shop-phone"
-                    placeholder="7123456789"
-                    value={formData.phoneNum}
-                    onChange={handleChange("phoneNum")}
-                    error={Boolean(accountErrors.phoneNum)}
-                    disabled={accountLocked}
-                    autoComplete="tel"
-                  />
+                  <div style={{ display: "flex", gap: 8, alignItems: "stretch" }}>
+                    <Input
+                      id="add-shop-country-code"
+                      aria-label="Country code"
+                      placeholder="+44"
+                      value={formData.countryCode}
+                      onChange={handleCountryCode}
+                      error={Boolean(accountErrors.countryCode)}
+                      disabled={accountLocked}
+                      inputMode="numeric"
+                      style={{ flex: "0 0 84px", width: 84, textAlign: "center" }}
+                    />
+                    <Input
+                      id="add-shop-phone"
+                      placeholder="7123456789"
+                      value={formData.phoneNum}
+                      onChange={handlePhone}
+                      error={Boolean(accountErrors.phoneNum || accountErrors.countryCode)}
+                      disabled={accountLocked}
+                      inputMode="numeric"
+                      autoComplete="tel"
+                      maxLength={11}
+                      style={{ flex: 1, minWidth: 0 }}
+                    />
+                  </div>
                 </Field>
               </div>
             </Section>
@@ -644,7 +718,7 @@ export default function ShopProfile() {
                   label={labelWithReq("Address", true)}
                   htmlFor="add-shop-address"
                   hint="Start typing, then pick a result to fill coordinates"
-                  error={attempted && !isLocationComplete(formData) ? "Address is required" : undefined}
+                  error={locationErrors.streetAddress}
                 >
                   {isGoogleMapsLoaded ? (
                     <Autocomplete
@@ -654,7 +728,7 @@ export default function ShopProfile() {
                       onPlaceChanged={handleAddressPlaceChanged}
                     >
                       <input
-                        className={`jd-input${attempted && !isLocationComplete(formData) ? " is-error" : ""}`}
+                        className={`jd-input${locationErrors.streetAddress ? " is-error" : ""}`}
                         id="add-shop-address"
                         placeholder="Start typing to search address…"
                         value={formData.streetAddress}
@@ -704,7 +778,11 @@ export default function ShopProfile() {
                   }}
                 />
               </Field>
-              <Field label="Postal code" htmlFor="add-shop-postal">
+              <Field
+                label={labelWithReq("Postal code", true)}
+                htmlFor="add-shop-postal"
+                error={locationErrors.postalcode}
+              >
                 <Input
                   id="add-shop-postal"
                   placeholder="Postal code"
@@ -713,6 +791,7 @@ export default function ShopProfile() {
                     setAddressSaved(false);
                     handleChange("postalcode")(e);
                   }}
+                  error={Boolean(locationErrors.postalcode)}
                 />
               </Field>
               {formData.lat && formData.lng ? (
@@ -742,36 +821,64 @@ export default function ShopProfile() {
               description="Shown on the shop record. Shop name can be added later if you do not have it yet."
             >
               <div className={styles.grid}>
-                <Field label="Shop name (business name)" htmlFor="add-shop-name">
+                <Field
+                  label={labelWithReq("Shop name (business name)", true)}
+                  htmlFor="add-shop-name"
+                  error={operationsErrors.shopName}
+                >
                   <Input
                     id="add-shop-name"
                     placeholder="Shop name"
                     value={formData.shopName}
                     onChange={handleChange("shopName")}
+                    error={Boolean(operationsErrors.shopName)}
                   />
                 </Field>
                 <Field
-                  label="Match profile options"
-                  htmlFor="add-shop-profile"
-                  hint="e.g. Laundry Shop"
+                  label={labelWithReq("Shop profile", true)}
+                  hint={
+                    !operationsErrors.matchProfileOptions
+                      ? "How this shop processes laundry"
+                      : undefined
+                  }
+                  error={operationsErrors.matchProfileOptions}
                 >
-                  <Input
-                    id="add-shop-profile"
-                    placeholder="e.g. Laundry Shop"
+                  <Select
+                    aria-label="Shop profile"
                     value={formData.matchProfileOptions}
-                    onChange={handleChange("matchProfileOptions")}
+                    onChange={(v) => {
+                      const value = v?.target?.value ?? v;
+                      setFormData((s) => ({
+                        ...s,
+                        matchProfileOptions: value,
+                        // Drop stale free-text when leaving "Other" so the
+                        // backend never rejects it.
+                        otherText:
+                          value === SHOP_PROFILE_VALUES.OTHER ? s.otherText : "",
+                      }));
+                    }}
+                    options={SHOP_PROFILE_OPTIONS}
+                    placeholder="Select a profile"
+                    error={Boolean(operationsErrors.matchProfileOptions)}
                   />
                 </Field>
-                <div className={styles.spanAll}>
-                  <Field label="Other text (optional)" htmlFor="add-shop-other">
-                    <Textarea
-                      id="add-shop-other"
-                      rows={3}
-                      value={formData.otherText}
-                      onChange={handleChange("otherText")}
-                    />
-                  </Field>
-                </div>
+                {formData.matchProfileOptions === SHOP_PROFILE_VALUES.OTHER ? (
+                  <div className={styles.spanAll}>
+                    <Field
+                      label={labelWithReq("Describe the profile", true)}
+                      htmlFor="add-shop-other"
+                      error={operationsErrors.otherText}
+                    >
+                      <Textarea
+                        id="add-shop-other"
+                        rows={3}
+                        placeholder="Describe how this shop processes laundry"
+                        value={formData.otherText}
+                        onChange={handleChange("otherText")}
+                      />
+                    </Field>
+                  </div>
+                ) : null}
               </div>
             </Section>
 
@@ -779,6 +886,11 @@ export default function ShopProfile() {
               title="Services"
               description="Select the services this shop will fulfil. Turnaround hours appear only for selected services."
             >
+              {operationsErrors.services ? (
+                <div className={`${styles.banner} ${styles.bannerDanger}`}>
+                  <span>{operationsErrors.services}</span>
+                </div>
+              ) : null}
               {servicesError ? (
                 <div className={`${styles.banner} ${styles.bannerDanger}`}>
                   <span>Could not load services.</span>
@@ -812,6 +924,36 @@ export default function ShopProfile() {
                 </div>
               )}
 
+              {formData.services?.length > 1 ? (
+                <div
+                  className="flex items-center flex-wrap"
+                  style={{
+                    gap: 10,
+                    marginTop: 16,
+                    padding: "10px 12px",
+                    background: "#EEF2FF",
+                    border: "1px solid #C7D2FE",
+                    borderRadius: 10,
+                  }}
+                >
+                  <span style={{ fontSize: 13, fontWeight: 600, color: "#3730A3" }}>
+                    Set the same turnaround for all {formData.services.length} services
+                  </span>
+                  <div style={{ minWidth: 190 }}>
+                    <Select
+                      aria-label="Apply turnaround to all services"
+                      value=""
+                      onChange={(v) => {
+                        const val = v?.target?.value ?? v;
+                        if (val) setAllServiceTimes(val);
+                      }}
+                      options={TURNAROUND_OPTIONS}
+                      placeholder="Apply to all…"
+                    />
+                  </div>
+                </div>
+              ) : null}
+
               {formData.services?.length > 0 ? (
                 <div className={styles.grid} style={{ marginTop: 16 }}>
                   {formData.services.map((serviceId) => {
@@ -821,16 +963,16 @@ export default function ShopProfile() {
                     return (
                       <Field
                         key={serviceId}
-                        label={`${label} · hours required`}
-                        htmlFor={`service-time-${serviceId}`}
+                        label={`${label} · turnaround`}
                       >
-                        <Input
-                          id={`service-time-${serviceId}`}
-                          type="number"
-                          min={0}
-                          placeholder="e.g. 24"
+                        <Select
+                          aria-label={`${label} turnaround`}
                           value={formData.serviceTimes?.[serviceId] ?? ""}
-                          onChange={(e) => setServiceTimeRequired(serviceId, e.target.value)}
+                          onChange={(v) =>
+                            setServiceTimeRequired(serviceId, v?.target?.value ?? v)
+                          }
+                          options={TURNAROUND_OPTIONS}
+                          placeholder="Select turnaround"
                         />
                       </Field>
                     );
@@ -843,6 +985,11 @@ export default function ShopProfile() {
               title="Opening hours"
               description="Closed days send null open/close times. Default is 09:00–18:00, Sunday closed."
             >
+              {operationsErrors.workingDays ? (
+                <div className={`${styles.banner} ${styles.bannerDanger}`}>
+                  <span>{operationsErrors.workingDays}</span>
+                </div>
+              ) : null}
               <div className={styles.hours}>
                 <div className={styles.hourHead}>
                   <span>Day</span>
@@ -1009,7 +1156,13 @@ export default function ShopProfile() {
                 <dt>Shop name</dt>
                 <dd>{formData.shopName || "—"}</dd>
                 <dt>Profile</dt>
-                <dd>{formData.matchProfileOptions || "—"}</dd>
+                <dd>{profileLabel(formData.matchProfileOptions)}</dd>
+                {formData.matchProfileOptions === SHOP_PROFILE_VALUES.OTHER ? (
+                  <>
+                    <dt>Profile detail</dt>
+                    <dd>{formData.otherText || "—"}</dd>
+                  </>
+                ) : null}
                 <dt>Services</dt>
                 <dd>
                   {formData.services.length

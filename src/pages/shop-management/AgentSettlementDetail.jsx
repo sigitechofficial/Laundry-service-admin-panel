@@ -404,6 +404,7 @@ export default function AgentSettlementDetail() {
   const refundRail = rails.refunds || {};
   const orders = detail?.orders || [];
   const ordersPagination = detail?.ordersPagination || {};
+  const remittances = detail?.remittances || [];
   const ledger = detail?.ledger || [];
   const ledgerPagination = detail?.ledgerPagination || {};
   const statement = detail?.statement || {};
@@ -548,6 +549,59 @@ export default function AgentSettlementDetail() {
       },
     ],
     [navigate, summary]
+  );
+
+  const remittanceColumns = useMemo(
+    () => [
+      {
+        key: "createdAt",
+        header: "Submitted",
+        render: (row) =>
+          row.createdAt ? formatDate(row.createdAt, DATE_TIME_FORMAT) : "—",
+      },
+      {
+        key: "amount",
+        header: "Amount",
+        render: (row) => money(row.amount, summary),
+      },
+      {
+        key: "status",
+        header: "Status",
+        render: (row) => (
+          <DirectoryDotPill
+            tone={
+              row.status === "completed"
+                ? "success"
+                : row.status === "failed"
+                  ? "danger"
+                  : "warning"
+            }
+          >
+            {row.status === "completed"
+              ? "Confirmed"
+              : row.status === "failed"
+                ? "Rejected"
+                : "Pending"}
+          </DirectoryDotPill>
+        ),
+      },
+      {
+        key: "description",
+        header: "Detail",
+        render: (row) => (
+          <span style={{ fontSize: 12, color: "#475569" }}>
+            {row.description || "—"}
+          </span>
+        ),
+      },
+    ],
+    [summary]
+  );
+
+  const remittanceRows = useMemo(
+    () =>
+      remittances.map((r, i) => ({ ...r, rowKey: `remit-${r.id}-${i}` })),
+    [remittances]
   );
 
   const ledgerColumns = useMemo(
@@ -1126,6 +1180,9 @@ export default function AgentSettlementDetail() {
         <Button size="sm" variant={tab === "orders" ? "primary" : "secondary"} onClick={() => setTab("orders")}>
           Orders {ordersPagination.total ? `(${ordersPagination.total})` : ""}
         </Button>
+        <Button size="sm" variant={tab === "remittances" ? "primary" : "secondary"} onClick={() => setTab("remittances")}>
+          Remittances {remittances.length ? `(${remittances.length})` : ""}
+        </Button>
       </div>
 
       {tab === "statement" ? (
@@ -1271,6 +1328,17 @@ export default function AgentSettlementDetail() {
           }
         >
           <Table columns={orderColumns} rows={ordersTableData} rowKey={(row) => row.rowKey} empty="No paid orders yet" />
+        </DirectoryTableWrap>
+      ) : null}
+
+      {tab === "remittances" ? (
+        <DirectoryTableWrap>
+          <Table
+            columns={remittanceColumns}
+            rows={remittanceRows}
+            rowKey={(row) => row.rowKey}
+            empty="This agent has not submitted any cash remittances yet"
+          />
         </DirectoryTableWrap>
       ) : null}
 
