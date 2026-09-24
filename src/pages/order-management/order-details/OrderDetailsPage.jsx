@@ -46,6 +46,7 @@ import {
   splitAdminTips,
 } from "../../../utilities/invoiceTotals";
 import AssignOrderModal from "../order-modals/AssignOrderModal";
+import { customerShopStat } from "../returningCustomerStat";
 import OrderAssignActionButton from "../order-modals/OrderAssignActionButton";
 import { canAdminAssignOrReassignFromBooking } from "../../../shared/adminAssignGate";
 import InvoiceDetailModal from "../invoice/InvoiceDetailModal";
@@ -2264,71 +2265,33 @@ export default function OrderDetailsPage() {
             <div className="space-y-3" style={{ padding: 20 }}>
               {orderData?.customer ? (
                 <>
-                  {orderData?.isReturningCustomerAtShop ? (
-                    <div style={{ marginBottom: 4 }}>
-                      <Badge tone="brand">
-                        Returning customer · {orderData.customerOrdersAtShop} completed
-                        {orderData.customerTotalOrdersAtShop > orderData.customerOrdersAtShop
-                          ? ` · ${orderData.customerTotalOrdersAtShop} total`
-                          : ""}{" "}
-                        order{orderData.customerOrdersAtShop === 1 ? "" : "s"} at this shop
-                      </Badge>
-                    </div>
-                  ) : orderData?.customerTotalOrdersAtShop > 0 ? (
-                    <div style={{ marginBottom: 4 }}>
-                      <Badge tone="neutral">
-                        {orderData.customerTotalOrdersAtShop} order
-                        {orderData.customerTotalOrdersAtShop === 1 ? "" : "s"} at this shop ·
-                        not completed yet
-                      </Badge>
-                    </div>
-                  ) : null}
-                  {Array.isArray(orderData?.customerShopHistory) &&
-                  orderData.customerShopHistory.length > 0 ? (
-                    <div
-                      style={{
-                        marginBottom: 4,
-                        padding: "8px 10px",
-                        borderRadius: "var(--r-md)",
-                        border: "1px solid var(--line)",
-                        background: "var(--canvas)",
-                      }}
-                    >
-                      <div
-                        style={{
-                          fontSize: 10.5,
-                          color: "var(--muted)",
-                          fontWeight: 600,
-                          letterSpacing: 0.4,
-                          marginBottom: 6,
-                        }}
-                      >
-                        ORDER HISTORY ACROSS SHOPS
+                  {/* Returning-customer signal scoped to THE SHOP HANDLING THIS
+                      ORDER (the assigned / accepting shop shown below), so the
+                      admin can tell at a glance whether this customer is a
+                      repeat at this specific shop. Cross-shop noise is
+                      intentionally kept out of the order view. */}
+                  {(() => {
+                    const stat = customerShopStat({
+                      completed: orderData.customerOrdersAtShop,
+                      total: orderData.customerTotalOrdersAtShop,
+                      isReturning: orderData.isReturningCustomerAtShop,
+                    });
+                    if (!stat) {
+                      return (
+                        <div style={{ marginBottom: 4 }}>
+                          <Badge tone="neutral">First order at this shop</Badge>
+                        </div>
+                      );
+                    }
+                    return (
+                      <div style={{ marginBottom: 4 }}>
+                        <Badge tone={stat.tone}>
+                          {stat.isReturning ? "Returning customer · " : ""}
+                          {stat.count} at this shop
+                        </Badge>
                       </div>
-                      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                        {orderData.customerShopHistory.map((h) => (
-                          <div
-                            key={h.shopId}
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "space-between",
-                              gap: 8,
-                              fontSize: 12.5,
-                            }}
-                          >
-                            <span>{h.shopName}</span>
-                            <span style={{ color: "var(--muted)", whiteSpace: "nowrap" }}>
-                              {h.completedOrders} completed
-                              {h.totalOrders !== h.completedOrders
-                                ? ` · ${h.totalOrders} total`
-                                : ""}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ) : null}
+                    );
+                  })()}
                   <OdMetaRow
                     label="Name"
                     value={
