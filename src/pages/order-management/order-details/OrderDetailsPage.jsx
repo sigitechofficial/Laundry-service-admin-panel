@@ -2267,9 +2267,66 @@ export default function OrderDetailsPage() {
                   {orderData?.isReturningCustomerAtShop ? (
                     <div style={{ marginBottom: 4 }}>
                       <Badge tone="brand">
-                        Returning customer · {orderData.customerOrdersAtShop} completed order
-                        {orderData.customerOrdersAtShop === 1 ? "" : "s"} at this shop
+                        Returning customer · {orderData.customerOrdersAtShop} completed
+                        {orderData.customerTotalOrdersAtShop > orderData.customerOrdersAtShop
+                          ? ` · ${orderData.customerTotalOrdersAtShop} total`
+                          : ""}{" "}
+                        order{orderData.customerOrdersAtShop === 1 ? "" : "s"} at this shop
                       </Badge>
+                    </div>
+                  ) : orderData?.customerTotalOrdersAtShop > 0 ? (
+                    <div style={{ marginBottom: 4 }}>
+                      <Badge tone="neutral">
+                        {orderData.customerTotalOrdersAtShop} order
+                        {orderData.customerTotalOrdersAtShop === 1 ? "" : "s"} at this shop ·
+                        not completed yet
+                      </Badge>
+                    </div>
+                  ) : null}
+                  {Array.isArray(orderData?.customerShopHistory) &&
+                  orderData.customerShopHistory.length > 0 ? (
+                    <div
+                      style={{
+                        marginBottom: 4,
+                        padding: "8px 10px",
+                        borderRadius: "var(--r-md)",
+                        border: "1px solid var(--line)",
+                        background: "var(--canvas)",
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: 10.5,
+                          color: "var(--muted)",
+                          fontWeight: 600,
+                          letterSpacing: 0.4,
+                          marginBottom: 6,
+                        }}
+                      >
+                        ORDER HISTORY ACROSS SHOPS
+                      </div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                        {orderData.customerShopHistory.map((h) => (
+                          <div
+                            key={h.shopId}
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                              gap: 8,
+                              fontSize: 12.5,
+                            }}
+                          >
+                            <span>{h.shopName}</span>
+                            <span style={{ color: "var(--muted)", whiteSpace: "nowrap" }}>
+                              {h.completedOrders} completed
+                              {h.totalOrders !== h.completedOrders
+                                ? ` · ${h.totalOrders} total`
+                                : ""}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   ) : null}
                   <OdMetaRow
