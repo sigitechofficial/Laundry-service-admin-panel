@@ -160,6 +160,17 @@ export default function AssignOrderModal({
     [shops]
   );
 
+  // Cross-zone order history — every shop this customer has ever ordered
+  // from, not just candidates in this zone. Lets the admin see the whole
+  // track record (including shops outside this booking's zone) before picking.
+  const customerShopHistory = Array.isArray(payload?.customerShopHistory)
+    ? payload.customerShopHistory
+    : [];
+  const zoneShopIds = useMemo(
+    () => new Set(shops.map((s) => Number(s.laundryShopId))),
+    [shops]
+  );
+
   const filteredShops = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     return shops.filter((shop) => {
@@ -326,6 +337,60 @@ export default function AssignOrderModal({
             </p>
           ) : null}
 
+          <div
+            style={{
+              padding: 12,
+              borderRadius: "var(--r-lg)",
+              border: "1px solid var(--line)",
+              background: "var(--surface)",
+            }}
+          >
+            <div
+              style={{
+                fontSize: 11,
+                color: "var(--muted)",
+                fontWeight: 600,
+                letterSpacing: 0.4,
+                marginBottom: customerShopHistory.length ? 8 : 0,
+              }}
+            >
+              CUSTOMER ORDER HISTORY
+            </div>
+            {customerShopHistory.length === 0 ? (
+              <p style={{ margin: 0, fontSize: 13, color: "var(--muted)" }}>
+                First-time customer — no prior orders at any shop yet.
+              </p>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {customerShopHistory.map((h) => (
+                  <div
+                    key={h.shopId}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: 8,
+                      fontSize: 13,
+                    }}
+                  >
+                    <span>
+                      <strong>{h.shopName}</strong>
+                      {!zoneShopIds.has(Number(h.shopId)) ? (
+                        <span style={{ color: "var(--muted)" }}> · other zone</span>
+                      ) : null}
+                    </span>
+                    <span style={{ color: "var(--ink-2)", whiteSpace: "nowrap" }}>
+                      {h.completedOrders} completed
+                      {h.totalOrders !== h.completedOrders
+                        ? ` · ${h.totalOrders} total`
+                        : ""}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           {hasShopList ? (
             <Input
               value={searchQuery}
@@ -428,8 +493,19 @@ export default function AssignOrderModal({
                       {shop.isReturningCustomerAtShop ? (
                         <div style={{ marginTop: 6 }}>
                           <Badge tone="brand">
-                            Returning · {shop.customerOrdersAtShop} completed order
-                            {shop.customerOrdersAtShop === 1 ? "" : "s"} here
+                            Returning · {shop.customerOrdersAtShop} completed
+                            {shop.customerTotalOrdersAtShop > shop.customerOrdersAtShop
+                              ? ` · ${shop.customerTotalOrdersAtShop} total`
+                              : ""}{" "}
+                            order{shop.customerOrdersAtShop === 1 ? "" : "s"} here
+                          </Badge>
+                        </div>
+                      ) : shop.customerTotalOrdersAtShop > 0 ? (
+                        <div style={{ marginTop: 6 }}>
+                          <Badge tone="neutral">
+                            {shop.customerTotalOrdersAtShop} order
+                            {shop.customerTotalOrdersAtShop === 1 ? "" : "s"} here ·
+                            not completed yet
                           </Badge>
                         </div>
                       ) : null}
