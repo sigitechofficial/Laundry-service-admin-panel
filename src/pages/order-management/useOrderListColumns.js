@@ -27,6 +27,7 @@ export function useOrderListColumns({
   setDeleteModal,
   setAssignModal,
   showAssign = true,
+  hideCustomer = false,
   extraColumns = [],
 }) {
   return useMemo(
@@ -46,16 +47,20 @@ export function useOrderListColumns({
             title: `When the order was created: ${row.orderDateTime}`,
           }),
       },
-      {
-        key: "customer",
-        header: "Customer",
-        render: (row) =>
-          h(CustomerNamePhone, {
-            name: row.customer,
-            phone: row.phone,
-            nameTo: customerDetailsPath(row.customerId),
-          }),
-      },
+      ...(hideCustomer
+        ? []
+        : [
+            {
+              key: "customer",
+              header: "Customer",
+              render: (row) =>
+                h(CustomerNamePhone, {
+                  name: row.customer,
+                  phone: row.phone,
+                  nameTo: customerDetailsPath(row.customerId),
+                }),
+            },
+          ]),
       {
         key: "shopName",
         header: "Shop & service",
@@ -201,6 +206,6 @@ export function useOrderListColumns({
           ),
       },
     ],
-    [extraColumns, navigate, setAssignModal, setDeleteModal, showAssign]
+    [extraColumns, hideCustomer, navigate, setAssignModal, setDeleteModal, showAssign]
   );
 }

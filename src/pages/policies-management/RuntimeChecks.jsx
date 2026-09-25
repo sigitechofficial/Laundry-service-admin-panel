@@ -50,6 +50,9 @@ export default function RuntimeChecks() {
   const [retryGapMinutes, setRetryGapMinutes] = useState("30");
   const [preferredShopEnabled, setPreferredShopEnabled] = useState(true);
   const [preferredShopWindowMinutes, setPreferredShopWindowMinutes] = useState("10");
+  const [shopAcceptCapEnabled, setShopAcceptCapEnabled] = useState(false);
+  const [shopAcceptWindowMinutes, setShopAcceptWindowMinutes] = useState("60");
+  const [shopAcceptMaxOrders, setShopAcceptMaxOrders] = useState("4");
   const [zoneCatalogOverlaysEnabled, setZoneCatalogOverlaysEnabled] = useState(false);
   const [recurringAutoCreate, setRecurringAutoCreate] = useState(true);
   const [recurringMaxFailures, setRecurringMaxFailures] = useState("3");
@@ -86,6 +89,15 @@ export default function RuntimeChecks() {
     }
     if (next.preferredShopWindowMinutes != null) {
       setPreferredShopWindowMinutes(String(next.preferredShopWindowMinutes.value ?? 10));
+    }
+    if (next.shopAcceptCapEnabled != null) {
+      setShopAcceptCapEnabled(Boolean(next.shopAcceptCapEnabled.value));
+    }
+    if (next.shopAcceptWindowMinutes != null) {
+      setShopAcceptWindowMinutes(String(next.shopAcceptWindowMinutes.value ?? 60));
+    }
+    if (next.shopAcceptMaxOrders != null) {
+      setShopAcceptMaxOrders(String(next.shopAcceptMaxOrders.value ?? 4));
     }
     if (next.zoneCatalogOverridesEnabled != null) {
       setZoneCatalogOverlaysEnabled(Boolean(next.zoneCatalogOverridesEnabled.value));
@@ -147,6 +159,23 @@ export default function RuntimeChecks() {
       return;
     }
 
+    const acceptWindowMins = Number(shopAcceptWindowMinutes);
+    const acceptMax = Number(shopAcceptMaxOrders);
+    if (shopAcceptCapEnabled) {
+      if (
+        !Number.isInteger(acceptWindowMins) ||
+        acceptWindowMins < 1 ||
+        acceptWindowMins > 1440
+      ) {
+        showError("Accept capacity window must be between 1 and 1440 minutes");
+        return;
+      }
+      if (!Number.isInteger(acceptMax) || acceptMax < 0 || acceptMax > 500) {
+        showError("Max accepts per window must be between 0 and 500");
+        return;
+      }
+    }
+
     const recurringFailures = Number(recurringMaxFailures);
     if (!Number.isInteger(recurringFailures) || recurringFailures < 1 || recurringFailures > 10) {
       showError("Recurring max failures must be between 1 and 10");
@@ -190,6 +219,11 @@ export default function RuntimeChecks() {
         invoiceAutoChargeRetryGapMs: retryGapMs,
         preferredShopEnabled,
         preferredShopWindowMinutes: windowMins,
+        shopAcceptCapEnabled,
+        shopAcceptWindowMinutes: Number.isInteger(acceptWindowMins)
+          ? acceptWindowMins
+          : 60,
+        shopAcceptMaxOrders: Number.isInteger(acceptMax) ? acceptMax : 4,
         zoneCatalogOverridesEnabled: zoneCatalogOverlaysEnabled,
         recurringAutoCreateEnabled: recurringAutoCreate,
         recurringMaxFailuresBeforePause: recurringFailures,
@@ -331,6 +365,56 @@ export default function RuntimeChecks() {
                     value={preferredShopWindowMinutes}
                     onChange={(e) => setPreferredShopWindowMinutes(e.target.value)}
                     style={{ maxWidth: 120 }}
+                  />
+                </Field>
+              </div>
+            )}
+          </DirectoryFormCard>
+
+          <DirectoryFormCard
+            title="Shop accept capacity (all shops)"
+            hint="Limit how many marketplace orders a shop can accept inside a rolling time window. Example: 4 orders per 60 minutes. 0 = no shop may accept via marketplace (admin can still assign). Shops over the limit are skipped so the order goes to others. Override per shop on Shop → Order routing."
+          >
+            <Toggle
+              checked={shopAcceptCapEnabled}
+              onChange={(e) => setShopAcceptCapEnabled(e.target.checked)}
+              label="Enforce accept capacity for all shops"
+            />
+            {shopAcceptCapEnabled && (
+              <div
+                style={{
+                  marginTop: 16,
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: 12,
+                }}
+              >
+                <Field
+                  label="Window (minutes)"
+                  htmlFor="rc-accept-window"
+                  hint="Rolling lookback, e.g. 60 = last hour."
+                >
+                  <Input
+                    id="rc-accept-window"
+                    type="number"
+                    min={1}
+                    max={1440}
+                    value={shopAcceptWindowMinutes}
+                    onChange={(e) => setShopAcceptWindowMinutes(e.target.value)}
+                  />
+                </Field>
+                <Field
+                  label="Max accepts in window"
+                  htmlFor="rc-accept-max"
+                  hint="0 = nobody can accept via marketplace."
+                >
+                  <Input
+                    id="rc-accept-max"
+                    type="number"
+                    min={0}
+                    max={500}
+                    value={shopAcceptMaxOrders}
+                    onChange={(e) => setShopAcceptMaxOrders(e.target.value)}
                   />
                 </Field>
               </div>
