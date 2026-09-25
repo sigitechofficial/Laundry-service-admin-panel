@@ -472,9 +472,12 @@ export function DirectoryFlagIdentity({ flag, children }) {
   );
 }
 
-export function DirectoryMetric({ value, hint }) {
+export function DirectoryMetric({ value, hint, align = "end" }) {
   return (
-    <div className={styles.metric}>
+    <div
+      className={styles.metric}
+      style={{ alignItems: align === "start" ? "flex-start" : "flex-end" }}
+    >
       <span className={styles.metricValue}>{value ?? "—"}</span>
       {hint ? <span className={styles.metricHint}>{hint}</span> : null}
     </div>

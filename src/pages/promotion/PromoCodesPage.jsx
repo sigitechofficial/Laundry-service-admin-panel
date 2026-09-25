@@ -9,7 +9,7 @@ import {
   Select,
   Table,
 } from "../../design-system";
-import { PaginationBar, Toggle } from "../misc-kit";
+import { CheckRow, PaginationBar, Toggle } from "../misc-kit";
 import {
   DirectoryActions,
   DirectoryActionEdit,
@@ -25,6 +25,7 @@ import useToaster from "../../components/ui/Toaster";
 import {
   useAddCouponMutation,
   useGetAllCouponsQuery,
+  useGetAllZonesQuery,
   useUpdateCouponMutation,
 } from "../../store/services/api";
 import { TbPlus } from "../../shared/icons/index";
@@ -43,7 +44,38 @@ const initialPromoForm = () => ({
   startDate: "",
   expiryDate: "",
   isActive: true,
+  zoneMode: "all",
+  zoneIds: [],
 });
+
+function parseZoneIds(raw) {
+  if (raw == null || raw === "" || raw === "all") return [];
+  if (Array.isArray(raw)) {
+    return raw.map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0);
+  }
+  if (typeof raw === "string") {
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parseZoneIds(parsed);
+    } catch (_) {}
+    return raw
+      .split(",")
+      .map((s) => Number(s.trim()))
+      .filter((id) => Number.isFinite(id) && id > 0);
+  }
+  return [];
+}
+
+function extractList(response, ...keys) {
+  const root = response?.data ?? response;
+  const payload = root?.data ?? root;
+  if (Array.isArray(payload)) return payload;
+  for (const key of keys) {
+    if (Array.isArray(payload?.[key])) return payload[key];
+    if (Array.isArray(root?.[key])) return root[key];
+  }
+  return [];
+}
 
 function parseOptionalInt(s) {
   const t = String(s).trim();
@@ -69,9 +101,9 @@ function formatDiscountDisplay(discountType, discountValue) {
   if (discountValue == null || discountValue === "") return "—";
   if (discountType === "percentage") {
     const n = Number(discountValue);
-    return Number.isFinite(n) ? `${n}% off laundry` : `${discountValue}% off laundry`;
+    return Number.isFinite(n) ? `${n}% off` : `${discountValue}% off`;
   }
-  return `${money(discountValue)} off laundry`;
+  return `${money(discountValue)} off`;
 }
 
 function toDateOnly(value) {
@@ -104,6 +136,7 @@ const LIFECYCLE_PILL = {
 };
 
 function formFromRow(row) {
+  const zids = parseZoneIds(row.zoneIds).map(String);
   return {
     code: row.code || "",
     description: !row.description || row.description === "—" ? "" : row.description,
@@ -117,6 +150,8 @@ function formFromRow(row) {
     startDate: toDateOnly(row.startDateRaw) || "",
     expiryDate: toDateOnly(row.expiryDateRaw) || "",
     isActive: row.isActive !== false,
+    zoneMode: zids.length ? "specific" : "all",
+    zoneIds: zids,
   };
 }
 
@@ -153,6 +188,8 @@ function rowFromPayload(body, id) {
     expiryDateRaw: body.expiryDate,
     isActive: body.isActive,
     status,
+    zoneIds: parseZoneIds(body.zoneIds),
+    zonesDisplay: body.zonesDisplay || (!parseZoneIds(body.zoneIds).length ? "All zones" : `${parseZoneIds(body.zoneIds).length} zone(s)`),
   };
 }
 
@@ -296,6 +333,15 @@ function CouponViewBody({ row }) {
         />
       </CouponDetailSection>
 
+      <CouponDetailSection title="Zones">
+        <CouponDetailRow
+          label="Availability"
+          value={row.zonesDisplay || "All zones"}
+          hint="Promo only works for bookings in these collection zones"
+          last
+        />
+      </CouponDetailSection>
+
       <CouponDetailSection title="Validity">
         <CouponDetailRow label="Window" value={validity} last />
       </CouponDetailSection>
@@ -338,7 +384,7 @@ function extractCouponsData(response) {
   };
 }
 
-function CreatePromoCodeForm({ form, errors, patch, discountHint }) {
+function CreatePromoCodeForm({ form, errors, patch, discountHint, zones = [], isEditing = false }) {
   const blockNegativeKeys = (e) => {
     if (["-", "+", "e", "E"].includes(e.key)) e.preventDefault();
   };
@@ -348,14 +394,15 @@ function CreatePromoCodeForm({ form, errors, patch, discountHint }) {
   };
   return (
     <div style={{ display: "grid", gap: 20 }}>
-      <p style={{ margin: 0, color: "var(--muted)", fontSize: 13 }}>
-        Required fields are marked. Optional fields can be left blank.
+      <p style={{ margin: 0, color: "var(--muted)", fontSize: 13, lineHeight: 1.45 }}>
+        Discount is reserved at checkout and applied on the <b>invoice laundry total</b> after inspection.
+        Zone prepaid (minimum + service fee + tip) is never reduced.
       </p>
 
       <div>
-        <h4 style={{ margin: "0 0 12px" }}>Basic</h4>
+        <h4 style={{ margin: "0 0 12px" }}>1. Code</h4>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
-          <Field label="Code*" htmlFor="promo-code" error={errors.code}>
+          <Field label="Promo code*" htmlFor="promo-code" hint="Customers type this at checkout" error={errors.code}>
             <Input
               id="promo-code"
               placeholder="e.g. SUMMER20"
@@ -365,46 +412,46 @@ function CreatePromoCodeForm({ form, errors, patch, discountHint }) {
               error={Boolean(errors.code)}
             />
           </Field>
-          <Field label="Description*" htmlFor="promo-desc" error={errors.description}>
+          <Field label="Internal description*" htmlFor="promo-desc" hint="Shown in admin list only" error={errors.description}>
             <Input
               id="promo-desc"
-              placeholder="e.g. Get 10% off your first order"
+              placeholder="e.g. Autumn flat £30 off laundry"
               value={form.description}
               onChange={(e) => patch("description", e.target.value)}
               autoComplete="off"
               error={Boolean(errors.description)}
             />
           </Field>
-          <Field label="Active">
+          <Field label="Status" hint="Off = code cannot be reserved">
             <Toggle
               checked={form.isActive}
               onChange={(e) => patch("isActive", e.target.checked)}
-              label={form.isActive ? "Usable when within dates and limits" : "Disabled"}
+              label={form.isActive ? "Active" : "Disabled"}
             />
           </Field>
         </div>
       </div>
 
       <div>
-        <h4 style={{ margin: "0 0 12px" }}>Discount</h4>
+        <h4 style={{ margin: "0 0 12px" }}>2. Discount (invoice laundry)</h4>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
-          <Field label="Discount type*">
+          <Field label="Type*" hint="How the discount is calculated on laundry">
             <Select
               aria-label="Discount type"
               value={form.discountType}
               onChange={(value) => patch("discountType", value)}
               options={[
-                { value: "percentage", label: "Percentage (% off)" },
-                { value: "flat", label: "Flat amount (off)" },
+                { value: "percentage", label: "Percentage (% off laundry)" },
+                { value: "flat", label: "Flat amount (£ off laundry)" },
               ]}
             />
           </Field>
-          <Field label="Discount value*" htmlFor="promo-value" hint={discountHint} error={errors.discountValue}>
+          <Field label="Value*" htmlFor="promo-value" hint={discountHint} error={errors.discountValue}>
             <Input
               id="promo-value"
               type="number"
               inputMode="decimal"
-              placeholder={form.discountType === "percentage" ? "10" : "5.00"}
+              placeholder={form.discountType === "percentage" ? "10" : "30.00"}
               value={form.discountValue}
               onChange={(e) => patchPositive("discountValue", e.target.value)}
               onKeyDown={blockNegativeKeys}
@@ -413,16 +460,34 @@ function CreatePromoCodeForm({ form, errors, patch, discountHint }) {
               error={Boolean(errors.discountValue)}
             />
           </Field>
+          <Field
+            label="Max cap (£)"
+            htmlFor="promo-cap"
+            hint="Optional ceiling for % offers only. Leave blank for no cap."
+          >
+            <Input
+              id="promo-cap"
+              type="number"
+              inputMode="decimal"
+              placeholder="No cap"
+              value={form.maxDiscountCap}
+              onChange={(e) => patchPositive("maxDiscountCap", e.target.value)}
+              onKeyDown={blockNegativeKeys}
+              min={0}
+              step="0.01"
+              disabled={form.discountType !== "percentage"}
+            />
+          </Field>
         </div>
       </div>
 
       <div>
-        <h4 style={{ margin: "0 0 12px" }}>Conditions</h4>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12 }}>
+        <h4 style={{ margin: "0 0 12px" }}>3. When it qualifies</h4>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
           <Field
-            label="Min order amount"
+            label="Min laundry total (£)"
             htmlFor="promo-min"
-            hint="Minimum laundry / services total (invoice). Not zone prepaid. Final check when agent builds the invoice."
+            hint="Invoice laundry must reach this amount. Checked when agent creates the invoice — not against zone prepaid."
           >
             <Input
               id="promo-min"
@@ -436,40 +501,94 @@ function CreatePromoCodeForm({ form, errors, patch, discountHint }) {
               step="0.01"
             />
           </Field>
-          <Field label="Max discount cap" htmlFor="promo-cap" hint="For % discounts">
-            <Input
-              id="promo-cap"
-              type="number"
-              inputMode="decimal"
-              placeholder="No cap"
-              value={form.maxDiscountCap}
-              onChange={(e) => patchPositive("maxDiscountCap", e.target.value)}
-              onKeyDown={blockNegativeKeys}
-              min={0}
-              step="0.01"
-            />
-          </Field>
-          <Field label="Used count" htmlFor="promo-used" hint="Current redemption count" error={errors.usedCount}>
-            <Input
-              id="promo-used"
-              type="number"
-              inputMode="numeric"
-              placeholder="0"
-              value={form.usedCount}
-              onChange={(e) => patchPositive("usedCount", e.target.value)}
-              onKeyDown={blockNegativeKeys}
-              min={0}
-              step={1}
-              error={Boolean(errors.usedCount)}
-            />
-          </Field>
+          {isEditing ? (
+            <Field
+              label="Times already used"
+              htmlFor="promo-used"
+              hint="Auto-counted redemptions. Edit only to correct data."
+              error={errors.usedCount}
+            >
+              <Input
+                id="promo-used"
+                type="number"
+                inputMode="numeric"
+                placeholder="0"
+                value={form.usedCount}
+                onChange={(e) => patchPositive("usedCount", e.target.value)}
+                onKeyDown={blockNegativeKeys}
+                min={0}
+                step={1}
+                error={Boolean(errors.usedCount)}
+              />
+            </Field>
+          ) : null}
         </div>
       </div>
 
       <div>
-        <h4 style={{ margin: "0 0 12px" }}>Usage limits</h4>
+        <h4 style={{ margin: "0 0 12px" }}>4. Zones</h4>
+        <p style={{ margin: "0 0 10px", fontSize: 12, color: "var(--muted)" }}>
+          Choose where this promo can be reserved. All zones = every collection zone.
+        </p>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 16, marginBottom: 12 }}>
+          <label style={{ display: "inline-flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+            <input
+              type="radio"
+              name="promo-zone-mode"
+              checked={form.zoneMode === "all"}
+              onChange={() => {
+                patch("zoneMode", "all");
+                patch("zoneIds", []);
+              }}
+            />
+            All zones
+          </label>
+          <label style={{ display: "inline-flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+            <input
+              type="radio"
+              name="promo-zone-mode"
+              checked={form.zoneMode === "specific"}
+              onChange={() => patch("zoneMode", "specific")}
+            />
+            Specific zones
+          </label>
+        </div>
+        {form.zoneMode === "specific" ? (
+          <Field label="Select zones*" error={errors.zoneIds}>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+              {zones.map((z) => {
+                const id = String(z.id ?? z._id);
+                return (
+                  <CheckRow
+                    key={id}
+                    checked={form.zoneIds.includes(id)}
+                    onChange={() => {
+                      const next = form.zoneIds.includes(id)
+                        ? form.zoneIds.filter((item) => item !== id)
+                        : [...form.zoneIds, id];
+                      patch("zoneIds", next);
+                    }}
+                    label={z.name ?? z.zoneName ?? `Zone #${id}`}
+                  />
+                );
+              })}
+              {!zones.length ? (
+                <p style={{ margin: 0, fontSize: 12, color: "var(--muted)" }}>No zones loaded.</p>
+              ) : null}
+            </div>
+          </Field>
+        ) : null}
+      </div>
+
+      <div>
+        <h4 style={{ margin: "0 0 12px" }}>5. Usage limits</h4>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
-          <Field label="Global usage limit" htmlFor="promo-usage" error={errors.usageLimit}>
+          <Field
+            label="Global redemptions"
+            htmlFor="promo-usage"
+            hint="Total times this code can be used across all customers. Blank = unlimited."
+            error={errors.usageLimit}
+          >
             <Input
               id="promo-usage"
               type="number"
@@ -483,7 +602,12 @@ function CreatePromoCodeForm({ form, errors, patch, discountHint }) {
               error={Boolean(errors.usageLimit)}
             />
           </Field>
-          <Field label="Per user limit" htmlFor="promo-per-user" error={errors.perUserLimit}>
+          <Field
+            label="Per customer"
+            htmlFor="promo-per-user"
+            hint="How many times one customer can reserve this code."
+            error={errors.perUserLimit}
+          >
             <Input
               id="promo-per-user"
               type="number"
@@ -501,9 +625,9 @@ function CreatePromoCodeForm({ form, errors, patch, discountHint }) {
       </div>
 
       <div>
-        <h4 style={{ margin: "0 0 12px" }}>Validity</h4>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
-          <Field label="Start date" htmlFor="promo-start">
+        <h4 style={{ margin: "0 0 12px" }}>6. Validity dates</h4>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, alignItems: "start" }}>
+          <Field label="Start date" htmlFor="promo-start" hint="First day customers can reserve this code. Blank = already open.">
             <Input
               id="promo-start"
               type="date"
@@ -515,7 +639,7 @@ function CreatePromoCodeForm({ form, errors, patch, discountHint }) {
             label="Expiry date"
             htmlFor="promo-expiry"
             error={errors.expiryDate}
-            hint="Last day this code works at checkout. Leave blank for no expiry."
+            hint="Last day the code can be reserved. Blank = no expiry."
           >
             <Input
               id="promo-expiry"
@@ -546,6 +670,11 @@ export default function PromoCodesPage() {
       limit,
       isActive: true,
     });
+  const { data: zonesResponse } = useGetAllZonesQuery();
+  const zones = useMemo(
+    () => extractList(zonesResponse, "zones", "data"),
+    [zonesResponse]
+  );
   const [addCoupon, { isLoading: isCreating }] = useAddCouponMutation();
   const [updateCoupon, { isLoading: isUpdating }] = useUpdateCouponMutation();
   const isSaving = isCreating || isUpdating;
@@ -651,6 +780,10 @@ export default function PromoCodesPage() {
       next.expiryDate = "Expiry must be on or after start date.";
     }
 
+    if (form.zoneMode === "specific" && !form.zoneIds.length) {
+      next.zoneIds = "Select at least one zone, or choose All zones.";
+    }
+
     setErrors(next);
     return Object.keys(next).length === 0;
   };
@@ -658,6 +791,10 @@ export default function PromoCodesPage() {
   const buildPayload = () => {
     const code = form.code.trim().toUpperCase().replace(/\s/g, "");
     const discountValue = parseFloat(String(form.discountValue).trim());
+    const zoneIds =
+      form.zoneMode === "specific"
+        ? form.zoneIds.map(Number).filter((id) => Number.isFinite(id) && id > 0)
+        : [];
     return {
       code,
       description: String(form.description).trim(),
@@ -671,6 +808,7 @@ export default function PromoCodesPage() {
       startDate: form.startDate || null,
       expiryDate: form.expiryDate || null,
       isActive: form.isActive,
+      zoneIds,
     };
   };
 
@@ -725,7 +863,18 @@ export default function PromoCodesPage() {
       key: "discountDisplay",
       header: "Discount",
       render: (row) => (
-        <DirectoryMetric value={row.discountDisplay} hint={row.minOrder} />
+        <DirectoryMetric
+          align="start"
+          value={row.discountDisplay}
+          hint={row.minOrder !== "No minimum" ? `Min laundry ${row.minOrder}` : "No min laundry"}
+        />
+      ),
+    },
+    {
+      key: "zonesDisplay",
+      header: "Zones",
+      render: (row) => (
+        <DirectoryMetric align="start" value={row.zonesDisplay || "All zones"} />
       ),
     },
     {
@@ -733,8 +882,9 @@ export default function PromoCodesPage() {
       header: "Validity",
       render: (row) => (
         <DirectoryMetric
-          value={row.expiryDate !== "—" ? `Ends ${row.expiryDate}` : "No expiry"}
-          hint={row.startDate !== "—" ? `Starts ${row.startDate}` : undefined}
+          align="start"
+          value={row.expiryDate !== "—" ? row.expiryDate : "No expiry"}
+          hint={row.startDate !== "—" ? `From ${row.startDate}` : "Open start"}
         />
       ),
     },
@@ -742,7 +892,11 @@ export default function PromoCodesPage() {
       key: "usedCount",
       header: "Usage",
       render: (row) => (
-        <DirectoryMetric value={row.usageSummary} hint={`${row.perUser}× per customer`} />
+        <DirectoryMetric
+          align="start"
+          value={row.usageSummary}
+          hint={`${row.perUser}× per customer`}
+        />
       ),
     },
     {
@@ -761,7 +915,7 @@ export default function PromoCodesPage() {
     <div style={{ display: "grid", gap: 20 }}>
       <PageHeader
         title="Coupons"
-        description="Create and review promo codes used at checkout."
+        description="Promos are reserved at checkout and applied on the laundry invoice after inspection."
         actions={
           <Button onClick={openCreate}>
             <TbPlus size={18} />
@@ -831,7 +985,14 @@ export default function PromoCodesPage() {
         secondaryDisabled={isSaving || isCouponsLoading}
         size="xl"
       >
-        <CreatePromoCodeForm form={form} errors={errors} patch={patch} discountHint={discountHint} />
+        <CreatePromoCodeForm
+          form={form}
+          errors={errors}
+          patch={patch}
+          discountHint={discountHint}
+          zones={zones}
+          isEditing={Boolean(editingId)}
+        />
       </Modal>
     </div>
   );
