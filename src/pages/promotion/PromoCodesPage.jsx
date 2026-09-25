@@ -59,8 +59,19 @@ function parseOptionalDecimal(s) {
   return Number.isFinite(n) ? n : null;
 }
 
-function money(amount, source) {
-  return formatAmount(amount, source, { applyDefault: true });
+/** Platform default currency — never pass a coupon row (its `code` is not ISO). */
+function money(amount) {
+  if (amount == null || amount === "") return "—";
+  return formatAmount(amount, null, { applyDefault: true });
+}
+
+function formatDiscountDisplay(discountType, discountValue) {
+  if (discountValue == null || discountValue === "") return "—";
+  if (discountType === "percentage") {
+    const n = Number(discountValue);
+    return Number.isFinite(n) ? `${n}% off laundry` : `${discountValue}% off laundry`;
+  }
+  return `${money(discountValue)} off laundry`;
 }
 
 function toDateOnly(value) {
@@ -112,6 +123,7 @@ function formFromRow(row) {
 function rowFromPayload(body, id) {
   const usageLimit = body.usageLimit;
   const status = couponLifecycle(body);
+  const usedCount = body.usedCount ?? 0;
   return {
     id,
     code: body.code,
@@ -122,15 +134,18 @@ function rowFromPayload(body, id) {
     maxDiscountCap: body.maxDiscountCap,
     usageLimit: body.usageLimit,
     perUserLimit: body.perUserLimit,
-    discountLabel: body.discountType === "percentage" ? "Percentage" : "Flat",
-    discountDisplay:
-      body.discountType === "percentage"
-        ? `${body.discountValue}%`
-        : money(body.discountValue, body),
-    minOrder: body.minOrderAmount != null ? money(body.minOrderAmount, body) : "—",
-    maxCap: body.maxDiscountCap != null ? money(body.maxDiscountCap, body) : "—",
-    usedCount: body.usedCount ?? 0,
-    usageLimitLabel: usageLimit == null ? "∞" : String(usageLimit),
+    discountLabel: body.discountType === "percentage" ? "Percentage" : "Flat amount",
+    discountDisplay: formatDiscountDisplay(body.discountType, body.discountValue),
+    minOrder:
+      body.minOrderAmount != null ? money(body.minOrderAmount) : "No minimum",
+    maxCap:
+      body.maxDiscountCap != null ? money(body.maxDiscountCap) : "No cap",
+    usedCount,
+    usageLimitLabel: usageLimit == null ? "Unlimited" : String(usageLimit),
+    usageSummary:
+      usageLimit == null
+        ? `${usedCount} used · unlimited global`
+        : `${usedCount} / ${usageLimit} used`,
     perUser: String(body.perUserLimit ?? 1),
     startDate: formatDate(body.startDate),
     expiryDate: formatDate(body.expiryDate),
@@ -139,6 +154,153 @@ function rowFromPayload(body, id) {
     isActive: body.isActive,
     status,
   };
+}
+
+function CouponDetailSection({ title, children }) {
+  return (
+    <section style={{ display: "grid", gap: 0 }}>
+      <h4
+        style={{
+          margin: "0 0 8px",
+          fontSize: 11,
+          fontWeight: 700,
+          letterSpacing: "0.06em",
+          textTransform: "uppercase",
+          color: "var(--muted)",
+        }}
+      >
+        {title}
+      </h4>
+      <div
+        style={{
+          border: "1px solid var(--line, #E4E7EC)",
+          borderRadius: 10,
+          background: "var(--surface, #fff)",
+          overflow: "hidden",
+        }}
+      >
+        {children}
+      </div>
+    </section>
+  );
+}
+
+function CouponDetailRow({ label, value, hint, last }) {
+  return (
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "minmax(120px, 38%) 1fr",
+        gap: 12,
+        padding: "12px 14px",
+        borderBottom: last ? "none" : "1px solid #EEF0F4",
+        alignItems: "start",
+      }}
+    >
+      <div>
+        <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: "#5C6673" }}>{label}</p>
+        {hint ? (
+          <p style={{ margin: "4px 0 0", fontSize: 11, color: "var(--muted)", lineHeight: 1.35 }}>
+            {hint}
+          </p>
+        ) : null}
+      </div>
+      <p
+        style={{
+          margin: 0,
+          fontSize: 14,
+          fontWeight: 600,
+          color: "var(--ink)",
+          wordBreak: "break-word",
+          textAlign: "right",
+        }}
+      >
+        {value ?? "—"}
+      </p>
+    </div>
+  );
+}
+
+function CouponViewBody({ row }) {
+  if (!row) return null;
+  const pill = LIFECYCLE_PILL[row.status] || LIFECYCLE_PILL.disabled;
+  const validity =
+    row.startDate !== "—" || row.expiryDate !== "—"
+      ? `${row.startDate !== "—" ? row.startDate : "Anytime"} → ${
+          row.expiryDate !== "—" ? row.expiryDate : "No expiry"
+        }`
+      : "No date limits";
+
+  return (
+    <div style={{ display: "grid", gap: 16 }}>
+      <div
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          alignItems: "flex-start",
+          justifyContent: "space-between",
+          gap: 12,
+          padding: "14px 16px",
+          borderRadius: 10,
+          background: "#F8FAFC",
+          border: "1px solid #E4E7EC",
+        }}
+      >
+        <div style={{ minWidth: 0 }}>
+          <p
+            style={{
+              margin: 0,
+              fontSize: 20,
+              fontWeight: 700,
+              letterSpacing: "0.04em",
+              fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+            }}
+          >
+            {row.code}
+          </p>
+          <p style={{ margin: "6px 0 0", fontSize: 13, color: "#475569", lineHeight: 1.4 }}>
+            {row.description && row.description !== "—"
+              ? row.description
+              : "No description"}
+          </p>
+        </div>
+        <DirectoryDotPill tone={pill.tone}>{pill.label}</DirectoryDotPill>
+      </div>
+
+      <CouponDetailSection title="Offer">
+        <CouponDetailRow label="Type" value={row.discountLabel} />
+        <CouponDetailRow
+          label="Discount"
+          value={row.discountDisplay}
+          hint="Applied to laundry / services total, not zone prepaid"
+        />
+        <CouponDetailRow
+          label="Min laundry total"
+          value={row.minOrder}
+          hint="Customer laundry must reach this before the discount applies (checked on invoice)"
+        />
+        <CouponDetailRow
+          label="Max discount cap"
+          value={row.maxCap}
+          hint="Only used for percentage offers"
+          last
+        />
+      </CouponDetailSection>
+
+      <CouponDetailSection title="Usage">
+        <CouponDetailRow label="Redemptions" value={row.usageSummary} />
+        <CouponDetailRow
+          label="Per customer"
+          value={`${row.perUser} time${row.perUser === "1" ? "" : "s"}`}
+          last
+        />
+      </CouponDetailSection>
+
+      <CouponDetailSection title="Validity">
+        <CouponDetailRow label="Window" value={validity} last />
+      </CouponDetailSection>
+    </div>
+  );
 }
 
 function extractCouponsData(response) {
@@ -257,7 +419,11 @@ function CreatePromoCodeForm({ form, errors, patch, discountHint }) {
       <div>
         <h4 style={{ margin: "0 0 12px" }}>Conditions</h4>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12 }}>
-          <Field label="Min order amount" htmlFor="promo-min" hint="Minimum cart value">
+          <Field
+            label="Min order amount"
+            htmlFor="promo-min"
+            hint="Minimum laundry / services total (invoice). Not zone prepaid. Final check when agent builds the invoice."
+          >
             <Input
               id="promo-min"
               type="number"
@@ -385,8 +551,10 @@ export default function PromoCodesPage() {
   const isSaving = isCreating || isUpdating;
 
   const discountHint = useMemo(() => {
-    if (form.discountType === "percentage") return "Percentage 0–100 (e.g. 10 for 10% off).";
-    return "Fixed amount off the order (e.g. 5.00).";
+    if (form.discountType === "percentage") {
+      return "Percentage off laundry / services (0–100). Not applied to zone prepaid.";
+    }
+    return "Fixed amount off laundry / services (e.g. 20.00). Not applied to zone prepaid.";
   }, [form.discountType]);
 
   const patch = useCallback((key, value) => {
@@ -557,24 +725,24 @@ export default function PromoCodesPage() {
       key: "discountDisplay",
       header: "Discount",
       render: (row) => (
-        <DirectoryMetric value={row.discountDisplay} hint={row.discountLabel} />
+        <DirectoryMetric value={row.discountDisplay} hint={row.minOrder} />
       ),
     },
     {
       key: "expiryDate",
-      header: "Expiry",
+      header: "Validity",
       render: (row) => (
         <DirectoryMetric
-          value={row.expiryDate}
-          hint={row.startDate !== "—" ? `Start ${row.startDate}` : undefined}
+          value={row.expiryDate !== "—" ? `Ends ${row.expiryDate}` : "No expiry"}
+          hint={row.startDate !== "—" ? `Starts ${row.startDate}` : undefined}
         />
       ),
     },
     {
       key: "usedCount",
-      header: "Used",
+      header: "Usage",
       render: (row) => (
-        <DirectoryMetric value={row.usedCount} hint={`Limit ${row.usageLimitLabel}`} />
+        <DirectoryMetric value={row.usageSummary} hint={`${row.perUser}× per customer`} />
       ),
     },
     {
@@ -646,23 +814,12 @@ export default function PromoCodesPage() {
 
       <DirectoryViewModal
         open={Boolean(viewRow)}
-        title={viewRow?.code || "Coupon"}
+        title="Coupon details"
         onClose={() => setViewRow(null)}
-        fields={[
-          { label: "Code", value: viewRow?.code },
-          { label: "Description", value: viewRow?.description },
-          { label: "Type", value: viewRow?.discountLabel },
-          { label: "Value", value: viewRow?.discountDisplay },
-          { label: "Min order", value: viewRow?.minOrder },
-          { label: "Max cap", value: viewRow?.maxCap },
-          { label: "Used", value: viewRow?.usedCount },
-          { label: "Global limit", value: viewRow?.usageLimitLabel },
-          { label: "Per user", value: viewRow?.perUser },
-          { label: "Start", value: viewRow?.startDate },
-          { label: "Expiry", value: viewRow?.expiryDate },
-          { label: "Status", value: LIFECYCLE_PILL[viewRow?.status]?.label || "—" },
-        ]}
-      />
+        size="lg"
+      >
+        <CouponViewBody row={viewRow} />
+      </DirectoryViewModal>
 
       <Modal
         open={createOpen}

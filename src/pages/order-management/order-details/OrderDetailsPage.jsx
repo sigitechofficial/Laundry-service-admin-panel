@@ -619,6 +619,15 @@ export default function OrderDetailsPage() {
       group.items.reduce((itemSum, item) => itemSum + (Number(item?.qty) || 0), 0),
     0
   );
+  // Status 13+ = Out for Delivery / reached / failed / delivered.
+  // Until then the order is still in collection/facility — do not mirror pickup
+  // counts into the Delivery card (misleading while driver is only collecting).
+  const bookingStatusIdNum = Number(
+    orderData?.bookingStatusId ?? orderData?.bookingStatus?.id
+  );
+  const showDeliveryCounts =
+    Number.isFinite(bookingStatusIdNum) && bookingStatusIdNum >= 13;
+
   // Collection "Items counted": prefer the agent's pickup-proof count; when the
   // agent hasn't counted yet, fall back to what the customer declared at
   // booking so the card shows a real estimate instead of a misleading 0.
@@ -627,24 +636,21 @@ export default function OrderDetailsPage() {
   // Collection "Bags": same fallback chain as items.
   const pickupBagsDisplayCount =
     pickupBagsCount > 0 ? pickupBagsCount : customerDeclaredBags;
-  // Delivery "Items counted": prefer the agent's delivery-proof count; then the
-  // finalized/draft invoice item total (what was actually invoiced); then the
-  // customer's original declaration — never show a bare 0 when a better
-  // estimate already exists.
-  const deliveryItemsDisplayCount =
-    deliveryItemsCount > 0
+  // Delivery counts only once the delivery leg has started (status ≥ 13).
+  const deliveryItemsDisplayCount = !showDeliveryCounts
+    ? null
+    : deliveryItemsCount > 0
       ? deliveryItemsCount
       : invoiceGenerated && invoiceItemsTotal > 0
-      ? invoiceItemsTotal
-      : customerDeclaredItems;
-  // Delivery "Bags": prefer delivery-proof, then pickup-confirmed (driver
-  // should return what they picked up), then the customer's declaration.
-  const deliveryBagsDisplayCount =
-    deliveryBagsCount > 0
+        ? invoiceItemsTotal
+        : customerDeclaredItems;
+  const deliveryBagsDisplayCount = !showDeliveryCounts
+    ? null
+    : deliveryBagsCount > 0
       ? deliveryBagsCount
       : pickupBagsCount > 0
-      ? pickupBagsCount
-      : customerDeclaredBags;
+        ? pickupBagsCount
+        : customerDeclaredBags;
 
   const addOnsTotalAmount = useMemo(() => {
     return selectedServiceGroups.reduce(
@@ -1464,12 +1470,34 @@ export default function OrderDetailsPage() {
                     ? formatDate(orderData.deliveryDate, "ddd DD MMM YYYY")
                     : "N/A"}
                 </p>
-                <div className={styles.proofGrid}>
-                  <OdStatCell label="Items counted" value={deliveryItemsDisplayCount || 0} warnZero />
-                  <OdStatCell label="Bags" value={deliveryBagsDisplayCount} warnZero />
-                </div>
+                {showDeliveryCounts ? (
+                  <div className={styles.proofGrid}>
+                    <OdStatCell
+                      label="Items counted"
+                      value={deliveryItemsDisplayCount || 0}
+                      warnZero
+                    />
+                    <OdStatCell
+                      label="Bags"
+                      value={deliveryBagsDisplayCount || 0}
+                      warnZero
+                    />
+                  </div>
+                ) : (
+                  <p
+                    style={{
+                      margin: "12px 0 0",
+                      fontSize: 12,
+                      color: "var(--muted)",
+                      lineHeight: 1.4,
+                    }}
+                  >
+                    Items &amp; bags appear here once the order is out for delivery.
+                  </p>
+                )}
                 <div>
-                  {pickupItemsCount > 0 &&
+                  {showDeliveryCounts &&
+                    pickupItemsCount > 0 &&
                     deliveryItemsDisplayCount > 0 &&
                     pickupItemsCount > deliveryItemsDisplayCount && (
                     <div
@@ -1606,10 +1634,21 @@ export default function OrderDetailsPage() {
                 <div className="space-y-0" style={{ marginTop: 16 }}>
                   <div className="flex items-center justify-between py-2" style={{ borderTop: "1px solid #F1F5F9" }}>
                     <p style={{ margin: 0, fontSize: 13, color: "#64748B" }}>Items Delivered</p>
-                    <p style={{ margin: 0, fontSize: 11,
-                        color: deliveryItemsCount > 0 ? "#334155" : "#EF4444",
-                        fontWeight: 600, }}>
-                      {deliveryItemsDisplayCount || 0} items
+                    <p
+                      style={{
+                        margin: 0,
+                        fontSize: 11,
+                        color: showDeliveryCounts
+                          ? deliveryItemsCount > 0
+                            ? "#334155"
+                            : "#EF4444"
+                          : "#94A3B8",
+                        fontWeight: 600,
+                      }}
+                    >
+                      {showDeliveryCounts
+                        ? `${deliveryItemsDisplayCount || 0} items`
+                        : "Pending delivery"}
                     </p>
                   </div>
                   <div className="flex items-center justify-between py-2" style={{ borderTop: "1px solid #F1F5F9" }}>
@@ -1625,7 +1664,7 @@ export default function OrderDetailsPage() {
                     <p style={{ margin: 0, fontSize: 11, color: "#334155", fontWeight: 500 }}>{deliveryProofTime}</p>
                   </div>
                 </div>
-                {pickupItemsCount > deliveryItemsCount && (
+                {showDeliveryCounts && pickupItemsCount > deliveryItemsCount && (
                   <div
                     style={{ marginTop: 12,
                       padding: 11,

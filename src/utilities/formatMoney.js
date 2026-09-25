@@ -281,7 +281,11 @@ export function resolveDisplayCurrency(source, options = {}) {
       typeof source.currency === "string" && /^[A-Za-z]{3}$/.test(source.currency.trim())
         ? source.currency
         : null,
-      source.code,
+      // Only ISO-4217-like codes (GBP). Never treat coupon/shop `code` strings
+      // like "SEP24" as a currency — that produced "SEP24 20.00" in promo UI.
+      typeof source.code === "string" && /^[A-Za-z]{3}$/.test(source.code.trim())
+        ? source.code
+        : null,
       typeof source.name === "string" && /^[A-Za-z]{3}$/.test(source.name.trim())
         ? source.name
         : null,
@@ -289,7 +293,7 @@ export function resolveDisplayCurrency(source, options = {}) {
     let directCode = "";
     for (const candidate of codeCandidates) {
       const text = trimStr(candidate).toUpperCase();
-      if (text) {
+      if (/^[A-Z]{3}$/.test(text)) {
         directCode = text;
         break;
       }

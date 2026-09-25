@@ -261,7 +261,7 @@ export default function EmployeeManagement() {
       render: (row) => (
         <DirectoryIdentity
           name={row.name}
-          meta={joinMeta(row.email, row.phoneNum, row.roleName !== "—" ? row.roleName : null)}
+          meta={joinMeta(row.email, row.phoneNum)}
           id={row.employeeId}
         />
       ),
@@ -421,8 +421,7 @@ export default function EmployeeManagement() {
           { label: "Employee ID", value: viewRow?.employeeId },
           { label: "Role", value: viewRow?.roleName },
           { label: "Email", value: viewRow?.email },
-          { label: "Phone", value: viewRow?.phoneNum },
-          { label: "Role", value: viewRow?.roleName },
+          { label: "Phone", value: viewRow?.phone || viewRow?.phoneNum },
           { label: "Status", value: viewRow?.status ? "Active" : "Inactive" },
           { label: "Joined", value: formatJoined(viewRow?.createdAt) },
         ]}
