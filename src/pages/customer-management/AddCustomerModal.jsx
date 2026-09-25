@@ -40,6 +40,8 @@ export default function AddCustomerModal({ open, onClose, onSuccess }) {
     register,
     handleSubmit,
     reset,
+    setError,
+    setFocus,
     formState: { errors },
   } = useForm({
     resolver: yupResolver(addCustomerSchema),
@@ -68,7 +70,21 @@ export default function AddCustomerModal({ open, onClose, onSuccess }) {
       handleClose();
       onSuccess?.(res.data.data);
     } else {
-      error(getApiErrorMessage(res?.error, res?.data?.message ?? "Failed to register customer."));
+      const msg = getApiErrorMessage(
+        res?.error,
+        res?.data?.message ?? "Failed to register customer."
+      );
+      // Point a duplicate email / phone conflict at the exact field so the
+      // admin sees which value is taken, not just a fleeting toast.
+      const lower = String(msg).toLowerCase();
+      if (lower.includes("email")) {
+        setError("email", { type: "server", message: msg });
+        setFocus("email");
+      } else if (lower.includes("phone") || lower.includes("number")) {
+        setError("phoneNum", { type: "server", message: msg });
+        setFocus("phoneNum");
+      }
+      error(msg);
     }
   };
 

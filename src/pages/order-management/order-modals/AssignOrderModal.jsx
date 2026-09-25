@@ -13,6 +13,7 @@ import {
   unwrapZoneFromApiResponse,
 } from "../../../utilities/zonesList";
 import { formatDate } from "../../../utilities/formatters";
+import { customerShopStat } from "../returningCustomerStat";
 
 function formatTimeHm(value) {
   if (!value) return null;
@@ -156,7 +157,10 @@ export default function AssignOrderModal({
           : "Unknown zone";
 
   const returningShopCount = useMemo(
-    () => shops.filter((shop) => shop.isReturningCustomerAtShop).length,
+    () =>
+      shops.filter(
+        (shop) => !shop.isCurrentShop && shop.isReturningCustomerAtShop
+      ).length,
     [shops]
   );
 
@@ -171,9 +175,19 @@ export default function AssignOrderModal({
     [shops]
   );
 
+  // The shop that currently holds this order is always pinned to the very top
+  // (rendered separately below), regardless of search/filter, so the admin can
+  // see "who has it now" — and whether the customer is returning there — before
+  // choosing a different shop.
+  const currentShop = useMemo(
+    () => shops.find((s) => s.isCurrentShop) || null,
+    [shops]
+  );
+
   const filteredShops = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     return shops.filter((shop) => {
+      if (shop.isCurrentShop) return false; // pinned separately at the top
       if (returningOnly && !shop.isReturningCustomerAtShop) return false;
       if (!q) return true;
       const name = String(shop.shopName || "").toLowerCase();
@@ -224,6 +238,77 @@ export default function AssignOrderModal({
     "Could not load shops. Order may be out for pickup, completed, or invoice finalized.";
 
   const selectedShop = shops.find((s) => s.laundryShopId === selectedShopId);
+
+  // Shared row renderer so the pinned "current shop" and every candidate in the
+  // list render identically (same returning-customer badge + order counts).
+  const renderShopRow = (shop) => {
+    const selected = selectedShopId === shop.laundryShopId;
+    const disabled = shop.isCurrentShop;
+    const stat = customerShopStat({
+      completed: shop.customerOrdersAtShop,
+      total: shop.customerTotalOrdersAtShop,
+      isReturning: shop.isReturningCustomerAtShop,
+    });
+    return (
+      <button
+        key={shop.laundryShopId}
+        type="button"
+        disabled={disabled}
+        onClick={() => !disabled && setSelectedShopId(shop.laundryShopId)}
+        style={{
+          display: "flex",
+          alignItems: "flex-start",
+          gap: 10,
+          padding: 12,
+          borderRadius: "var(--r-lg)",
+          border: selected ? "2px solid var(--accent)" : "1px solid var(--line)",
+          background: selected ? "var(--accent-tint)" : "var(--surface)",
+          cursor: disabled ? "not-allowed" : "pointer",
+          opacity: disabled ? 0.7 : 1,
+          textAlign: "left",
+          width: "100%",
+        }}
+      >
+        <input
+          type="radio"
+          checked={selected}
+          disabled={disabled}
+          readOnly
+          tabIndex={-1}
+          style={{ marginTop: 3 }}
+        />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 8,
+            }}
+          >
+            <div style={{ fontSize: 15, fontWeight: 700, lineHeight: 1.3 }}>
+              {shop.shopName || `Shop #${shop.laundryShopId}`}
+              {shop.isCurrentShop ? " (current)" : ""}
+            </div>
+            <Badge tone={shop.isOpenNow ? "success" : "neutral"}>
+              {shop.isOpenNow ? "Open" : "Closed"}
+            </Badge>
+          </div>
+          <div style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 4 }}>
+            {shopHoursLabel(shop)}
+          </div>
+          {stat ? (
+            <div style={{ marginTop: 6 }}>
+              <Badge tone={stat.tone}>
+                {stat.isReturning ? "Returning customer · " : ""}
+                {stat.count} here
+              </Badge>
+            </div>
+          ) : null}
+        </div>
+      </button>
+    );
+  };
 
   return (
     <Modal
@@ -362,31 +447,47 @@ export default function AssignOrderModal({
               </p>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                {customerShopHistory.map((h) => (
-                  <div
-                    key={h.shopId}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      gap: 8,
-                      fontSize: 13,
-                    }}
-                  >
-                    <span>
-                      <strong>{h.shopName}</strong>
-                      {!zoneShopIds.has(Number(h.shopId)) ? (
-                        <span style={{ color: "var(--muted)" }}> · other zone</span>
-                      ) : null}
-                    </span>
-                    <span style={{ color: "var(--ink-2)", whiteSpace: "nowrap" }}>
-                      {h.completedOrders} completed
-                      {h.totalOrders !== h.completedOrders
-                        ? ` · ${h.totalOrders} total`
-                        : ""}
-                    </span>
-                  </div>
-                ))}
+                {customerShopHistory.map((h) => {
+                  const stat = customerShopStat({
+                    completed: h.completedOrders,
+                    total: h.totalOrders,
+                    isReturning: h.isReturning,
+                  });
+                  return (
+                    <div
+                      key={h.shopId}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: 8,
+                        fontSize: 13,
+                      }}
+                    >
+                      <span
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 6,
+                          minWidth: 0,
+                        }}
+                      >
+                        <strong>{h.shopName}</strong>
+                        {h.isReturning ? (
+                          <Badge tone="brand">Returning</Badge>
+                        ) : null}
+                        {!zoneShopIds.has(Number(h.shopId)) ? (
+                          <span style={{ color: "var(--muted)" }}> · other zone</span>
+                        ) : null}
+                      </span>
+                      <span
+                        style={{ color: "var(--ink-2)", whiteSpace: "nowrap" }}
+                      >
+                        {stat ? stat.count : `${h.completedOrders} completed`}
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -435,84 +536,62 @@ export default function AssignOrderModal({
             >
               No active shops in this zone.
             </div>
-          ) : filteredShops.length === 0 ? (
-            <p style={{ margin: 0, color: "var(--muted)" }}>
-              {returningOnly
-                ? "No shops where this customer is a returning customer."
-                : `No shops match “${searchQuery.trim()}”.`}
-            </p>
           ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 380, overflowY: "auto" }}>
-              {filteredShops.map((shop) => {
-                const selected = selectedShopId === shop.laundryShopId;
-                const disabled = shop.isCurrentShop;
-                return (
-                  <button
-                    key={shop.laundryShopId}
-                    type="button"
-                    disabled={disabled}
-                    onClick={() =>
-                      !disabled && setSelectedShopId(shop.laundryShopId)
-                    }
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {/* Pinned: the shop currently handling this order, always on top. */}
+              {currentShop ? (
+                <div>
+                  <div
                     style={{
-                      display: "flex",
-                      alignItems: "flex-start",
-                      gap: 10,
-                      padding: 12,
-                      borderRadius: "var(--r-lg)",
-                      border: selected
-                        ? "2px solid var(--accent)"
-                        : "1px solid var(--line)",
-                      background: selected ? "var(--accent-tint)" : "var(--surface)",
-                      cursor: disabled ? "not-allowed" : "pointer",
-                      opacity: disabled ? 0.55 : 1,
-                      textAlign: "left",
+                      fontSize: 11,
+                      color: "var(--muted)",
+                      fontWeight: 600,
+                      letterSpacing: 0.4,
+                      marginBottom: 6,
                     }}
                   >
-                    <input
-                      type="radio"
-                      checked={selected}
-                      disabled={disabled}
-                      readOnly
-                      tabIndex={-1}
-                      style={{ marginTop: 3 }}
-                    />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-                        <div style={{ fontSize: 15, fontWeight: 700, lineHeight: 1.3 }}>
-                          {shop.shopName || `Shop #${shop.laundryShopId}`}
-                          {shop.isCurrentShop ? " (current)" : ""}
-                        </div>
-                        <Badge tone={shop.isOpenNow ? "success" : "neutral"}>
-                          {shop.isOpenNow ? "Open" : "Closed"}
-                        </Badge>
-                      </div>
-                      <div style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 4 }}>
-                        {shopHoursLabel(shop)}
-                      </div>
-                      {shop.isReturningCustomerAtShop ? (
-                        <div style={{ marginTop: 6 }}>
-                          <Badge tone="brand">
-                            Returning · {shop.customerOrdersAtShop} completed
-                            {shop.customerTotalOrdersAtShop > shop.customerOrdersAtShop
-                              ? ` · ${shop.customerTotalOrdersAtShop} total`
-                              : ""}{" "}
-                            order{shop.customerOrdersAtShop === 1 ? "" : "s"} here
-                          </Badge>
-                        </div>
-                      ) : shop.customerTotalOrdersAtShop > 0 ? (
-                        <div style={{ marginTop: 6 }}>
-                          <Badge tone="neutral">
-                            {shop.customerTotalOrdersAtShop} order
-                            {shop.customerTotalOrdersAtShop === 1 ? "" : "s"} here ·
-                            not completed yet
-                          </Badge>
-                        </div>
-                      ) : null}
-                    </div>
-                  </button>
-                );
-              })}
+                    CURRENTLY ASSIGNED
+                  </div>
+                  {renderShopRow(currentShop)}
+                </div>
+              ) : null}
+
+              <div>
+                {currentShop ? (
+                  <div
+                    style={{
+                      fontSize: 11,
+                      color: "var(--muted)",
+                      fontWeight: 600,
+                      letterSpacing: 0.4,
+                      marginBottom: 6,
+                    }}
+                  >
+                    REASSIGN TO
+                  </div>
+                ) : null}
+                {filteredShops.length === 0 ? (
+                  <p style={{ margin: 0, color: "var(--muted)" }}>
+                    {returningOnly
+                      ? "No other shops where this customer is a returning customer."
+                      : searchQuery.trim()
+                        ? `No other shops match “${searchQuery.trim()}”.`
+                        : "No other shops in this zone to reassign to."}
+                  </p>
+                ) : (
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 8,
+                      maxHeight: 340,
+                      overflowY: "auto",
+                    }}
+                  >
+                    {filteredShops.map((shop) => renderShopRow(shop))}
+                  </div>
+                )}
+              </div>
             </div>
           )}
 

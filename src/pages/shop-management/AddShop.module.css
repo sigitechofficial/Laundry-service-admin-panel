@@ -304,32 +304,49 @@
 
 .reviewGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 18px;
+}
+
+/* Each review section is a card so the three blocks read as distinct,
+   scannable groups instead of bare hairline lists. */
+.reviewGrid > section {
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg, 14px);
+  background: var(--surface, #fff);
+  padding: 18px 20px;
+  box-shadow: 0 1px 2px rgba(16, 21, 31, 0.04);
 }
 
 .kv {
   display: grid;
-  grid-template-columns: 120px 1fr;
+  grid-template-columns: 132px 1fr;
   gap: 0;
   margin: 0;
 }
 
 .kv dt {
-  padding: 9px 0;
-  font-size: 12.5px;
+  padding: 10px 12px 10px 0;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
   color: var(--muted);
   border-bottom: 1px solid var(--line);
 }
 
 .kv dd {
-  padding: 9px 0;
+  padding: 10px 0;
   margin: 0;
   font-size: 13.5px;
-  font-weight: 500;
+  font-weight: 600;
+  color: var(--ink, #0f172a);
   border-bottom: 1px solid var(--line);
-  text-align: right;
+  /* Left-aligned so long values (services, profile) wrap naturally under
+     their label instead of floating to the right edge. */
+  text-align: left;
   word-break: break-word;
+  line-height: 1.45;
 }
 
 .kv dt:last-of-type,
@@ -342,7 +359,9 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line);
 }
 
 .footer {

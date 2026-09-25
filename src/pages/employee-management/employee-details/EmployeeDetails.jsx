@@ -1,19 +1,43 @@
 import { Badge, Button, PageHeader } from "../../../design-system";
 import { useNavigate, useParams } from "react-router-dom";
-import { useGetAdminEmployeesQuery } from "../../../store/services/api";
+import { useGetAdminEmployeesQuery, useGetAllRolesQuery } from "../../../store/services/api";
 import { Delay } from "../../../components/shared/Loaders";
 import { extractAdminEmployees } from "../extractAdminEmployees";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { BlockUserButton, AnonymizeDeleteModal } from "../../user-management/UserBlockActions";
 import { isAccountBlocked } from "../../../utilities/accountBlocked";
 
 const PANEL = {
-  padding: 16,
   border: "1px solid #e6e9f0",
   borderRadius: 16,
   background: "#fff",
   boxShadow: "0 1px 2px rgba(16, 21, 31, 0.04)",
+  overflow: "hidden",
 };
+
+function initials(name) {
+  const parts = String(name || "").trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return "?";
+  return (parts[0][0] + (parts[1]?.[0] || "")).toUpperCase();
+}
+
+function formatJoined(value) {
+  if (!value) return "—";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+}
+
+function Field({ label, children }) {
+  return (
+    <div>
+      <p className="jd-field__hint" style={{ margin: 0 }}>{label}</p>
+      <div style={{ marginTop: 6, fontWeight: 600, fontSize: 14, color: "#0F172A" }}>
+        {children}
+      </div>
+    </div>
+  );
+}
 
 export default function EmployeeDetails() {
   const navigate = useNavigate();
@@ -26,6 +50,20 @@ export default function EmployeeDetails() {
   const payload = currentData ?? data;
   const adminEmployees = extractAdminEmployees(payload);
   const employee = adminEmployees.find((e) => String(e.id) === String(id));
+
+  // The employees list only returns roleId; resolve a human-readable name
+  // from the admin-portal role catalog (same source as Employee Management).
+  const { data: rolesRes } = useGetAllRolesQuery("admin_portal");
+  const roleNameById = useMemo(() => {
+    const list = Array.isArray(rolesRes?.data) ? rolesRes.data : [];
+    return new Map(list.map((r) => [String(r.id), r.name]));
+  }, [rolesRes?.data]);
+
+  const roleId = employee?.roleId ?? employee?.role?.id ?? null;
+  const roleName =
+    employee?.role?.name ??
+    (roleId != null ? roleNameById.get(String(roleId)) : undefined) ??
+    (roleId != null ? `Role ${roleId}` : null);
 
   useEffect(() => {
     if (employee) setIsBlocked(isAccountBlocked(employee));
@@ -74,6 +112,7 @@ export default function EmployeeDetails() {
   }
 
   const fullName = [employee.firstName, employee.lastName].filter(Boolean).join(" ") || "—";
+  const blocked = isAccountBlocked(employee);
 
   return (
     <div>
@@ -100,21 +139,60 @@ export default function EmployeeDetails() {
       />
 
       <div style={PANEL}>
-        <h2 style={{ margin: "0 0 8px", fontSize: 22, fontWeight: 700 }}>{fullName}</h2>
-        <p style={{ margin: "0 0 16px", color: "var(--muted)" }}>{employee.email ?? "—"}</p>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 16 }}>
-          <div>
-            <p className="jd-field__hint" style={{ margin: 0 }}>Phone</p>
-            <p style={{ margin: "6px 0 0", fontWeight: 600 }}>{employee.phoneNum ?? "—"}</p>
+        {/* Identity header */}
+        <div
+          className="flex items-center"
+          style={{ gap: 16, padding: 20, borderBottom: "1px solid #e6e9f0" }}
+        >
+          <div
+            style={{
+              width: 52,
+              height: 52,
+              borderRadius: "50%",
+              background: "#EEF2FF",
+              color: "#4338CA",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontWeight: 700,
+              fontSize: 18,
+              flexShrink: 0,
+            }}
+          >
+            {initials(fullName)}
           </div>
-          <div>
-            <p className="jd-field__hint" style={{ margin: 0 }}>Status</p>
-            <div style={{ marginTop: 6 }}>
-              <Badge tone={isAccountBlocked(employee) ? "danger" : "success"}>
-                {isAccountBlocked(employee) ? "Blocked" : "Active"}
-              </Badge>
-            </div>
+          <div style={{ minWidth: 0 }}>
+            <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "#0F172A" }}>
+              {fullName}
+            </h2>
+            <p style={{ margin: "2px 0 0", color: "var(--muted)", fontSize: 13 }}>
+              {employee.email ?? "—"}
+            </p>
           </div>
+          <div className="flex items-center flex-wrap" style={{ gap: 6, marginLeft: "auto" }}>
+            <Badge tone={blocked ? "danger" : "success"}>
+              {blocked ? "Blocked" : "Active"}
+            </Badge>
+            {roleName ? <Badge tone="brand">{roleName}</Badge> : null}
+          </div>
+        </div>
+
+        {/* Details grid */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
+            gap: 20,
+            padding: 20,
+          }}
+        >
+          <Field label="Employee ID">#{employee.id}</Field>
+          <Field label="Role">{roleName || "—"}</Field>
+          <Field label="Phone">{employee.phoneNum ?? "—"}</Field>
+          <Field label="Status">
+            <Badge tone={blocked ? "danger" : "success"}>{blocked ? "Blocked" : "Active"}</Badge>
+          </Field>
+          <Field label="Joined">{formatJoined(employee.createdAt)}</Field>
         </div>
       </div>
 

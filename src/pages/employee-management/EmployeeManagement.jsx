@@ -11,6 +11,7 @@ import {
   DirectoryActionView,
   DirectoryClearButton,
   DirectoryDateInput,
+  DirectoryDotPill,
   DirectoryExportButton,
   DirectoryIdentity,
   DirectoryMetrics,
@@ -248,10 +249,20 @@ export default function EmployeeManagement() {
       render: (row) => (
         <DirectoryIdentity
           name={row.name}
-          meta={joinMeta(row.email, row.phoneNum, row.roleName !== "—" ? row.roleName : null)}
+          meta={joinMeta(row.email, row.phoneNum)}
           id={row.employeeId}
         />
       ),
+    },
+    {
+      key: "role",
+      header: "Role",
+      render: (row) =>
+        row.roleName && row.roleName !== "—" ? (
+          <DirectoryDotPill tone="info">{row.roleName}</DirectoryDotPill>
+        ) : (
+          <span style={{ color: "var(--muted)" }}>—</span>
+        ),
     },
     {
       key: "status",
@@ -396,10 +407,14 @@ export default function EmployeeManagement() {
         }}
         fields={[
           { label: "Employee ID", value: viewRow?.employeeId },
-          { label: "Email", value: viewRow?.email },
-          { label: "Phone", value: viewRow?.phoneNum },
           { label: "Role", value: viewRow?.roleName },
+          { label: "Email", value: viewRow?.email },
+          { label: "Phone", value: viewRow?.phone || viewRow?.phoneNum },
           { label: "Status", value: viewRow?.status ? "Active" : "Inactive" },
+          {
+            label: "Joined",
+            value: viewRow?.createdAt ? csvFormat.date(viewRow.createdAt) : "—",
+          },
         ]}
       />
 
