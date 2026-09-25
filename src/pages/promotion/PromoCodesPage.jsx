@@ -257,7 +257,11 @@ function CreatePromoCodeForm({ form, errors, patch, discountHint }) {
       <div>
         <h4 style={{ margin: "0 0 12px" }}>Conditions</h4>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12 }}>
-          <Field label="Min order amount" htmlFor="promo-min" hint="Minimum cart value">
+          <Field
+            label="Min order amount"
+            htmlFor="promo-min"
+            hint="Minimum laundry / services total (invoice). Not zone prepaid. Final check when agent builds the invoice."
+          >
             <Input
               id="promo-min"
               type="number"
