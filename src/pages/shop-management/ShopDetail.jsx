@@ -50,6 +50,7 @@ import { isAccountBlocked } from "../../utilities/accountBlocked";
 import ShopRoutingPolicyCard from "./ShopRoutingPolicyCard";
 import ShopRevenueTab from "./ShopRevenueTab";
 import ShopReportTab from "./ShopReportTab";
+import ShopCustomersTab from "./ShopCustomersTab";
 import { buildShopOrderFinanceColumns } from "./shopOrderFinanceColumns";
 import { shopSettlementPath } from "../reports/reportUi";
 import { buildShopReportModel, shopReportHtml } from "./shopReportDocument";
@@ -112,6 +113,7 @@ const DELIVERY_OPTIONS = [
 const TABS = [
   { value: "overview", label: "Overview" },
   { value: "orders", label: "Orders" },
+  { value: "customers", label: "Customers" },
   { value: "declined", label: "Declined" },
   { value: "revenue", label: "Revenue" },
   { value: "report", label: "Report" },
@@ -1183,6 +1185,10 @@ export default function ShopDetails() {
         </div>
       )}
 
+      {activeTab === "customers" && (
+        <ShopCustomersTab shopId={id} currencySymbol={shopCurrencySymbol} />
+      )}
+
       {activeTab === "declined" && (
         <div>
           <p className="jd-lead" style={{ margin: "0 0 12px" }}>
@@ -1666,8 +1672,7 @@ export default function ShopDetails() {
             </div>
 
             <ShopRoutingPolicyCard shopUserId={biz?.id} />
-
-            <div style={{ ...CARD, borderColor: "var(--danger)" }}>
+<div style={{ ...CARD, borderColor: "var(--danger)" }}>
               <strong style={{ color: "var(--danger)" }}>Danger zone</strong>
               <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 12 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>

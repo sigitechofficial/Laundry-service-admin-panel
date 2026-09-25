@@ -859,6 +859,17 @@ export const api = createApi({
       providesTags: ["AgentSettlement"],
     }),
 
+    getShopCustomers: builder.query({
+      query: ({ shopId, top = 10, returningOnly } = {}) => ({
+        url: `admin/singleShopData/${shopId}/customers`,
+        method: "GET",
+        params: {
+          top,
+          ...(returningOnly ? { returningOnly: 1 } : {}),
+        },
+      }),
+    }),
+
     getShopAssignmentPolicy: builder.query({
       query: (shopUserId) => ({
         url: `admin/shopAssignmentPolicy/${shopUserId}`,
@@ -1488,6 +1499,52 @@ export const api = createApi({
       }),
     }),
 
+    printLabelData: builder.query({
+      query: (bookingId) => ({
+        url: `admin/printLabelData/${bookingId}`,
+        method: "GET",
+      }),
+    }),
+
+    getShopPrinter: builder.query({
+      query: (shopId) => ({
+        url: `admin/shops/${shopId}/printer`,
+        method: "GET",
+      }),
+    }),
+
+    putShopPrinter: builder.mutation({
+      query: ({ shopId, body }) => ({
+        url: `admin/shops/${shopId}/printer`,
+        method: "PUT",
+        body,
+      }),
+    }),
+
+    testShopPrinter: builder.mutation({
+      query: (shopId) => ({
+        url: `admin/shops/${shopId}/printer/test`,
+        method: "POST",
+        body: {},
+      }),
+    }),
+
+    printBookingTagsStar: builder.mutation({
+      query: ({ bookingId, shopUserId, currencySymbol }) => ({
+        url: `admin/bookings/${bookingId}/print/tags`,
+        method: "POST",
+        body: { shopUserId, currencySymbol },
+      }),
+    }),
+
+    printBookingReceiptStar: builder.mutation({
+      query: ({ bookingId, shopUserId, invoiceView }) => ({
+        url: `admin/bookings/${bookingId}/print/receipt`,
+        method: "POST",
+        body: { shopUserId, invoiceView },
+      }),
+    }),
+
     editOrder: builder.mutation({
       query: ({ orderId, body }) => ({
         url: `admin/editOrder/${orderId}`,
@@ -1648,6 +1705,14 @@ export const api = createApi({
     updateAdminEmployee: builder.mutation({
       query: (body) => ({
         url: "admin/updateEmployee",
+        method: "PATCH",
+        body,
+      }),
+    }),
+
+    updateAdminEmployeeStatus: builder.mutation({
+      query: (body) => ({
+        url: "admin/updateEmployeeStatus",
         method: "PATCH",
         body,
       }),
@@ -2378,6 +2443,7 @@ export const {
   useLazyGetShopsDataQuery,
   useGetShopDetailsQuery,
   useGetShopRevenueQuery,
+  useGetShopCustomersQuery,
   useGetPendingAgentsQuery,
   useGetRejectedAgentsQuery,
   useUpdateAgentApprovalMutation,
@@ -2439,6 +2505,7 @@ export const {
   useUpdateAgentEmployeeMutation,
   useDeleteAgentEmployeeMutation,
   useUpdateAdminEmployeeMutation,
+  useUpdateAdminEmployeeStatusMutation,
   useDeleteAdminEmployeeMutation,
   useGetAllZonesQuery,
   useGetZoneCatalogQuery,
@@ -2474,6 +2541,12 @@ export const {
   useGetServiceDetailWithBookingSelectionQuery,
   useGetOrderItemsSheetQuery,
   useLazyInvoiceCreationQuery,
+  useLazyPrintLabelDataQuery,
+  useGetShopPrinterQuery,
+  usePutShopPrinterMutation,
+  useTestShopPrinterMutation,
+  usePrintBookingTagsStarMutation,
+  usePrintBookingReceiptStarMutation,
   useEditOrderMutation,
   useDeleteOrderMutation,
   useAddCancellationPolicyMutation,

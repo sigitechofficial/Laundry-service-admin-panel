@@ -1,11 +1,18 @@
 import { Badge, Button, PageHeader } from "../../../design-system";
-import { useNavigate, useParams } from "react-router-dom";
-import { useGetAdminEmployeesQuery, useGetAllRolesQuery } from "../../../store/services/api";
+import { useNavigate, useParams, Link } from "react-router-dom";
+import {
+  useGetAdminEmployeesQuery,
+  useGetAllRolesQuery,
+  useGetFeaturesQuery,
+} from "../../../store/services/api";
 import { Delay } from "../../../components/shared/Loaders";
 import { extractAdminEmployees } from "../extractAdminEmployees";
 import { useState, useEffect, useMemo } from "react";
 import { BlockUserButton, AnonymizeDeleteModal } from "../../user-management/UserBlockActions";
 import { isAccountBlocked } from "../../../utilities/accountBlocked";
+import { RoleAccessPanel } from "../RoleAccessPanel";
+import { summarizeRoleAccess } from "../roleAccessUtils";
+import { formatUserPhone } from "../../../utilities/contactLinks";
 
 const PANEL = {
   border: "1px solid #e6e9f0",
@@ -39,6 +46,17 @@ function Field({ label, children }) {
   );
 }
 
+function extractFeatures(featuresResponse) {
+  const source = featuresResponse?.data ?? featuresResponse;
+  if (Array.isArray(source)) return source;
+  if (source && typeof source === "object") {
+    for (const key of ["features", "permissions", "items", "rows"]) {
+      if (Array.isArray(source[key])) return source[key];
+    }
+  }
+  return [];
+}
+
 export default function EmployeeDetails() {
   const navigate = useNavigate();
   const { id } = useParams();
@@ -46,28 +64,47 @@ export default function EmployeeDetails() {
   const [isBlocked, setIsBlocked] = useState(false);
 
   const { data, currentData, isLoading, isFetching, isUninitialized, isError, refetch } =
-    useGetAdminEmployeesQuery(undefined, { skip: !id, refetchOnMountOrArgChange: true });
+    useGetAdminEmployeesQuery({ includeInactive: 1 }, { skip: !id, refetchOnMountOrArgChange: true });
   const payload = currentData ?? data;
   const adminEmployees = extractAdminEmployees(payload);
   const employee = adminEmployees.find((e) => String(e.id) === String(id));
 
-  // The employees list only returns roleId; resolve a human-readable name
-  // from the admin-portal role catalog (same source as Employee Management).
   const { data: rolesRes } = useGetAllRolesQuery("admin_portal");
-  const roleNameById = useMemo(() => {
-    const list = Array.isArray(rolesRes?.data) ? rolesRes.data : [];
-    return new Map(list.map((r) => [String(r.id), r.name]));
-  }, [rolesRes?.data]);
+  const rolesList = useMemo(
+    () => (Array.isArray(rolesRes?.data) ? rolesRes.data : []),
+    [rolesRes?.data]
+  );
+  const roleById = useMemo(() => {
+    const map = new Map();
+    rolesList.forEach((r) => map.set(String(r.id), r));
+    return map;
+  }, [rolesList]);
+
+  const { data: featuresRes } = useGetFeaturesQuery();
+  const features = useMemo(() => {
+    const all = extractFeatures(featuresRes);
+    return all.filter((f) => {
+      const of = String(f?.featureOf ?? "").toLowerCase();
+      return !of || of === "admin" || of === "both";
+    });
+  }, [featuresRes]);
 
   const roleId = employee?.roleId ?? employee?.role?.id ?? null;
+  const roleRecord =
+    employee?.role?.permissions
+      ? employee.role
+      : roleId != null
+        ? roleById.get(String(roleId))
+        : null;
   const roleName =
     employee?.role?.name ??
-    (roleId != null ? roleNameById.get(String(roleId)) : undefined) ??
+    roleRecord?.name ??
     (roleId != null ? `Role ${roleId}` : null);
+  const accessSummary = roleRecord ? summarizeRoleAccess(roleRecord) : null;
 
   useEffect(() => {
     if (employee) setIsBlocked(isAccountBlocked(employee));
-  }, [employee?.status, employee?.blocked]);
+  }, [employee]);
   const showInitialLoader =
     Boolean(id) &&
     payload == null &&
@@ -113,6 +150,7 @@ export default function EmployeeDetails() {
 
   const fullName = [employee.firstName, employee.lastName].filter(Boolean).join(" ") || "—";
   const blocked = isAccountBlocked(employee);
+  const inactive = employee.status === false;
 
   return (
     <div>
@@ -128,7 +166,7 @@ export default function EmployeeDetails() {
               userId={employee.id}
               userType="admin_employee"
               isBlocked={isBlocked}
-              onSuccess={(blocked) => { setIsBlocked(blocked); refetch(); }}
+              onSuccess={(nextBlocked) => { setIsBlocked(nextBlocked); refetch(); }}
             />
             <Button variant="danger" onClick={() => setAnonymizeModal(true)}>Delete & anonymize</Button>
             <Button onClick={() => navigate(`/employee-management/edit/${employee.id}`)}>
@@ -138,8 +176,7 @@ export default function EmployeeDetails() {
         }
       />
 
-      <div style={PANEL}>
-        {/* Identity header */}
+      <div style={{ ...PANEL, marginBottom: 16 }}>
         <div
           className="flex items-center"
           style={{ gap: 16, padding: 20, borderBottom: "1px solid #e6e9f0" }}
@@ -170,14 +207,18 @@ export default function EmployeeDetails() {
             </p>
           </div>
           <div className="flex items-center flex-wrap" style={{ gap: 6, marginLeft: "auto" }}>
-            <Badge tone={blocked ? "danger" : "success"}>
-              {blocked ? "Blocked" : "Active"}
+            <Badge tone={blocked || inactive ? "danger" : "success"}>
+              {blocked ? "Blocked" : inactive ? "Inactive" : "Active"}
             </Badge>
             {roleName ? <Badge tone="brand">{roleName}</Badge> : null}
+            {accessSummary ? (
+              <Badge tone="neutral">
+                {accessSummary.screens} screen{accessSummary.screens === 1 ? "" : "s"}
+              </Badge>
+            ) : null}
           </div>
         </div>
 
-        {/* Details grid */}
         <div
           style={{
             display: "grid",
@@ -188,12 +229,34 @@ export default function EmployeeDetails() {
         >
           <Field label="Employee ID">#{employee.id}</Field>
           <Field label="Role">{roleName || "—"}</Field>
-          <Field label="Phone">{employee.phoneNum ?? "—"}</Field>
+          <Field label="Email">{employee.email ?? "—"}</Field>
+          <Field label="Phone number">{formatUserPhone(employee) || employee.phoneNum || "—"}</Field>
           <Field label="Status">
-            <Badge tone={blocked ? "danger" : "success"}>{blocked ? "Blocked" : "Active"}</Badge>
+            <Badge tone={blocked || inactive ? "danger" : "success"}>
+              {blocked ? "Blocked" : inactive ? "Inactive" : "Active"}
+            </Badge>
           </Field>
           <Field label="Joined">{formatJoined(employee.createdAt)}</Field>
         </div>
+      </div>
+
+      <div style={{ ...PANEL, padding: 20 }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 12,
+            marginBottom: 12,
+            flexWrap: "wrap",
+          }}
+        >
+          <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>Permissions</h3>
+          <Link to="/role-permission" style={{ fontSize: 13, fontWeight: 600 }}>
+            Manage role permissions →
+          </Link>
+        </div>
+        <RoleAccessPanel role={roleRecord} features={features} readOnly compactHint />
       </div>
 
       <AnonymizeDeleteModal
@@ -201,7 +264,10 @@ export default function EmployeeDetails() {
         onClose={() => setAnonymizeModal(false)}
         userId={employee.id}
         userType="admin_employee"
-        onSuccess={() => navigate("/employee-management")}
+        onSuccess={() => {
+          setAnonymizeModal(false);
+          navigate("/employee-management");
+        }}
       />
     </div>
   );

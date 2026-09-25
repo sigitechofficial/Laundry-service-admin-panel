@@ -22,17 +22,22 @@ import {
   DirectoryToolbar,
   DirectoryToolbarEnd,
   DirectoryViewModal,
+  StatusToggle,
 } from "../directory-table/directoryTable";
 import { joinMeta } from "../directory-table/directoryTableUtils";
 import {
   useGetAdminEmployeesQuery,
   useDeleteAdminEmployeeMutation,
   useGetAllRolesQuery,
+  useGetFeaturesQuery,
+  useUpdateAdminEmployeeStatusMutation,
 } from "../../store/services/api";
 import { Delay } from "../../components/shared/Loaders";
 import useToaster from "../../components/ui/Toaster";
 import AddEmployeeModal from "./employee-modals/AddEmployeeModal";
 import { extractAdminEmployees } from "./extractAdminEmployees";
+import { AccessGrantChips } from "./RoleAccessPanel";
+import { summarizeRoleAccess } from "./roleAccessUtils";
 
 const STATUS_OPTIONS = [
   { value: "", label: "All statuses" },
@@ -47,6 +52,10 @@ const EMPLOYEE_CSV_COLUMNS = [
   { header: "Phone", key: "phone" },
   { header: "Country code", key: "countryCode" },
   { header: "Role", key: "roleName" },
+  {
+    header: "Screens granted",
+    value: (row) => summarizeRoleAccess(row.roleRecord).screens,
+  },
   { header: "Status", value: (row) => (row.status ? "Active" : "Inactive") },
   { header: "Created", value: (row) => csvFormat.date(row.createdAt) },
 ];
@@ -64,10 +73,8 @@ function matchesRole(row, roleId) {
 function matchesSearch(row, term) {
   if (!term) return true;
   const q = term.toLowerCase();
-  return Object.entries(row).some(([key, value]) => {
-    if (key === "actions") return false;
-    return String(value ?? "").toLowerCase().includes(q);
-  });
+  return [row.name, row.email, row.phoneNum, row.phone, row.roleName, row.employeeId]
+    .some((value) => String(value ?? "").toLowerCase().includes(q));
 }
 
 function matchesDateRange(row, dateRange) {
@@ -87,15 +94,15 @@ function matchesDateRange(row, dateRange) {
   return (!start || createdAt >= start) && (!end || createdAt <= end);
 }
 
-function formatJoined(value) {
-  if (!value) return "—";
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleDateString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
+function extractFeatures(featuresResponse) {
+  const source = featuresResponse?.data ?? featuresResponse;
+  if (Array.isArray(source)) return source;
+  if (source && typeof source === "object") {
+    for (const key of ["features", "permissions", "items", "rows"]) {
+      if (Array.isArray(source[key])) return source[key];
+    }
+  }
+  return [];
 }
 
 export default function EmployeeManagement() {
@@ -110,25 +117,45 @@ export default function EmployeeManagement() {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [employeeToDeleteId, setEmployeeToDeleteId] = useState(null);
   const [viewRow, setViewRow] = useState(null);
+  const [statusBusyId, setStatusBusyId] = useState(null);
 
   const { data, currentData, isLoading, isFetching, isUninitialized, isError, refetch } =
     useGetAdminEmployeesQuery({ includeInactive: 1 }, { refetchOnMountOrArgChange: true });
   const [deleteEmployee, { isLoading: isDeleting }] = useDeleteAdminEmployeeMutation();
+  const [updateStatus] = useUpdateAdminEmployeeStatusMutation();
   const payload = currentData ?? data;
   const adminEmployees = useMemo(() => extractAdminEmployees(payload), [payload]);
 
-  // The list endpoint only returns roleId; resolve human-readable names from
-  // the admin-portal role catalog so the table and view modal can show them.
   const { data: rolesRes } = useGetAllRolesQuery("admin_portal");
-  const roleNameById = useMemo(() => {
-    const list = Array.isArray(rolesRes?.data) ? rolesRes.data : [];
-    return new Map(list.map((r) => [String(r.id), r.name]));
-  }, [rolesRes?.data]);
+  const rolesList = useMemo(
+    () => (Array.isArray(rolesRes?.data) ? rolesRes.data : []),
+    [rolesRes?.data]
+  );
+  const roleById = useMemo(() => {
+    const map = new Map();
+    rolesList.forEach((r) => map.set(String(r.id), r));
+    return map;
+  }, [rolesList]);
+
+  const { data: featuresRes } = useGetFeaturesQuery();
+  const features = useMemo(() => {
+    const all = extractFeatures(featuresRes);
+    return all.filter((f) => {
+      const of = String(f?.featureOf ?? "").toLowerCase();
+      return !of || of === "admin" || of === "both";
+    });
+  }, [featuresRes]);
 
   const employeesData = useMemo(
     () =>
       adminEmployees.map((emp, index) => {
         const roleId = emp.roleId ?? emp.role?.id ?? null;
+        const roleRecord =
+          emp.role?.permissions
+            ? emp.role
+            : roleId != null
+              ? roleById.get(String(roleId))
+              : null;
         return {
           id: emp.id,
           sl: index + 1,
@@ -141,13 +168,14 @@ export default function EmployeeManagement() {
           roleId,
           roleName:
             emp.role?.name ??
-            (roleId != null ? roleNameById.get(String(roleId)) : undefined) ??
+            roleRecord?.name ??
             (roleId != null ? `Role ${roleId}` : "—"),
+          roleRecord: roleRecord ?? null,
           status: emp.status,
           createdAt: emp.createdAt,
         };
       }),
-    [adminEmployees, roleNameById]
+    [adminEmployees, roleById]
   );
 
   const roleOptions = useMemo(() => {
@@ -184,12 +212,12 @@ export default function EmployeeManagement() {
   const csvFilenameFilters = useMemo(
     () => ({
       search: searchTerm.trim(),
-      role: roleFilter ? roleNameById.get(String(roleFilter)) || roleFilter : "",
+      role: roleFilter ? roleById.get(String(roleFilter))?.name || roleFilter : "",
       status: statusFilter,
       from: dateRange.startDate,
       to: dateRange.endDate,
     }),
-    [searchTerm, roleFilter, roleNameById, statusFilter, dateRange.startDate, dateRange.endDate]
+    [searchTerm, roleFilter, roleById, statusFilter, dateRange.startDate, dateRange.endDate]
   );
 
   const csv = useCsvExport({
@@ -254,16 +282,52 @@ export default function EmployeeManagement() {
     }
   };
 
+  const handleToggleStatus = async (row) => {
+    if (!row?.id || statusBusyId != null) return;
+    const next = !row.status;
+    setStatusBusyId(row.id);
+    try {
+      const res = await updateStatus({
+        employeeId: row.id,
+        status: next,
+      });
+      if (res?.data?.status === "1") {
+        success(next ? "Employee activated." : "Employee deactivated.");
+        refetch();
+      } else {
+        showError(res?.error?.data?.message ?? "Failed to update status.");
+      }
+    } catch (err) {
+      showError(err?.data?.message ?? "Failed to update status.");
+    } finally {
+      setStatusBusyId(null);
+    }
+  };
+
   const columns = [
     {
       key: "name",
-      header: "Employee",
+      header: "Name",
       render: (row) => (
         <DirectoryIdentity
           name={row.name}
-          meta={joinMeta(row.email, row.phoneNum)}
+          meta={joinMeta(`#${row.employeeId}`)}
           id={row.employeeId}
         />
+      ),
+    },
+    {
+      key: "email",
+      header: "Email",
+      render: (row) => (
+        <span style={{ fontSize: 13 }}>{row.email}</span>
+      ),
+    },
+    {
+      key: "phone",
+      header: "Phone number",
+      render: (row) => (
+        <span style={{ fontSize: 13 }}>{row.phone || row.phoneNum || "—"}</span>
       ),
     },
     {
@@ -277,13 +341,32 @@ export default function EmployeeManagement() {
         ),
     },
     {
-      key: "status",
-      header: "Status",
-      render: (row) => <DirectoryStatusPill active={row.status} />,
+      key: "access",
+      header: "Permissions",
+      render: (row) => (
+        <AccessGrantChips role={row.roleRecord} features={features} />
+      ),
+    },
+    {
+      key: "changeStatus",
+      header: "Change status",
+      render: (row) => (
+        <div style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>
+          <DirectoryStatusPill active={row.status} />
+          <StatusToggle
+            checked={Boolean(row.status)}
+            label={row.status ? `Deactivate ${row.name}` : `Activate ${row.name}`}
+            onChange={() => handleToggleStatus(row)}
+          />
+          {statusBusyId === row.id ? (
+            <span style={{ fontSize: 11, color: "var(--muted)" }}>…</span>
+          ) : null}
+        </div>
+      ),
     },
     {
       key: "actions",
-      header: "Actions",
+      header: "Action",
       render: (row) => (
         <DirectoryActions>
           <DirectoryActionView onClick={() => setViewRow(row)} />
@@ -294,11 +377,14 @@ export default function EmployeeManagement() {
     },
   ];
 
+  const activeCount = employeesData.filter((r) => r.status).length;
+  const inactiveCount = employeesData.length - activeCount;
+
   return (
     <div style={{ minHeight: 400 }}>
       <PageHeader
-        title="Employee Management"
-        description="Add and manage admin employees"
+        title="All Employees"
+        description="Admin staff accounts, roles, and screen access"
         actions={
           <Button
             onClick={() => {
@@ -306,7 +392,7 @@ export default function EmployeeManagement() {
               setAddModalOpen(true);
             }}
           >
-            Add Employee
+            New Employee
           </Button>
         }
       />
@@ -334,7 +420,11 @@ export default function EmployeeManagement() {
       ) : (
         <>
           <DirectoryMetrics
-            items={[{ label: "Total employees", value: adminEmployees.length, tone: "brand" }]}
+            items={[
+              { label: "Total", value: employeesData.length, tone: "brand" },
+              { label: "Active", value: activeCount, tone: "success" },
+              { label: "Inactive", value: inactiveCount, tone: "danger" },
+            ]}
           />
 
           <DirectoryTableWrap
@@ -344,7 +434,7 @@ export default function EmployeeManagement() {
                   id="employee-search"
                   value={searchTerm}
                   onChange={handleSearchChange}
-                  placeholder="Search by ID, name, email…"
+                  placeholder="Search …"
                 />
                 <DirectoryToolSelect>
                   <Select
@@ -420,10 +510,19 @@ export default function EmployeeManagement() {
         fields={[
           { label: "Employee ID", value: viewRow?.employeeId },
           { label: "Role", value: viewRow?.roleName },
+          {
+            label: "Permissions",
+            value: viewRow?.roleRecord
+              ? `${summarizeRoleAccess(viewRow.roleRecord).screens} screens granted`
+              : "—",
+          },
           { label: "Email", value: viewRow?.email },
           { label: "Phone", value: viewRow?.phone || viewRow?.phoneNum },
           { label: "Status", value: viewRow?.status ? "Active" : "Inactive" },
-          { label: "Joined", value: formatJoined(viewRow?.createdAt) },
+          {
+            label: "Joined",
+            value: viewRow?.createdAt ? csvFormat.date(viewRow.createdAt) : "—",
+          },
         ]}
       />
 

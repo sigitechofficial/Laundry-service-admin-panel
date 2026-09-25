@@ -8,6 +8,7 @@ import {
   Modal,
   PageHeader,
   PasswordInput,
+  Select,
   Table,
 } from "../../../design-system";
 import { useNavigate, useParams } from "react-router-dom";
@@ -18,24 +19,22 @@ import useToaster from "../../../components/ui/Toaster";
 import { getApiErrorMessage } from "../../../store/services/apiErrors";
 import { customerPhoneError } from "../../../utilities/customerPhone";
 import DeleteOrderModal from "../../order-management/order-modals/DeleteOrderModal";
+import AssignOrderModal from "../../order-management/order-modals/AssignOrderModal";
+import { useOrderListColumns } from "../../order-management/useOrderListColumns";
+import { mapBookingToOrderListRow, resolveShopName } from "../../order-management/orderListUtils";
 import { formatDate, formatMoney, resolveCurrencySymbol } from "../../../utilities/formatters";
 import { formatUserPhone, openTel, openWhatsApp } from "../../../utilities/contactLinks";
 import {
-  DirectoryActionDelete,
-  DirectoryActions,
-  DirectoryActionView,
-  DirectoryDotPill,
-  DirectoryIdentity,
-  DirectoryMetric,
   DirectoryMetrics,
-  DirectoryMoney,
   DirectorySearch,
   DirectoryTableWrap,
+  DirectoryToolSelect,
   DirectoryToolbar,
+  DirectoryToolbarEnd,
 } from "../../directory-table/directoryTable";
-import { directoryStatusTone } from "../../directory-table/directoryTableUtils";
 import { BlockUserButton, AnonymizeDeleteModal } from "../../user-management/UserBlockActions";
 import { isAccountBlocked } from "../../../utilities/accountBlocked";
+import CustomerShopHistoryPanel from "./CustomerShopHistoryPanel";
 
 const PANEL = {
   padding: 16,
@@ -51,7 +50,13 @@ export default function CustomerDetails() {
   const { success, error: showError } = useToaster();
   const [activeTab, setActiveTab] = useState("overview");
   const [searchOrders, setSearchOrders] = useState("");
+  const [shopFilterId, setShopFilterId] = useState("");
   const [deleteModal, setDeleteModal] = useState({ open: false, orderId: null });
+  const [assignModal, setAssignModal] = useState({
+    open: false,
+    orderId: null,
+    booking: null,
+  });
   const [contactModal, setContactModal] = useState(false);
   const [anonymizeModal, setAnonymizeModal] = useState(false);
   const [isBlocked, setIsBlocked] = useState(false);
@@ -73,6 +78,13 @@ export default function CustomerDetails() {
   const bookingDetails = useMemo(
     () => data?.data?.bookingDetails ?? [],
     [data?.data?.bookingDetails]
+  );
+  const customerShopHistory = useMemo(
+    () =>
+      Array.isArray(data?.data?.customerShopHistory)
+        ? data.data.customerShopHistory
+        : [],
+    [data?.data?.customerShopHistory]
   );
   const user = userDetails?.user;
   const customerPhone = formatUserPhone(user);
@@ -156,24 +168,76 @@ export default function CustomerDetails() {
     return resolveCurrencySymbol(userDetails ?? user, { applyDefault: true });
   }, [bookingDetails, user, userDetails]);
 
-  const allOrders = useMemo(
+  const allOrderRows = useMemo(
     () =>
-      [...bookingDetails].sort(
-        (a, b) => new Date(b?.createdAt || 0).getTime() - new Date(a?.createdAt || 0).getTime()
-      ),
+      [...bookingDetails]
+        .sort(
+          (a, b) =>
+            new Date(b?.createdAt || 0).getTime() -
+            new Date(a?.createdAt || 0).getTime()
+        )
+        .map((booking) => mapBookingToOrderListRow(booking)),
     [bookingDetails]
   );
-  const recentOrders = allOrders.slice(0, 4);
+  const recentOrderRows = allOrderRows.slice(0, 4);
 
-  const filteredOrders = allOrders.filter((order) => {
-    if (!searchOrders.trim()) return true;
+  const filteredOrderRows = useMemo(() => {
+    let rows = allOrderRows;
+    if (shopFilterId) {
+      rows = rows.filter(
+        (row) => String(row.laundryShopId ?? "") === String(shopFilterId)
+      );
+    }
+    if (!searchOrders.trim()) return rows;
     const q = searchOrders.toLowerCase();
-    return (
-      String(order?.orderTrackId || "").toLowerCase().includes(q) ||
-      String(order?.bookingStatus?.title || "").toLowerCase().includes(q) ||
-      String(order?.laundryShop?.name || "").toLowerCase().includes(q)
+    return rows.filter((row) => {
+      return (
+        String(row.orderId ?? "").toLowerCase().includes(q) ||
+        String(row.OrderStatus ?? "").toLowerCase().includes(q) ||
+        String(row.shopName ?? "").toLowerCase().includes(q) ||
+        String(row.serviceType ?? "").toLowerCase().includes(q) ||
+        String(row.paymentMethod ?? "").toLowerCase().includes(q)
+      );
+    });
+  }, [allOrderRows, searchOrders, shopFilterId]);
+
+  const shopFilterOptions = useMemo(
+    () => [
+      { value: "", label: "All shops · spend" },
+      ...customerShopHistory.map((h) => ({
+        value: String(h.shopId),
+        label: `${h.shopName} · ${formatMoney(
+          Number(h.totalSpend) || 0,
+          currencySymbol
+        )}${h.isReturning ? " · Returning" : ""}`,
+      })),
+    ],
+    [customerShopHistory, currencySymbol]
+  );
+
+  const selectedShopSpend = useMemo(() => {
+    if (!shopFilterId) return null;
+    return customerShopHistory.find(
+      (h) => String(h.shopId) === String(shopFilterId)
     );
+  }, [customerShopHistory, shopFilterId]);
+
+  const preferredShopName =
+    customerShopHistory[0]?.shopName ||
+    resolveShopName(bookingDetails[0]) ||
+    "—";
+
+  const orderColumns = useOrderListColumns({
+    navigate,
+    setDeleteModal,
+    setAssignModal,
+    showAssign: true,
+    hideCustomer: true,
   });
+  const recentOrderColumns = useMemo(
+    () => orderColumns.filter((c) => c.key !== "actions"),
+    [orderColumns]
+  );
 
   const handleSaveCustomerSettings = async () => {
     const customerId = user?.id || userDetails?.userId;
@@ -233,78 +297,6 @@ export default function CustomerDetails() {
     setContactModal(false);
   };
 
-  const orderColumns = [
-    {
-      key: "orderTrackId",
-      header: "Order",
-      render: (row) => (
-        <DirectoryIdentity
-          name={`#${row.orderTrackId || row.id}`}
-          meta={row.laundryShop?.name || "—"}
-          id={row.id}
-        />
-      ),
-    },
-    {
-      key: "collectionDate",
-      header: "Schedule",
-      render: (row) => (
-        <DirectoryIdentity
-          name={row.collectionDate ? `Collect ${formatDate(row.collectionDate)}` : "—"}
-          meta={row.deliveryDate ? `Deliver ${formatDate(row.deliveryDate)}` : undefined}
-        />
-      ),
-    },
-    {
-      key: "totalItems",
-      header: "Items",
-      render: (row) => <DirectoryMetric value={row.totalItems ?? 0} />,
-    },
-    {
-      key: "orderAmount",
-      header: "Total",
-      render: (row) => (
-        <DirectoryMoney>
-          {formatMoney(
-            row.orderAmount,
-            resolveCurrencySymbol(row.billingDetail ?? row.paymentSummary ?? row, {
-              applyDefault: true,
-            }) || currencySymbol
-          )}
-        </DirectoryMoney>
-      ),
-    },
-    {
-      key: "status",
-      header: "Status",
-      render: (row) => {
-        const status = row.bookingStatus?.title || "Pending";
-        return (
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, justifyContent: "flex-end" }}>
-            <DirectoryDotPill tone={directoryStatusTone(status)}>{status}</DirectoryDotPill>
-            {row?.isRecurringAutoCreated ? (
-              <DirectoryDotPill tone="brand">Recurring</DirectoryDotPill>
-            ) : null}
-          </div>
-        );
-      },
-    },
-    {
-      key: "actions",
-      header: "Actions",
-      render: (row) => (
-        <DirectoryActions>
-          <DirectoryActionView
-            onClick={() => row.id && navigate(`/orders/details/${row.id}`)}
-          />
-          <DirectoryActionDelete
-            onClick={() => setDeleteModal({ open: true, orderId: row.id })}
-          />
-        </DirectoryActions>
-      ),
-    },
-  ];
-
   if (isLoading) return <Delay />;
 
   if (isError) {
@@ -328,6 +320,7 @@ export default function CustomerDetails() {
   const tabs = [
     { id: "overview", label: "Overview" },
     { id: "orders", label: "Orders" },
+    { id: "shops", label: "Shops" },
     { id: "addresses", label: "Addresses" },
     { id: "settings", label: "Settings" },
   ];
@@ -411,7 +404,7 @@ export default function CustomerDetails() {
               <Info label="Phone" value={customerPhone || "—"} />
               <Info label="Primary address" value={fullAddress} />
               <Info label="Registered on" value={formatDate(user?.createdAt)} />
-              <Info label="Preferred shop" value={bookingDetails?.[0]?.laundryShop?.name || "—"} />
+              <Info label="Preferred shop" value={preferredShopName} />
             </div>
           </div>
 
@@ -445,6 +438,16 @@ export default function CustomerDetails() {
             </div>
           </div>
 
+          <CustomerShopHistoryPanel
+            history={customerShopHistory}
+            currencySymbol={currencySymbol}
+            selectedShopId={shopFilterId || null}
+            onSelectShop={(shop) => {
+              setShopFilterId(shop?.shopId != null ? String(shop.shopId) : "");
+              if (shop) setActiveTab("orders");
+            }}
+          />
+
           <div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
               <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>Recent orders</h2>
@@ -454,8 +457,8 @@ export default function CustomerDetails() {
             </div>
             <DirectoryTableWrap>
               <Table
-                columns={orderColumns.filter((c) => c.key !== "actions")}
-                rows={recentOrders}
+                columns={recentOrderColumns}
+                rows={recentOrderRows}
                 rowKey={(row) => row.id}
                 empty="No orders yet"
               />
@@ -464,30 +467,131 @@ export default function CustomerDetails() {
         </div>
       )}
 
+      {activeTab === "shops" && (
+        <div style={{ display: "grid", gap: 16 }}>
+          <DirectoryMetrics
+            items={[
+              {
+                label: "Shops used",
+                value: customerShopHistory.length,
+                tone: "brand",
+              },
+              {
+                label: "Returning shops",
+                value: customerShopHistory.filter((h) => h.isReturning).length,
+                tone: "success",
+              },
+              {
+                label: "Shop spend (all)",
+                value: formatMoney(
+                  customerShopHistory.reduce(
+                    (s, h) => s + (Number(h.totalSpend) || 0),
+                    0
+                  ),
+                  currencySymbol
+                ),
+                tone: "navy",
+              },
+            ]}
+          />
+          <CustomerShopHistoryPanel
+            title="Returning shops"
+            history={customerShopHistory}
+            currencySymbol={currencySymbol}
+            returningOnly
+            selectedShopId={shopFilterId || null}
+            onSelectShop={(shop) => {
+              setShopFilterId(shop?.shopId != null ? String(shop.shopId) : "");
+              if (shop) setActiveTab("orders");
+            }}
+          />
+          <CustomerShopHistoryPanel
+            title="All shops · spend"
+            history={customerShopHistory}
+            currencySymbol={currencySymbol}
+            selectedShopId={shopFilterId || null}
+            onSelectShop={(shop) => {
+              setShopFilterId(shop?.shopId != null ? String(shop.shopId) : "");
+              if (shop) setActiveTab("orders");
+            }}
+          />
+        </div>
+      )}
+
       {activeTab === "orders" && (
-        <div>
-          <h2 style={{ margin: "0 0 16px", fontSize: 16, fontWeight: 700 }}>
-            All orders ({allOrders.length})
-          </h2>
-          <DirectoryTableWrap
-            toolbar={
-              <DirectoryToolbar>
-                <DirectorySearch
-                  id="customer-orders-search"
-                  value={searchOrders}
-                  onChange={setSearchOrders}
-                  placeholder="Search orders..."
-                />
-              </DirectoryToolbar>
-            }
-          >
-            <Table
-              columns={orderColumns}
-              rows={filteredOrders}
-              rowKey={(row) => row.id}
-              empty="No matching orders found"
-            />
-          </DirectoryTableWrap>
+        <div style={{ display: "grid", gap: 16 }}>
+          <CustomerShopHistoryPanel
+            history={customerShopHistory}
+            title="Shop-wise spend · filter orders"
+            currencySymbol={currencySymbol}
+            selectedShopId={shopFilterId || null}
+            onSelectShop={(shop) => {
+              setShopFilterId(shop?.shopId != null ? String(shop.shopId) : "");
+            }}
+          />
+          <div>
+            <h2 style={{ margin: "0 0 8px", fontSize: 16, fontWeight: 700 }}>
+              All orders ({filteredOrderRows.length}
+              {shopFilterId ? ` at shop` : ""}
+              {allOrderRows.length !== filteredOrderRows.length
+                ? ` of ${allOrderRows.length}`
+                : ""}
+              )
+            </h2>
+            {selectedShopSpend ? (
+              <p className="jd-lead" style={{ margin: "0 0 12px" }}>
+                {selectedShopSpend.shopName}:{" "}
+                {formatMoney(
+                  Number(selectedShopSpend.totalSpend) || 0,
+                  currencySymbol
+                )}{" "}
+                spent
+                {selectedShopSpend.isReturning ? " · Returning customer" : ""}
+              </p>
+            ) : null}
+            <DirectoryTableWrap
+              toolbar={
+                <DirectoryToolbar>
+                  <DirectorySearch
+                    id="customer-orders-search"
+                    value={searchOrders}
+                    onChange={setSearchOrders}
+                    placeholder="Search by order ID, shop, service, status…"
+                  />
+                  <DirectoryToolSelect>
+                    <Select
+                      aria-label="Filter by shop spend"
+                      value={shopFilterId}
+                      onChange={(v) => setShopFilterId(v ?? "")}
+                      options={shopFilterOptions}
+                      placeholder="All shops"
+                    />
+                  </DirectoryToolSelect>
+                  <DirectoryToolbarEnd>
+                    {shopFilterId || searchOrders ? (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          setShopFilterId("");
+                          setSearchOrders("");
+                        }}
+                      >
+                        Clear filters
+                      </Button>
+                    ) : null}
+                  </DirectoryToolbarEnd>
+                </DirectoryToolbar>
+              }
+            >
+              <Table
+                columns={orderColumns}
+                rows={filteredOrderRows}
+                rowKey={(row) => row.id}
+                empty="No matching orders found"
+              />
+            </DirectoryTableWrap>
+          </div>
         </div>
       )}
 
@@ -599,6 +703,16 @@ export default function CustomerDetails() {
         open={deleteModal.open}
         orderId={deleteModal.orderId}
         onClose={() => setDeleteModal({ open: false, orderId: null })}
+        onSuccess={() => refetch()}
+      />
+
+      <AssignOrderModal
+        open={assignModal.open}
+        bookingId={assignModal.orderId}
+        bookingSnapshot={assignModal.booking}
+        onClose={() =>
+          setAssignModal({ open: false, orderId: null, booking: null })
+        }
         onSuccess={() => refetch()}
       />
 

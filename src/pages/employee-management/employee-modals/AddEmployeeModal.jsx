@@ -1,7 +1,7 @@
 import { useForm, Controller } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
-import { useMemo, useEffect } from "react";
+import { useMemo, useEffect, useState } from "react";
 import { Field, Input, Modal, Select } from "../../../design-system";
 import useToaster from "../../../components/ui/Toaster";
 import {
@@ -13,7 +13,9 @@ import {
   useGetCitiesByCountryIdQuery,
   useGetAllRolesQuery,
   useGetAllZonesQuery,
+  useGetFeaturesQuery,
 } from "../../../store/services/api";
+import { RoleAccessPanel } from "../RoleAccessPanel";
 
 /** Role is zone-forced (Zone Manager / Zone Admin). */
 function isZoneScopedRole(roleId, roles) {
@@ -29,15 +31,30 @@ function isZoneScopedRole(roleId, roles) {
   return Number(r.id) === 7 || name === "zone admin";
 }
 
+function extractFeatures(featuresResponse) {
+  const source = featuresResponse?.data ?? featuresResponse;
+  if (Array.isArray(source)) return source;
+  if (source && typeof source === "object") {
+    for (const key of ["features", "permissions", "items", "rows"]) {
+      if (Array.isArray(source[key])) return source[key];
+    }
+  }
+  return [];
+}
+
 const addEmployeeSchema = yup.object().shape({
   firstName: yup.string().required("First name is required").min(2, "At least 2 characters"),
   lastName: yup.string().required("Last name is required").min(2, "At least 2 characters"),
   email: yup.string().required("Email is required").email("Enter a valid email"),
-  password: yup.string().when("$isEdit", {
-    is: false,
-    then: (s) => s.required("Password is required").min(6, "At least 6 characters"),
-    otherwise: (s) => s.optional(),
-  }),
+  password: yup
+    .string()
+    .transform((v) => (v == null ? "" : v))
+    .test("password-when-needed", "Password is required (min 6 characters)", function (value) {
+      const { isEdit, enablePassword } = this.options.context || {};
+      const needed = !isEdit || enablePassword;
+      if (!needed) return true;
+      return Boolean(value) && String(value).length >= 6;
+    }),
   phoneNum: yup.string().required("Phone is required"),
   roleId: yup.mixed().required("Role is required"),
   countryId: yup.mixed().when("$forShopEmployees", {
@@ -106,6 +123,23 @@ function getDefaultsFromEmployee(emp, forShopEmployees) {
   };
 }
 
+function SectionLabel({ children }) {
+  return (
+    <h3
+      style={{
+        margin: "4px 0 0",
+        fontSize: 14,
+        fontWeight: 700,
+        letterSpacing: "0.02em",
+        textTransform: "uppercase",
+        color: "var(--muted)",
+      }}
+    >
+      {children}
+    </h3>
+  );
+}
+
 export default function AddEmployeeModal({
   open,
   onClose,
@@ -116,6 +150,7 @@ export default function AddEmployeeModal({
 }) {
   const isEdit = Boolean(initialEmployee);
   const { success, error } = useToaster();
+  const [enablePassword, setEnablePassword] = useState(false);
   const [addEmployee, { isLoading: isAdding }] = useAddAdminEmployeeMutation();
   const [addAgentEmployee, { isLoading: isAddingAgent }] = useAddAgentEmployeeMutation();
   const [updateEmployee, { isLoading: isUpdating }] = useUpdateAdminEmployeeMutation();
@@ -140,7 +175,6 @@ export default function AddEmployeeModal({
   const roles = useMemo(() => {
     const d = rolesRes?.data;
     const list = Array.isArray(d) ? d : [];
-    // Client-side safety net: never mix Admin vs Agent employee roles in the picker
     if (forShopEmployees) {
       return list.filter((r) => {
         const id = Number(r.id);
@@ -169,6 +203,16 @@ export default function AddEmployeeModal({
     });
   }, [roles]);
 
+  const { data: featuresRes } = useGetFeaturesQuery(undefined, { skip: !open || forShopEmployees });
+  const features = useMemo(() => {
+    if (forShopEmployees) return [];
+    const all = extractFeatures(featuresRes);
+    return all.filter((f) => {
+      const of = String(f?.featureOf ?? "").toLowerCase();
+      return !of || of === "admin" || of === "both";
+    });
+  }, [featuresRes, forShopEmployees]);
+
   const formDefaultValues = useMemo(
     () => getDefaultsFromEmployee(initialEmployee, forShopEmployees),
     [initialEmployee, forShopEmployees]
@@ -184,15 +228,20 @@ export default function AddEmployeeModal({
     getValues,
     formState: { errors },
   } = useForm({
-    resolver: yupResolver(addEmployeeSchema),
+    resolver: async (values, _ctx, options) =>
+      yupResolver(addEmployeeSchema)(
+        values,
+        { isEdit, forShopEmployees, roles, enablePassword },
+        options
+      ),
     defaultValues: formDefaultValues,
-    context: { isEdit, forShopEmployees, roles },
   });
 
   useEffect(() => {
     if (open) {
       const values = getDefaultsFromEmployee(initialEmployee, forShopEmployees);
       reset(values);
+      setEnablePassword(false);
     }
   }, [open, initialEmployee, forShopEmployees, reset]);
 
@@ -200,6 +249,10 @@ export default function AddEmployeeModal({
   const selectedRoleId = watch("roleId");
   const showZoneForRole =
     !forShopEmployees && isZoneScopedRole(selectedRoleId, roles);
+  const selectedRole = useMemo(
+    () => roles.find((r) => String(r.id) === String(selectedRoleId)) ?? null,
+    [roles, selectedRoleId]
+  );
 
   useEffect(() => {
     if (!open || forShopEmployees) return;
@@ -244,6 +297,7 @@ export default function AddEmployeeModal({
 
   const handleClose = () => {
     reset(emptyDefaults);
+    setEnablePassword(false);
     onClose();
   };
 
@@ -258,6 +312,9 @@ export default function AddEmployeeModal({
         roleId: Number(data.roleId),
         agentId: data.agentId ? Number(data.agentId) : undefined,
       };
+      if (enablePassword && data.password) {
+        body.updatePassword = data.password;
+      }
       const res = await updateAgentEmployee(body);
       if (res?.data?.status === "1") {
         success(res?.data?.message ?? "Employee updated successfully.");
@@ -279,6 +336,9 @@ export default function AddEmployeeModal({
       };
       if (isZoneScopedRole(data.roleId, roles) && data.zoneId) {
         body.zoneId = Number(data.zoneId);
+      }
+      if (enablePassword && data.password) {
+        body.updatePassword = data.password;
       }
       const res = await updateEmployee(body);
       if (res?.data?.status === "1") {
@@ -336,16 +396,27 @@ export default function AddEmployeeModal({
   return (
     <Modal
       open={open}
-      title={isEdit ? "Edit employee" : "Add employee"}
+      title={isEdit ? "Update Employee" : "New Employee"}
       onClose={handleClose}
-      primaryLabel={isLoading ? (isEdit ? "Updating…" : "Adding…") : isEdit ? "Update" : "Add employee"}
+      primaryLabel={
+        isLoading
+          ? isEdit
+            ? "Updating…"
+            : "Creating…"
+          : isEdit
+            ? "Update Employee"
+            : "Create Employee"
+      }
       secondaryLabel="Cancel"
+      size="xl"
+      maxHeight="80vh"
       onPrimary={() => {
         if (isLoading) return;
         handleSubmit(onSubmit)();
       }}
     >
-      <div style={{ display: "grid", gap: 16 }}>
+      <div style={{ display: "grid", gap: 20 }}>
+        <SectionLabel>Basic information</SectionLabel>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
           <Field label="First name" error={errors.firstName?.message} htmlFor="emp-first-name">
             <Input id="emp-first-name" placeholder="First name" {...register("firstName")} error={!!errors.firstName} />
@@ -354,17 +425,56 @@ export default function AddEmployeeModal({
             <Input id="emp-last-name" placeholder="Last name" {...register("lastName")} error={!!errors.lastName} />
           </Field>
         </div>
-        <Field label="Email" error={errors.email?.message} htmlFor="emp-email">
-          <Input id="emp-email" type="email" placeholder="email@example.com" {...register("email")} error={!!errors.email} />
-        </Field>
-        {!isEdit && (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          <Field label="Email" error={errors.email?.message} htmlFor="emp-email">
+            <Input id="emp-email" type="email" placeholder="email@example.com" {...register("email")} error={!!errors.email} />
+          </Field>
+          <Field label="Phone number" error={errors.phoneNum?.message} htmlFor="emp-phone">
+            <Input id="emp-phone" placeholder="Phone number" {...register("phoneNum")} error={!!errors.phoneNum} />
+          </Field>
+        </div>
+
+        {!isEdit ? (
           <Field label="Password" error={errors.password?.message} htmlFor="emp-password">
             <Input id="emp-password" type="password" placeholder="••••••••" {...register("password")} error={!!errors.password} />
           </Field>
+        ) : (
+          <div style={{ display: "grid", gap: 10 }}>
+            <label
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 8,
+                cursor: "pointer",
+                margin: 0,
+                fontSize: 13,
+                fontWeight: 600,
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={enablePassword}
+                onChange={(e) => {
+                  setEnablePassword(e.target.checked);
+                  if (!e.target.checked) setValue("password", "");
+                }}
+              />
+              Update password — Enable
+            </label>
+            {enablePassword ? (
+              <Field label="New password" error={errors.password?.message} htmlFor="emp-password">
+                <Input
+                  id="emp-password"
+                  type="password"
+                  placeholder="••••••••"
+                  {...register("password")}
+                  error={!!errors.password}
+                />
+              </Field>
+            ) : null}
+          </div>
         )}
-        <Field label="Phone" error={errors.phoneNum?.message} htmlFor="emp-phone">
-          <Input id="emp-phone" placeholder="Phone number" {...register("phoneNum")} error={!!errors.phoneNum} />
-        </Field>
+
         <Controller
           name="roleId"
           control={control}
@@ -380,13 +490,14 @@ export default function AddEmployeeModal({
               {!forShopEmployees ? (
                 <p className="jd-field__hint" style={{ margin: "6px 0 0" }}>
                   {showZoneForRole
-                    ? "Zone Manager — this person is limited to one assigned zone."
-                    : "Platform — this person can work across all zones, only on screens you grant."}
+                    ? "Zone Manager — limited to one assigned zone."
+                    : "Platform — works across zones, only on screens this role grants."}
                 </p>
               ) : null}
             </Field>
           )}
         />
+
         {forShopEmployees && (
           <Controller
             name="agentId"
@@ -404,42 +515,45 @@ export default function AddEmployeeModal({
             )}
           />
         )}
+
         {!forShopEmployees && (
           <>
-            <Controller
-              name="countryId"
-              control={control}
-              render={({ field }) => (
-                <Field label="Country" error={errors.countryId?.message}>
-                  <Select
-                    aria-label="Country"
-                    value={field.value}
-                    onChange={(value) => {
-                      field.onChange(value);
-                      setValue("cityId", "");
-                    }}
-                    options={countryOptions}
-                    placeholder="Select country"
-                  />
-                </Field>
-              )}
-            />
-            <Controller
-              name="cityId"
-              control={control}
-              render={({ field }) => (
-                <Field label="City" error={errors.cityId?.message}>
-                  <Select
-                    aria-label="City"
-                    value={field.value}
-                    onChange={field.onChange}
-                    options={cityOptions}
-                    placeholder="Select city"
-                    disabled={!countryId}
-                  />
-                </Field>
-              )}
-            />
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <Controller
+                name="countryId"
+                control={control}
+                render={({ field }) => (
+                  <Field label="Country" error={errors.countryId?.message}>
+                    <Select
+                      aria-label="Country"
+                      value={field.value}
+                      onChange={(value) => {
+                        field.onChange(value);
+                        setValue("cityId", "");
+                      }}
+                      options={countryOptions}
+                      placeholder="Select country"
+                    />
+                  </Field>
+                )}
+              />
+              <Controller
+                name="cityId"
+                control={control}
+                render={({ field }) => (
+                  <Field label="City" error={errors.cityId?.message}>
+                    <Select
+                      aria-label="City"
+                      value={field.value}
+                      onChange={field.onChange}
+                      options={cityOptions}
+                      placeholder="Select city"
+                      disabled={!countryId}
+                    />
+                  </Field>
+                )}
+              />
+            </div>
             {showZoneForRole && (
               <Controller
                 name="zoneId"
@@ -459,6 +573,10 @@ export default function AddEmployeeModal({
             )}
           </>
         )}
+
+        {!forShopEmployees ? (
+          <RoleAccessPanel role={selectedRole} features={features} readOnly />
+        ) : null}
       </div>
     </Modal>
   );
