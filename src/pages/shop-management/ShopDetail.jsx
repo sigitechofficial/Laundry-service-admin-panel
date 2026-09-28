@@ -48,6 +48,7 @@ import { joinMeta } from "../directory-table/directoryTableUtils";
 import { BlockUserButton, AnonymizeDeleteModal } from "../user-management/UserBlockActions";
 import { isAccountBlocked } from "../../utilities/accountBlocked";
 import ShopRoutingPolicyCard from "./ShopRoutingPolicyCard";
+import ShopPrinterSettingsCard from "./ShopPrinterSettingsCard";
 import ShopRevenueTab from "./ShopRevenueTab";
 import ShopReportTab from "./ShopReportTab";
 import ShopCustomersTab from "./ShopCustomersTab";
@@ -1803,6 +1804,7 @@ export default function ShopDetails() {
             </div>
 
             <ShopRoutingPolicyCard shopUserId={biz?.id} />
+            <ShopPrinterSettingsCard shopUserId={biz?.id} />
             <div style={{ ...CARD, borderColor: "var(--danger)" }}>
               <strong style={{ color: "var(--danger)" }}>Danger zone</strong>
               <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 12 }}>

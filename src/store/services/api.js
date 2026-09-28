@@ -6,7 +6,7 @@ export const api = createApi({
   baseQuery: baseQueryWithReauth,
   // setupListeners(store.dispatch) + window "online" → refetch subscribed queries.
   refetchOnReconnect: true,
-  tagTypes: ["ServiceConfig", "SupportContact", "PlatformOperationalHours", "RuntimeSettings", "Orders", "Coupons", "Banners", "AccountDeletionReasons", "ReviewReasonCodes", "ShopReviews", "ShopRatingsReport", "PendingAgents", "RejectedAgents", "AgentSettlement", "NotifyLogs", "PaymentFailures", "AdminNotificationPreferences", "ActionRequiredOrders", "RepairGarments", "RepairOptions", "Zones", "ZoneCatalog", "FailAttemptInstructions", "FailAttemptReasons", "Shops", "ShopAssignmentPolicy", "ComplianceReport", "ComplianceEvents", "Customers"],
+  tagTypes: ["ServiceConfig", "SupportContact", "PlatformOperationalHours", "RuntimeSettings", "Orders", "Coupons", "Banners", "AccountDeletionReasons", "ReviewReasonCodes", "ShopReviews", "ShopRatingsReport", "PendingAgents", "RejectedAgents", "AgentSettlement", "NotifyLogs", "PaymentFailures", "AdminNotificationPreferences", "ActionRequiredOrders", "RepairGarments", "RepairOptions", "Zones", "ZoneCatalog", "FailAttemptInstructions", "FailAttemptReasons", "Shops", "ShopAssignmentPolicy", "ShopPrinter", "ComplianceReport", "ComplianceEvents", "Customers"],
 
   endpoints: (builder) => {
     const reportQueryString = (params = {}) => {
@@ -1533,6 +1533,7 @@ export const api = createApi({
         url: `admin/shops/${shopId}/printer`,
         method: "GET",
       }),
+      providesTags: (_r, _e, shopId) => [{ type: "ShopPrinter", id: shopId }],
     }),
 
     putShopPrinter: builder.mutation({
@@ -1541,6 +1542,7 @@ export const api = createApi({
         method: "PUT",
         body,
       }),
+      invalidatesTags: (_r, _e, { shopId }) => [{ type: "ShopPrinter", id: shopId }],
     }),
 
     testShopPrinter: builder.mutation({
@@ -1551,20 +1553,28 @@ export const api = createApi({
       }),
     }),
 
+    getShopPrintJob: builder.query({
+      query: ({ shopId, jobId }) => ({
+        url: `admin/shops/${shopId}/printer/jobs/${jobId}`,
+        method: "GET",
+      }),
+      keepUnusedDataFor: 0,
+    }),
+
     printBookingTagsStar: builder.mutation({
-      query: ({ bookingId, shopUserId, currencySymbol }) => ({
+      query: ({ bookingId }) => ({
         url: `admin/bookings/${bookingId}/print/tags`,
         method: "POST",
-        body: { shopUserId, currencySymbol },
+        body: {},
       }),
     }),
 
-    printBookingReceiptStar: builder.mutation({
-      query: ({ bookingId, shopUserId, invoiceView }) => ({
-        url: `admin/bookings/${bookingId}/print/receipt`,
-        method: "POST",
-        body: { shopUserId, invoiceView },
+    getBookingPrintJob: builder.query({
+      query: ({ bookingId, jobId }) => ({
+        url: `admin/bookings/${bookingId}/print/jobs/${jobId}`,
+        method: "GET",
       }),
+      keepUnusedDataFor: 0,
     }),
 
     editOrder: builder.mutation({
@@ -2575,8 +2585,9 @@ export const {
   useGetShopPrinterQuery,
   usePutShopPrinterMutation,
   useTestShopPrinterMutation,
+  useLazyGetShopPrintJobQuery,
   usePrintBookingTagsStarMutation,
-  usePrintBookingReceiptStarMutation,
+  useLazyGetBookingPrintJobQuery,
   useEditOrderMutation,
   useDeleteOrderMutation,
   useAddCancellationPolicyMutation,
