@@ -19,6 +19,9 @@ import {
   DirectoryMetric,
   DirectoryMetrics,
   DirectoryTableWrap,
+  DirectoryToolbar,
+  DirectoryToolbarEnd,
+  DirectoryToolSelect,
   DirectoryViewModal,
 } from "../directory-table/directoryTable";
 import useToaster from "../../components/ui/Toaster";
@@ -663,17 +666,29 @@ export default function PromoCodesPage() {
   const [errors, setErrors] = useState({});
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
+  const [zoneFilter, setZoneFilter] = useState("");
   const { success, error: toastError, info } = useToaster();
   const { data: couponsResponse, isLoading: isCouponsLoading, isError, refetch } =
     useGetAllCouponsQuery({
       page,
       limit,
       isActive: true,
+      ...(zoneFilter ? { zoneId: zoneFilter } : {}),
     });
   const { data: zonesResponse } = useGetAllZonesQuery();
   const zones = useMemo(
     () => extractList(zonesResponse, "zones", "data"),
     [zonesResponse]
+  );
+  const zoneFilterOptions = useMemo(
+    () => [
+      { value: "", label: "All zones" },
+      ...zones.map((z) => ({
+        value: String(z.id),
+        label: z.name || `Zone #${z.id}`,
+      })),
+    ],
+    [zones]
   );
   const [addCoupon, { isLoading: isCreating }] = useAddCouponMutation();
   const [updateCoupon, { isLoading: isUpdating }] = useUpdateCouponMutation();
@@ -944,6 +959,28 @@ export default function PromoCodesPage() {
         <p style={{ color: "var(--danger)", margin: 0 }}>Could not load coupons.</p>
       ) : (
         <DirectoryTableWrap
+          toolbar={
+            <DirectoryToolbar>
+              <DirectoryToolSelect>
+                <Select
+                  aria-label="Filter coupons by zone"
+                  value={zoneFilter}
+                  onChange={(v) => {
+                    setZoneFilter(v != null ? String(v) : "");
+                    setPage(1);
+                  }}
+                  options={zoneFilterOptions}
+                />
+              </DirectoryToolSelect>
+              <DirectoryToolbarEnd>
+                <span style={{ fontSize: 12, color: "var(--muted)" }}>
+                  {zoneFilter
+                    ? `Showing codes for selected zone (+ all-zones codes)`
+                    : "All zones"}
+                </span>
+              </DirectoryToolbarEnd>
+            </DirectoryToolbar>
+          }
           footer={
             <PaginationBar
               page={page}
@@ -961,7 +998,13 @@ export default function PromoCodesPage() {
             columns={columns}
             rows={isCouponsLoading ? [] : tableData}
             rowKey={(row) => row.id}
-            empty={isCouponsLoading ? "Loading coupons…" : "No coupons yet."}
+            empty={
+              isCouponsLoading
+                ? "Loading coupons…"
+                : zoneFilter
+                  ? "No coupons for this zone."
+                  : "No coupons yet."
+            }
           />
         </DirectoryTableWrap>
       )}

@@ -921,6 +921,8 @@ export default function OrderDetailsPage() {
     balancePaymentMethod: paymentSummary?.balancePaymentMethod ?? orderData?.balancePaymentMethod,
   });
   const paymentMethodEvents = orderData?.paymentMethodEvents || [];
+  const shopAssignmentEvents = orderData?.shopAssignmentEvents || [];
+  const shopAssignmentTrack = orderData?.shopAssignmentTrack || null;
   const earningsBreakdown = useMemo(() => {
     const agentCommissionPercent = toNumber(commercialTerms?.agentCommissionPercent);
     const platformCommissionPercent = toNumber(
@@ -1013,7 +1015,11 @@ export default function OrderDetailsPage() {
         showError("Invoice details not found.");
         return;
       }
-      setInvoiceDetails(details);
+      setInvoiceDetails({
+        ...details,
+        couponRedemption:
+          details.couponRedemption || orderData?.couponRedemption || null,
+      });
       setInvoiceModal({ open: true, format: "a4", previewOpen: false });
     } catch (err) {
       showError(err?.data?.message || "Failed to fetch invoice details.");
@@ -1172,9 +1178,30 @@ export default function OrderDetailsPage() {
     };
   });
 
+  const shopAssignmentActivityRows = shopAssignmentEvents.map((ev) => {
+    const who = personName(ev.actedByUser);
+    const source =
+      ev.source === "agent_accept"
+        ? "shop accept"
+        : ev.source === "admin"
+          ? "admin"
+          : ev.source || "system";
+    const fromName = ev.fromShopName;
+    const toName = ev.toShopName || `Shop #${ev.toShopId}`;
+    const text = fromName
+      ? `Shop reassigned · ${fromName} → ${toName} (${source}${who ? ` · ${who}` : ""})`
+      : `Shop assigned · ${toName} (${source}${who ? ` · ${who}` : ""})`;
+    return {
+      text,
+      time: formatDate(ev.createdAt, "ddd DD MMM · HH:mm"),
+      tone: fromName ? "system" : "completed",
+    };
+  });
+
   const activityRows = [
     ...attemptActivityRows,
     ...paymentMethodActivityRows,
+    ...shopAssignmentActivityRows,
     ...assignmentActivityRows,
     {
       text: `Order ${statusBadge.label.toLowerCase()}`,
@@ -2394,11 +2421,66 @@ export default function OrderDetailsPage() {
                     <OdMetaRow label="Phone" value={shopPhone || "—"} />
                     <OdMetaRow label="Address" value={shopAddress || "—"} />
                     <OdMetaRow label="Zone" value={shopZoneName || "—"} />
+                    {shopAssignmentTrack?.originalShopName ? (
+                      <OdMetaRow
+                        label="Originally assigned"
+                        value={shopAssignmentTrack.originalShopName}
+                      />
+                    ) : null}
+                    {shopAssignmentTrack?.reassignCount > 0 ? (
+                      <OdMetaRow
+                        label="Reassigned to"
+                        value={`${shopAssignmentTrack.currentShopName || shopName || "—"} (${shopAssignmentTrack.reassignCount} change${shopAssignmentTrack.reassignCount === 1 ? "" : "s"})`}
+                      />
+                    ) : null}
                     {shopServicesOffered ? (
                       <OdMetaRow label="Services offered" value={shopServicesOffered} />
                     ) : null}
                     <OdMetaRow label="Frequency" value={orderData?.frequency || "Just Once"} />
                   </div>
+
+                  {shopAssignmentEvents.length > 0 ? (
+                    <div style={{ marginTop: 14 }}>
+                      <div
+                        style={{
+                          fontSize: 12,
+                          fontWeight: 600,
+                          color: "#64748B",
+                          marginBottom: 8,
+                        }}
+                      >
+                        Shop assignment track
+                      </div>
+                      <div style={{ display: "grid", gap: 6 }}>
+                        {shopAssignmentEvents.map((ev) => (
+                          <div
+                            key={ev.id}
+                            style={{
+                              fontSize: 12,
+                              color: "#334155",
+                              padding: "8px 10px",
+                              borderRadius: 8,
+                              background: "#F8FAFC",
+                              border: "1px solid #E2E8F0",
+                            }}
+                          >
+                            {ev.fromShopName
+                              ? `${ev.fromShopName} → ${ev.toShopName}`
+                              : `Assigned · ${ev.toShopName}`}
+                            <span style={{ color: "#94A3B8" }}>
+                              {" "}
+                              · {formatDate(ev.createdAt, "DD MMM YYYY, HH:mm")}
+                              {ev.source === "agent_accept"
+                                ? " · shop accept"
+                                : ev.source === "admin"
+                                  ? " · admin"
+                                  : ""}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
 
                   <div className="flex items-center flex-wrap" style={{ gap: 8, marginTop: 14 }}>
                     <Button

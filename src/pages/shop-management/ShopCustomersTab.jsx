@@ -2,7 +2,11 @@ import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Badge, Button, Select, Table } from "../../design-system";
 import { Delay } from "../../components/shared/Loaders";
-import { useGetShopCustomersQuery } from "../../store/services/api";
+import {
+  useGetShopCustomersQuery,
+  useExcludeCustomerFromShopMutation,
+  useIncludeCustomerForShopMutation,
+} from "../../store/services/api";
 import { formatDate, formatMoney } from "../../utilities/formatters";
 import { formatUserPhone } from "../../utilities/contactLinks";
 import {
@@ -36,17 +40,19 @@ const TOP_OPTIONS = [
 const LIST_FILTER_OPTIONS = [
   { value: "all", label: "All customers" },
   { value: "returning", label: "Returning only" },
+  { value: "excluded", label: "Excluded only" },
 ];
 
 /**
  * Shop detail → Customers tab.
- * Returning customers, spend, and top-N leaderboard (same threshold as assign flow).
+ * Returning customers, spend, top-N, and per-customer shop exclusion.
  */
 export default function ShopCustomersTab({ shopId, currencySymbol = "£" }) {
   const navigate = useNavigate();
   const [topN, setTopN] = useState("10");
   const [listFilter, setListFilter] = useState("all");
   const [search, setSearch] = useState("");
+  const [busyId, setBusyId] = useState(null);
 
   const returningOnly = listFilter === "returning";
   const { data, isLoading, isError, refetch, isFetching } = useGetShopCustomersQuery(
@@ -57,6 +63,8 @@ export default function ShopCustomersTab({ shopId, currencySymbol = "£" }) {
     },
     { skip: !shopId, refetchOnMountOrArgChange: true }
   );
+  const [excludeCustomer] = useExcludeCustomerFromShopMutation();
+  const [includeCustomer] = useIncludeCustomerForShopMutation();
 
   const payload = data?.data ?? data ?? {};
   const summary = payload.summary || {};
@@ -67,15 +75,49 @@ export default function ShopCustomersTab({ shopId, currencySymbol = "£" }) {
   );
 
   const filtered = useMemo(() => {
-    if (!search.trim()) return customers;
+    let rows = customers;
+    if (listFilter === "excluded") {
+      rows = rows.filter((c) => c.isExcluded);
+    }
+    if (!search.trim()) return rows;
     const q = search.toLowerCase();
-    return customers.filter((c) =>
+    return rows.filter((c) =>
       [c.name, c.email, c.phoneNum, c.customerId]
         .some((v) => String(v ?? "").toLowerCase().includes(q))
     );
-  }, [customers, search]);
+  }, [customers, search, listFilter]);
 
   const money = (n) => formatMoney(Number(n) || 0, currencySymbol);
+
+  const toggleExclusion = async (row) => {
+    if (!shopId || !row?.customerId) return;
+    setBusyId(row.customerId);
+    try {
+      if (row.isExcluded) {
+        await includeCustomer({
+          customerId: row.customerId,
+          shopId,
+        }).unwrap();
+      } else {
+        const reason = window.prompt(
+          "Why exclude this customer from this shop? (optional)",
+          "Customer not satisfied with this shop"
+        );
+        if (reason === null) return;
+        await excludeCustomer({
+          customerId: row.customerId,
+          shopId,
+          reason: reason.trim() || undefined,
+        }).unwrap();
+      }
+    } catch (err) {
+      window.alert(
+        err?.data?.message || err?.error || "Could not update exclusion"
+      );
+    } finally {
+      setBusyId(null);
+    }
+  };
 
   const customerColumns = [
     {
@@ -103,9 +145,14 @@ export default function ShopCustomersTab({ shopId, currencySymbol = "£" }) {
             <span style={{ fontWeight: 600, fontSize: 13 }}>
               {stat ? stat.count : `${row.totalOrders} orders`}
             </span>
-            {row.isReturning ? (
-              <DirectoryDotPill tone="brand">Returning</DirectoryDotPill>
-            ) : null}
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              {row.isReturning ? (
+                <DirectoryDotPill tone="brand">Returning</DirectoryDotPill>
+              ) : null}
+              {row.isExcluded ? (
+                <Badge tone="danger">Excluded</Badge>
+              ) : null}
+            </div>
           </div>
         );
       },
@@ -142,6 +189,23 @@ export default function ShopCustomersTab({ shopId, currencySymbol = "£" }) {
             title="Open customer"
             onClick={() => navigate(`/customer-management/details/${row.customerId}`)}
           />
+          <Button
+            variant={row.isExcluded ? "secondary" : "danger"}
+            size="sm"
+            disabled={busyId === row.customerId}
+            onClick={() => toggleExclusion(row)}
+            title={
+              row.isExcluded
+                ? "Allow this customer’s orders to reach this shop again"
+                : "Stop routing this customer’s new orders to this shop"
+            }
+          >
+            {busyId === row.customerId
+              ? "…"
+              : row.isExcluded
+                ? "Include"
+                : "Exclude"}
+          </Button>
         </DirectoryActions>
       ),
     },
@@ -170,6 +234,10 @@ export default function ShopCustomersTab({ shopId, currencySymbol = "£" }) {
 
   return (
     <div style={{ display: "grid", gap: 16 }}>
+      <p className="jd-lead" style={{ margin: 0 }}>
+        Exclude a customer from this shop when they are not satisfied — their
+        new orders go to other shops only. Admin can still assign manually.
+      </p>
       <DirectoryMetrics
         items={[
           {
@@ -184,9 +252,9 @@ export default function ShopCustomersTab({ shopId, currencySymbol = "£" }) {
             hint: `≥ ${payload.returningThreshold ?? 2} completed at this shop`,
           },
           {
-            label: "Returning spend",
-            value: money(summary.returningSpend),
-            tone: "navy",
+            label: "Excluded",
+            value: summary.excludedCustomers ?? 0,
+            tone: "danger",
           },
           {
             label: "Total spend",
@@ -295,7 +363,11 @@ export default function ShopCustomersTab({ shopId, currencySymbol = "£" }) {
 
       <div>
         <h2 style={{ margin: "0 0 12px", fontSize: 16, fontWeight: 700 }}>
-          {returningOnly ? "Returning customers" : "All customers at this shop"}
+          {returningOnly
+            ? "Returning customers"
+            : listFilter === "excluded"
+              ? "Excluded customers"
+              : "All customers at this shop"}
           {isFetching ? (
             <span style={{ marginLeft: 8, fontSize: 12, color: "var(--muted)", fontWeight: 500 }}>
               Updating…
@@ -332,9 +404,11 @@ export default function ShopCustomersTab({ shopId, currencySymbol = "£" }) {
             rows={filtered}
             rowKey={(row) => row.customerId}
             empty={
-              returningOnly
-                ? "No returning customers at this shop"
-                : "No customers have ordered at this shop yet"
+              listFilter === "excluded"
+                ? "No customers are excluded from this shop"
+                : returningOnly
+                  ? "No returning customers at this shop"
+                  : "No customers have ordered at this shop yet"
             }
           />
         </DirectoryTableWrap>

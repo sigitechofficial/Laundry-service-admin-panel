@@ -114,7 +114,7 @@ const TABS = [
   { value: "overview", label: "Overview" },
   { value: "orders", label: "Orders" },
   { value: "customers", label: "Customers" },
-  { value: "declined", label: "Declined" },
+  { value: "declined", label: "Rejected" },
   { value: "revenue", label: "Revenue" },
   { value: "report", label: "Report" },
   { value: "reviews", label: "Reviews" },
@@ -1190,87 +1190,218 @@ export default function ShopDetails() {
       )}
 
       {activeTab === "declined" && (
-        <div>
-          <p className="jd-lead" style={{ margin: "0 0 12px" }}>
-            Orders this shop declined, with the reason they gave.
+        <div style={{ display: "grid", gap: 16 }}>
+          <p className="jd-lead" style={{ margin: 0 }}>
+            Rejection volume, rate, and reasons for this shop. Rate =
+            declines ÷ (declines + orders this shop accepted).
           </p>
-          {(shop?.declines || []).length === 0 ? (
-            <div
-              style={{
-                padding: 24,
-                textAlign: "center",
-                color: "var(--muted)",
-                border: "1px dashed var(--line)",
-                borderRadius: 12,
-              }}
-            >
-              This shop has not declined any orders.
-            </div>
-          ) : (
-            <div style={{ display: "grid", gap: 10 }}>
-              {(shop?.declines || []).map((d) => (
+
+          {(() => {
+            const stats = shop?.declineStats || {};
+            const reasons = Array.isArray(stats.reasonBreakdown)
+              ? stats.reasonBreakdown
+              : [];
+            const totalDeclines = Number(stats.totalDeclines) || 0;
+            const acceptedCount = Number(stats.acceptedCount) || 0;
+            const rejectionRate = Number(stats.rejectionRate) || 0;
+            return (
+              <>
                 <div
-                  key={d.id}
                   style={{
-                    border: "1px solid var(--line)",
-                    borderRadius: 12,
-                    padding: 14,
-                    background: "#fff",
+                    display: "grid",
+                    gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
+                    gap: 12,
                   }}
                 >
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      gap: 12,
-                      flexWrap: "wrap",
-                      alignItems: "center",
-                    }}
-                  >
-                    <div style={{ fontWeight: 700, color: "#0F172A" }}>
-                      {d.orderTrackId ? `Order #${d.orderTrackId}` : `Booking #${d.bookingId}`}
+                  {[
+                    { label: "Rejections", value: totalDeclines },
+                    { label: "Accepted orders", value: acceptedCount },
+                    {
+                      label: "Rejection rate",
+                      value: `${rejectionRate}%`,
+                    },
+                  ].map((m) => (
+                    <div
+                      key={m.label}
+                      style={{
+                        padding: 14,
+                        border: "1px solid var(--line)",
+                        borderRadius: 12,
+                        background: "#fff",
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: 12,
+                          color: "var(--muted)",
+                          marginBottom: 4,
+                        }}
+                      >
+                        {m.label}
+                      </div>
+                      <div style={{ fontSize: 22, fontWeight: 700 }}>
+                        {m.value}
+                      </div>
                     </div>
-                    <Badge tone="danger">Declined</Badge>
-                  </div>
-                  <div
-                    style={{
-                      marginTop: 8,
-                      padding: "8px 10px",
-                      background: "#FEF2F2",
-                      border: "1px solid #FECACA",
-                      borderRadius: 8,
-                      color: "#991B1B",
-                      fontSize: 13,
-                    }}
-                  >
-                    <span style={{ fontWeight: 600 }}>Reason: </span>
-                    {d.reason || "No reason provided"}
-                  </div>
-                  <div
-                    style={{
-                      marginTop: 8,
-                      display: "flex",
-                      gap: 16,
-                      flexWrap: "wrap",
-                      fontSize: 12,
-                      color: "var(--muted)",
-                    }}
-                  >
-                    {d.customerName ? <span>Customer: {d.customerName}</span> : null}
-                    {d.collectionDate ? (
-                      <span>Pickup: {dayjs(d.collectionDate).format("DD MMM YYYY")}</span>
-                    ) : null}
-                    {d.deliveryDate ? (
-                      <span>Delivery: {dayjs(d.deliveryDate).format("DD MMM YYYY")}</span>
-                    ) : null}
-                    <span>
-                      Declined: {dayjs(d.createdAt).format("DD MMM YYYY, h:mm A")}
-                    </span>
-                  </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          )}
+
+                {reasons.length > 0 ? (
+                  <div
+                    style={{
+                      padding: 14,
+                      border: "1px solid var(--line)",
+                      borderRadius: 12,
+                      background: "#fff",
+                    }}
+                  >
+                    <strong style={{ fontSize: 14 }}>Rejection reasons</strong>
+                    <div
+                      style={{
+                        marginTop: 12,
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 8,
+                      }}
+                    >
+                      {reasons.map((r) => {
+                        const pct = totalDeclines
+                          ? Math.round((r.count / totalDeclines) * 100)
+                          : 0;
+                        return (
+                          <div key={r.key}>
+                            <div
+                              style={{
+                                display: "flex",
+                                justifyContent: "space-between",
+                                gap: 8,
+                                fontSize: 13,
+                                marginBottom: 4,
+                              }}
+                            >
+                              <span>{r.label}</span>
+                              <span style={{ color: "var(--muted)" }}>
+                                {r.count} · {pct}%
+                              </span>
+                            </div>
+                            <div
+                              style={{
+                                height: 6,
+                                borderRadius: 999,
+                                background: "var(--n-100, #eef1f6)",
+                                overflow: "hidden",
+                              }}
+                            >
+                              <div
+                                style={{
+                                  width: `${pct}%`,
+                                  height: "100%",
+                                  background: "#DC2626",
+                                }}
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : null}
+              </>
+            );
+          })()}
+
+          <div>
+            <strong style={{ fontSize: 14 }}>Recent rejections</strong>
+            <p className="jd-lead" style={{ margin: "4px 0 12px" }}>
+              Latest declines with the reason the shop gave.
+            </p>
+            {(shop?.declines || []).length === 0 ? (
+              <div
+                style={{
+                  padding: 24,
+                  textAlign: "center",
+                  color: "var(--muted)",
+                  border: "1px dashed var(--line)",
+                  borderRadius: 12,
+                }}
+              >
+                This shop has not declined any orders.
+              </div>
+            ) : (
+              <div style={{ display: "grid", gap: 10 }}>
+                {(shop?.declines || []).map((d) => (
+                  <div
+                    key={d.id}
+                    style={{
+                      border: "1px solid var(--line)",
+                      borderRadius: 12,
+                      padding: 14,
+                      background: "#fff",
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        gap: 12,
+                        flexWrap: "wrap",
+                        alignItems: "center",
+                      }}
+                    >
+                      <div style={{ fontWeight: 700, color: "#0F172A" }}>
+                        {d.orderTrackId
+                          ? `Order #${d.orderTrackId}`
+                          : `Booking #${d.bookingId}`}
+                      </div>
+                      <Badge tone="danger">Rejected</Badge>
+                    </div>
+                    <div
+                      style={{
+                        marginTop: 8,
+                        padding: "8px 10px",
+                        background: "#FEF2F2",
+                        border: "1px solid #FECACA",
+                        borderRadius: 8,
+                        color: "#991B1B",
+                        fontSize: 13,
+                      }}
+                    >
+                      <span style={{ fontWeight: 600 }}>Reason: </span>
+                      {d.reason || "No reason provided"}
+                    </div>
+                    <div
+                      style={{
+                        marginTop: 8,
+                        display: "flex",
+                        gap: 16,
+                        flexWrap: "wrap",
+                        fontSize: 12,
+                        color: "var(--muted)",
+                      }}
+                    >
+                      {d.customerName ? (
+                        <span>Customer: {d.customerName}</span>
+                      ) : null}
+                      {d.collectionDate ? (
+                        <span>
+                          Pickup: {dayjs(d.collectionDate).format("DD MMM YYYY")}
+                        </span>
+                      ) : null}
+                      {d.deliveryDate ? (
+                        <span>
+                          Delivery: {dayjs(d.deliveryDate).format("DD MMM YYYY")}
+                        </span>
+                      ) : null}
+                      <span>
+                        Rejected:{" "}
+                        {dayjs(d.createdAt).format("DD MMM YYYY, h:mm A")}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -1672,7 +1803,7 @@ export default function ShopDetails() {
             </div>
 
             <ShopRoutingPolicyCard shopUserId={biz?.id} />
-<div style={{ ...CARD, borderColor: "var(--danger)" }}>
+            <div style={{ ...CARD, borderColor: "var(--danger)" }}>
               <strong style={{ color: "var(--danger)" }}>Danger zone</strong>
               <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 12 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>

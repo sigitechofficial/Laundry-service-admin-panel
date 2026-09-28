@@ -868,6 +868,28 @@ export const api = createApi({
           ...(returningOnly ? { returningOnly: 1 } : {}),
         },
       }),
+      providesTags: (_r, _e, arg) => [
+        { type: "Customers", id: `shop-${arg?.shopId}` },
+        "Customers",
+      ],
+    }),
+
+    excludeCustomerFromShop: builder.mutation({
+      query: ({ customerId, shopId, reason } = {}) => ({
+        url: "admin/customerShopExclusions",
+        method: "POST",
+        body: { customerId, shopId, reason },
+      }),
+      invalidatesTags: ["Customers", "Shops"],
+    }),
+
+    includeCustomerForShop: builder.mutation({
+      query: ({ customerId, shopId } = {}) => ({
+        url: "admin/customerShopExclusions",
+        method: "DELETE",
+        body: { customerId, shopId },
+      }),
+      invalidatesTags: ["Customers", "Shops"],
     }),
 
     getShopAssignmentPolicy: builder.query({
@@ -2289,9 +2311,15 @@ export const api = createApi({
     }),
 
     getAllCoupons: builder.query({
-      query: ({ page = 1, limit = 10, isActive = true } = {}) => ({
-        url: `admin/getAllCoupons?page=${page}&limit=${limit}&isActive=${isActive}`,
+      query: ({ page = 1, limit = 10, isActive = true, zoneId } = {}) => ({
+        url: "admin/getAllCoupons",
         method: "GET",
+        params: {
+          page,
+          limit,
+          isActive,
+          ...(zoneId ? { zoneId } : {}),
+        },
       }),
       providesTags: ["Coupons"],
     }),
@@ -2444,6 +2472,8 @@ export const {
   useGetShopDetailsQuery,
   useGetShopRevenueQuery,
   useGetShopCustomersQuery,
+  useExcludeCustomerFromShopMutation,
+  useIncludeCustomerForShopMutation,
   useGetPendingAgentsQuery,
   useGetRejectedAgentsQuery,
   useUpdateAgentApprovalMutation,

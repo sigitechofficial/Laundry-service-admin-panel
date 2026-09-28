@@ -1,4 +1,4 @@
-import { Badge } from "../../../design-system";
+import { Badge, Button } from "../../../design-system";
 import { formatMoney } from "../../../utilities/formatters";
 import { customerShopStat } from "../../order-management/returningCustomerStat";
 
@@ -21,6 +21,8 @@ const PANEL = {
  * @param {number|string|null} [props.selectedShopId] - highlight / filter selection
  * @param {(shop: object|null) => void} [props.onSelectShop] - click row to filter orders
  * @param {boolean} [props.returningOnly] - show only returning shops
+ * @param {(shop: object) => void} [props.onToggleExclusion] - exclude/include shop for customer
+ * @param {number|string|null} [props.exclusionBusyShopId]
  */
 export default function CustomerShopHistoryPanel({
   history = [],
@@ -29,11 +31,15 @@ export default function CustomerShopHistoryPanel({
   selectedShopId = null,
   onSelectShop,
   returningOnly = false,
+  onToggleExclusion,
+  exclusionBusyShopId = null,
 }) {
   const allRows = Array.isArray(history) ? history : [];
   const rows = returningOnly ? allRows.filter((h) => h.isReturning) : allRows;
   const returningCount = allRows.filter((h) => h.isReturning).length;
+  const excludedCount = allRows.filter((h) => h.isExcluded).length;
   const selectable = typeof onSelectShop === "function";
+  const canExclude = typeof onToggleExclusion === "function";
   const money = (n) => formatMoney(Number(n) || 0, currencySymbol);
 
   return (
@@ -53,6 +59,7 @@ export default function CustomerShopHistoryPanel({
           <span style={{ fontSize: 12, color: "var(--muted)" }}>
             {allRows.length} shop{allRows.length === 1 ? "" : "s"}
             {returningCount ? ` · returning at ${returningCount}` : ""}
+            {excludedCount ? ` · excluded ${excludedCount}` : ""}
           </span>
         ) : null}
       </div>
@@ -94,15 +101,10 @@ export default function CustomerShopHistoryPanel({
               selectedShopId != null &&
               String(selectedShopId) === String(h.shopId);
             const RowTag = selectable ? "button" : "div";
+            const busy = String(exclusionBusyShopId) === String(h.shopId);
             return (
-              <RowTag
+              <div
                 key={h.shopId}
-                type={selectable ? "button" : undefined}
-                onClick={
-                  selectable
-                    ? () => onSelectShop(selected ? null : h)
-                    : undefined
-                }
                 style={{
                   display: "flex",
                   alignItems: "center",
@@ -112,23 +114,36 @@ export default function CustomerShopHistoryPanel({
                   borderRadius: 10,
                   border: selected
                     ? "1px solid var(--accent, #20307f)"
-                    : "1px solid var(--line, #e6e9f0)",
+                    : h.isExcluded
+                      ? "1px solid #FECACA"
+                      : "1px solid var(--line, #e6e9f0)",
                   background: selected
                     ? "var(--brand-50, #eef2ff)"
-                    : h.isReturning
-                      ? "var(--brand-50, #f5f7ff)"
-                      : "transparent",
-                  cursor: selectable ? "pointer" : "default",
-                  textAlign: "left",
-                  width: "100%",
+                    : h.isExcluded
+                      ? "#FEF2F2"
+                      : h.isReturning
+                        ? "var(--brand-50, #f5f7ff)"
+                        : "transparent",
                 }}
               >
-                <span
+                <RowTag
+                  type={selectable ? "button" : undefined}
+                  onClick={
+                    selectable
+                      ? () => onSelectShop(selected ? null : h)
+                      : undefined
+                  }
                   style={{
                     display: "flex",
                     flexDirection: "column",
                     gap: 4,
                     minWidth: 0,
+                    flex: 1,
+                    border: "none",
+                    background: "transparent",
+                    cursor: selectable ? "pointer" : "default",
+                    textAlign: "left",
+                    padding: 0,
                   }}
                 >
                   <span
@@ -143,20 +158,27 @@ export default function CustomerShopHistoryPanel({
                     {h.isReturning ? (
                       <Badge tone="brand">Returning</Badge>
                     ) : null}
+                    {h.isExcluded ? (
+                      <Badge tone="danger">Excluded</Badge>
+                    ) : null}
                   </span>
                   <span style={{ fontSize: 12, color: "var(--muted)" }}>
                     {stat
                       ? stat.count
                       : `${h.totalOrders} order${h.totalOrders === 1 ? "" : "s"}`}
-                    {selectable ? " · click to filter orders" : null}
+                    {h.exclusionReason
+                      ? ` · ${h.exclusionReason}`
+                      : selectable
+                        ? " · click to filter orders"
+                        : null}
                   </span>
-                </span>
+                </RowTag>
                 <span
                   style={{
                     display: "flex",
                     flexDirection: "column",
                     alignItems: "flex-end",
-                    gap: 2,
+                    gap: 6,
                     flexShrink: 0,
                   }}
                 >
@@ -164,8 +186,21 @@ export default function CustomerShopHistoryPanel({
                   <span style={{ fontSize: 11, color: "var(--muted)" }}>
                     shop spend
                   </span>
+                  {canExclude ? (
+                    <Button
+                      size="sm"
+                      variant={h.isExcluded ? "secondary" : "danger"}
+                      disabled={busy}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onToggleExclusion(h);
+                      }}
+                    >
+                      {busy ? "…" : h.isExcluded ? "Include" : "Exclude"}
+                    </Button>
+                  ) : null}
                 </span>
-              </RowTag>
+              </div>
             );
           })}
         </div>

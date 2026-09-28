@@ -12,7 +12,7 @@ import {
   Table,
 } from "../../../design-system";
 import { useNavigate, useParams } from "react-router-dom";
-import { useEditCustomerMutation, useGetCustomerByIdQuery } from "../../../store/services/api";
+import { useEditCustomerMutation, useGetCustomerByIdQuery, useExcludeCustomerFromShopMutation, useIncludeCustomerForShopMutation } from "../../../store/services/api";
 import { Delay } from "../../../components/shared/Loaders";
 import ZoiperCallButton from "../../../components/shared/ZoiperCallButton";
 import useToaster from "../../../components/ui/Toaster";
@@ -74,6 +74,9 @@ export default function CustomerDetails() {
 
   const { data, isLoading, isError, refetch } = useGetCustomerByIdQuery(id, { skip: !id });
   const [editCustomer, { isLoading: isSavingCustomer }] = useEditCustomerMutation();
+  const [excludeCustomerFromShop] = useExcludeCustomerFromShopMutation();
+  const [includeCustomerForShop] = useIncludeCustomerForShopMutation();
+  const [exclusionBusyShopId, setExclusionBusyShopId] = useState(null);
   const userDetails = data?.data?.userDetails;
   const bookingDetails = useMemo(
     () => data?.data?.bookingDetails ?? [],
@@ -221,6 +224,36 @@ export default function CustomerDetails() {
       (h) => String(h.shopId) === String(shopFilterId)
     );
   }, [customerShopHistory, shopFilterId]);
+
+  const toggleShopExclusion = async (shop) => {
+    if (!id || !shop?.shopId) return;
+    setExclusionBusyShopId(shop.shopId);
+    try {
+      if (shop.isExcluded) {
+        await includeCustomerForShop({
+          customerId: id,
+          shopId: shop.shopId,
+        }).unwrap();
+        success("Customer included for this shop again");
+      } else {
+        const reason = window.prompt(
+          "Why exclude this customer from this shop? (optional)",
+          "Customer not satisfied with this shop"
+        );
+        if (reason === null) return;
+        await excludeCustomerFromShop({
+          customerId: id,
+          shopId: shop.shopId,
+          reason: reason.trim() || undefined,
+        }).unwrap();
+        success("Customer excluded from this shop");
+      }
+    } catch (err) {
+      showError(getApiErrorMessage(err) || "Could not update shop exclusion");
+    } finally {
+      setExclusionBusyShopId(null);
+    }
+  };
 
   const preferredShopName =
     customerShopHistory[0]?.shopName ||
@@ -482,6 +515,11 @@ export default function CustomerDetails() {
                 tone: "success",
               },
               {
+                label: "Excluded shops",
+                value: customerShopHistory.filter((h) => h.isExcluded).length,
+                tone: "danger",
+              },
+              {
                 label: "Shop spend (all)",
                 value: formatMoney(
                   customerShopHistory.reduce(
@@ -494,6 +532,10 @@ export default function CustomerDetails() {
               },
             ]}
           />
+          <p className="jd-lead" style={{ margin: 0 }}>
+            Exclude a shop when this customer is not satisfied — new marketplace
+            orders skip that shop. Admin can still assign manually.
+          </p>
           <CustomerShopHistoryPanel
             title="Returning shops"
             history={customerShopHistory}
@@ -504,6 +546,8 @@ export default function CustomerDetails() {
               setShopFilterId(shop?.shopId != null ? String(shop.shopId) : "");
               if (shop) setActiveTab("orders");
             }}
+            onToggleExclusion={toggleShopExclusion}
+            exclusionBusyShopId={exclusionBusyShopId}
           />
           <CustomerShopHistoryPanel
             title="All shops · spend"
@@ -514,6 +558,8 @@ export default function CustomerDetails() {
               setShopFilterId(shop?.shopId != null ? String(shop.shopId) : "");
               if (shop) setActiveTab("orders");
             }}
+            onToggleExclusion={toggleShopExclusion}
+            exclusionBusyShopId={exclusionBusyShopId}
           />
         </div>
       )}

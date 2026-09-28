@@ -115,6 +115,10 @@ export function buildInvoiceView(invoiceDetails, fallbackShopName = "") {
   const serviceCharge = Number(invoiceDetails?.billingDetail?.serviceCharge ?? 0);
   const minimumOrderFee = Number(invoiceDetails?.billingDetail?.upfrontAmount ?? 0);
   const discount = Number(invoiceDetails?.billingDetail?.discount ?? 0);
+  const couponCode =
+    invoiceDetails?.couponRedemption?.code ||
+    invoiceDetails?.coupon?.code ||
+    null;
   const tax = Number(
     invoiceDetails?.billingDetail?.tax ?? invoiceDetails?.billingDetail?.vat ?? NaN
   );
@@ -156,6 +160,7 @@ export function buildInvoiceView(invoiceDetails, fallbackShopName = "") {
     minimumOrderFee,
     serviceCharge,
     discount,
+    couponCode,
     grandTotal,
     pickupWindow,
     deliveryWindow,
@@ -222,7 +227,10 @@ function settlementHtml(view, { rowClass = "row", grandClass = "row grand", head
   }
   rows.push(`<div class="${rowClass}"><span>Service fee</span><span>${m(s.serviceFee)}</span></div>`);
   if (Number(s.driverTip) > 0) rows.push(`<div class="${rowClass}"><span>Tip</span><span>${m(s.driverTip)}</span></div>`);
-  if (Number(s.discount) > 0) rows.push(`<div class="${rowClass}"><span>Discount</span><span>-${m(s.discount)}</span></div>`);
+  if (Number(s.discount) > 0)
+    rows.push(
+      `<div class="${rowClass}"><span>Discount${view.couponCode ? ` (${view.couponCode})` : ""}</span><span>-${m(s.discount)}</span></div>`
+    );
   rows.push(`<div class="${grandClass}"><span>Total order amount</span><span>${m(s.totalOrderAmount)}</span></div>`);
   if (Number(paid.totalPaid) > 0) {
     rows.push(`<div class="${lineClass}"></div>`);
@@ -339,7 +347,71 @@ export function thermalInvoiceHtml(view) {
   return `<!doctype html><html><head><meta charset="utf-8"/><title>58mm Thermal</title><style>body{font-family:'Courier New',monospace}.ticket{width:58mm;margin:0 auto;padding:8px}.row{display:flex;justify-content:space-between;font-size:11px}.subrow{display:flex;justify-content:space-between;font-size:10px;padding-left:8px;color:#374151}.line{border-top:1px dashed #333;margin:6px 0}.strong{font-weight:700}</style></head><body><div class="ticket"><div style="text-align:center;font-weight:700">justDray cleaner</div><div style="text-align:center;font-size:11px">Customer Receipt</div><div style="text-align:center;font-size:10px">Format: 58mm Thermal</div><div class="line"></div><div class="row"><span>Invoice</span><span>${view.invoiceNo}</span></div><div class="row"><span>Date</span><span>${view.dateText}</span></div><div class="row"><span>Pickup</span><span>${view.pickupWindow}</span></div><div class="row"><span>Delivery</span><span>${view.deliveryWindow}</span></div><div class="line"></div><div><b>${view.customerName}</b></div><div style="font-size:10px">${view.emailOrPhone || ""}</div><div style="font-size:10px">${view.addressText}</div><div class="line"></div><div class="row strong"><span>Items (${view.totalItems})</span><span>Amount</span></div>${itemRows}<div class="line"></div>${settlementHtml(view, { rowClass: "row", grandClass: "row strong", headClass: "row strong", lineClass: "line" })}</div></body></html>`;
 }
 
-export function invoicePrintHtml(view, format) {
+function escapeHtml(s) {
+  return String(s ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function tagBarcodeValue(tag, orderTrackId) {
+  const raw = String(tag?.subCategoryBarCode || "").trim();
+  const lower = raw.toLowerCase();
+  const isPath =
+    !raw ||
+    lower.includes("/") ||
+    lower.includes("barcodeimages") ||
+    lower.endsWith(".png") ||
+    lower.startsWith("public");
+  if (!isPath) return raw;
+  const track = String(tag?.orderTrackId || orderTrackId || "").trim();
+  const piece = tag?.printIndex;
+  if (track && piece) return `${track}-${piece}`;
+  return track || "";
+}
+
+/** One physical slip per tag (page-break) for browser / system printer. */
+export function tagsInvoiceHtml(labelData, currencySymbol = "£") {
+  const tags = labelData?.tags || [];
+  const orderTrackId = labelData?.orderTrackId || "";
+  const total = labelData?.totalTags || tags.length;
+  if (!tags.length) {
+    return `<!doctype html><html><body><p>No tags</p></body></html>`;
+  }
+  const slips = tags
+    .map((t, i) => {
+      const piece = t.printIndex || i + 1;
+      const line2 = `${t.orderTrackId || orderTrackId} - ${t.customerName || ""}`.toUpperCase();
+      const price = Number(t.subCategoryPrice || 0).toFixed(2);
+      const bc = tagBarcodeValue(t, orderTrackId);
+      return `<div class="slip">
+        <div class="row strong"><span>Order #</span><span>Piece ${piece}/${total}</span></div>
+        <div class="strong">${escapeHtml(line2)}</div>
+        <div class="row strong"><span>${escapeHtml(t.printDisplay || t.subCategoryName || "")}</span><span>${escapeHtml(currencySymbol)}${price}</span></div>
+        <div>SVR: ${escapeHtml(String(t.serviceOrder ?? ""))}</div>
+        <div class="muted">${escapeHtml(t.addOnsDisplay || "No add-ons")}</div>
+        ${bc ? `<div class="bc">BC: ${escapeHtml(bc)}</div>` : ""}
+      </div>`;
+    })
+    .join("");
+  return `<!doctype html><html><head><meta charset="utf-8"/><title>Garment Tags</title>
+<style>
+  @page { size: 58mm auto; margin: 2mm; }
+  body { font-family: 'Courier New', monospace; margin: 0; }
+  .slip { width: 54mm; padding: 3mm; page-break-after: always; border-bottom: 1px dashed #999; }
+  .slip:last-child { page-break-after: auto; }
+  .row { display: flex; justify-content: space-between; font-size: 11px; }
+  .strong { font-weight: 700; font-size: 11px; margin: 2px 0; }
+  .muted { font-size: 10px; color: #374151; margin: 2px 0; }
+  .bc { font-size: 10px; text-align: center; margin-top: 4px; font-weight: 700; }
+</style></head><body>${slips}</body></html>`;
+}
+
+export function invoicePrintHtml(view, format, labelData) {
+  if (format === "tags") {
+    return tagsInvoiceHtml(labelData, view?.currencySymbol || "£");
+  }
   if (!view) return "";
   return format === "thermal" ? thermalInvoiceHtml(view) : a4InvoiceHtml(view);
 }

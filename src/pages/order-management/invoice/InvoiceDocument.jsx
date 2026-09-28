@@ -197,7 +197,10 @@ export default function InvoiceDocument({ view }) {
           ) : null}
           {settlement.discount > 0 ? (
             <div className={styles.breakRow}>
-              <span>Discount</span>
+              <span>
+                Discount
+                {view.couponCode ? ` (${view.couponCode})` : ""}
+              </span>
               <strong>-{money(view, settlement.discount)}</strong>
             </div>
           ) : null}
