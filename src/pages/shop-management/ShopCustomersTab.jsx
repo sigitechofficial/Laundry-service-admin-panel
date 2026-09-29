@@ -23,6 +23,9 @@ import {
 } from "../directory-table/directoryTable";
 import { joinMeta } from "../directory-table/directoryTableUtils";
 import { customerShopStat } from "../order-management/returningCustomerStat";
+import AssignCustomerShopModal from "../customer-management/AssignCustomerShopModal";
+import UnlinkCustomerShopModal from "../customer-management/UnlinkCustomerShopModal";
+import CustomerRoutingEventsPanel from "../customer-management/CustomerRoutingEventsPanel";
 
 const CARD = {
   padding: 16,
@@ -32,33 +35,31 @@ const CARD = {
   boxShadow: "0 1px 2px rgba(16, 21, 31, 0.04)",
 };
 
-const TOP_OPTIONS = [
-  { value: "5", label: "Top 5" },
-  { value: "10", label: "Top 10" },
-];
-
 const LIST_FILTER_OPTIONS = [
   { value: "all", label: "All customers" },
   { value: "returning", label: "Returning only" },
+  { value: "assigned", label: "Assigned only" },
   { value: "excluded", label: "Excluded only" },
 ];
 
 /**
  * Shop detail → Customers tab.
- * Returning customers, spend, top-N, and per-customer shop exclusion.
+ * Returning badges live in the main list; assign preferred shop + exclude
+ * are independent controls.
  */
 export default function ShopCustomersTab({ shopId, currencySymbol = "£" }) {
   const navigate = useNavigate();
-  const [topN, setTopN] = useState("10");
   const [listFilter, setListFilter] = useState("all");
   const [search, setSearch] = useState("");
   const [busyId, setBusyId] = useState(null);
+  const [assignTarget, setAssignTarget] = useState(null);
+  const [unlinkTarget, setUnlinkTarget] = useState(null);
 
   const returningOnly = listFilter === "returning";
   const { data, isLoading, isError, refetch, isFetching } = useGetShopCustomersQuery(
     {
       shopId,
-      top: Number(topN) === 5 ? 5 : 10,
+      top: 10,
       returningOnly,
     },
     { skip: !shopId, refetchOnMountOrArgChange: true }
@@ -68,7 +69,9 @@ export default function ShopCustomersTab({ shopId, currencySymbol = "£" }) {
 
   const payload = data?.data ?? data ?? {};
   const summary = payload.summary || {};
-  const topReturning = Array.isArray(payload.topReturning) ? payload.topReturning : [];
+  const recentRoutingEvents = Array.isArray(payload.recentRoutingEvents)
+    ? payload.recentRoutingEvents
+    : [];
   const customers = useMemo(
     () => (Array.isArray(payload.customers) ? payload.customers : []),
     [payload.customers]
@@ -78,11 +81,13 @@ export default function ShopCustomersTab({ shopId, currencySymbol = "£" }) {
     let rows = customers;
     if (listFilter === "excluded") {
       rows = rows.filter((c) => c.isExcluded);
+    } else if (listFilter === "assigned") {
+      rows = rows.filter((c) => c.hasActiveAssignment);
     }
     if (!search.trim()) return rows;
     const q = search.toLowerCase();
     return rows.filter((c) =>
-      [c.name, c.email, c.phoneNum, c.customerId]
+      [c.name, c.email, c.phoneNum, c.customerId, c.assignedShopName]
         .some((v) => String(v ?? "").toLowerCase().includes(q))
     );
   }, [customers, search, listFilter]);
@@ -141,18 +146,28 @@ export default function ShopCustomersTab({ shopId, currencySymbol = "£" }) {
           isReturning: row.isReturning,
         });
         return (
-          <div style={{ display: "grid", gap: 4 }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              flexWrap: "wrap",
+            }}
+          >
             <span style={{ fontWeight: 600, fontSize: 13 }}>
               {stat ? stat.count : `${row.totalOrders} orders`}
             </span>
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-              {row.isReturning ? (
-                <DirectoryDotPill tone="brand">Returning</DirectoryDotPill>
-              ) : null}
-              {row.isExcluded ? (
-                <Badge tone="danger">Excluded</Badge>
-              ) : null}
-            </div>
+            {row.isReturning ? (
+              <DirectoryDotPill tone="brand">Returning</DirectoryDotPill>
+            ) : null}
+            {row.hasActiveAssignment ? (
+              <Badge tone="success">
+                {row.isAssignedHere
+                  ? "Assigned here"
+                  : `Assigned → ${row.assignedShopName || "shop"}`}
+              </Badge>
+            ) : null}
+            {row.isExcluded ? <Badge tone="danger">Excluded</Badge> : null}
           </div>
         );
       },
@@ -187,8 +202,39 @@ export default function ShopCustomersTab({ shopId, currencySymbol = "£" }) {
         <DirectoryActions>
           <DirectoryActionView
             title="Open customer"
-            onClick={() => navigate(`/customer-management/details/${row.customerId}`)}
+            onClick={() =>
+              navigate(`/customer-management/details/${row.customerId}`)
+            }
           />
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() =>
+              setAssignTarget({
+                customerId: row.customerId,
+                name: row.name,
+              })
+            }
+            title="Assign preferred shop for new orders"
+          >
+            Assign
+          </Button>
+          {row.hasActiveAssignment ? (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() =>
+                setUnlinkTarget({
+                  customerId: row.customerId,
+                  name: row.name,
+                  assignedShopName: row.assignedShopName,
+                })
+              }
+              title="Unlink preferred shop assignment"
+            >
+              Unlink
+            </Button>
+          ) : null}
           <Button
             variant={row.isExcluded ? "secondary" : "danger"}
             size="sm"
@@ -197,7 +243,7 @@ export default function ShopCustomersTab({ shopId, currencySymbol = "£" }) {
             title={
               row.isExcluded
                 ? "Allow this customer’s orders to reach this shop again"
-                : "Stop routing this customer’s new orders to this shop"
+                : "Stop routing this customer’s new orders to this shop (bad experience)"
             }
           >
             {busyId === row.customerId
@@ -213,7 +259,14 @@ export default function ShopCustomersTab({ shopId, currencySymbol = "£" }) {
 
   if (isLoading && !payload.summary) {
     return (
-      <div style={{ minHeight: 200, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div
+        style={{
+          minHeight: 200,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
         <Delay />
       </div>
     );
@@ -235,8 +288,10 @@ export default function ShopCustomersTab({ shopId, currencySymbol = "£" }) {
   return (
     <div style={{ display: "grid", gap: 16 }}>
       <p className="jd-lead" style={{ margin: 0 }}>
-        Exclude a customer from this shop when they are not satisfied — their
-        new orders go to other shops only. Admin can still assign manually.
+        <strong>Returning</strong> = ≥{payload.returningThreshold ?? 2}{" "}
+        completed here. <strong>Assign</strong> sets preferred shop for new
+        orders (not an exclude). <strong>Exclude</strong> blocks a shop after
+        bad experience. Unlink clears assignment; exclusions stay.
       </p>
       <DirectoryMetrics
         items={[
@@ -252,6 +307,11 @@ export default function ShopCustomersTab({ shopId, currencySymbol = "£" }) {
             hint: `≥ ${payload.returningThreshold ?? 2} completed at this shop`,
           },
           {
+            label: "Assigned",
+            value: summary.assignedCustomers ?? 0,
+            tone: "brand",
+          },
+          {
             label: "Excluded",
             value: summary.excludedCustomers ?? 0,
             tone: "danger",
@@ -264,112 +324,24 @@ export default function ShopCustomersTab({ shopId, currencySymbol = "£" }) {
         ]}
       />
 
-      <div style={CARD}>
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: 12,
-            flexWrap: "wrap",
-            marginBottom: 14,
-          }}
-        >
-          <div>
-            <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>
-              Top returning customers
-            </h2>
-            <p className="jd-lead" style={{ margin: "4px 0 0" }}>
-              Ranked by spend at this shop
-            </p>
-          </div>
-          <div style={{ minWidth: 120 }}>
-            <Select
-              aria-label="Top returning count"
-              value={topN}
-              onChange={(v) => setTopN(String(v ?? "10"))}
-              options={TOP_OPTIONS}
-            />
-          </div>
-        </div>
-
-        {topReturning.length === 0 ? (
-          <p style={{ margin: 0, color: "var(--muted)", fontSize: 13 }}>
-            No returning customers yet — need at least{" "}
-            {payload.returningThreshold ?? 2} completed orders at this shop.
-          </p>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {topReturning.map((row, index) => (
-              <button
-                key={row.customerId}
-                type="button"
-                onClick={() =>
-                  navigate(`/customer-management/details/${row.customerId}`)
-                }
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  gap: 12,
-                  padding: "10px 12px",
-                  borderRadius: 10,
-                  border: "1px solid var(--line, #e6e9f0)",
-                  background: "var(--brand-50, #f5f7ff)",
-                  cursor: "pointer",
-                  textAlign: "left",
-                }}
-              >
-                <span style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
-                  <span
-                    style={{
-                      width: 28,
-                      height: 28,
-                      borderRadius: 8,
-                      background: "#fff",
-                      border: "1px solid var(--line)",
-                      display: "inline-flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontWeight: 700,
-                      fontSize: 12,
-                      flexShrink: 0,
-                    }}
-                  >
-                    {index + 1}
-                  </span>
-                  <span style={{ minWidth: 0 }}>
-                    <strong style={{ fontSize: 13 }}>{row.name}</strong>
-                    <span
-                      style={{
-                        display: "block",
-                        fontSize: 12,
-                        color: "var(--muted)",
-                      }}
-                    >
-                      {row.completedOrders} completed · {row.totalOrders} total
-                    </span>
-                  </span>
-                  <Badge tone="brand">Returning</Badge>
-                </span>
-                <strong style={{ fontSize: 14, whiteSpace: "nowrap" }}>
-                  {money(row.totalSpend)}
-                </strong>
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-
       <div>
         <h2 style={{ margin: "0 0 12px", fontSize: 16, fontWeight: 700 }}>
           {returningOnly
             ? "Returning customers"
             : listFilter === "excluded"
               ? "Excluded customers"
-              : "All customers at this shop"}
+              : listFilter === "assigned"
+                ? "Assigned customers"
+                : "All customers at this shop"}
           {isFetching ? (
-            <span style={{ marginLeft: 8, fontSize: 12, color: "var(--muted)", fontWeight: 500 }}>
+            <span
+              style={{
+                marginLeft: 8,
+                fontSize: 12,
+                color: "var(--muted)",
+                fontWeight: 500,
+              }}
+            >
               Updating…
             </span>
           ) : null}
@@ -406,13 +378,39 @@ export default function ShopCustomersTab({ shopId, currencySymbol = "£" }) {
             empty={
               listFilter === "excluded"
                 ? "No customers are excluded from this shop"
-                : returningOnly
-                  ? "No returning customers at this shop"
-                  : "No customers have ordered at this shop yet"
+                : listFilter === "assigned"
+                  ? "No customers have an active preferred-shop assignment"
+                  : returningOnly
+                    ? "No returning customers at this shop"
+                    : "No customers have ordered at this shop yet"
             }
           />
         </DirectoryTableWrap>
       </div>
+
+      <CustomerRoutingEventsPanel
+        title="Recent routing changes"
+        events={recentRoutingEvents}
+        showCustomer
+        emptyText="No assign / exclude changes involving this shop yet."
+      />
+
+      <AssignCustomerShopModal
+        open={Boolean(assignTarget)}
+        customerId={assignTarget?.customerId}
+        customerName={assignTarget?.name}
+        sourceShopId={shopId}
+        onClose={() => setAssignTarget(null)}
+        onSuccess={() => refetch()}
+      />
+      <UnlinkCustomerShopModal
+        open={Boolean(unlinkTarget)}
+        customerId={unlinkTarget?.customerId}
+        customerName={unlinkTarget?.name}
+        assignedShopName={unlinkTarget?.assignedShopName}
+        onClose={() => setUnlinkTarget(null)}
+        onSuccess={() => refetch()}
+      />
     </div>
   );
 }

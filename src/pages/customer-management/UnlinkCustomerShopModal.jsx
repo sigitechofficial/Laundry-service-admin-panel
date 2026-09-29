@@ -1,0 +1,154 @@
+import { useState } from "react";
+import { Modal } from "../../design-system";
+import { useClearCustomerShopAssignmentMutation } from "../../store/services/api";
+import useToaster from "../../components/ui/Toaster";
+import { getApiErrorMessage } from "../../store/services/apiErrors";
+
+/**
+ * Unlink admin preferred-shop assignment.
+ * mode=relink → natural returning shop; mode=unlink → broadcast (exclusions stay).
+ */
+export default function UnlinkCustomerShopModal({
+  open,
+  customerId,
+  customerName,
+  assignedShopName,
+  onClose,
+  onSuccess,
+}) {
+  const toast = useToaster();
+  const [mode, setMode] = useState("unlink");
+  const [clearAssignment, { isLoading }] =
+    useClearCustomerShopAssignmentMutation();
+
+  const handleConfirm = async () => {
+    if (!customerId) return;
+    try {
+      const res = await clearAssignment({
+        customerId,
+        mode,
+      }).unwrap();
+      const data = res?.data ?? res;
+      if (mode === "relink") {
+        toast.success(
+          data?.activeAssignment?.shopName
+            ? `Relinked to ${data.activeAssignment.shopName}.`
+            : data?.note ||
+                "Assignment cleared; natural returning shop will drive preferred routing."
+        );
+      } else {
+        toast.success(
+          "Unlinked. New orders broadcast to zone shops (excluded shops still skipped)."
+        );
+      }
+      onSuccess?.();
+      onClose?.();
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, "Could not update assignment"));
+    }
+  };
+
+  return (
+    <Modal
+      open={open}
+      title="Unlink preferred shop"
+      description={
+        customerName
+          ? `Remove the admin preferred-shop link for ${customerName}${
+              assignedShopName ? ` (${assignedShopName})` : ""
+            }.`
+          : "Remove the admin preferred-shop link."
+      }
+      onClose={onClose}
+      primaryLabel={isLoading ? "Saving…" : "Confirm"}
+      secondaryLabel="Cancel"
+      onPrimary={() => {
+        if (isLoading) return;
+        handleConfirm();
+      }}
+      primaryDisabled={isLoading}
+    >
+      <div style={{ display: "grid", gap: 12 }}>
+        <p style={{ margin: 0, fontSize: 13, color: "var(--muted)" }}>
+          Excluded shops (bad experience) stay blocked either way.
+        </p>
+
+        <label
+          style={{
+            display: "flex",
+            gap: 10,
+            alignItems: "flex-start",
+            padding: 12,
+            borderRadius: 10,
+            border:
+              mode === "relink"
+                ? "2px solid var(--accent, #20307f)"
+                : "1px solid var(--line)",
+            cursor: "pointer",
+          }}
+        >
+          <input
+            type="radio"
+            name="unlink-mode"
+            checked={mode === "relink"}
+            onChange={() => setMode("relink")}
+            style={{ marginTop: 3 }}
+          />
+          <span>
+            <strong style={{ fontSize: 13 }}>
+              Relink to natural returning shop
+            </strong>
+            <span
+              style={{
+                display: "block",
+                fontSize: 12,
+                color: "var(--muted)",
+                marginTop: 4,
+              }}
+            >
+              Prefer the shop where this customer already returns (or last
+              completed in zone). Clears the override if it already matches.
+            </span>
+          </span>
+        </label>
+
+        <label
+          style={{
+            display: "flex",
+            gap: 10,
+            alignItems: "flex-start",
+            padding: 12,
+            borderRadius: 10,
+            border:
+              mode === "unlink"
+                ? "2px solid var(--accent, #20307f)"
+                : "1px solid var(--line)",
+            cursor: "pointer",
+          }}
+        >
+          <input
+            type="radio"
+            name="unlink-mode"
+            checked={mode === "unlink"}
+            onChange={() => setMode("unlink")}
+            style={{ marginTop: 3 }}
+          />
+          <span>
+            <strong style={{ fontSize: 13 }}>Fully unlink</strong>
+            <span
+              style={{
+                display: "block",
+                fontSize: 12,
+                color: "var(--muted)",
+                marginTop: 4,
+              }}
+            >
+              No preferred override. New orders broadcast to all zone shops
+              except excluded ones.
+            </span>
+          </span>
+        </label>
+      </div>
+    </Modal>
+  );
+}

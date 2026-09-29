@@ -23,6 +23,9 @@ const PANEL = {
  * @param {boolean} [props.returningOnly] - show only returning shops
  * @param {(shop: object) => void} [props.onToggleExclusion] - exclude/include shop for customer
  * @param {number|string|null} [props.exclusionBusyShopId]
+ * @param {() => void} [props.onAssignShop] - open assign preferred shop modal
+ * @param {() => void} [props.onUnlinkAssignment] - open unlink modal when customer has active assignment
+ * @param {object|null} [props.activeAssignment]
  */
 export default function CustomerShopHistoryPanel({
   history = [],
@@ -33,13 +36,18 @@ export default function CustomerShopHistoryPanel({
   returningOnly = false,
   onToggleExclusion,
   exclusionBusyShopId = null,
+  onAssignShop,
+  onUnlinkAssignment,
+  activeAssignment = null,
 }) {
   const allRows = Array.isArray(history) ? history : [];
   const rows = returningOnly ? allRows.filter((h) => h.isReturning) : allRows;
   const returningCount = allRows.filter((h) => h.isReturning).length;
   const excludedCount = allRows.filter((h) => h.isExcluded).length;
+  const assigned = activeAssignment || allRows.find((h) => h.activeAssignment)?.activeAssignment;
   const selectable = typeof onSelectShop === "function";
   const canExclude = typeof onToggleExclusion === "function";
+  const canAssign = typeof onAssignShop === "function";
   const money = (n) => formatMoney(Number(n) || 0, currencySymbol);
 
   return (
@@ -55,13 +63,26 @@ export default function CustomerShopHistoryPanel({
         }}
       >
         <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>{title}</h2>
-        {allRows.length ? (
-          <span style={{ fontSize: 12, color: "var(--muted)" }}>
-            {allRows.length} shop{allRows.length === 1 ? "" : "s"}
-            {returningCount ? ` · returning at ${returningCount}` : ""}
-            {excludedCount ? ` · excluded ${excludedCount}` : ""}
-          </span>
-        ) : null}
+        <span style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          {allRows.length ? (
+            <span style={{ fontSize: 12, color: "var(--muted)" }}>
+              {allRows.length} shop{allRows.length === 1 ? "" : "s"}
+              {returningCount ? ` · returning at ${returningCount}` : ""}
+              {excludedCount ? ` · excluded ${excludedCount}` : ""}
+              {assigned ? ` · assigned → ${assigned.shopName}` : ""}
+            </span>
+          ) : null}
+          {canAssign ? (
+            <Button size="sm" variant="secondary" onClick={onAssignShop}>
+              Assign shop
+            </Button>
+          ) : null}
+          {assigned && typeof onUnlinkAssignment === "function" ? (
+            <Button size="sm" variant="secondary" onClick={onUnlinkAssignment}>
+              Unlink
+            </Button>
+          ) : null}
+        </span>
       </div>
 
       {selectable && selectedShopId != null && String(selectedShopId) !== "" ? (
@@ -157,6 +178,9 @@ export default function CustomerShopHistoryPanel({
                     <strong style={{ fontSize: 13 }}>{h.shopName}</strong>
                     {h.isReturning ? (
                       <Badge tone="brand">Returning</Badge>
+                    ) : null}
+                    {h.isAssignedShop ? (
+                      <Badge tone="success">Assigned</Badge>
                     ) : null}
                     {h.isExcluded ? (
                       <Badge tone="danger">Excluded</Badge>

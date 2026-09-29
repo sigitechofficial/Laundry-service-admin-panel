@@ -5,7 +5,7 @@ import {
   useGetCustomerByIdQuery,
 } from "../../../store/services/api";
 import useToaster from "../../../components/ui/Toaster";
-import { Button, Field, Input, PageHeader, PasswordInput } from "../../../design-system";
+import { Button, Field, Input, PageHeader, PasswordInput, PhoneInput } from "../../../design-system";
 import { Delay } from "../../../components/shared/Loaders";
 import { useForm } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
@@ -29,12 +29,15 @@ export default function EditCustomer() {
   const {
     register,
     handleSubmit,
+    watch,
     formState: { errors },
     reset,
   } = useForm({
     resolver: yupResolver(editCustomerSchema),
     defaultValues: editCustomerDefaultValues,
   });
+
+  const phoneNumValue = watch("phoneNum");
 
   const onSubmit = async (form) => {
     const body = {
@@ -99,11 +102,11 @@ export default function EditCustomer() {
               error={errors.phoneNum?.message}
               htmlFor="edit-customer-phone"
             >
-              <Input
+              <PhoneInput
                 id="edit-customer-phone"
-                type="tel"
-                inputMode="tel"
+                countryCode={customer?.countryCode || "+44"}
                 placeholder="07911 123456"
+                value={phoneNumValue}
                 {...register("phoneNum")}
                 error={!!errors.phoneNum}
               />

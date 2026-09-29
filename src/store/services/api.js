@@ -915,6 +915,59 @@ export const api = createApi({
       invalidatesTags: ["Customers", "Shops"],
     }),
 
+    getCustomerAssignableShops: builder.query({
+      query: (customerId) => ({
+        url: `admin/customers/${customerId}/assignableShops`,
+        method: "GET",
+      }),
+      providesTags: (_r, _e, customerId) => [
+        { type: "Customers", id: `assignable-${customerId}` },
+        "Customers",
+      ],
+    }),
+
+    assignCustomerToShop: builder.mutation({
+      query: ({ customerId, shopId, note, sourceShopId } = {}) => ({
+        url: `admin/customers/${customerId}/shop-assignment`,
+        method: "POST",
+        body: { shopId, note, sourceShopId },
+      }),
+      invalidatesTags: ["Customers", "Shops"],
+    }),
+
+    clearCustomerShopAssignment: builder.mutation({
+      query: ({ customerId, mode = "unlink", note } = {}) => ({
+        url: `admin/customers/${customerId}/shop-assignment`,
+        method: "DELETE",
+        body: { mode, note },
+      }),
+      invalidatesTags: ["Customers", "Shops"],
+    }),
+
+    getCustomerRoutingEvents: builder.query({
+      query: ({ customerId, limit } = {}) => ({
+        url: `admin/customers/${customerId}/routing-events`,
+        method: "GET",
+        params: limit ? { limit } : undefined,
+      }),
+      providesTags: (_r, _e, arg) => [
+        { type: "Customers", id: `routing-${arg?.customerId}` },
+        "Customers",
+      ],
+    }),
+
+    getShopRoutingEvents: builder.query({
+      query: ({ shopId, limit } = {}) => ({
+        url: `admin/singleShopData/${shopId}/routing-events`,
+        method: "GET",
+        params: limit ? { limit } : undefined,
+      }),
+      providesTags: (_r, _e, arg) => [
+        { type: "Customers", id: `shop-routing-${arg?.shopId}` },
+        "Customers",
+      ],
+    }),
+
     getShopAssignmentPolicy: builder.query({
       query: (shopUserId) => ({
         url: `admin/shopAssignmentPolicy/${shopUserId}`,
@@ -2519,6 +2572,11 @@ export const {
   useGetShopCustomersQuery,
   useExcludeCustomerFromShopMutation,
   useIncludeCustomerForShopMutation,
+  useGetCustomerAssignableShopsQuery,
+  useAssignCustomerToShopMutation,
+  useClearCustomerShopAssignmentMutation,
+  useGetCustomerRoutingEventsQuery,
+  useGetShopRoutingEventsQuery,
   useGetPendingAgentsQuery,
   useGetRejectedAgentsQuery,
   useUpdateAgentApprovalMutation,

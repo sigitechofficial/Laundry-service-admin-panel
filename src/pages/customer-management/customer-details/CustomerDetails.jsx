@@ -12,7 +12,7 @@ import {
   Table,
 } from "../../../design-system";
 import { useNavigate, useParams } from "react-router-dom";
-import { useEditCustomerMutation, useGetCustomerByIdQuery, useExcludeCustomerFromShopMutation, useIncludeCustomerForShopMutation, useGetCustomerRecurringPlansQuery, useUpdateCustomerRecurringPlanMutation } from "../../../store/services/api";
+import { useEditCustomerMutation, useGetCustomerByIdQuery, useExcludeCustomerFromShopMutation, useIncludeCustomerForShopMutation, useGetCustomerRecurringPlansQuery, useUpdateCustomerRecurringPlanMutation, useGetCustomerRoutingEventsQuery } from "../../../store/services/api";
 import { Delay } from "../../../components/shared/Loaders";
 import ZoiperCallButton from "../../../components/shared/ZoiperCallButton";
 import useToaster from "../../../components/ui/Toaster";
@@ -35,6 +35,9 @@ import {
 import { BlockUserButton, AnonymizeDeleteModal } from "../../user-management/UserBlockActions";
 import { isAccountBlocked } from "../../../utilities/accountBlocked";
 import CustomerShopHistoryPanel from "./CustomerShopHistoryPanel";
+import AssignCustomerShopModal from "../AssignCustomerShopModal";
+import UnlinkCustomerShopModal from "../UnlinkCustomerShopModal";
+import CustomerRoutingEventsPanel from "../CustomerRoutingEventsPanel";
 
 const PANEL = {
   padding: 16,
@@ -86,6 +89,20 @@ export default function CustomerDetails() {
   const [excludeCustomerFromShop] = useExcludeCustomerFromShopMutation();
   const [includeCustomerForShop] = useIncludeCustomerForShopMutation();
   const [exclusionBusyShopId, setExclusionBusyShopId] = useState(null);
+  const [assignShopModalOpen, setAssignShopModalOpen] = useState(false);
+  const [unlinkShopModalOpen, setUnlinkShopModalOpen] = useState(false);
+  const { data: routingEventsRes, refetch: refetchRoutingEvents } =
+    useGetCustomerRoutingEventsQuery(
+      { customerId: id, limit: 40 },
+      { skip: !id || (activeTab !== "shops" && activeTab !== "overview") }
+    );
+  const routingEvents = useMemo(() => {
+    const list =
+      routingEventsRes?.data?.events ??
+      routingEventsRes?.events ??
+      [];
+    return Array.isArray(list) ? list : [];
+  }, [routingEventsRes]);
   const userDetails = data?.data?.userDetails;
   const bookingDetails = useMemo(
     () => data?.data?.bookingDetails ?? [],
@@ -102,6 +119,11 @@ export default function CustomerDetails() {
         : [],
     [data?.data?.customerShopHistory]
   );
+  const activeAssignment = useMemo(() => {
+    const fromHistory = customerShopHistory.find((h) => h.activeAssignment)
+      ?.activeAssignment;
+    return fromHistory || null;
+  }, [customerShopHistory]);
   const user = userDetails?.user;
   const customerPhone = formatUserPhone(user);
   const normalizedTel = String(customerPhone).replace(/[^+\d]/g, "");
@@ -594,8 +616,9 @@ export default function CustomerDetails() {
             ]}
           />
           <p className="jd-lead" style={{ margin: 0 }}>
-            Exclude a shop when this customer is not satisfied — new marketplace
-            orders skip that shop. Admin can still assign manually.
+            <strong>Assign</strong> sets a preferred shop for new orders (head-start
+            like returning). <strong>Exclude</strong> blocks a shop after bad
+            experience. Unlink clears assignment; exclusions stay.
           </p>
           <CustomerShopHistoryPanel
             title="Returning shops"
@@ -609,6 +632,11 @@ export default function CustomerDetails() {
             }}
             onToggleExclusion={toggleShopExclusion}
             exclusionBusyShopId={exclusionBusyShopId}
+            onAssignShop={() => setAssignShopModalOpen(true)}
+            onUnlinkAssignment={
+              activeAssignment ? () => setUnlinkShopModalOpen(true) : undefined
+            }
+            activeAssignment={activeAssignment}
           />
           <CustomerShopHistoryPanel
             title="All shops · spend"
@@ -621,6 +649,16 @@ export default function CustomerDetails() {
             }}
             onToggleExclusion={toggleShopExclusion}
             exclusionBusyShopId={exclusionBusyShopId}
+            onAssignShop={() => setAssignShopModalOpen(true)}
+            onUnlinkAssignment={
+              activeAssignment ? () => setUnlinkShopModalOpen(true) : undefined
+            }
+            activeAssignment={activeAssignment}
+          />
+          <CustomerRoutingEventsPanel
+            title="Routing history"
+            events={routingEvents}
+            emptyText="No assign / exclude changes for this customer yet."
           />
         </div>
       )}
@@ -978,6 +1016,34 @@ export default function CustomerDetails() {
           setAssignModal({ open: false, orderId: null, booking: null })
         }
         onSuccess={() => refetch()}
+      />
+
+      <AssignCustomerShopModal
+        open={assignShopModalOpen}
+        customerId={user?.id || id}
+        customerName={
+          [user?.firstName, user?.lastName].filter(Boolean).join(" ") ||
+          user?.email
+        }
+        onClose={() => setAssignShopModalOpen(false)}
+        onSuccess={() => {
+          refetch();
+          refetchRoutingEvents();
+        }}
+      />
+      <UnlinkCustomerShopModal
+        open={unlinkShopModalOpen}
+        customerId={user?.id || id}
+        customerName={
+          [user?.firstName, user?.lastName].filter(Boolean).join(" ") ||
+          user?.email
+        }
+        assignedShopName={activeAssignment?.shopName}
+        onClose={() => setUnlinkShopModalOpen(false)}
+        onSuccess={() => {
+          refetch();
+          refetchRoutingEvents();
+        }}
       />
 
       <AnonymizeDeleteModal
