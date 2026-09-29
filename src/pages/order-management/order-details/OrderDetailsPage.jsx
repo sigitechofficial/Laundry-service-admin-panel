@@ -23,6 +23,7 @@ import {
   useGetServiceComparisonQuery,
   useGetShopReviewByBookingQuery,
   useEditOrderMutation,
+  useUpdateOrderRecurringPlanMutation,
 } from "../../../store/services/api";
 import {
   formatDate,
@@ -48,7 +49,6 @@ import {
 import AssignOrderModal from "../order-modals/AssignOrderModal";
 import { customerShopStat } from "../returningCustomerStat";
 import OrderAssignActionButton from "../order-modals/OrderAssignActionButton";
-import PrintTagsToShopButton from "./PrintTagsToShopButton";
 import { canAdminAssignOrReassignFromBooking } from "../../../shared/adminAssignGate";
 import InvoiceDetailModal from "../invoice/InvoiceDetailModal";
 import IssueRefundModal from "./IssueRefundModal";
@@ -371,6 +371,8 @@ export default function OrderDetailsPage() {
   const { data: statusesResponse } = useGetAllOrderStatusesQuery();
   const [fetchInvoice, { isFetching: isFetchingInvoice }] = useLazyInvoiceCreationQuery();
   const [editOrder, { isLoading: isUpdatingStatus }] = useEditOrderMutation();
+  const [updateRecurringPlan, { isLoading: isUpdatingRecurring }] =
+    useUpdateOrderRecurringPlanMutation();
   const [selectedStatusId, setSelectedStatusId] = useState("");
   const orderData = orderResponse?.data;
   const shopName =
@@ -796,10 +798,42 @@ export default function OrderDetailsPage() {
   const recurringSourceBookingId = orderData?.recurringSourceBookingId || null;
   const recurringNextBookingId = orderData?.recurringNextBookingId || null;
   const recurringCycleDate = orderData?.recurringCycleDate || null;
+  const recurringPlan = orderData?.recurringPlan || null;
   const hasRecurringPlan =
     String(orderData?.frequency || "")
       .trim()
-      .toLowerCase() !== "just once" || isRecurringAutoCreated;
+      .toLowerCase() !== "just once" ||
+    isRecurringAutoCreated ||
+    Boolean(recurringPlan);
+
+  const handleRecurringPlanAction = async (action) => {
+    if (!orderId) return;
+    const labels = {
+      pause: "pause",
+      resume: "resume",
+      cancel: "turn off",
+    };
+    if (action === "cancel") {
+      const ok = window.confirm(
+        "Turn off this customer's recurring service? No further orders will be auto-created. Existing orders are not cancelled."
+      );
+      if (!ok) return;
+    }
+    try {
+      const res = await updateRecurringPlan({
+        orderId,
+        body: { action },
+      }).unwrap();
+      success(res?.message || `Recurring service ${labels[action] || "updated"}`);
+      refetchOrder();
+    } catch (err) {
+      showError(
+        err?.data?.message ||
+          err?.message ||
+          `Failed to ${labels[action] || "update"} recurring service`
+      );
+    }
+  };
 
   useEffect(() => {
     if (!selectedServiceGroups.length) {
@@ -1291,7 +1325,6 @@ export default function OrderDetailsPage() {
                 {isFetchingInvoice ? "Loading..." : "View / Print Invoice"}
               </Button>
             ) : null}
-            {shopOwnerUserId ? <PrintTagsToShopButton bookingId={bookingId} /> : null}
             {canShowAdminAssign ? (
               <OrderAssignActionButton
                 booking={orderData}
@@ -2520,6 +2553,25 @@ export default function OrderDetailsPage() {
                 value={hasRecurringPlan ? (orderData?.frequency || "Recurring") : "Just Once"}
               />
               <OdMetaRow
+                label="Plan status"
+                value={
+                  recurringPlan?.status
+                    ? String(recurringPlan.status).charAt(0).toUpperCase() +
+                      String(recurringPlan.status).slice(1)
+                    : hasRecurringPlan
+                      ? "—"
+                      : "N/A"
+                }
+              />
+              <OdMetaRow
+                label="Next run"
+                value={
+                  recurringPlan?.nextRunAt
+                    ? formatDate(recurringPlan.nextRunAt, "DD MMM YYYY HH:mm")
+                    : "—"
+                }
+              />
+              <OdMetaRow
                 label="Auto-created"
                 value={isRecurringAutoCreated ? "Yes" : "No"}
               />
@@ -2545,6 +2597,54 @@ export default function OrderDetailsPage() {
                     : undefined
                 }
               />
+              {recurringPlan &&
+                (recurringPlan.canPause ||
+                  recurringPlan.canResume ||
+                  recurringPlan.canCancel) && (
+                  <div
+                    style={{
+                      display: "flex",
+                      flexWrap: "wrap",
+                      gap: 8,
+                      paddingTop: 8,
+                      borderTop: "1px solid #E5E7EB",
+                    }}
+                  >
+                    {recurringPlan.canPause ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        disabled={isUpdatingRecurring}
+                        onClick={() => handleRecurringPlanAction("pause")}
+                      >
+                        Pause (temp off)
+                      </Button>
+                    ) : null}
+                    {recurringPlan.canResume ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="primary"
+                        disabled={isUpdatingRecurring}
+                        onClick={() => handleRecurringPlanAction("resume")}
+                      >
+                        Resume
+                      </Button>
+                    ) : null}
+                    {recurringPlan.canCancel ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="danger"
+                        disabled={isUpdatingRecurring}
+                        onClick={() => handleRecurringPlanAction("cancel")}
+                      >
+                        Turn off / Cancel
+                      </Button>
+                    ) : null}
+                  </div>
+                )}
             </div>
           </CollapsibleCard>
 

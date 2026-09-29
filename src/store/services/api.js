@@ -671,6 +671,29 @@ export const api = createApi({
       ],
     }),
 
+    getCustomerRecurringPlans: builder.query({
+      query: (customerId) => ({
+        url: `admin/customers/${customerId}/recurringPlans`,
+        method: "GET",
+      }),
+      providesTags: (_r, _e, customerId) => [
+        { type: "Customers", id: `recurring-${customerId}` },
+      ],
+    }),
+
+    updateCustomerRecurringPlan: builder.mutation({
+      query: ({ customerId, planId, body }) => ({
+        url: `admin/customers/${customerId}/recurringPlans/${planId}`,
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: (_r, _e, { customerId }) => [
+        { type: "Customers", id: `recurring-${customerId}` },
+        { type: "Customers", id: String(customerId) },
+        "Orders",
+      ],
+    }),
+
     addCustomer: builder.mutation({
       query: (body) => ({
         url: "admin/addCustomer",
@@ -1583,6 +1606,16 @@ export const api = createApi({
         method: "PATCH",
         body,
       }),
+      invalidatesTags: (_r, _e, { orderId }) => [{ type: "Orders", id: orderId }, "Orders"],
+    }),
+
+    updateOrderRecurringPlan: builder.mutation({
+      query: ({ orderId, body }) => ({
+        url: `admin/orders/${orderId}/recurringPlan`,
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: (_r, _e, { orderId }) => [{ type: "Orders", id: orderId }, "Orders"],
     }),
 
     deleteOrder: builder.mutation({
@@ -2456,6 +2489,8 @@ export const {
   useLazyGetAllCustomersQuery,
   useGetAllCustomersCountQuery,
   useGetCustomerByIdQuery,
+  useGetCustomerRecurringPlansQuery,
+  useUpdateCustomerRecurringPlanMutation,
   useAddCustomerMutation,
   useDashboardDataQuery,
   useDeleteCustomerMutation,
@@ -2589,6 +2624,7 @@ export const {
   usePrintBookingTagsStarMutation,
   useLazyGetBookingPrintJobQuery,
   useEditOrderMutation,
+  useUpdateOrderRecurringPlanMutation,
   useDeleteOrderMutation,
   useAddCancellationPolicyMutation,
   useGetCancellationPoliciesQuery,

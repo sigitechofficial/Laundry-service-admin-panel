@@ -12,7 +12,7 @@ import {
   Table,
 } from "../../../design-system";
 import { useNavigate, useParams } from "react-router-dom";
-import { useEditCustomerMutation, useGetCustomerByIdQuery, useExcludeCustomerFromShopMutation, useIncludeCustomerForShopMutation } from "../../../store/services/api";
+import { useEditCustomerMutation, useGetCustomerByIdQuery, useExcludeCustomerFromShopMutation, useIncludeCustomerForShopMutation, useGetCustomerRecurringPlansQuery, useUpdateCustomerRecurringPlanMutation } from "../../../store/services/api";
 import { Delay } from "../../../components/shared/Loaders";
 import ZoiperCallButton from "../../../components/shared/ZoiperCallButton";
 import useToaster from "../../../components/ui/Toaster";
@@ -73,6 +73,15 @@ export default function CustomerDetails() {
   const [settingsErrors, setSettingsErrors] = useState({});
 
   const { data, isLoading, isError, refetch } = useGetCustomerByIdQuery(id, { skip: !id });
+  const {
+    data: recurringPlansResponse,
+    isLoading: isLoadingRecurringPlans,
+    refetch: refetchRecurringPlans,
+  } = useGetCustomerRecurringPlansQuery(id, {
+    skip: !id || (activeTab !== "recurring" && activeTab !== "overview"),
+  });
+  const [updateCustomerRecurringPlan, { isLoading: isUpdatingRecurring }] =
+    useUpdateCustomerRecurringPlanMutation();
   const [editCustomer, { isLoading: isSavingCustomer }] = useEditCustomerMutation();
   const [excludeCustomerFromShop] = useExcludeCustomerFromShopMutation();
   const [includeCustomerForShop] = useIncludeCustomerForShopMutation();
@@ -82,6 +91,10 @@ export default function CustomerDetails() {
     () => data?.data?.bookingDetails ?? [],
     [data?.data?.bookingDetails]
   );
+  const recurringPlans = useMemo(() => {
+    const plans = recurringPlansResponse?.data?.plans;
+    return Array.isArray(plans) ? plans : [];
+  }, [recurringPlansResponse?.data?.plans]);
   const customerShopHistory = useMemo(
     () =>
       Array.isArray(data?.data?.customerShopHistory)
@@ -272,6 +285,32 @@ export default function CustomerDetails() {
     [orderColumns]
   );
 
+  const handleCustomerRecurringAction = async (planId, action) => {
+    const customerId = user?.id || userDetails?.userId || id;
+    if (!customerId || !planId) return;
+    if (action === "cancel") {
+      const ok = window.confirm(
+        "Turn off this customer's recurring service? No further orders will be auto-created. Existing orders are not cancelled."
+      );
+      if (!ok) return;
+    }
+    try {
+      const res = await updateCustomerRecurringPlan({
+        customerId,
+        planId,
+        body: { action },
+      }).unwrap();
+      success(res?.message || "Recurring service updated");
+      refetchRecurringPlans();
+    } catch (err) {
+      showError(
+        getApiErrorMessage(err) ||
+          err?.data?.message ||
+          "Failed to update recurring service"
+      );
+    }
+  };
+
   const handleSaveCustomerSettings = async () => {
     const customerId = user?.id || userDetails?.userId;
     if (!customerId) return;
@@ -354,6 +393,7 @@ export default function CustomerDetails() {
     { id: "overview", label: "Overview" },
     { id: "orders", label: "Orders" },
     { id: "shops", label: "Shops" },
+    { id: "recurring", label: "Recurring" },
     { id: "addresses", label: "Addresses" },
     { id: "settings", label: "Settings" },
   ];
@@ -442,7 +482,20 @@ export default function CustomerDetails() {
           </div>
 
           <div style={PANEL}>
-            <h2 style={{ margin: "0 0 16px", fontSize: 16, fontWeight: 700 }}>Recurring summary</h2>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 12,
+                marginBottom: 16,
+              }}
+            >
+              <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>Recurring summary</h2>
+              <Button size="sm" variant="secondary" onClick={() => setActiveTab("recurring")}>
+                Manage recurring
+              </Button>
+            </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 16 }}>
               <Info
                 label="Recurring orders"
@@ -451,6 +504,14 @@ export default function CustomerDetails() {
               <Info
                 label="Auto-created orders"
                 value={String(recurringSummary.autoCreatedOrdersCount || 0)}
+              />
+              <Info
+                label="Active / paused plans"
+                value={String(
+                  recurringPlans.filter(
+                    (p) => p.status === "active" || p.status === "paused"
+                  ).length
+                )}
               />
               <Info
                 label="Frequencies"
@@ -645,6 +706,163 @@ export default function CustomerDetails() {
         <div style={PANEL}>
           <h2 style={{ margin: "0 0 12px", fontSize: 16, fontWeight: 700 }}>Saved address</h2>
           <p style={{ margin: 0, color: "var(--ink-2)" }}>{fullAddress}</p>
+        </div>
+      )}
+
+      {activeTab === "recurring" && (
+        <div style={PANEL}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 12,
+              marginBottom: 16,
+            }}
+          >
+            <div>
+              <h2 style={{ margin: "0 0 4px", fontSize: 16, fontWeight: 700 }}>
+                Recurring service
+              </h2>
+              <p style={{ margin: 0, color: "var(--ink-2)", fontSize: 13 }}>
+                Pause temporarily or turn off automatic future orders for this customer.
+              </p>
+            </div>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => refetchRecurringPlans()}
+              disabled={isLoadingRecurringPlans || isUpdatingRecurring}
+            >
+              Refresh
+            </Button>
+          </div>
+
+          {isLoadingRecurringPlans ? (
+            <Delay size="32px" />
+          ) : recurringPlans.length === 0 ? (
+            <p style={{ margin: 0, color: "var(--ink-2)" }}>
+              No recurring frequency plans for this customer.
+            </p>
+          ) : (
+            <div style={{ display: "grid", gap: 12 }}>
+              {recurringPlans.map((plan) => {
+                const status = String(plan.status || "active");
+                const statusTone =
+                  status === "paused"
+                    ? "warning"
+                    : status === "cancelled"
+                      ? "danger"
+                      : "success";
+                const statusLabel =
+                  status === "paused"
+                    ? "Paused"
+                    : status === "cancelled"
+                      ? "Off"
+                      : "Active";
+                return (
+                  <div
+                    key={plan.id}
+                    style={{
+                      border: "1px solid #e6e9f0",
+                      borderRadius: 12,
+                      padding: 14,
+                      display: "grid",
+                      gap: 10,
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        flexWrap: "wrap",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: 8,
+                      }}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <strong style={{ fontSize: 15 }}>
+                          {plan.frequency || "Recurring"}
+                        </strong>
+                        <Badge tone={statusTone}>{statusLabel}</Badge>
+                      </div>
+                      {plan.orderTrackId || plan.bookingId ? (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() =>
+                            navigate(
+                              `/orders/details/${plan.bookingId || plan.sourceBookingId}`
+                            )
+                          }
+                        >
+                          View order
+                          {plan.orderTrackId ? ` #${plan.orderTrackId}` : ""}
+                        </Button>
+                      ) : null}
+                    </div>
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
+                        gap: 8,
+                        fontSize: 13,
+                        color: "var(--ink-2)",
+                      }}
+                    >
+                      <span>
+                        Next run:{" "}
+                        {plan.nextRunAt
+                          ? formatDate(plan.nextRunAt, "DD MMM YYYY HH:mm")
+                          : "—"}
+                      </span>
+                      <span>Plan ID: {plan.id}</span>
+                    </div>
+                    {(plan.canPause || plan.canResume || plan.canCancel) && (
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                        {plan.canPause ? (
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            disabled={isUpdatingRecurring}
+                            onClick={() =>
+                              handleCustomerRecurringAction(plan.id, "pause")
+                            }
+                          >
+                            Pause (temp off)
+                          </Button>
+                        ) : null}
+                        {plan.canResume ? (
+                          <Button
+                            size="sm"
+                            variant="primary"
+                            disabled={isUpdatingRecurring}
+                            onClick={() =>
+                              handleCustomerRecurringAction(plan.id, "resume")
+                            }
+                          >
+                            Resume
+                          </Button>
+                        ) : null}
+                        {plan.canCancel ? (
+                          <Button
+                            size="sm"
+                            variant="danger"
+                            disabled={isUpdatingRecurring}
+                            onClick={() =>
+                              handleCustomerRecurringAction(plan.id, "cancel")
+                            }
+                          >
+                            Turn off / Cancel
+                          </Button>
+                        ) : null}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
