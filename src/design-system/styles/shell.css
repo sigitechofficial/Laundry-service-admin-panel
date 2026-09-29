@@ -671,6 +671,12 @@
   text-align: left;
 }
 
+/* Status: keep header + pills left-aligned (never inherit money right-align) */
+.jd-ds .jd-tbl th.jd-tbl--status,
+.jd-ds .jd-tbl td.jd-tbl--status {
+  text-align: left;
+}
+
 .jd-ds .jd-tbl th.jd-tbl--money,
 .jd-ds .jd-tbl td.jd-tbl--money {
   font-variant-numeric: tabular-nums;
