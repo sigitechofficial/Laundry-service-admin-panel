@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Badge, Input, Modal } from "../../../design-system";
+import { Badge, Button, Input, Modal } from "../../../design-system";
 import {
   useGetBookingAssignableShopsQuery,
   useAssignBookingToShopMutation,
@@ -21,6 +21,16 @@ function formatTimeHm(value) {
   const match = raw.match(/^(\d{1,2}):(\d{2})/);
   if (!match) return raw;
   return `${String(Number(match[1])).padStart(2, "0")}:${match[2]}`;
+}
+
+// "Nearby" filter radius (km from the customer's pickup).
+const NEARBY_KM = 5;
+
+function formatDistanceKm(km) {
+  if (km == null || !Number.isFinite(Number(km))) return null;
+  const n = Number(km);
+  if (n < 1) return `${Math.round(n * 1000)} m`;
+  return `${n.toFixed(n < 10 ? 1 : 0)} km`;
 }
 
 function shopHoursLabel(shop) {
@@ -69,6 +79,7 @@ export default function AssignOrderModal({
   const [selectedShopId, setSelectedShopId] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [returningOnly, setReturningOnly] = useState(false);
+  const [shopFilter, setShopFilter] = useState("all"); // all | nearby | open
 
   const { data, isLoading, isError, error } =
     useGetBookingAssignableShopsQuery(bookingId, {
@@ -184,23 +195,39 @@ export default function AssignOrderModal({
     [shops]
   );
 
+  const isNearby = (shop) =>
+    shop.distanceKm != null && Number(shop.distanceKm) <= NEARBY_KM;
+
+  // Counts for the filter chips (candidates only — the current shop is pinned).
+  const { nearbyCount, openCount } = useMemo(() => {
+    const candidates = shops.filter((s) => !s.isCurrentShop);
+    return {
+      nearbyCount: candidates.filter(isNearby).length,
+      openCount: candidates.filter((s) => s.isOpenNow).length,
+    };
+  }, [shops]);
+
+  // The server already sends shops nearest-first; filtering keeps that order.
   const filteredShops = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     return shops.filter((shop) => {
       if (shop.isCurrentShop) return false; // pinned separately at the top
+      if (shopFilter === "nearby" && !isNearby(shop)) return false;
+      if (shopFilter === "open" && !shop.isOpenNow) return false;
       if (returningOnly && !shop.isReturningCustomerAtShop) return false;
       if (!q) return true;
       const name = String(shop.shopName || "").toLowerCase();
       const id = String(shop.laundryShopId || "");
       return name.includes(q) || id.includes(q);
     });
-  }, [shops, searchQuery, returningOnly]);
+  }, [shops, searchQuery, returningOnly, shopFilter]);
 
   useEffect(() => {
     if (!open) {
       setSelectedShopId(null);
       setSearchQuery("");
       setReturningOnly(false);
+      setShopFilter("all");
     }
   }, [open]);
 
@@ -294,7 +321,13 @@ export default function AssignOrderModal({
               {shop.isOpenNow ? "Open" : "Closed"}
             </Badge>
           </div>
-          <div style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 4 }}>
+          <div style={{ fontSize: 12.5, color: "var(--ink-2)", marginTop: 4, fontWeight: 600 }}>
+            {formatDistanceKm(shop.distanceKm)
+              ? `${formatDistanceKm(shop.distanceKm)} from pickup`
+              : "Distance unavailable"}
+            {shop.zoneName || zoneLabel ? ` · Zone: ${shop.zoneName || zoneLabel}` : ""}
+          </div>
+          <div style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 2 }}>
             {shopHoursLabel(shop)}
           </div>
           {stat ? (
@@ -493,6 +526,33 @@ export default function AssignOrderModal({
           </div>
 
           {hasShopList ? (
+            <div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {[
+                  { key: "all", label: "All", count: shops.filter((s) => !s.isCurrentShop).length },
+                  { key: "nearby", label: `Nearby (≤ ${NEARBY_KM} km)`, count: nearbyCount },
+                  { key: "open", label: "Open now", count: openCount },
+                ].map((f) => (
+                  <Button
+                    key={f.key}
+                    size="sm"
+                    variant={shopFilter === f.key ? "primary" : "secondary"}
+                    onClick={() => setShopFilter(f.key)}
+                    aria-pressed={shopFilter === f.key}
+                  >
+                    {f.label} ({f.count})
+                  </Button>
+                ))}
+              </div>
+              <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 6 }}>
+                {payload?.pickupHasCoords === false
+                  ? "Pickup location has no coordinates — distances unavailable."
+                  : "Sorted nearest to the customer's pickup location first."}
+              </div>
+            </div>
+          ) : null}
+
+          {hasShopList ? (
             <Input
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -576,7 +636,11 @@ export default function AssignOrderModal({
                       ? "No other shops where this customer is a returning customer."
                       : searchQuery.trim()
                         ? `No other shops match “${searchQuery.trim()}”.`
-                        : "No other shops in this zone to reassign to."}
+                        : shopFilter === "nearby"
+                          ? `No shops within ${NEARBY_KM} km of the pickup.`
+                          : shopFilter === "open"
+                            ? "No shops are open right now."
+                            : "No other shops in this zone to reassign to."}
                   </p>
                 ) : (
                   <div
