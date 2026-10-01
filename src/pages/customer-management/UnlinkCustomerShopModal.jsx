@@ -69,9 +69,28 @@ export default function UnlinkCustomerShopModal({
       primaryDisabled={isLoading}
     >
       <div style={{ display: "grid", gap: 12 }}>
-        <p style={{ margin: 0, fontSize: 13, color: "var(--muted)" }}>
-          Excluded shops (bad experience) stay blocked either way.
-        </p>
+        <div
+          style={{
+            padding: 12,
+            borderRadius: 10,
+            border: "1px solid var(--line)",
+            background: "var(--surface-2, #fafbfd)",
+            fontSize: 13,
+            lineHeight: 1.5,
+          }}
+        >
+          <strong style={{ display: "block", marginBottom: 6 }}>
+            Right now
+          </strong>
+          {assignedShopName ? (
+            <>
+              New orders get the <strong>first offer</strong> at{" "}
+              <strong>{assignedShopName}</strong>. Unlinking stops that.
+            </>
+          ) : (
+            "There is no preferred assignment to clear."
+          )}
+        </div>
 
         <label
           style={{
@@ -106,8 +125,10 @@ export default function UnlinkCustomerShopModal({
                 marginTop: 4,
               }}
             >
-              Prefer the shop where this customer already returns (or last
-              completed in zone). Clears the override if it already matches.
+              After this: first offer goes to the shop where this customer
+              already returns (or last completed in zone)
+              {assignedShopName ? ` — not ${assignedShopName}` : ""}. Excluded
+              shops stay blocked.
             </span>
           </span>
         </label>
@@ -134,7 +155,7 @@ export default function UnlinkCustomerShopModal({
             style={{ marginTop: 3 }}
           />
           <span>
-            <strong style={{ fontSize: 13 }}>Fully unlink</strong>
+            <strong style={{ fontSize: 13 }}>Fully unlink (no preferred)</strong>
             <span
               style={{
                 display: "block",
@@ -143,8 +164,9 @@ export default function UnlinkCustomerShopModal({
                 marginTop: 4,
               }}
             >
-              No preferred override. New orders broadcast to all zone shops
-              except excluded ones.
+              After this: no admin preferred shop. New orders follow returning
+              history, then broadcast to zone shops. Excluded shops still never
+              get marketplace offers.
             </span>
           </span>
         </label>
