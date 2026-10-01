@@ -48,6 +48,7 @@ import { joinMeta } from "../directory-table/directoryTableUtils";
 import { BlockUserButton, AnonymizeDeleteModal } from "../user-management/UserBlockActions";
 import { isAccountBlocked } from "../../utilities/accountBlocked";
 import ShopRoutingPolicyCard from "./ShopRoutingPolicyCard";
+import ShopLiveOpsTab from "./ShopLiveOpsTab";
 import ShopPrinterSettingsCard from "./ShopPrinterSettingsCard";
 import ShopRevenueTab from "./ShopRevenueTab";
 import ShopReportTab from "./ShopReportTab";
@@ -113,6 +114,7 @@ const DELIVERY_OPTIONS = [
 
 const TABS = [
   { value: "overview", label: "Overview" },
+  { value: "liveOps", label: "Live ops" },
   { value: "orders", label: "Orders" },
   { value: "customers", label: "Customers" },
   { value: "declined", label: "Rejected" },
@@ -985,6 +987,7 @@ export default function ShopDetails() {
       </div>
 
       {activeTab === "overview" && (
+
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 16 }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             <div style={CARD}>
@@ -1134,6 +1137,10 @@ export default function ShopDetails() {
             </div>
           </div>
         </div>
+      )}
+
+      {activeTab === "liveOps" && (
+        <ShopLiveOpsTab shopUserId={biz?.id} />
       )}
 
       {activeTab === "orders" && (

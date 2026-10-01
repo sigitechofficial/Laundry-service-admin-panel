@@ -976,6 +976,18 @@ export const api = createApi({
       providesTags: ["ShopAssignmentPolicy"],
     }),
 
+    getShopLiveOps: builder.query({
+      query: ({ shopUserId, day = "today" } = {}) => ({
+        url: `admin/shopLiveOps/${shopUserId}`,
+        method: "GET",
+        params: { day },
+      }),
+      providesTags: (_r, _e, arg) => [
+        { type: "Shops", id: `live-ops-${arg?.shopUserId}` },
+        "Shops",
+      ],
+    }),
+
     updateShopAssignmentPolicy: builder.mutation({
       query: ({ shopUserId, ...body }) => ({
         url: `admin/shopAssignmentPolicy/${shopUserId}`,
@@ -2756,5 +2768,6 @@ export const {
   useUnblockUserMutation,
   useGetUserBlockStatusQuery,
   useGetShopAssignmentPolicyQuery,
+  useGetShopLiveOpsQuery,
   useUpdateShopAssignmentPolicyMutation,
 } = api;
