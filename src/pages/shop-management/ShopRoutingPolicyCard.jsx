@@ -28,6 +28,14 @@ const HINT = {
   lineHeight: 1.5,
 };
 
+const USAGE_BOX = {
+  marginTop: 12,
+  padding: "12px 14px",
+  borderRadius: 12,
+  background: "#f8fafc",
+  border: "1px solid #e2e8f0",
+};
+
 /** `2026-09-01T10:00:00.000Z` → `2026-09-01T10:00` for datetime-local. */
 function toDateTimeLocal(value) {
   if (!value) return "";
@@ -37,15 +45,90 @@ function toDateTimeLocal(value) {
   return new Date(offsetMs).toISOString().slice(0, 16);
 }
 
+function formatResetClock(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleTimeString(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+function AcceptCapacityUsage({ capacity }) {
+  if (!capacity || capacity.enabled !== true) {
+    return (
+      <div style={USAGE_BOX}>
+        <strong style={{ fontSize: 13 }}>Accept window usage</strong>
+        <p style={{ ...HINT, marginTop: 6 }}>
+          Global accept capacity is off for this shop (or not configured).
+        </p>
+      </div>
+    );
+  }
+
+  const used = Number(capacity.used) || 0;
+  const limit = capacity.limit;
+  const remaining =
+    capacity.remaining != null
+      ? Number(capacity.remaining)
+      : limit != null
+        ? Math.max(0, Number(limit) - used)
+        : null;
+  const windowMins = capacity.windowMinutes;
+  const atCap = capacity.atCapacity === true;
+  const resetLabel = formatResetClock(capacity.resetsAt);
+
+  return (
+    <div
+      style={{
+        ...USAGE_BOX,
+        background: atCap ? "#fff7ed" : "#f8fafc",
+        borderColor: atCap ? "#fdba74" : "#e2e8f0",
+      }}
+    >
+      <strong style={{ fontSize: 13, color: atCap ? "#b45309" : undefined }}>
+        Accept window usage
+      </strong>
+      <p style={{ margin: "6px 0 0", fontSize: 14, lineHeight: 1.45 }}>
+        {limit == null ? (
+          <>{used} accepted in the current window</>
+        ) : (
+          <>
+            <strong>
+              {used} of {limit}
+            </strong>{" "}
+            accepted · <strong>{remaining ?? 0}</strong> left
+            {windowMins != null ? ` · ${windowMins} min window` : null}
+          </>
+        )}
+      </p>
+      {atCap ? (
+        <p style={{ ...HINT, marginTop: 6, color: "#9a3412" }}>
+          {limit === 0
+            ? "Marketplace accepts are blocked (limit set to 0)."
+            : resetLabel
+              ? `At capacity — can accept again around ${resetLabel}.`
+              : "At capacity — wait for the rolling window to free a slot."}
+        </p>
+      ) : (
+        <p style={HINT}>Updates as this shop accepts marketplace orders.</p>
+      )}
+    </div>
+  );
+}
+
 export default function ShopRoutingPolicyCard({ shopUserId }) {
   const { success, error: showError } = useToaster();
   const { data, isLoading, isError } = useGetShopAssignmentPolicyQuery(shopUserId, {
     skip: !shopUserId,
+    pollingInterval: 15000,
   });
   const [updatePolicy, { isLoading: saving }] =
     useUpdateShopAssignmentPolicyMutation();
 
   const policy = data?.data ?? data;
+  const acceptCapacity = policy?.acceptCapacity ?? null;
 
   const [preferredEligible, setPreferredEligible] = useState(true);
   const [marketplaceHold, setMarketplaceHold] = useState(false);
@@ -68,7 +151,16 @@ export default function ShopRoutingPolicyCard({ shopUserId }) {
     setAcceptMaxOrders(
       String(policy.acceptMaxOrders != null ? policy.acceptMaxOrders : 4)
     );
-  }, [policy]);
+    // Do not depend on acceptCapacity — it polls and must not wipe in-progress edits.
+  }, [
+    policy?.preferredEligible,
+    policy?.marketplaceHold,
+    policy?.reason,
+    policy?.expiresAt,
+    policy?.acceptCapOverride,
+    policy?.acceptWindowMinutes,
+    policy?.acceptMaxOrders,
+  ]);
 
   const restricted = !preferredEligible || marketplaceHold;
 
@@ -126,6 +218,8 @@ export default function ShopRoutingPolicyCard({ shopUserId }) {
         </p>
       ) : (
         <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 16 }}>
+          <AcceptCapacityUsage capacity={acceptCapacity} />
+
           <div>
             <Toggle
               checked={preferredEligible}
