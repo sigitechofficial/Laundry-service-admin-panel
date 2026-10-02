@@ -56,6 +56,13 @@ const STATUS_OPTIONS = [
   { value: "blocked", label: "Blocked" },
 ];
 
+const SPEND_TIER_OPTIONS = [
+  { value: "", label: "All spend levels" },
+  { value: "high", label: "High spend" },
+  { value: "low", label: "Low spend" },
+  { value: "none", label: "No spend" },
+];
+
 /** Table column key → server `sortBy`. Columns missing here are not server-sortable. */
 const TABLE_SORT_TO_API = {
   name: "name",
@@ -91,6 +98,7 @@ export default function CustomerManagement() {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [status, setStatusState] = useState("");
   const [zoneId, setZoneIdState] = useState("");
+  const [spendTier, setSpendTierState] = useState("");
   const [dateRange, setDateRangeState] = useState({ startDate: "", endDate: "" });
   const [sortBy, setSortByState] = useState("name");
   const [sortDir, setSortDirState] = useState("asc");
@@ -120,6 +128,11 @@ export default function CustomerManagement() {
 
   const setZoneId = useCallback((value) => {
     setZoneIdState(value ?? "");
+    setPage(1);
+  }, []);
+
+  const setSpendTier = useCallback((value) => {
+    setSpendTierState(value ?? "");
     setPage(1);
   }, []);
 
@@ -159,12 +172,13 @@ export default function CustomerManagement() {
     setDebouncedSearch("");
     setStatusState("");
     setZoneIdState("");
+    setSpendTierState("");
     setDateRangeState({ startDate: "", endDate: "" });
     setPage(1);
   }, []);
 
   const hasActiveFilters = Boolean(
-    searchInput || status || zoneId || dateRange.startDate || dateRange.endDate
+    searchInput || status || zoneId || spendTier || dateRange.startDate || dateRange.endDate
   );
 
   /** Filter + sort params shared by the paged query and the CSV export. */
@@ -173,12 +187,13 @@ export default function CustomerManagement() {
       search: debouncedSearch || undefined,
       status: status || undefined,
       zoneId: zoneId || undefined,
+      spendTier: spendTier || undefined,
       startDate: dateRange.startDate || undefined,
       endDate: dateRange.endDate || undefined,
       sortBy: TABLE_SORT_TO_API[sortBy] || "name",
       sortDir,
     }),
-    [debouncedSearch, status, zoneId, dateRange.startDate, dateRange.endDate, sortBy, sortDir]
+    [debouncedSearch, status, zoneId, spendTier, dateRange.startDate, dateRange.endDate, sortBy, sortDir]
   );
 
   const apiParams = useMemo(
@@ -271,10 +286,11 @@ export default function CustomerManagement() {
       search: debouncedSearch,
       status,
       zone: zoneId,
+      spend: spendTier,
       from: dateRange.startDate,
       to: dateRange.endDate,
     }),
-    [debouncedSearch, status, zoneId, dateRange.startDate, dateRange.endDate]
+    [debouncedSearch, status, zoneId, spendTier, dateRange.startDate, dateRange.endDate]
   );
 
   const csv = useCsvExport({
@@ -445,6 +461,15 @@ export default function CustomerManagement() {
                 onChange={setZoneId}
                 options={zoneOptions}
                 placeholder="All zones"
+              />
+            </DirectoryToolSelect>
+            <DirectoryToolSelect>
+              <Select
+                aria-label="Customer spend level"
+                value={spendTier}
+                onChange={setSpendTier}
+                options={SPEND_TIER_OPTIONS}
+                placeholder="All spend levels"
               />
             </DirectoryToolSelect>
             <DirectoryToolSelect>

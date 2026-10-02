@@ -592,7 +592,8 @@ export const api = createApi({
 
     /**
      * Server-side customer directory.
-     * params: { search, status: "active"|"blocked", zoneId, startDate, endDate,
+     * params: { search, status: "active"|"blocked", zoneId,
+     *           spendTier: "high"|"low"|"none", startDate, endDate,
      *           sortBy: name|email|createdAt|bookingCount|totalAmountSpent|lastBookingDate,
      *           sortDir, page, limit, export }
      * → data: { customers: [], pagination: { currentPage, totalPages, totalRecords, recordsPerPage, hasNextPage, hasPrevPage, exportMode, truncated } }

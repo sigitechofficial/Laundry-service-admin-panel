@@ -947,6 +947,21 @@ export default function ShopDetails() {
         </div>
       </div>
 
+      <div style={TAB_ROW}>
+        {TABS.map((tab) => (
+          <Button
+            key={tab.value}
+            size="sm"
+            variant={activeTab === tab.value ? "primary" : "secondary"}
+            onClick={() => setActiveTab(tab.value)}
+          >
+            {tab.value === "reviews"
+              ? `Reviews (${shopRatingSummary.count})`
+              : tab.label}
+          </Button>
+        ))}
+      </div>
+
       {activeTab === "overview" && (
         <DirectoryMetrics
           items={[
@@ -973,20 +988,6 @@ export default function ShopDetails() {
           ]}
         />
       )}
-      <div style={TAB_ROW}>
-        {TABS.map((tab) => (
-          <Button
-            key={tab.value}
-            size="sm"
-            variant={activeTab === tab.value ? "primary" : "secondary"}
-            onClick={() => setActiveTab(tab.value)}
-          >
-            {tab.value === "reviews"
-              ? `Reviews (${shopRatingSummary.count})`
-              : tab.label}
-          </Button>
-        ))}
-      </div>
 
       {activeTab === "overview" && (
 
