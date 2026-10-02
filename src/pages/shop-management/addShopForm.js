@@ -233,6 +233,7 @@ export function buildRegisterPayload(formData) {
     currencyUnitId: formData.currencyUnitId
       ? Number(formData.currencyUnitId)
       : undefined,
+    registrationStatus: formData.registrationStatus === "inactive" ? "inactive" : "active",
   };
 }
 

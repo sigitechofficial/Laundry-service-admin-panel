@@ -31,6 +31,7 @@ import { BlockUserModal } from "../user-management/UserBlockActions";
 import {
   useGetAllCustomersCountQuery,
   useGetAllCustomersQuery,
+  useGetAllZonesQuery,
   useLazyGetAllCustomersQuery,
   useDeleteCustomerMutation,
 } from "../../store/services/api";
@@ -74,6 +75,7 @@ const CUSTOMER_CSV_COLUMNS = [
   { header: "Phone", value: (c) => formatUserPhone(c) },
   { header: "Country code", key: "countryCode" },
   { header: "Status", value: (c) => (isAccountBlocked(c) ? "Blocked" : "Active") },
+  { header: "Zones", value: (c) => c?.zoneNames || (c?.zones || []).map((z) => z.name).filter(Boolean).join(", ") },
   { header: "Orders", value: (c) => Number(c?.bookingCount || 0) },
   { header: "Amount spent", value: (c) => csvFormat.money(c?.totalAmountSpent) },
   { header: "Last order date", value: (c) => csvFormat.date(c?.lastBookingDate) },
@@ -88,6 +90,7 @@ export default function CustomerManagement() {
   const [searchInput, setSearchInput] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [status, setStatusState] = useState("");
+  const [zoneId, setZoneIdState] = useState("");
   const [dateRange, setDateRangeState] = useState({ startDate: "", endDate: "" });
   const [sortBy, setSortByState] = useState("name");
   const [sortDir, setSortDirState] = useState("asc");
@@ -112,6 +115,11 @@ export default function CustomerManagement() {
 
   const setStatus = useCallback((value) => {
     setStatusState(value ?? "");
+    setPage(1);
+  }, []);
+
+  const setZoneId = useCallback((value) => {
+    setZoneIdState(value ?? "");
     setPage(1);
   }, []);
 
@@ -150,12 +158,13 @@ export default function CustomerManagement() {
     setSearchInput("");
     setDebouncedSearch("");
     setStatusState("");
+    setZoneIdState("");
     setDateRangeState({ startDate: "", endDate: "" });
     setPage(1);
   }, []);
 
   const hasActiveFilters = Boolean(
-    searchInput || status || dateRange.startDate || dateRange.endDate
+    searchInput || status || zoneId || dateRange.startDate || dateRange.endDate
   );
 
   /** Filter + sort params shared by the paged query and the CSV export. */
@@ -163,12 +172,13 @@ export default function CustomerManagement() {
     () => ({
       search: debouncedSearch || undefined,
       status: status || undefined,
+      zoneId: zoneId || undefined,
       startDate: dateRange.startDate || undefined,
       endDate: dateRange.endDate || undefined,
       sortBy: TABLE_SORT_TO_API[sortBy] || "name",
       sortDir,
     }),
-    [debouncedSearch, status, dateRange.startDate, dateRange.endDate, sortBy, sortDir]
+    [debouncedSearch, status, zoneId, dateRange.startDate, dateRange.endDate, sortBy, sortDir]
   );
 
   const apiParams = useMemo(
@@ -185,6 +195,7 @@ export default function CustomerManagement() {
     refetch,
   } = useGetAllCustomersQuery(apiParams, { refetchOnMountOrArgChange: true });
   const { data, refetch: refetchCount } = useGetAllCustomersCountQuery();
+  const { data: zonesRes } = useGetAllZonesQuery();
   const [deleteCustomer, { isLoading: isDeleting }] = useDeleteCustomerMutation();
   const [fetchCustomersForExport] = useLazyGetAllCustomersQuery();
   const canCreateCustomer = canStaffPerform("customerManagement", "create");
@@ -193,6 +204,21 @@ export default function CustomerManagement() {
     () => customersResponse?.data?.customers || [],
     [customersResponse?.data?.customers]
   );
+
+  const zoneOptions = useMemo(() => {
+    const raw = zonesRes?.data;
+    const zones = Array.isArray(raw) ? raw : raw?.zones ?? raw?.data ?? [];
+    const list = Array.isArray(zones) ? zones : [];
+    return [
+      { value: "", label: "All zones" },
+      ...list
+        .map((z) => ({
+          value: String(z.id ?? z.zoneId ?? ""),
+          label: z.name ?? z.zoneName ?? String(z.id ?? z.zoneId ?? ""),
+        }))
+        .filter((opt) => opt.value !== ""),
+    ];
+  }, [zonesRes?.data]);
   const pagination = customersResponse?.data?.pagination;
   const totalRows = Number(pagination?.totalRecords ?? customers.length) || 0;
 
@@ -217,6 +243,8 @@ export default function CustomerManagement() {
         currencySymbol: resolveCurrencySymbol(cus, { applyDefault: true }),
         lastOrderDate: cus?.lastBookingDate,
         totalOrders: cus?.bookingCount,
+        zones: Array.isArray(cus?.zones) ? cus.zones : [],
+        zoneNames: cus?.zoneNames || "",
         address: cus?.address,
         createdAt: cus?.createdAt,
         updatedAt: cus?.updatedAt,
@@ -242,10 +270,11 @@ export default function CustomerManagement() {
     () => ({
       search: debouncedSearch,
       status,
+      zone: zoneId,
       from: dateRange.startDate,
       to: dateRange.endDate,
     }),
-    [debouncedSearch, status, dateRange.startDate, dateRange.endDate]
+    [debouncedSearch, status, zoneId, dateRange.startDate, dateRange.endDate]
   );
 
   const csv = useCsvExport({
@@ -299,6 +328,11 @@ export default function CustomerManagement() {
           inactiveLabel="Blocked"
         />
       ),
+    },
+    {
+      key: "zones",
+      header: "Zone",
+      render: (row) => row.zoneNames || "—",
     },
     {
       key: "totalOrders",
@@ -402,6 +436,15 @@ export default function CustomerManagement() {
                 onChange={setStatus}
                 options={STATUS_OPTIONS}
                 placeholder="All statuses"
+              />
+            </DirectoryToolSelect>
+            <DirectoryToolSelect>
+              <Select
+                aria-label="Customer zone"
+                value={zoneId}
+                onChange={setZoneId}
+                options={zoneOptions}
+                placeholder="All zones"
               />
             </DirectoryToolSelect>
             <DirectoryToolSelect>

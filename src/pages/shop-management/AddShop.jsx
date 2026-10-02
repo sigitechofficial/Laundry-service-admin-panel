@@ -102,6 +102,7 @@ export default function ShopProfile() {
     serviceTimes: {},
     bussinessWorkingDays: DEFAULT_WORKING_DAYS,
     machineryCount: {},
+    registrationStatus: "active",
   });
 
   const addressAutocompleteRef = useRef(null);
@@ -419,8 +420,13 @@ export default function ShopProfile() {
         userId: registeredUserId,
         body: buildBusinessPayload(formData),
       }).unwrap();
-      success("Shop added successfully");
-      navigate("/shop-management/shops");
+      const inactive = formData.registrationStatus === "inactive";
+      success(
+        inactive
+          ? "Shop saved in Onboarding Requests. Approve it there when the extra details are ready."
+          : "Shop added successfully"
+      );
+      navigate(inactive ? "/shop-management/pending-agents" : "/shop-management/shops");
     } catch (err) {
       const msg =
         err?.data?.message ?? err?.data?.error ?? err?.message ?? "Failed to add business info";
@@ -626,6 +632,33 @@ export default function ShopProfile() {
                       style={{ flex: 1, minWidth: 0 }}
                     />
                   </div>
+                </Field>
+              </div>
+            </Section>
+
+            <Section
+              title="Shop status"
+              description="Active shops are approved immediately. Inactive shops go to Onboarding Requests until you approve them."
+            >
+              <div className={styles.grid}>
+                <Field
+                  label={labelWithReq("Status", true)}
+                  hint={
+                    formData.registrationStatus === "inactive"
+                      ? "Saved for review. The owner cannot sign in until approved."
+                      : "Approved as soon as this shop is created."
+                  }
+                >
+                  <Select
+                    aria-label="Shop status"
+                    value={formData.registrationStatus || "active"}
+                    onChange={handleChange("registrationStatus")}
+                    options={[
+                      { value: "active", label: "Active" },
+                      { value: "inactive", label: "Inactive" },
+                    ]}
+                    disabled={accountLocked}
+                  />
                 </Field>
               </div>
             </Section>
@@ -1115,6 +1148,12 @@ export default function ShopProfile() {
                 <dd>{optionLabel(zoneCurrencyOptions, formData.currencyUnitId)}</dd>
                 <dt>Employees</dt>
                 <dd>{formData.noOfEmployee || "—"}</dd>
+                <dt>Status</dt>
+                <dd>
+                  {formData.registrationStatus === "inactive"
+                    ? "Inactive — Onboarding Requests"
+                    : "Active — approved immediately"}
+                </dd>
               </dl>
             </section>
 

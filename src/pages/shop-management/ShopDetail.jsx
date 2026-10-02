@@ -947,30 +947,32 @@ export default function ShopDetails() {
         </div>
       </div>
 
-      <DirectoryMetrics
-        items={[
-          {
-            label: "Rating",
-            value: shopRatingSummary.count > 0 ? shopRatingSummary.avg.toFixed(1) : "—",
-            tone: "warning",
-            hint: shopRatingSummary.count ? `${shopRatingSummary.count} reviews` : undefined,
-          },
-          { label: "Orders", value: orders.length, tone: "brand" },
-          { label: "Pending", value: pendingOrdersCount, tone: "warning" },
-          {
-            label: "Revenue",
-            value: formatMoney(
-              revenueSnapshot?.data?.period?.grossRevenue ?? totalRevenue,
-              shopCurrencySymbol
-            ),
-            tone: "navy",
-            hint: revenueSnapshot?.data?.period
-              ? `${revenueSnapshot.data.period.ordersCompleted || 0} collected · open Revenue for periods`
-              : "Open Revenue for 7d / 30d / monthly",
-          },
-          { label: "Completion", value: `${completionRate}%`, tone: "success" },
-        ]}
-      />
+      {activeTab === "overview" && (
+        <DirectoryMetrics
+          items={[
+            {
+              label: "Rating",
+              value: shopRatingSummary.count > 0 ? shopRatingSummary.avg.toFixed(1) : "—",
+              tone: "warning",
+              hint: shopRatingSummary.count ? `${shopRatingSummary.count} reviews` : undefined,
+            },
+            { label: "Orders", value: orders.length, tone: "brand" },
+            { label: "Pending", value: pendingOrdersCount, tone: "warning" },
+            {
+              label: "Revenue",
+              value: formatMoney(
+                revenueSnapshot?.data?.period?.grossRevenue ?? totalRevenue,
+                shopCurrencySymbol
+              ),
+              tone: "navy",
+              hint: revenueSnapshot?.data?.period
+                ? `${revenueSnapshot.data.period.ordersCompleted || 0} collected · open Revenue for periods`
+                : "Open Revenue for 7d / 30d / monthly",
+            },
+            { label: "Completion", value: `${completionRate}%`, tone: "success" },
+          ]}
+        />
+      )}
       <div style={TAB_ROW}>
         {TABS.map((tab) => (
           <Button

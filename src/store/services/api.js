@@ -592,7 +592,7 @@ export const api = createApi({
 
     /**
      * Server-side customer directory.
-     * params: { search, status: "active"|"blocked", startDate, endDate,
+     * params: { search, status: "active"|"blocked", zoneId, startDate, endDate,
      *           sortBy: name|email|createdAt|bookingCount|totalAmountSpent|lastBookingDate,
      *           sortDir, page, limit, export }
      * → data: { customers: [], pagination: { currentPage, totalPages, totalRecords, recordsPerPage, hasNextPage, hasPrevPage, exportMode, truncated } }
@@ -1004,6 +1004,7 @@ export const api = createApi({
         method: "POST",
         body,
       }),
+      invalidatesTags: ["PendingAgents", "Shops"],
     }),
 
     getPendingAgents: builder.query({
