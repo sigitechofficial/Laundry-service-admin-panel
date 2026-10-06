@@ -30,3 +30,16 @@ export function customerPhoneError(raw) {
   if (!isValidCustomerPhone(raw)) return PHONE_HINT;
   return null;
 }
+
+/**
+ * onKeyDown handler that blocks non-numeric keys in phone inputs.
+ * Allows: digits, +, Backspace, Delete, Arrow keys, Tab, Enter, Home, End.
+ * Usage: <Input onKeyDown={numericPhoneKeyDown} />
+ */
+export function numericPhoneKeyDown(e) {
+  const allowed = ["Backspace", "Delete", "ArrowLeft", "ArrowRight", "Tab", "Enter", "Home", "End"];
+  if (allowed.includes(e.key)) return;
+  if (/^\d$/.test(e.key)) return;
+  if (e.key === "+" && e.target.selectionStart === 0) return;
+  e.preventDefault();
+}

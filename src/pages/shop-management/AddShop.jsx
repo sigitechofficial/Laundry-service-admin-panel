@@ -37,6 +37,7 @@ import {
   profileLabel,
 } from "./addShopForm";
 import styles from "./AddShop.module.css";
+import { numericPhoneKeyDown } from "../../utilities/customerPhone";
 
 const CheckIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -624,6 +625,7 @@ export default function ShopProfile() {
                       placeholder="7123456789"
                       value={formData.phoneNum}
                       onChange={handlePhone}
+                      onKeyDown={numericPhoneKeyDown}
                       error={Boolean(accountErrors.phoneNum || accountErrors.countryCode)}
                       disabled={accountLocked}
                       inputMode="numeric"

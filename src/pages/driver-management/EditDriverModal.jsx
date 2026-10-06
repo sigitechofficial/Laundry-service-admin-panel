@@ -3,6 +3,7 @@ import { useForm, Controller } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
 import { Field, Input, Modal, Select } from "../../design-system";
+import { numericPhoneKeyDown } from "../../utilities/customerPhone";
 import useToaster from "../../components/ui/Toaster";
 import { useGetShopsDataQuery, useUpdateDriverMutation } from "../../store/services/api";
 
@@ -199,7 +200,7 @@ export default function EditDriverModal({ open, onClose, driverData, onDriverUpd
             control={control}
             render={({ field }) => (
               <Field label="Phone number" error={errors.phoneNumber?.message} htmlFor="edit-driver-phone">
-                <Input id="edit-driver-phone" {...field} placeholder="Phone number" error={!!errors.phoneNumber} />
+                <Input id="edit-driver-phone" {...field} placeholder="Phone number" onKeyDown={numericPhoneKeyDown} error={!!errors.phoneNumber} />
               </Field>
             )}
           />

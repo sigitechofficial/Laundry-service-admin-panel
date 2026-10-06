@@ -119,6 +119,7 @@ export const DS_NAV = [
         children: [
           { label: "Coupons", path: "/promotion/promo-codes" },
           { label: "Banners & Offers", path: "/promotion/banners" },
+          { label: "Service Discounts", path: "/promotion/service-discounts" },
         ],
       },
       { label: "Shop Reviews", icon: "star", path: "/shop-reviews" },

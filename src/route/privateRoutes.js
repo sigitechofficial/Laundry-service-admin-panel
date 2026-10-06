@@ -49,6 +49,7 @@ import {
   LocationCompliancePage,
   PromoCodesPage,
   BannersPage,
+  ServiceDiscountsPage,
   NotifyLogsPage,
   FcmDebugPage,
   SendNotificationsPage,
@@ -322,6 +323,11 @@ export const privateRoutes = [
     path: "/promotion/banners",
     element: BannersPage,
     resourceKey: "promotion_banners_page",
+  },
+  {
+    path: "/promotion/service-discounts",
+    element: ServiceDiscountsPage,
+    resourceKey: "promotion_promo_codes_page",
   },
   {
     path: "/privacy-policy",

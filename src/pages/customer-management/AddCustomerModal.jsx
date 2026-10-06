@@ -6,7 +6,7 @@ import { Field, Input, Modal, PasswordInput } from "../../design-system";
 import useToaster from "../../components/ui/Toaster";
 import { useAddCustomerMutation } from "../../store/services/api";
 import { getApiErrorMessage } from "../../store/services/apiErrors";
-import { PHONE_HINT, isValidCustomerPhone } from "../../utilities/customerPhone";
+import { PHONE_HINT, isValidCustomerPhone, numericPhoneKeyDown } from "../../utilities/customerPhone";
 
 const addCustomerSchema = yup.object().shape({
   firstName: yup.string().required("First name is required").min(2, "At least 2 characters"),
@@ -132,6 +132,7 @@ export default function AddCustomerModal({ open, onClose, onSuccess }) {
             inputMode="tel"
             autoComplete="tel"
             placeholder="07911 123456"
+            onKeyDown={numericPhoneKeyDown}
             {...register("phoneNum")}
             error={!!errors.phoneNum}
           />

@@ -3,6 +3,7 @@ import { useForm, Controller } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
 import { Field, Input, Modal, Select } from "../../design-system";
+import { numericPhoneKeyDown } from "../../utilities/customerPhone";
 import useToaster from "../../components/ui/Toaster";
 import {
   useGetShopsDataQuery,
@@ -304,7 +305,7 @@ export default function NewDriverModal({ open, onClose, onDriverAdded, driverDat
             control={control}
             render={({ field }) => (
               <Field label="Phone number" error={errors.phoneNumber?.message} htmlFor="driver-phone">
-                <Input id="driver-phone" {...field} placeholder="Phone number" error={!!errors.phoneNumber} />
+                <Input id="driver-phone" {...field} placeholder="Phone number" onKeyDown={numericPhoneKeyDown} error={!!errors.phoneNumber} />
               </Field>
             )}
           />

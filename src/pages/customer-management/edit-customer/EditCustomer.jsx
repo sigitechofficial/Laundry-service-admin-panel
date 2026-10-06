@@ -6,6 +6,7 @@ import {
 } from "../../../store/services/api";
 import useToaster from "../../../components/ui/Toaster";
 import { Button, Field, Input, PageHeader, PasswordInput, PhoneInput } from "../../../design-system";
+import { numericPhoneKeyDown } from "../../../utilities/customerPhone";
 import { Delay } from "../../../components/shared/Loaders";
 import { useForm } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
@@ -107,6 +108,7 @@ export default function EditCustomer() {
                 countryCode={customer?.countryCode || "+44"}
                 placeholder="07911 123456"
                 value={phoneNumValue}
+                onKeyDown={numericPhoneKeyDown}
                 {...register("phoneNum")}
                 error={!!errors.phoneNum}
               />

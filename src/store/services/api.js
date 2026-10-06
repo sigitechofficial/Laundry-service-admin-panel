@@ -6,7 +6,7 @@ export const api = createApi({
   baseQuery: baseQueryWithReauth,
   // setupListeners(store.dispatch) + window "online" → refetch subscribed queries.
   refetchOnReconnect: true,
-  tagTypes: ["ServiceConfig", "SupportContact", "PlatformOperationalHours", "RuntimeSettings", "Orders", "Coupons", "Banners", "AccountDeletionReasons", "ReviewReasonCodes", "ShopReviews", "ShopRatingsReport", "PendingAgents", "RejectedAgents", "AgentSettlement", "NotifyLogs", "PaymentFailures", "AdminNotificationPreferences", "ActionRequiredOrders", "RepairGarments", "RepairOptions", "Zones", "ZoneCatalog", "FailAttemptInstructions", "FailAttemptReasons", "Shops", "ShopAssignmentPolicy", "ShopPrinter", "ComplianceReport", "ComplianceEvents", "Customers"],
+  tagTypes: ["ServiceConfig", "SupportContact", "PlatformOperationalHours", "RuntimeSettings", "Orders", "Coupons", "Banners", "AccountDeletionReasons", "ReviewReasonCodes", "ShopReviews", "ShopRatingsReport", "PendingAgents", "RejectedAgents", "AgentSettlement", "NotifyLogs", "PaymentFailures", "AdminNotificationPreferences", "ActionRequiredOrders", "RepairGarments", "RepairOptions", "Zones", "ZoneCatalog", "FailAttemptInstructions", "FailAttemptReasons", "Shops", "ShopAssignmentPolicy", "ShopPrinter", "ComplianceReport", "ComplianceEvents", "Customers", "ServiceDiscounts"],
 
   endpoints: (builder) => {
     const reportQueryString = (params = {}) => {
@@ -2452,6 +2452,31 @@ export const api = createApi({
       invalidatesTags: ["Coupons"],
     }),
 
+    // ─── Service Discounts ──────────────────────────────────────────────────
+    getServiceDiscounts: builder.query({
+      query: ({ page = 1, limit = 50, isActive } = {}) => ({
+        url: "admin/serviceDiscounts",
+        method: "GET",
+        params: { page, limit, ...(isActive !== undefined ? { isActive } : {}) },
+      }),
+      providesTags: ["ServiceDiscounts"],
+    }),
+
+    createServiceDiscount: builder.mutation({
+      query: (body) => ({ url: "admin/serviceDiscounts", method: "POST", body }),
+      invalidatesTags: ["ServiceDiscounts"],
+    }),
+
+    updateServiceDiscount: builder.mutation({
+      query: ({ id, ...body }) => ({ url: `admin/serviceDiscounts/${id}`, method: "PUT", body }),
+      invalidatesTags: ["ServiceDiscounts"],
+    }),
+
+    deleteServiceDiscount: builder.mutation({
+      query: (id) => ({ url: `admin/serviceDiscounts/${id}`, method: "DELETE" }),
+      invalidatesTags: ["ServiceDiscounts"],
+    }),
+
     // ─── Banners & Offers ───────────────────────────────────────────────────
     // body is always FormData (multipart) — browser sets Content-Type + boundary automatically
     createBanner: builder.mutation({
@@ -2762,6 +2787,10 @@ export const {
   useGetAllCouponsQuery,
   useAddCouponMutation,
   useUpdateCouponMutation,
+  useGetServiceDiscountsQuery,
+  useCreateServiceDiscountMutation,
+  useUpdateServiceDiscountMutation,
+  useDeleteServiceDiscountMutation,
   useCreateBannerMutation,
   useGetAllBannersQuery,
   useUpdateBannerMutation,

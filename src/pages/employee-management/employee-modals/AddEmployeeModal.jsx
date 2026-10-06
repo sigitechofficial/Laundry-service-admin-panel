@@ -3,6 +3,7 @@ import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
 import { useMemo, useEffect, useState } from "react";
 import { Field, Input, Modal, Select } from "../../../design-system";
+import { numericPhoneKeyDown } from "../../../utilities/customerPhone";
 import useToaster from "../../../components/ui/Toaster";
 import {
   useAddAdminEmployeeMutation,
@@ -430,7 +431,7 @@ export default function AddEmployeeModal({
             <Input id="emp-email" type="email" placeholder="email@example.com" {...register("email")} error={!!errors.email} />
           </Field>
           <Field label="Phone number" error={errors.phoneNum?.message} htmlFor="emp-phone">
-            <Input id="emp-phone" placeholder="Phone number" {...register("phoneNum")} error={!!errors.phoneNum} />
+            <Input id="emp-phone" placeholder="Phone number" onKeyDown={numericPhoneKeyDown} {...register("phoneNum")} error={!!errors.phoneNum} />
           </Field>
         </div>
 
