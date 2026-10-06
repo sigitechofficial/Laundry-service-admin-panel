@@ -161,6 +161,7 @@ export default function ShopCustomersTab({ shopId, currencySymbol = "£" }) {
     {
       key: "orders",
       header: "Orders at shop",
+      align: "left",
       render: (row) => {
         const stat = customerShopStat({
           completed: row.completedOrders,
