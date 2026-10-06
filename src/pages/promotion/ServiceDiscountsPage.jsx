@@ -337,13 +337,13 @@ export default function ServiceDiscountsPage() {
       <DirectoryToolbar>
         <Select
           value={filterActive}
-          onChange={(e) => { setFilterActive(e.target.value); setPage(1); }}
-          style={{ minWidth: 160 }}
-        >
-          <option value="">All statuses</option>
-          <option value="true">Active only</option>
-          <option value="false">Inactive only</option>
-        </Select>
+          onChange={(value) => { setFilterActive(value); setPage(1); }}
+          options={[
+            { value: "", label: "All statuses" },
+            { value: "true", label: "Active only" },
+            { value: "false", label: "Inactive only" },
+          ]}
+        />
         <DirectoryToolbarEnd>
           <span style={{ fontSize: 13, color: "#6b7280" }}>
             {totalCount} rule{totalCount !== 1 ? "s" : ""}
@@ -398,11 +398,12 @@ export default function ServiceDiscountsPage() {
             <Field label="Discount type *">
               <Select
                 value={form.discountType}
-                onChange={(e) => setField("discountType", e.target.value)}
-              >
-                <option value="percentage">Percentage (%)</option>
-                <option value="flat">Flat amount (£)</option>
-              </Select>
+                onChange={(value) => setField("discountType", value)}
+                options={[
+                  { value: "percentage", label: "Percentage (%)" },
+                  { value: "flat", label: "Flat amount (£)" },
+                ]}
+              />
             </Field>
             <Field
               label={`Discount value * ${form.discountType === "percentage" ? "(%)" : "(£)"}`}
@@ -455,17 +456,18 @@ export default function ServiceDiscountsPage() {
             <Field label="Apply discount to *">
               <Select
                 value={form.targetType}
-                onChange={(e) => {
-                  setField("targetType", e.target.value);
+                onChange={(value) => {
+                  setField("targetType", value);
                   setField("targetId", "");
                 }}
-              >
-                <option value="all">All services, categories &amp; add-ons</option>
-                <option value="service">Specific service (by service ID)</option>
-                <option value="category">Specific category (by category ID)</option>
-                <option value="subCategory">Specific item / sub-category (by item ID)</option>
-                <option value="addon">Specific add-on (by add-on ID)</option>
-              </Select>
+                options={[
+                  { value: "all", label: "All services, categories & add-ons" },
+                  { value: "service", label: "Specific service (by service ID)" },
+                  { value: "category", label: "Specific category (by category ID)" },
+                  { value: "subCategory", label: "Specific item / sub-category (by item ID)" },
+                  { value: "addon", label: "Specific add-on (by add-on ID)" },
+                ]}
+              />
             </Field>
 
             {form.targetType !== "all" && (
@@ -504,14 +506,15 @@ export default function ServiceDiscountsPage() {
             <Field label="Zone mode *">
               <Select
                 value={form.zoneMode}
-                onChange={(e) => {
-                  setField("zoneMode", e.target.value);
-                  if (e.target.value === "all") setField("zoneIds", []);
+                onChange={(value) => {
+                  setField("zoneMode", value);
+                  if (value === "all") setField("zoneIds", []);
                 }}
-              >
-                <option value="all">All zones</option>
-                <option value="specific">Specific zone(s) only</option>
-              </Select>
+                options={[
+                  { value: "all", label: "All zones" },
+                  { value: "specific", label: "Specific zone(s) only" },
+                ]}
+              />
             </Field>
 
             {form.zoneMode === "specific" && zones.length > 0 && (

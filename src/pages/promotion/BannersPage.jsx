@@ -9,7 +9,7 @@ import {
   Select,
   Table,
 } from "../../design-system";
-import { CheckRow, PaginationBar, Toggle } from "../misc-kit";
+import { PaginationBar, Toggle } from "../misc-kit";
 import useToaster from "../../components/ui/Toaster";
 import {
   IMAGE_UPLOAD_ACCEPT,
@@ -226,16 +226,51 @@ function BannerForm({ form, errors, patch, services, categories, subCategories, 
     [subCategories, form.targetCategoryId]
   );
 
-  return (
-    <div style={{ display: "grid", gap: 20 }}>
-      <p style={{ margin: 0, color: "var(--muted)", fontSize: 13 }}>
-        Fields marked * are required.
-      </p>
+  const sectionCard = {
+    background: "var(--surface, #fff)",
+    border: "1px solid var(--line, #e5e7eb)",
+    borderRadius: 12,
+    padding: "20px 24px",
+  };
 
-      <div>
-        <h4 style={{ margin: "0 0 12px" }}>Basic info</h4>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
-          <Field label="Title*" htmlFor="banner-title" error={errors.title}>
+  const sectionHeader = {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 16,
+  };
+
+  const sectionTitle = {
+    fontSize: 13,
+    fontWeight: 700,
+    textTransform: "uppercase",
+    letterSpacing: "0.6px",
+    color: "var(--foreground, #111827)",
+    margin: 0,
+  };
+
+  const sectionIcon = {
+    width: 28,
+    height: 28,
+    borderRadius: 6,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: 15,
+    flexShrink: 0,
+  };
+
+  return (
+    <div style={{ display: "grid", gap: 16 }}>
+
+      {/* ── Basic info ── */}
+      <div style={sectionCard}>
+        <div style={sectionHeader}>
+          <span style={{ ...sectionIcon, background: "#eff6ff" }}>📋</span>
+          <p style={sectionTitle}>Basic Info</p>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+          <Field label="Title *" htmlFor="banner-title" error={errors.title}>
             <Input
               id="banner-title"
               placeholder="e.g. Eid Special Offer"
@@ -252,33 +287,50 @@ function BannerForm({ form, errors, patch, services, categories, subCategories, 
               onChange={(e) => patch("description", e.target.value)}
             />
           </Field>
-          <Field label="Active">
+        </div>
+        <div style={{ display: "flex", gap: 24, marginTop: 14 }}>
+          <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", userSelect: "none" }}>
             <Toggle
               checked={form.isActive}
-              onChange={(e) => patch("isActive", e.target.checked)}
-              label={form.isActive ? "Active" : "Inactive"}
+              onChange={(e) => patch("isActive", typeof e === "boolean" ? e : e.target.checked)}
             />
-          </Field>
-          <Field label="Home screen">
+            <span style={{ fontSize: 13, color: form.isActive ? "#166534" : "#6b7280", fontWeight: 500 }}>
+              {form.isActive ? "Active — banner is live" : "Inactive — paused"}
+            </span>
+          </label>
+          <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", userSelect: "none" }}>
             <Toggle
               checked={form.showOnHome}
-              onChange={(e) => patch("showOnHome", e.target.checked)}
-              label={form.showOnHome ? "Show on home screen" : "Hidden from home"}
+              onChange={(e) => patch("showOnHome", typeof e === "boolean" ? e : e.target.checked)}
             />
-          </Field>
+            <span style={{ fontSize: 13, color: form.showOnHome ? "#1d4ed8" : "#6b7280", fontWeight: 500 }}>
+              {form.showOnHome ? "Shown on home screen" : "Hidden from home"}
+            </span>
+          </label>
         </div>
       </div>
 
-      <BannerImageField
-        value={form.bannerImage}
-        onChange={(file) => patch("bannerImage", file)}
-        error={errors.bannerImage}
-      />
+      {/* ── Banner image ── */}
+      <div style={sectionCard}>
+        <div style={sectionHeader}>
+          <span style={{ ...sectionIcon, background: "#faf5ff" }}>🖼️</span>
+          <p style={sectionTitle}>Banner Image</p>
+        </div>
+        <BannerImageField
+          value={form.bannerImage}
+          onChange={(file) => patch("bannerImage", file)}
+          error={errors.bannerImage}
+        />
+      </div>
 
-      <div>
-        <h4 style={{ margin: "0 0 12px" }}>Offer details</h4>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12 }}>
-          <Field label="Offer type*">
+      {/* ── Offer details ── */}
+      <div style={{ ...sectionCard, background: "#fffbeb", borderColor: "#fde68a" }}>
+        <div style={sectionHeader}>
+          <span style={{ ...sectionIcon, background: "#fef3c7" }}>🏷️</span>
+          <p style={{ ...sectionTitle, color: "#92400e" }}>Offer Details</p>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 14 }}>
+          <Field label="Offer type *">
             <Select
               aria-label="Offer type"
               value={form.offerType}
@@ -287,7 +339,7 @@ function BannerForm({ form, errors, patch, services, categories, subCategories, 
             />
           </Field>
           {form.offerType !== "free_delivery" ? (
-            <Field label="Discount value*" htmlFor="banner-discount" error={errors.discountValue}>
+            <Field label="Discount value *" htmlFor="banner-discount" error={errors.discountValue}>
               <Input
                 id="banner-discount"
                 type="number"
@@ -302,7 +354,7 @@ function BannerForm({ form, errors, patch, services, categories, subCategories, 
             </Field>
           ) : null}
           {form.offerType === "percentage" ? (
-            <Field label="Max discount cap" htmlFor="banner-cap" hint="Max discount from %">
+            <Field label="Max discount cap" htmlFor="banner-cap" hint="Leave blank for no cap">
               <Input
                 id="banner-cap"
                 type="number"
@@ -318,10 +370,14 @@ function BannerForm({ form, errors, patch, services, categories, subCategories, 
         </div>
       </div>
 
-      <div>
-        <h4 style={{ margin: "0 0 12px" }}>Apply to</h4>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
-          <Field label="Target type">
+      {/* ── Target scope ── */}
+      <div style={{ ...sectionCard, background: "#f0f7ff", borderColor: "#bfdbfe" }}>
+        <div style={sectionHeader}>
+          <span style={{ ...sectionIcon, background: "#dbeafe" }}>🎯</span>
+          <p style={{ ...sectionTitle, color: "#1e40af" }}>Target Scope</p>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 14 }}>
+          <Field label="Apply to *">
             <Select
               aria-label="Target type"
               value={form.targetType}
@@ -335,7 +391,7 @@ function BannerForm({ form, errors, patch, services, categories, subCategories, 
             />
           </Field>
           {form.targetType === "service" ? (
-            <Field label="Service*" error={errors.targetServiceId}>
+            <Field label="Service *" error={errors.targetServiceId}>
               <Select
                 aria-label="Service"
                 value={form.targetServiceId}
@@ -349,7 +405,7 @@ function BannerForm({ form, errors, patch, services, categories, subCategories, 
             </Field>
           ) : null}
           {form.targetType === "category" || form.targetType === "sub_category" ? (
-            <Field label="Category*" error={errors.targetCategoryId}>
+            <Field label="Category *" error={errors.targetCategoryId}>
               <Select
                 aria-label="Category"
                 value={form.targetCategoryId}
@@ -366,7 +422,7 @@ function BannerForm({ form, errors, patch, services, categories, subCategories, 
             </Field>
           ) : null}
           {form.targetType === "sub_category" ? (
-            <Field label="Sub-category*" error={errors.targetSubCategoryId}>
+            <Field label="Sub-category *" error={errors.targetSubCategoryId}>
               <Select
                 aria-label="Sub-category"
                 value={form.targetSubCategoryId}
@@ -383,58 +439,94 @@ function BannerForm({ form, errors, patch, services, categories, subCategories, 
         </div>
       </div>
 
-      <div>
-        <h4 style={{ margin: "0 0 12px" }}>Zone filter</h4>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 16, marginBottom: 12 }}>
-          <label style={{ display: "inline-flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
-            <input
-              type="radio"
-              name="banner-zone-mode"
-              checked={form.zoneMode === "all"}
-              onChange={() => {
-                patch("zoneMode", "all");
-                patch("zoneIds", []);
-              }}
-            />
-            All zones
-          </label>
-          <label style={{ display: "inline-flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
-            <input
-              type="radio"
-              name="banner-zone-mode"
-              checked={form.zoneMode === "specific"}
-              onChange={() => patch("zoneMode", "specific")}
-            />
-            Specific zones
-          </label>
+      {/* ── Zone scope ── */}
+      <div style={{ ...sectionCard, background: "#f0fdf4", borderColor: "#bbf7d0" }}>
+        <div style={sectionHeader}>
+          <span style={{ ...sectionIcon, background: "#dcfce7" }}>🗺️</span>
+          <p style={{ ...sectionTitle, color: "#166534" }}>Zone Scope</p>
         </div>
-        {form.zoneMode === "specific" ? (
-          <Field label="Select zones*" error={errors.zoneIds}>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+        <div style={{ display: "flex", gap: 10, marginBottom: 14 }}>
+          {["all", "specific"].map((mode) => {
+            const active = form.zoneMode === mode;
+            return (
+              <button
+                key={mode}
+                type="button"
+                onClick={() => {
+                  patch("zoneMode", mode);
+                  if (mode === "all") patch("zoneIds", []);
+                }}
+                style={{
+                  padding: "7px 18px",
+                  borderRadius: 20,
+                  border: active ? "2px solid #166534" : "1.5px solid #bbf7d0",
+                  background: active ? "#166534" : "#fff",
+                  color: active ? "#fff" : "#166534",
+                  fontSize: 13,
+                  fontWeight: active ? 600 : 400,
+                  cursor: "pointer",
+                  transition: "all 0.15s",
+                }}
+              >
+                {mode === "all" ? "🌍 All zones" : "📍 Specific zones"}
+              </button>
+            );
+          })}
+        </div>
+        {form.zoneMode === "specific" && zones.length > 0 ? (
+          <div>
+            <p style={{ fontSize: 12, color: "#166534", fontWeight: 500, margin: "0 0 10px" }}>
+              Select zones — click to toggle:
+            </p>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
               {zones.map((z) => {
                 const id = String(z.id ?? z._id);
+                const selected = form.zoneIds.includes(id);
                 return (
-                  <CheckRow
+                  <button
                     key={id}
-                    checked={form.zoneIds.includes(id)}
-                    onChange={() => {
+                    type="button"
+                    onClick={() => {
                       const next = form.zoneIds.includes(id)
                         ? form.zoneIds.filter((item) => item !== id)
                         : [...form.zoneIds, id];
                       patch("zoneIds", next);
                     }}
-                    label={z.name ?? z.zoneName}
-                  />
+                    style={{
+                      padding: "6px 14px",
+                      borderRadius: 20,
+                      border: selected ? "2px solid #166534" : "1.5px solid #bbf7d0",
+                      background: selected ? "#166534" : "#f0fdf4",
+                      color: selected ? "#fff" : "#166534",
+                      fontSize: 12,
+                      fontWeight: selected ? 600 : 400,
+                      cursor: "pointer",
+                      transition: "all 0.15s",
+                    }}
+                  >
+                    {selected ? "✓ " : ""}{z.name ?? z.zoneName}
+                  </button>
                 );
               })}
             </div>
-          </Field>
+            {errors.zoneIds ? (
+              <p style={{ color: "var(--danger, #ef4444)", fontSize: 12, margin: "8px 0 0" }}>{errors.zoneIds}</p>
+            ) : form.zoneIds.length > 0 ? (
+              <p style={{ fontSize: 11, color: "#6b7280", margin: "8px 0 0" }}>
+                {form.zoneIds.length} zone{form.zoneIds.length !== 1 ? "s" : ""} selected
+              </p>
+            ) : null}
+          </div>
         ) : null}
       </div>
 
-      <div>
-        <h4 style={{ margin: "0 0 12px" }}>Validity & display</h4>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12 }}>
+      {/* ── Validity & display ── */}
+      <div style={sectionCard}>
+        <div style={sectionHeader}>
+          <span style={{ ...sectionIcon, background: "#fef3c7" }}>📅</span>
+          <p style={sectionTitle}>Validity & Display</p>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 14 }}>
           <Field label="Start date" htmlFor="banner-start">
             <Input
               id="banner-start"
@@ -452,7 +544,7 @@ function BannerForm({ form, errors, patch, services, categories, subCategories, 
               error={Boolean(errors.endDate)}
             />
           </Field>
-          <Field label="Display order" htmlFor="banner-order">
+          <Field label="Display order" htmlFor="banner-order" hint="Lower = shown first">
             <Input
               id="banner-order"
               type="number"
