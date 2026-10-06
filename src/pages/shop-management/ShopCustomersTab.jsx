@@ -40,6 +40,11 @@ const LIST_FILTER_OPTIONS = [
   { value: "returning", label: "Returning only" },
   { value: "assigned", label: "Assigned only" },
   { value: "excluded", label: "Excluded only" },
+  { value: "spend_high", label: "Spend: High → Low" },
+  { value: "spend_low", label: "Spend: Low → High" },
+  { value: "spend_above_500", label: "Spend above £500" },
+  { value: "spend_above_100", label: "Spend above £100" },
+  { value: "spend_below_100", label: "Spend below £100" },
 ];
 
 /**
@@ -83,13 +88,30 @@ export default function ShopCustomersTab({ shopId, currencySymbol = "£" }) {
       rows = rows.filter((c) => c.isExcluded);
     } else if (listFilter === "assigned") {
       rows = rows.filter((c) => c.hasActiveAssignment);
+    } else if (listFilter === "spend_above_500") {
+      rows = rows.filter((c) => (Number(c.totalSpend) || 0) >= 500);
+    } else if (listFilter === "spend_above_100") {
+      rows = rows.filter((c) => (Number(c.totalSpend) || 0) >= 100);
+    } else if (listFilter === "spend_below_100") {
+      rows = rows.filter((c) => (Number(c.totalSpend) || 0) < 100);
     }
-    if (!search.trim()) return rows;
-    const q = search.toLowerCase();
-    return rows.filter((c) =>
-      [c.name, c.email, c.phoneNum, c.customerId, c.assignedShopName]
-        .some((v) => String(v ?? "").toLowerCase().includes(q))
-    );
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      rows = rows.filter((c) =>
+        [c.name, c.email, c.phoneNum, c.customerId, c.assignedShopName]
+          .some((v) => String(v ?? "").toLowerCase().includes(q))
+      );
+    }
+    if (listFilter === "spend_high") {
+      rows = [...rows].sort(
+        (a, b) => (Number(b.totalSpend) || 0) - (Number(a.totalSpend) || 0)
+      );
+    } else if (listFilter === "spend_low") {
+      rows = [...rows].sort(
+        (a, b) => (Number(a.totalSpend) || 0) - (Number(b.totalSpend) || 0)
+      );
+    }
+    return rows;
   }, [customers, search, listFilter]);
 
   const money = (n) => formatMoney(Number(n) || 0, currencySymbol);
@@ -145,29 +167,37 @@ export default function ShopCustomersTab({ shopId, currencySymbol = "£" }) {
           total: row.totalOrders,
           isReturning: row.isReturning,
         });
+        const hasBadges =
+          row.isReturning || row.hasActiveAssignment || row.isExcluded;
         return (
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              flexWrap: "wrap",
-            }}
-          >
-            <span style={{ fontWeight: 600, fontSize: 13 }}>
+          <div style={{ display: "grid", gap: 4 }}>
+            <span style={{ fontWeight: 600, fontSize: 13, whiteSpace: "nowrap" }}>
               {stat ? stat.count : `${row.totalOrders} orders`}
             </span>
-            {row.isReturning ? (
-              <DirectoryDotPill tone="brand">Returning</DirectoryDotPill>
+            {hasBadges ? (
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  flexWrap: "wrap",
+                }}
+              >
+                {row.isReturning ? (
+                  <DirectoryDotPill tone="brand">Returning</DirectoryDotPill>
+                ) : null}
+                {row.hasActiveAssignment ? (
+                  <Badge tone="success">
+                    {row.isAssignedHere
+                      ? "Assigned here"
+                      : `Assigned → ${row.assignedShopName || "shop"}`}
+                  </Badge>
+                ) : null}
+                {row.isExcluded ? (
+                  <Badge tone="danger">Excluded</Badge>
+                ) : null}
+              </div>
             ) : null}
-            {row.hasActiveAssignment ? (
-              <Badge tone="success">
-                {row.isAssignedHere
-                  ? "Assigned here"
-                  : `Assigned → ${row.assignedShopName || "shop"}`}
-              </Badge>
-            ) : null}
-            {row.isExcluded ? <Badge tone="danger">Excluded</Badge> : null}
           </div>
         );
       },
@@ -332,7 +362,17 @@ export default function ShopCustomersTab({ shopId, currencySymbol = "£" }) {
               ? "Excluded customers"
               : listFilter === "assigned"
                 ? "Assigned customers"
-                : "All customers at this shop"}
+                : listFilter === "spend_high"
+                  ? "Customers by spend (high → low)"
+                  : listFilter === "spend_low"
+                    ? "Customers by spend (low → high)"
+                    : listFilter === "spend_above_500"
+                      ? "Customers with spend above £500"
+                      : listFilter === "spend_above_100"
+                        ? "Customers with spend above £100"
+                        : listFilter === "spend_below_100"
+                          ? "Customers with spend below £100"
+                          : "All customers at this shop"}
           {isFetching ? (
             <span
               style={{
@@ -380,9 +420,15 @@ export default function ShopCustomersTab({ shopId, currencySymbol = "£" }) {
                 ? "No customers are excluded from this shop"
                 : listFilter === "assigned"
                   ? "No customers have an active preferred-shop assignment"
-                  : returningOnly
-                    ? "No returning customers at this shop"
-                    : "No customers have ordered at this shop yet"
+                  : listFilter === "spend_above_500"
+                    ? "No customers with spend above £500"
+                    : listFilter === "spend_above_100"
+                      ? "No customers with spend above £100"
+                      : listFilter === "spend_below_100"
+                        ? "No customers with spend below £100"
+                        : returningOnly
+                          ? "No returning customers at this shop"
+                          : "No customers have ordered at this shop yet"
             }
           />
         </DirectoryTableWrap>
