@@ -37,7 +37,7 @@ import {
   profileLabel,
 } from "./addShopForm";
 import styles from "./AddShop.module.css";
-import { numericPhoneKeyDown } from "../../utilities/customerPhone";
+import { numericPhoneKeyDown, positiveIntegerKeyDown } from "../../utilities/customerPhone";
 
 const CheckIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -731,7 +731,12 @@ export default function ShopProfile() {
                     id="add-shop-employees"
                     placeholder="e.g. 8"
                     value={formData.noOfEmployee}
-                    onChange={handleChange("noOfEmployee")}
+                    onChange={(e) => {
+                      const raw = e?.target?.value ?? e;
+                      const digits = String(raw).replace(/\D/g, "");
+                      setFormData((s) => ({ ...s, noOfEmployee: digits }));
+                    }}
+                    onKeyDown={positiveIntegerKeyDown}
                     error={Boolean(accountErrors.noOfEmployee)}
                     disabled={accountLocked}
                     inputMode="numeric"

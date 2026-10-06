@@ -33,13 +33,28 @@ export function customerPhoneError(raw) {
 
 /**
  * onKeyDown handler that blocks non-numeric keys in phone inputs.
- * Allows: digits, +, Backspace, Delete, Arrow keys, Tab, Enter, Home, End.
+ * Allows: digits, +, Backspace, Delete, Arrow keys, Tab, Enter, Home, End,
+ *         and any Ctrl/Meta shortcut (paste, copy, select-all, etc.).
  * Usage: <Input onKeyDown={numericPhoneKeyDown} />
  */
 export function numericPhoneKeyDown(e) {
+  if (e.ctrlKey || e.metaKey) return; // allow Ctrl+V, Ctrl+C, Ctrl+A etc.
   const allowed = ["Backspace", "Delete", "ArrowLeft", "ArrowRight", "Tab", "Enter", "Home", "End"];
   if (allowed.includes(e.key)) return;
   if (/^\d$/.test(e.key)) return;
   if (e.key === "+" && e.target.selectionStart === 0) return;
+  e.preventDefault();
+}
+
+/**
+ * onKeyDown handler for positive-integer-only fields (e.g. No. of employees).
+ * Allows: digits, Backspace, Delete, Arrow keys, Tab, Enter, Home, End,
+ *         and any Ctrl/Meta shortcut.
+ */
+export function positiveIntegerKeyDown(e) {
+  if (e.ctrlKey || e.metaKey) return;
+  const allowed = ["Backspace", "Delete", "ArrowLeft", "ArrowRight", "Tab", "Enter", "Home", "End"];
+  if (allowed.includes(e.key)) return;
+  if (/^\d$/.test(e.key)) return;
   e.preventDefault();
 }
