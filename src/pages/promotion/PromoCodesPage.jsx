@@ -9,7 +9,7 @@ import {
   Select,
   Table,
 } from "../../design-system";
-import { CheckRow, PaginationBar, Toggle } from "../misc-kit";
+import { PaginationBar, Toggle } from "../misc-kit";
 import {
   DirectoryActions,
   DirectoryActionEdit,
@@ -32,6 +32,10 @@ import {
   useUpdateCouponMutation,
 } from "../../store/services/api";
 import { TbPlus } from "../../shared/icons/index";
+import {
+  TbTicket, TbPercentage, TbListCheck, TbMapPin,
+  TbUsers, TbCalendarEvent, TbChevronDown, TbX, TbCheck,
+} from "react-icons/tb";
 import { formatDate, formatAmount } from "../../utilities/formatters";
 
 const initialPromoForm = () => ({
@@ -387,6 +391,197 @@ function extractCouponsData(response) {
   };
 }
 
+/* ── Zone multi-select dropdown ───────────────────────── */
+function ZoneMultiSelect({ zones, selectedIds, onChange, error }) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+
+  const filtered = zones.filter((z) => {
+    const name = (z.name ?? z.zoneName ?? "").toLowerCase();
+    return name.includes(search.toLowerCase());
+  });
+
+  const selectedZones = zones.filter((z) => selectedIds.includes(String(z.id ?? z._id)));
+
+  const toggle = (rawId) => {
+    const id = String(rawId);
+    const next = selectedIds.includes(id)
+      ? selectedIds.filter((x) => x !== id)
+      : [...selectedIds, id];
+    onChange(next);
+  };
+
+  return (
+    <div style={{ position: "relative" }}>
+      {/* Backdrop */}
+      {open && (
+        <div
+          style={{ position: "fixed", inset: 0, zIndex: 99 }}
+          onClick={() => { setOpen(false); setSearch(""); }}
+        />
+      )}
+
+      {/* Trigger */}
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        style={{
+          width: "100%",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: selectedZones.length ? "7px 10px" : "9px 12px",
+          border: `1.5px solid ${error ? "#ef4444" : open ? "#3b82f6" : "#d1d5db"}`,
+          borderRadius: 8,
+          background: "#fff",
+          cursor: "pointer",
+          fontSize: 13,
+          color: selectedZones.length ? "#1e293b" : "#94a3b8",
+          gap: 8,
+          minHeight: 38,
+          outline: "none",
+          boxShadow: open ? "0 0 0 3px rgba(59,130,246,0.1)" : "none",
+          transition: "border-color 0.15s, box-shadow 0.15s",
+        }}
+      >
+        {selectedZones.length > 0 ? (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 4, flex: 1, alignItems: "center" }}>
+            {selectedZones.map((z) => {
+              const id = String(z.id ?? z._id);
+              return (
+                <span
+                  key={id}
+                  style={{
+                    display: "inline-flex", alignItems: "center", gap: 3,
+                    background: "#eff6ff", color: "#2563eb", borderRadius: 5,
+                    padding: "2px 7px 2px 6px", fontSize: 12, fontWeight: 500,
+                    border: "1px solid #bfdbfe",
+                  }}
+                >
+                  {z.name ?? z.zoneName ?? `Zone #${id}`}
+                  <span
+                    onClick={(e) => { e.stopPropagation(); toggle(id); }}
+                    style={{ cursor: "pointer", color: "#93c5fd", display: "flex", marginLeft: 1 }}
+                  >
+                    <TbX size={11} />
+                  </span>
+                </span>
+              );
+            })}
+          </div>
+        ) : (
+          <span>Select zones…</span>
+        )}
+        <TbChevronDown
+          size={15}
+          style={{
+            flexShrink: 0, color: "#64748b",
+            transform: open ? "rotate(180deg)" : "none",
+            transition: "transform 0.15s",
+          }}
+        />
+      </button>
+
+      {/* Dropdown */}
+      {open && (
+        <div
+          style={{
+            position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0,
+            background: "#fff", border: "1.5px solid #e2e8f0", borderRadius: 10,
+            boxShadow: "0 8px 24px rgba(0,0,0,0.09)", zIndex: 100,
+            overflow: "hidden", display: "flex", flexDirection: "column",
+          }}
+        >
+          {/* Search — shown when zones > 5 */}
+          {zones.length > 5 && (
+            <div style={{ padding: "8px 10px", borderBottom: "1px solid #f1f5f9" }}>
+              <input
+                type="text"
+                placeholder="Search zones…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                autoFocus
+                style={{
+                  width: "100%", border: "1px solid #e2e8f0", borderRadius: 7,
+                  padding: "5px 9px", fontSize: 12, outline: "none", color: "#1e293b",
+                  background: "#f8fafc",
+                }}
+              />
+            </div>
+          )}
+
+          {/* Items */}
+          <div style={{ overflowY: "auto", maxHeight: 200 }}>
+            {filtered.length === 0 ? (
+              <p style={{ margin: 0, padding: "12px", fontSize: 12, color: "#94a3b8" }}>No zones match.</p>
+            ) : (
+              filtered.map((z) => {
+                const id = String(z.id ?? z._id);
+                const checked = selectedIds.includes(id);
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => toggle(id)}
+                    style={{
+                      width: "100%", display: "flex", alignItems: "center", gap: 10,
+                      padding: "9px 12px", border: "none",
+                      background: checked ? "#eff6ff" : "transparent",
+                      cursor: "pointer", fontSize: 13,
+                      color: checked ? "#1d4ed8" : "#1e293b",
+                      textAlign: "left", borderBottom: "1px solid #f8fafc",
+                    }}
+                  >
+                    <span
+                      style={{
+                        width: 16, height: 16, borderRadius: 4,
+                        border: `2px solid ${checked ? "#3b82f6" : "#d1d5db"}`,
+                        background: checked ? "#3b82f6" : "#fff",
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        flexShrink: 0, transition: "all 0.1s",
+                      }}
+                    >
+                      {checked && <TbCheck size={10} color="#fff" />}
+                    </span>
+                    {z.name ?? z.zoneName ?? `Zone #${id}`}
+                  </button>
+                );
+              })
+            )}
+          </div>
+
+          {/* Footer */}
+          {selectedIds.length > 0 && (
+            <div
+              style={{
+                padding: "6px 12px", borderTop: "1px solid #f1f5f9",
+                display: "flex", justifyContent: "space-between", alignItems: "center",
+                background: "#fafbfc",
+              }}
+            >
+              <span style={{ fontSize: 12, color: "#64748b", fontWeight: 500 }}>
+                {selectedIds.length} selected
+              </span>
+              <button
+                type="button"
+                onClick={() => onChange([])}
+                style={{
+                  fontSize: 11, color: "#ef4444", background: "none",
+                  border: "1px solid #fecaca", borderRadius: 5, cursor: "pointer",
+                  padding: "2px 8px", fontWeight: 500,
+                }}
+              >
+                Clear all
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── Create / Edit promo code form ───────────────────── */
 function CreatePromoCodeForm({ form, errors, patch, discountHint, zones = [], isEditing = false }) {
   const blockNegativeKeys = (e) => {
     if (["-", "+", "e", "E"].includes(e.key)) e.preventDefault();
@@ -395,15 +590,67 @@ function CreatePromoCodeForm({ form, errors, patch, discountHint, zones = [], is
     if (value !== "" && Number(value) < 0) return;
     patch(key, value);
   };
+
+  /* Shared section-card styles */
+  const sc = {
+    background: "#fff",
+    border: "1px solid #e8ecf0",
+    borderRadius: 12,
+    padding: "16px 18px 18px",
+    display: "grid",
+    gap: 14,
+  };
+  const sh = { display: "flex", alignItems: "center", gap: 9 };
+  const si = (bg, color) => ({
+    width: 28, height: 28, borderRadius: 7,
+    background: bg, color,
+    display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+  });
+  const stitle = { margin: 0, fontWeight: 600, fontSize: 13.5, color: "#1e293b" };
+
+  /* Zone mode pill helper */
+  const zonePill = (mode, label) => (
+    <button
+      type="button"
+      onClick={() => {
+        patch("zoneMode", mode);
+        if (mode === "all") patch("zoneIds", []);
+      }}
+      style={{
+        display: "inline-flex", alignItems: "center", gap: 6,
+        padding: "7px 16px", borderRadius: 20, cursor: "pointer",
+        fontSize: 13, fontWeight: 500, transition: "all 0.15s",
+        border: form.zoneMode === mode ? "1.5px solid #3b82f6" : "1.5px solid #e2e8f0",
+        background: form.zoneMode === mode ? "#eff6ff" : "#f8fafc",
+        color: form.zoneMode === mode ? "#1d4ed8" : "#64748b",
+        boxShadow: form.zoneMode === mode ? "0 0 0 3px rgba(59,130,246,0.08)" : "none",
+      }}
+    >
+      <TbMapPin size={13} />
+      {label}
+    </button>
+  );
+
   return (
-    <div style={{ display: "grid", gap: 20 }}>
-      <p style={{ margin: 0, color: "var(--muted)", fontSize: 13, lineHeight: 1.45 }}>
-        Discount is reserved at checkout and applied on the <b>invoice laundry total</b> after inspection.
+    <div style={{ display: "grid", gap: 14 }}>
+      <p
+        style={{
+          margin: 0, color: "#64748b", fontSize: 13, lineHeight: 1.5,
+          padding: "10px 14px", background: "#f8fafc", borderRadius: 8,
+          border: "1px solid #e8ecf0",
+        }}
+      >
+        Discount is reserved at checkout and applied on the{" "}
+        <b style={{ color: "#1e293b" }}>invoice laundry total</b> after inspection.
         Zone prepaid (minimum + service fee + tip) is never reduced.
       </p>
 
-      <div>
-        <h4 style={{ margin: "0 0 12px" }}>1. Code</h4>
+      {/* 1. Code */}
+      <div style={sc}>
+        <div style={sh}>
+          <span style={si("#eff6ff", "#2563eb")}><TbTicket size={15} /></span>
+          <p style={stitle}>1. Code</p>
+        </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
           <Field label="Promo code*" htmlFor="promo-code" hint="Customers type this at checkout" error={errors.code}>
             <Input
@@ -435,8 +682,12 @@ function CreatePromoCodeForm({ form, errors, patch, discountHint, zones = [], is
         </div>
       </div>
 
-      <div>
-        <h4 style={{ margin: "0 0 12px" }}>2. Discount (invoice laundry)</h4>
+      {/* 2. Discount */}
+      <div style={sc}>
+        <div style={sh}>
+          <span style={si("#fef3c7", "#d97706")}><TbPercentage size={15} /></span>
+          <p style={stitle}>2. Discount (invoice laundry)</p>
+        </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
           <Field label="Type*" hint="How the discount is calculated on laundry">
             <Select
@@ -484,8 +735,12 @@ function CreatePromoCodeForm({ form, errors, patch, discountHint, zones = [], is
         </div>
       </div>
 
-      <div>
-        <h4 style={{ margin: "0 0 12px" }}>3. When it qualifies</h4>
+      {/* 3. When it qualifies */}
+      <div style={sc}>
+        <div style={sh}>
+          <span style={si("#f0fdf4", "#16a34a")}><TbListCheck size={15} /></span>
+          <p style={stitle}>3. When it qualifies</p>
+        </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
           <Field
             label="Min laundry total (£)"
@@ -528,63 +783,37 @@ function CreatePromoCodeForm({ form, errors, patch, discountHint, zones = [], is
         </div>
       </div>
 
-      <div>
-        <h4 style={{ margin: "0 0 12px" }}>4. Zones</h4>
-        <p style={{ margin: "0 0 10px", fontSize: 12, color: "var(--muted)" }}>
-          Choose where this promo can be reserved. All zones = every collection zone.
+      {/* 4. Zones */}
+      <div style={sc}>
+        <div style={sh}>
+          <span style={si("#f0fdf4", "#059669")}><TbMapPin size={15} /></span>
+          <p style={stitle}>4. Zones</p>
+        </div>
+        <p style={{ margin: 0, fontSize: 12, color: "#64748b", lineHeight: 1.45 }}>
+          Choose where this promo can be reserved.
         </p>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 16, marginBottom: 12 }}>
-          <label style={{ display: "inline-flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
-            <input
-              type="radio"
-              name="promo-zone-mode"
-              checked={form.zoneMode === "all"}
-              onChange={() => {
-                patch("zoneMode", "all");
-                patch("zoneIds", []);
-              }}
-            />
-            All zones
-          </label>
-          <label style={{ display: "inline-flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
-            <input
-              type="radio"
-              name="promo-zone-mode"
-              checked={form.zoneMode === "specific"}
-              onChange={() => patch("zoneMode", "specific")}
-            />
-            Specific zones
-          </label>
+        <div style={{ display: "flex", gap: 8 }}>
+          {zonePill("all", "All zones")}
+          {zonePill("specific", "Specific zones")}
         </div>
         {form.zoneMode === "specific" ? (
           <Field label="Select zones*" error={errors.zoneIds}>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
-              {zones.map((z) => {
-                const id = String(z.id ?? z._id);
-                return (
-                  <CheckRow
-                    key={id}
-                    checked={form.zoneIds.includes(id)}
-                    onChange={() => {
-                      const next = form.zoneIds.includes(id)
-                        ? form.zoneIds.filter((item) => item !== id)
-                        : [...form.zoneIds, id];
-                      patch("zoneIds", next);
-                    }}
-                    label={z.name ?? z.zoneName ?? `Zone #${id}`}
-                  />
-                );
-              })}
-              {!zones.length ? (
-                <p style={{ margin: 0, fontSize: 12, color: "var(--muted)" }}>No zones loaded.</p>
-              ) : null}
-            </div>
+            <ZoneMultiSelect
+              zones={zones}
+              selectedIds={form.zoneIds}
+              onChange={(next) => patch("zoneIds", next)}
+              error={Boolean(errors.zoneIds)}
+            />
           </Field>
         ) : null}
       </div>
 
-      <div>
-        <h4 style={{ margin: "0 0 12px" }}>5. Usage limits</h4>
+      {/* 5. Usage limits */}
+      <div style={sc}>
+        <div style={sh}>
+          <span style={si("#faf5ff", "#7c3aed")}><TbUsers size={15} /></span>
+          <p style={stitle}>5. Usage limits</p>
+        </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
           <Field
             label="Global redemptions"
@@ -627,8 +856,12 @@ function CreatePromoCodeForm({ form, errors, patch, discountHint, zones = [], is
         </div>
       </div>
 
-      <div>
-        <h4 style={{ margin: "0 0 12px" }}>6. Validity dates</h4>
+      {/* 6. Validity dates */}
+      <div style={sc}>
+        <div style={sh}>
+          <span style={si("#e0f2fe", "#0369a1")}><TbCalendarEvent size={15} /></span>
+          <p style={stitle}>6. Validity dates</p>
+        </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, alignItems: "start" }}>
           <Field label="Start date" htmlFor="promo-start" hint="First day customers can reserve this code. Blank = already open.">
             <Input
