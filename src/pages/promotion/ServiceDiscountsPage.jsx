@@ -1,6 +1,19 @@
 import { useState, useMemo, useCallback } from "react";
 import dayjs from "dayjs";
 import {
+  TbTag,
+  TbTarget,
+  TbMapPin,
+  TbCalendarEvent,
+  TbPercentage,
+  TbCurrencyPound,
+  TbCategory,
+  TbLayersSubtract,
+  TbPuzzle,
+  TbBuildingStore,
+  TbInfoCircle,
+} from "react-icons/tb";
+import {
   Button,
   Field,
   Input,
@@ -25,23 +38,33 @@ import {
   useUpdateServiceDiscountMutation,
   useDeleteServiceDiscountMutation,
   useGetAllZonesQuery,
+  useGetAllServicesQuery,
+  useGetCategoriesQuery,
+  useGetSubCategoriesQuery,
+  useGetAllAddOnServicesQuery,
+  useGetZoneCatalogQuery,
 } from "../../store/services/api";
 import { TbPlus, TbTrash } from "../../shared/icons/index";
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
-const TARGET_TYPE_LABELS = {
-  all: "All services & add-ons",
-  service: "Specific service",
-  category: "Specific category",
-  subCategory: "Specific item (sub-category)",
-  addon: "Specific add-on",
-};
+const TARGET_TYPE_OPTIONS = [
+  { value: "all",         label: "All services & add-ons" },
+  { value: "service",     label: "Specific service" },
+  { value: "category",    label: "Specific category" },
+  { value: "subCategory", label: "Specific item (sub-category)" },
+  { value: "addon",       label: "Specific add-on" },
+];
 
-const ZONE_MODE_LABELS = {
-  all: "All zones",
-  specific: "Specific zone(s)",
-};
+const ZONE_MODE_OPTIONS = [
+  { value: "all",      label: "All zones" },
+  { value: "specific", label: "Specific zone(s) only" },
+];
+
+const DISCOUNT_TYPE_OPTIONS = [
+  { value: "percentage", label: "Percentage (%)" },
+  { value: "flat",       label: "Flat amount (£)" },
+];
 
 const blankForm = () => ({
   name: "",
@@ -50,6 +73,7 @@ const blankForm = () => ({
   maxDiscountCap: "",
   targetType: "all",
   targetId: "",
+  targetCategoryId: "", // UI only — for filtering sub-categories
   zoneMode: "all",
   zoneIds: [],
   validFrom: "",
@@ -77,34 +101,45 @@ function discountLabel(row) {
   return `£${Number(row.discountValue).toFixed(2)} flat`;
 }
 
-function targetLabel(row, services, categories) {
-  if (row.targetType === "all") return "All services & add-ons";
-  const tId = row.targetId;
-  if (row.targetType === "service") {
-    const s = (services || []).find((x) => x.id === tId || x.id === Number(tId));
-    return s ? `Service: ${s.name}` : `Service ID ${tId}`;
+function extractList(response, ...keys) {
+  const root = response?.data ?? response;
+  for (const k of keys) {
+    if (Array.isArray(root?.[k])) return root[k];
   }
-  if (row.targetType === "category") {
-    const c = (categories || []).find((x) => x.id === tId || x.id === Number(tId));
-    return c ? `Category: ${c.name}` : `Category ID ${tId}`;
-  }
-  if (row.targetType === "subCategory") return `Item ID ${tId}`;
-  if (row.targetType === "addon") return `Add-on ID ${tId}`;
-  return "—";
+  if (Array.isArray(root)) return root;
+  return [];
 }
 
-function zoneLabel(row, zones) {
-  if (row.zoneMode === "all") return "All zones";
-  const ids = Array.isArray(row.zoneIds) ? row.zoneIds.map(Number) : [];
-  if (!ids.length) return "—";
-  const names = ids
-    .map((id) => {
-      const z = (zones || []).find((z) => Number(z.id) === id);
-      return z ? z.name : `Zone ${id}`;
-    })
-    .join(", ");
-  return names;
-}
+// ─── Section card style helpers ───────────────────────────────────────────────
+
+const card = (bg = "#fff", border = "var(--line, #e5e7eb)") => ({
+  background: bg,
+  border: `1px solid ${border}`,
+  borderRadius: 10,
+  padding: "16px 20px",
+});
+
+const sectionHead = (color = "#111827") => ({
+  display: "flex",
+  alignItems: "center",
+  gap: 8,
+  marginBottom: 14,
+  paddingBottom: 10,
+  borderBottom: "1px solid rgba(0,0,0,0.06)",
+  color,
+});
+
+const iconBox = (bg, color) => ({
+  width: 30,
+  height: 30,
+  borderRadius: 7,
+  background: bg,
+  color,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  flexShrink: 0,
+});
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
@@ -126,7 +161,62 @@ export default function ServiceDiscountsPage() {
   });
 
   const { data: zonesData } = useGetAllZonesQuery();
-  const zones = zonesData?.zones || zonesData?.data || [];
+  const zones = useMemo(() => {
+    const raw = zonesData?.data ?? zonesData;
+    return Array.isArray(raw) ? raw : raw?.zones ?? raw?.data ?? [];
+  }, [zonesData]);
+
+  const { data: servicesResp } = useGetAllServicesQuery();
+  const allServices = useMemo(
+    () => extractList(servicesResp, "services", "data"),
+    [servicesResp]
+  );
+
+  const { data: categoriesResp } = useGetCategoriesQuery();
+  const allCategories = useMemo(
+    () => extractList(categoriesResp, "categories", "data"),
+    [categoriesResp]
+  );
+
+  const { data: subCatsResp } = useGetSubCategoriesQuery();
+  const allSubCategories = useMemo(
+    () => extractList(subCatsResp, "subCategories", "subCat", "data"),
+    [subCatsResp]
+  );
+
+  const { data: addonsResp } = useGetAllAddOnServicesQuery();
+  const allAddons = useMemo(
+    () => extractList(addonsResp, "addOnServices", "addons", "data"),
+    [addonsResp]
+  );
+
+  // Zone catalog for the first selected zone (used to filter services)
+  const firstZoneId = form.zoneMode === "specific" ? form.zoneIds[0] : null;
+  const { data: zoneCatalogData } = useGetZoneCatalogQuery(firstZoneId, {
+    skip: !firstZoneId,
+  });
+
+  // Services filtered by zone catalog (when specific zone selected)
+  const filteredServices = useMemo(() => {
+    if (form.zoneMode !== "specific" || !firstZoneId || !zoneCatalogData) {
+      return allServices;
+    }
+    const zoneServiceIds = new Set(
+      (zoneCatalogData?.services || []).map((s) => Number(s.id ?? s.serviceId))
+    );
+    if (!zoneServiceIds.size) return allServices;
+    return allServices.filter((s) => zoneServiceIds.has(Number(s.id ?? s._id)));
+  }, [allServices, form.zoneMode, firstZoneId, zoneCatalogData]);
+
+  // Sub-categories filtered by selected category
+  const filteredSubCats = useMemo(() => {
+    if (!form.targetCategoryId) return allSubCategories;
+    return allSubCategories.filter(
+      (sc) =>
+        String(sc.categoryId ?? sc.category_id ?? sc.parentId) ===
+        String(form.targetCategoryId)
+    );
+  }, [allSubCategories, form.targetCategoryId]);
 
   const [createDiscount] = useCreateServiceDiscountMutation();
   const [updateDiscount] = useUpdateServiceDiscountMutation();
@@ -141,34 +231,48 @@ export default function ServiceDiscountsPage() {
     setModalOpen(true);
   };
 
-  const openEdit = useCallback((row) => {
-    setEditRow(row);
-    setForm({
-      name: row.name || "",
-      discountType: row.discountType || "percentage",
-      discountValue: row.discountValue != null ? String(row.discountValue) : "",
-      maxDiscountCap: row.maxDiscountCap != null ? String(row.maxDiscountCap) : "",
-      targetType: row.targetType || "all",
-      targetId: row.targetId != null ? String(row.targetId) : "",
-      zoneMode: row.zoneMode || "all",
-      zoneIds: Array.isArray(row.zoneIds) ? row.zoneIds.map(String) : [],
-      validFrom: row.validFrom ? dayjs(row.validFrom).format("YYYY-MM-DD") : "",
-      validTo: row.validTo ? dayjs(row.validTo).format("YYYY-MM-DD") : "",
-      isActive: row.isActive !== false,
-    });
-    setModalOpen(true);
-  }, []);
+  const openEdit = useCallback(
+    (row) => {
+      setEditRow(row);
+      // Resolve parent category for subCategory editing
+      let targetCategoryId = "";
+      if (row.targetType === "subCategory" && row.targetId) {
+        const sc = allSubCategories.find(
+          (s) => String(s.id ?? s._id) === String(row.targetId)
+        );
+        targetCategoryId = sc
+          ? String(sc.categoryId ?? sc.category_id ?? sc.parentId ?? "")
+          : "";
+      }
+      setForm({
+        name: row.name || "",
+        discountType: row.discountType || "percentage",
+        discountValue: row.discountValue != null ? String(row.discountValue) : "",
+        maxDiscountCap: row.maxDiscountCap != null ? String(row.maxDiscountCap) : "",
+        targetType: row.targetType || "all",
+        targetId: row.targetId != null ? String(row.targetId) : "",
+        targetCategoryId,
+        zoneMode: row.zoneMode || "all",
+        zoneIds: Array.isArray(row.zoneIds) ? row.zoneIds.map(String) : [],
+        validFrom: row.validFrom ? dayjs(row.validFrom).format("YYYY-MM-DD") : "",
+        validTo: row.validTo ? dayjs(row.validTo).format("YYYY-MM-DD") : "",
+        isActive: row.isActive !== false,
+      });
+      setModalOpen(true);
+    },
+    [allSubCategories]
+  );
 
   const handleSave = async () => {
-    if (!form.name.trim()) { toast.error("Name is required"); return; }
+    if (!form.name.trim()) { toast.error("Rule name is required"); return; }
     if (!form.discountValue || Number(form.discountValue) <= 0) {
-      toast.error("Discount value must be a positive number"); return;
+      toast.error("Discount value must be greater than zero"); return;
     }
     if (form.discountType === "percentage" && Number(form.discountValue) > 100) {
       toast.error("Percentage cannot exceed 100"); return;
     }
     if (form.targetType !== "all" && !form.targetId) {
-      toast.error("Target ID is required for the selected target type"); return;
+      toast.error("Please select a target from the dropdown"); return;
     }
     if (form.zoneMode === "specific" && !form.zoneIds.length) {
       toast.error("Select at least one zone for specific zone mode"); return;
@@ -195,7 +299,7 @@ export default function ServiceDiscountsPage() {
         toast.success("Discount updated");
       } else {
         await createDiscount(payload).unwrap();
-        toast.success("Discount created");
+        toast.success("Discount rule created");
       }
       setModalOpen(false);
       refetch();
@@ -210,7 +314,7 @@ export default function ServiceDiscountsPage() {
     if (!deleteTarget) return;
     try {
       await deleteDiscount(deleteTarget.id).unwrap();
-      toast.success("Discount deleted");
+      toast.success("Discount rule deleted");
       setDeleteTarget(null);
       refetch();
     } catch (err) {
@@ -234,7 +338,7 @@ export default function ServiceDiscountsPage() {
     () => [
       {
         key: "discountName",
-        header: "Discount rule",
+        header: "Discount Rule",
         render: (row) => (
           <div>
             <div style={{ fontWeight: 600, fontSize: 14 }}>{row.name}</div>
@@ -246,10 +350,10 @@ export default function ServiceDiscountsPage() {
       },
       {
         key: "targetScope",
-        header: "Applies to",
+        header: "Applies To",
         render: (row) => (
           <div style={{ fontSize: 13 }}>
-            <div>{TARGET_TYPE_LABELS[row.targetType] || row.targetType}</div>
+            <div>{TARGET_TYPE_OPTIONS.find((o) => o.value === row.targetType)?.label ?? row.targetType}</div>
             {row.targetType !== "all" && row.targetId && (
               <div style={{ fontSize: 12, color: "#6b7280" }}>ID: {row.targetId}</div>
             )}
@@ -258,22 +362,20 @@ export default function ServiceDiscountsPage() {
       },
       {
         key: "zoneScope",
-        header: "Zone scope",
+        header: "Zone Scope",
         render: (row) => (
           <div style={{ fontSize: 13 }}>
             {row.zoneMode === "all" ? (
               <span style={{ color: "#2e7d32", fontWeight: 500 }}>All zones</span>
             ) : (
-              <span>
-                {Array.isArray(row.zoneIds) ? row.zoneIds.length : 0} zone(s)
-              </span>
+              <span>{Array.isArray(row.zoneIds) ? row.zoneIds.length : 0} zone(s)</span>
             )}
           </div>
         ),
       },
       {
         key: "validity",
-        header: "Valid period",
+        header: "Valid Period",
         render: (row) => {
           const from = row.validFrom ? dayjs(row.validFrom).format("DD MMM YYYY") : "—";
           const to = row.validTo ? dayjs(row.validTo).format("DD MMM YYYY") : "No end";
@@ -296,7 +398,7 @@ export default function ServiceDiscountsPage() {
           <DirectoryActions>
             <DirectoryActionEdit onClick={() => openEdit(row)} />
             <button
-              title="Delete"
+              title="Delete rule"
               onClick={() => setDeleteTarget(row)}
               style={{
                 background: "none",
@@ -357,7 +459,7 @@ export default function ServiceDiscountsPage() {
           columns={columns}
           rows={rows}
           loading={isLoading}
-          emptyMessage="No discount rules yet. Create one to start discounting services."
+          emptyMessage="No discount rules yet. Click 'New Discount' to create one."
         />
       </DirectoryTableWrap>
 
@@ -370,22 +472,22 @@ export default function ServiceDiscountsPage() {
       ═══════════════════════════════════════════════════════════════════ */}
       <Modal
         open={modalOpen}
+        size="lg"
         onClose={() => setModalOpen(false)}
         title={editRow ? "Edit Discount Rule" : "New Discount Rule"}
-        footer={
-          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-            <Button variant="secondary" onClick={() => setModalOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleSave} loading={saving}>
-              {editRow ? "Save changes" : "Create discount"}
-            </Button>
-          </div>
-        }
+        primaryLabel={saving ? "Saving…" : editRow ? "Save changes" : "Create discount"}
+        onPrimary={handleSave}
+        primaryDisabled={saving}
+        secondaryLabel="Cancel"
+        onSecondary={() => setModalOpen(false)}
       >
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          {/* Name */}
-          <Field label="Rule name *" hint="Internal label e.g. 'Dry clean 20% off summer'">
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+
+          {/* ── Rule name ── */}
+          <Field
+            label="Rule name *"
+            hint="Internal label — e.g. 'Dry clean 20% off summer'"
+          >
             <Input
               value={form.name}
               onChange={(e) => setField("name", e.target.value)}
@@ -393,64 +495,64 @@ export default function ServiceDiscountsPage() {
             />
           </Field>
 
-          {/* Discount type + value */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <Field label="Discount type *">
-              <Select
-                value={form.discountType}
-                onChange={(value) => setField("discountType", value)}
-                options={[
-                  { value: "percentage", label: "Percentage (%)" },
-                  { value: "flat", label: "Flat amount (£)" },
-                ]}
-              />
-            </Field>
-            <Field
-              label={`Discount value * ${form.discountType === "percentage" ? "(%)" : "(£)"}`}
-            >
-              <Input
-                type="number"
-                min="0.01"
-                step="0.01"
-                max={form.discountType === "percentage" ? "100" : undefined}
-                value={form.discountValue}
-                onChange={(e) => setField("discountValue", e.target.value)}
-                placeholder={form.discountType === "percentage" ? "e.g. 20" : "e.g. 5.00"}
-              />
-            </Field>
+          {/* ── Discount type + value ── */}
+          <div style={card("#f8fafc", "#e2e8f0")}>
+            <div style={sectionHead("#1e293b")}>
+              <span style={iconBox("#dbeafe", "#1d4ed8")}>
+                <TbPercentage size={16} />
+              </span>
+              <span style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                Discount Value
+              </span>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <Field label="Discount type *">
+                <Select
+                  value={form.discountType}
+                  onChange={(value) => setField("discountType", value)}
+                  options={DISCOUNT_TYPE_OPTIONS}
+                />
+              </Field>
+              <Field label={`Value * ${form.discountType === "percentage" ? "(%)" : "(£)"}`}>
+                <Input
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  max={form.discountType === "percentage" ? "100" : undefined}
+                  value={form.discountValue}
+                  onChange={(e) => setField("discountValue", e.target.value)}
+                  placeholder={form.discountType === "percentage" ? "e.g. 20" : "e.g. 5.00"}
+                />
+              </Field>
+            </div>
+            {form.discountType === "percentage" && (
+              <div style={{ marginTop: 12 }}>
+                <Field
+                  label="Maximum cap (£)"
+                  hint="Optional — caps the maximum saving"
+                >
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={form.maxDiscountCap}
+                    onChange={(e) => setField("maxDiscountCap", e.target.value)}
+                    placeholder="e.g. 15.00 — leave blank for no cap"
+                  />
+                </Field>
+              </div>
+            )}
           </div>
 
-          {/* Max cap (percentage only) */}
-          {form.discountType === "percentage" && (
-            <Field
-              label="Maximum discount cap (£)"
-              hint="Optional — limits maximum savings for percentage discounts"
-            >
-              <Input
-                type="number"
-                min="0"
-                step="0.01"
-                value={form.maxDiscountCap}
-                onChange={(e) => setField("maxDiscountCap", e.target.value)}
-                placeholder="e.g. 15.00 — leave blank for no cap"
-              />
-            </Field>
-          )}
-
           {/* ── TARGET SCOPE ── */}
-          <div
-            style={{
-              background: "#f0f7ff",
-              border: "1px solid #bfdbfe",
-              borderRadius: 8,
-              padding: "14px 16px",
-            }}
-          >
-            <div
-              style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase",
-                letterSpacing: "0.5px", color: "#1d4ed8", marginBottom: 12 }}
-            >
-              🎯 Target scope
+          <div style={card("#f0f7ff", "#bfdbfe")}>
+            <div style={sectionHead("#1e40af")}>
+              <span style={iconBox("#dbeafe", "#1d4ed8")}>
+                <TbTarget size={16} />
+              </span>
+              <span style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                Target Scope
+              </span>
             </div>
 
             <Field label="Apply discount to *">
@@ -459,28 +561,100 @@ export default function ServiceDiscountsPage() {
                 onChange={(value) => {
                   setField("targetType", value);
                   setField("targetId", "");
+                  setField("targetCategoryId", "");
                 }}
-                options={[
-                  { value: "all", label: "All services, categories & add-ons" },
-                  { value: "service", label: "Specific service (by service ID)" },
-                  { value: "category", label: "Specific category (by category ID)" },
-                  { value: "subCategory", label: "Specific item / sub-category (by item ID)" },
-                  { value: "addon", label: "Specific add-on (by add-on ID)" },
-                ]}
+                options={TARGET_TYPE_OPTIONS}
               />
             </Field>
 
-            {form.targetType !== "all" && (
+            {/* Service dropdown */}
+            {form.targetType === "service" && (
               <div style={{ marginTop: 12 }}>
                 <Field
-                  label={`${TARGET_TYPE_LABELS[form.targetType]} ID *`}
-                  hint="Find the ID from the Service Management dashboard"
+                  label="Select service *"
+                  hint={
+                    form.zoneMode === "specific" && form.zoneIds.length > 0
+                      ? `Showing services available in selected zone${form.zoneIds.length > 1 ? "s" : ""}`
+                      : "Choose the service to apply this discount to"
+                  }
                 >
-                  <Input
-                    type="number"
+                  <Select
                     value={form.targetId}
-                    onChange={(e) => setField("targetId", e.target.value)}
-                    placeholder="e.g. 3"
+                    onChange={(value) => setField("targetId", value)}
+                    placeholder="Choose a service…"
+                    options={filteredServices.map((s) => ({
+                      value: String(s.id ?? s._id),
+                      label: s.name ?? s.serviceName ?? s.title ?? `Service ${s.id}`,
+                    }))}
+                  />
+                </Field>
+              </div>
+            )}
+
+            {/* Category dropdown */}
+            {form.targetType === "category" && (
+              <div style={{ marginTop: 12 }}>
+                <Field label="Select category *" hint="Choose the category">
+                  <Select
+                    value={form.targetId}
+                    onChange={(value) => setField("targetId", value)}
+                    placeholder="Choose a category…"
+                    options={allCategories.map((c) => ({
+                      value: String(c.id ?? c._id),
+                      label: c.name ?? c.categoryName ?? c.title ?? `Category ${c.id}`,
+                    }))}
+                  />
+                </Field>
+              </div>
+            )}
+
+            {/* Sub-category — pick category first, then sub-category */}
+            {form.targetType === "subCategory" && (
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 12 }}>
+                <Field label="Category *" hint="Filter by parent category">
+                  <Select
+                    value={form.targetCategoryId}
+                    onChange={(value) => {
+                      setField("targetCategoryId", value);
+                      setField("targetId", "");
+                    }}
+                    placeholder="Choose category…"
+                    options={allCategories.map((c) => ({
+                      value: String(c.id ?? c._id),
+                      label: c.name ?? c.categoryName ?? `Category ${c.id}`,
+                    }))}
+                  />
+                </Field>
+                <Field
+                  label="Item / sub-category *"
+                  hint={form.targetCategoryId ? "Choose item" : "Select category first"}
+                >
+                  <Select
+                    value={form.targetId}
+                    onChange={(value) => setField("targetId", value)}
+                    placeholder={form.targetCategoryId ? "Choose item…" : "Select category first"}
+                    disabled={!form.targetCategoryId}
+                    options={filteredSubCats.map((sc) => ({
+                      value: String(sc.id ?? sc._id),
+                      label: sc.name ?? sc.subCategoryName ?? sc.title ?? `Item ${sc.id}`,
+                    }))}
+                  />
+                </Field>
+              </div>
+            )}
+
+            {/* Add-on dropdown */}
+            {form.targetType === "addon" && (
+              <div style={{ marginTop: 12 }}>
+                <Field label="Select add-on *" hint="Choose the add-on service">
+                  <Select
+                    value={form.targetId}
+                    onChange={(value) => setField("targetId", value)}
+                    placeholder="Choose an add-on…"
+                    options={allAddons.map((a) => ({
+                      value: String(a.id ?? a._id),
+                      label: a.name ?? a.addonName ?? a.title ?? `Add-on ${a.id}`,
+                    }))}
                   />
                 </Field>
               </div>
@@ -488,100 +662,135 @@ export default function ServiceDiscountsPage() {
           </div>
 
           {/* ── ZONE SCOPE ── */}
-          <div
-            style={{
-              background: "#f0fdf4",
-              border: "1px solid #bbf7d0",
-              borderRadius: 8,
-              padding: "14px 16px",
-            }}
-          >
-            <div
-              style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase",
-                letterSpacing: "0.5px", color: "#166534", marginBottom: 12 }}
-            >
-              🗺️ Zone scope
+          <div style={card("#f0fdf4", "#bbf7d0")}>
+            <div style={sectionHead("#166534")}>
+              <span style={iconBox("#dcfce7", "#15803d")}>
+                <TbMapPin size={16} />
+              </span>
+              <span style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                Zone Scope
+              </span>
             </div>
 
-            <Field label="Zone mode *">
-              <Select
-                value={form.zoneMode}
-                onChange={(value) => {
-                  setField("zoneMode", value);
-                  if (value === "all") setField("zoneIds", []);
-                }}
-                options={[
-                  { value: "all", label: "All zones" },
-                  { value: "specific", label: "Specific zone(s) only" },
-                ]}
-              />
-            </Field>
+            {/* Zone mode toggle pills */}
+            <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+              {ZONE_MODE_OPTIONS.map(({ value, label }) => {
+                const active = form.zoneMode === value;
+                return (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => {
+                      setField("zoneMode", value);
+                      if (value === "all") setField("zoneIds", []);
+                    }}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 6,
+                      padding: "7px 16px",
+                      borderRadius: 20,
+                      border: active ? "2px solid #166534" : "1.5px solid #bbf7d0",
+                      background: active ? "#166534" : "#fff",
+                      color: active ? "#fff" : "#166534",
+                      fontSize: 13,
+                      fontWeight: active ? 600 : 400,
+                      cursor: "pointer",
+                      transition: "all 0.15s",
+                    }}
+                  >
+                    <TbMapPin size={14} />
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
 
-            {form.zoneMode === "specific" && zones.length > 0 && (
-              <div style={{ marginTop: 12 }}>
-                <div style={{ fontSize: 12, color: "#166534", marginBottom: 8, fontWeight: 500 }}>
-                  Select zones (click to toggle):
-                </div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                  {zones.map((z) => {
-                    const sid = String(z.id);
-                    const selected = form.zoneIds.includes(sid);
-                    return (
-                      <button
-                        key={z.id}
-                        type="button"
-                        onClick={() => toggleZoneId(z.id)}
-                        style={{
-                          padding: "5px 12px",
-                          borderRadius: 20,
-                          border: selected ? "2px solid #166534" : "1px solid #d1fae5",
-                          background: selected ? "#166534" : "#f0fdf4",
-                          color: selected ? "#fff" : "#166534",
-                          fontSize: 12,
-                          fontWeight: selected ? 600 : 400,
-                          cursor: "pointer",
-                          transition: "all 0.15s",
-                        }}
-                      >
-                        {z.name || z.zoneName}
-                      </button>
-                    );
-                  })}
-                </div>
-                {form.zoneIds.length > 0 && (
-                  <div style={{ fontSize: 11, color: "#6b7280", marginTop: 6 }}>
-                    {form.zoneIds.length} zone{form.zoneIds.length !== 1 ? "s" : ""} selected
-                  </div>
+            {/* Specific zone pills */}
+            {form.zoneMode === "specific" && (
+              <div>
+                {zones.length > 0 ? (
+                  <>
+                    <p style={{ fontSize: 12, color: "#166534", fontWeight: 500, margin: "0 0 10px" }}>
+                      Select zones — discount applies only to the checked zones:
+                    </p>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                      {zones.map((z) => {
+                        const sid = String(z.id ?? z.zoneId);
+                        const selected = form.zoneIds.includes(sid);
+                        return (
+                          <button
+                            key={sid}
+                            type="button"
+                            onClick={() => toggleZoneId(z.id ?? z.zoneId)}
+                            style={{
+                              padding: "6px 14px",
+                              borderRadius: 20,
+                              border: selected ? "2px solid #166534" : "1.5px solid #bbf7d0",
+                              background: selected ? "#166534" : "#f0fdf4",
+                              color: selected ? "#fff" : "#166534",
+                              fontSize: 12,
+                              fontWeight: selected ? 600 : 400,
+                              cursor: "pointer",
+                              transition: "all 0.15s",
+                            }}
+                          >
+                            {selected && "✓ "}{z.name ?? z.zoneName}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {form.zoneIds.length > 0 && (
+                      <p style={{ fontSize: 11, color: "#6b7280", margin: "8px 0 0" }}>
+                        {form.zoneIds.length} zone{form.zoneIds.length !== 1 ? "s" : ""} selected
+                        {form.targetType === "service" && zoneCatalogData && (
+                          <> — service list filtered to {filteredServices.length} service{filteredServices.length !== 1 ? "s" : ""} available in this zone</>
+                        )}
+                      </p>
+                    )}
+                  </>
+                ) : (
+                  <p style={{ fontSize: 13, color: "#6b7280" }}>No zones configured.</p>
                 )}
               </div>
             )}
           </div>
 
           {/* ── VALIDITY ── */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <Field label="Valid from" hint="Leave blank to start immediately">
-              <Input
-                type="date"
-                value={form.validFrom}
-                onChange={(e) => setField("validFrom", e.target.value)}
-              />
-            </Field>
-            <Field label="Valid until" hint="Leave blank for no expiry">
-              <Input
-                type="date"
-                value={form.validTo}
-                onChange={(e) => setField("validTo", e.target.value)}
-              />
-            </Field>
+          <div style={card("#f8fafc", "#e2e8f0")}>
+            <div style={sectionHead("#1e293b")}>
+              <span style={iconBox("#e0f2fe", "#0369a1")}>
+                <TbCalendarEvent size={16} />
+              </span>
+              <span style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                Validity Window
+              </span>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <Field label="Valid from" hint="Leave blank to start immediately">
+                <Input
+                  type="date"
+                  value={form.validFrom}
+                  onChange={(e) => setField("validFrom", e.target.value)}
+                />
+              </Field>
+              <Field label="Valid until" hint="Leave blank for no expiry">
+                <Input
+                  type="date"
+                  value={form.validTo}
+                  onChange={(e) => setField("validTo", e.target.value)}
+                />
+              </Field>
+            </div>
           </div>
 
           {/* Active toggle */}
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "4px 0" }}>
             <Toggle
               checked={form.isActive}
               onChange={(v) => setField("isActive", v)}
             />
-            <span style={{ fontSize: 13, color: form.isActive ? "#166534" : "#6b7280" }}>
+            <span style={{ fontSize: 13, color: form.isActive ? "#166534" : "#6b7280", fontWeight: 500 }}>
               {form.isActive ? "Active — discount is live" : "Inactive — discount is paused"}
             </span>
           </div>
@@ -595,22 +804,16 @@ export default function ServiceDiscountsPage() {
         open={!!deleteTarget}
         onClose={() => setDeleteTarget(null)}
         title="Delete discount rule?"
-        footer={
-          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-            <Button variant="secondary" onClick={() => setDeleteTarget(null)}>
-              Cancel
-            </Button>
-            <Button variant="danger" onClick={handleDelete}>
-              Delete permanently
-            </Button>
-          </div>
-        }
+        primaryLabel="Delete permanently"
+        onPrimary={handleDelete}
+        secondaryLabel="Cancel"
+        onSecondary={() => setDeleteTarget(null)}
+        danger
       >
         <p style={{ fontSize: 14, color: "#374151" }}>
           Are you sure you want to delete{" "}
           <strong>&ldquo;{deleteTarget?.name}&rdquo;</strong>?
-          <br />
-          <br />
+          <br /><br />
           This discount will no longer apply to new bookings. Existing orders are
           unaffected.
         </p>

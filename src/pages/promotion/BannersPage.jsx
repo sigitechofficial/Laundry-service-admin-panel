@@ -1,6 +1,16 @@
 import { useMemo, useState, useCallback } from "react";
 import dayjs from "dayjs";
 import {
+  TbFileDescription,
+  TbPhoto,
+  TbTag,
+  TbTarget,
+  TbMapPin,
+  TbCalendarEvent,
+  TbUpload,
+  TbX,
+} from "react-icons/tb";
+import {
   Button,
   Field,
   Input,
@@ -175,6 +185,7 @@ function BannerImageField({ value, onChange, error }) {
   const { error: toastError } = useToaster();
   const preview =
     value instanceof File ? URL.createObjectURL(value) : typeof value === "string" ? value : null;
+  const fileName = value instanceof File ? value.name : null;
 
   return (
     <Field
@@ -182,28 +193,75 @@ function BannerImageField({ value, onChange, error }) {
       hint="JPEG, PNG, GIF, or WebP. Max 5MB. Recommended 1200×400. Leave empty to keep the current image."
       error={error}
     >
-      <Input
-        type="file"
-        accept={IMAGE_UPLOAD_ACCEPT}
-        onChange={(e) => {
-          const file = e.target.files?.[0] || null;
-          e.target.value = "";
-          if (!file) {
-            onChange(null);
-            return;
-          }
-          const accepted = acceptImageFile(file, toastError);
-          if (accepted) onChange(accepted);
-        }}
-      />
+      <div style={{ position: "relative" }}>
+        <label
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            padding: "10px 14px",
+            border: `1.5px dashed ${error ? "var(--danger, #ef4444)" : "var(--line, #d1d5db)"}`,
+            borderRadius: 8,
+            cursor: "pointer",
+            background: "var(--surface-subtle, #f9fafb)",
+            transition: "border-color 0.15s",
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#6366f1"; }}
+          onMouseLeave={(e) => { e.currentTarget.style.borderColor = error ? "var(--danger, #ef4444)" : "var(--line, #d1d5db)"; }}
+        >
+          <span style={{
+            width: 36, height: 36, borderRadius: 8,
+            background: "#eff6ff", color: "#3b82f6",
+            display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+          }}>
+            <TbUpload size={18} />
+          </span>
+          <span style={{ fontSize: 13, color: "#374151", minWidth: 0 }}>
+            {fileName ? (
+              <span style={{ fontWeight: 500, color: "#1d4ed8" }}>{fileName}</span>
+            ) : preview ? (
+              <span>Image selected — click to replace</span>
+            ) : (
+              <span>Click to upload banner image</span>
+            )}
+            <br />
+            <span style={{ fontSize: 11, color: "#9ca3af" }}>JPEG, PNG, GIF, WebP · max 5 MB</span>
+          </span>
+          {preview && (
+            <button
+              type="button"
+              onClick={(e) => { e.preventDefault(); onChange(null); }}
+              style={{
+                marginLeft: "auto", background: "none", border: "none",
+                cursor: "pointer", padding: 4, color: "#6b7280", flexShrink: 0,
+              }}
+              title="Remove image"
+            >
+              <TbX size={16} />
+            </button>
+          )}
+          <input
+            type="file"
+            accept={IMAGE_UPLOAD_ACCEPT}
+            style={{ position: "absolute", inset: 0, opacity: 0, cursor: "pointer", width: "100%", height: "100%" }}
+            onChange={(e) => {
+              const file = e.target.files?.[0] || null;
+              e.target.value = "";
+              if (!file) { onChange(null); return; }
+              const accepted = acceptImageFile(file, toastError);
+              if (accepted) onChange(accepted);
+            }}
+          />
+        </label>
+      </div>
       {preview ? (
         <img
           src={preview}
           alt="Banner preview"
           style={{
             marginTop: 10,
-            maxWidth: 280,
-            maxHeight: 100,
+            maxWidth: "100%",
+            maxHeight: 120,
             objectFit: "cover",
             borderRadius: 8,
             border: "1px solid var(--line)",
@@ -266,7 +324,9 @@ function BannerForm({ form, errors, patch, services, categories, subCategories, 
       {/* ── Basic info ── */}
       <div style={sectionCard}>
         <div style={sectionHeader}>
-          <span style={{ ...sectionIcon, background: "#eff6ff" }}>📋</span>
+          <span style={{ ...sectionIcon, background: "#eff6ff", color: "#3b82f6" }}>
+            <TbFileDescription size={15} />
+          </span>
           <p style={sectionTitle}>Basic Info</p>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
@@ -313,7 +373,9 @@ function BannerForm({ form, errors, patch, services, categories, subCategories, 
       {/* ── Banner image ── */}
       <div style={sectionCard}>
         <div style={sectionHeader}>
-          <span style={{ ...sectionIcon, background: "#faf5ff" }}>🖼️</span>
+          <span style={{ ...sectionIcon, background: "#faf5ff", color: "#7c3aed" }}>
+            <TbPhoto size={15} />
+          </span>
           <p style={sectionTitle}>Banner Image</p>
         </div>
         <BannerImageField
@@ -326,7 +388,9 @@ function BannerForm({ form, errors, patch, services, categories, subCategories, 
       {/* ── Offer details ── */}
       <div style={{ ...sectionCard, background: "#fffbeb", borderColor: "#fde68a" }}>
         <div style={sectionHeader}>
-          <span style={{ ...sectionIcon, background: "#fef3c7" }}>🏷️</span>
+          <span style={{ ...sectionIcon, background: "#fef3c7", color: "#d97706" }}>
+            <TbTag size={15} />
+          </span>
           <p style={{ ...sectionTitle, color: "#92400e" }}>Offer Details</p>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 14 }}>
@@ -373,7 +437,9 @@ function BannerForm({ form, errors, patch, services, categories, subCategories, 
       {/* ── Target scope ── */}
       <div style={{ ...sectionCard, background: "#f0f7ff", borderColor: "#bfdbfe" }}>
         <div style={sectionHeader}>
-          <span style={{ ...sectionIcon, background: "#dbeafe" }}>🎯</span>
+          <span style={{ ...sectionIcon, background: "#dbeafe", color: "#1d4ed8" }}>
+            <TbTarget size={15} />
+          </span>
           <p style={{ ...sectionTitle, color: "#1e40af" }}>Target Scope</p>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 14 }}>
@@ -442,7 +508,9 @@ function BannerForm({ form, errors, patch, services, categories, subCategories, 
       {/* ── Zone scope ── */}
       <div style={{ ...sectionCard, background: "#f0fdf4", borderColor: "#bbf7d0" }}>
         <div style={sectionHeader}>
-          <span style={{ ...sectionIcon, background: "#dcfce7" }}>🗺️</span>
+          <span style={{ ...sectionIcon, background: "#dcfce7", color: "#15803d" }}>
+            <TbMapPin size={15} />
+          </span>
           <p style={{ ...sectionTitle, color: "#166534" }}>Zone Scope</p>
         </div>
         <div style={{ display: "flex", gap: 10, marginBottom: 14 }}>
@@ -457,6 +525,9 @@ function BannerForm({ form, errors, patch, services, categories, subCategories, 
                   if (mode === "all") patch("zoneIds", []);
                 }}
                 style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
                   padding: "7px 18px",
                   borderRadius: 20,
                   border: active ? "2px solid #166534" : "1.5px solid #bbf7d0",
@@ -468,7 +539,8 @@ function BannerForm({ form, errors, patch, services, categories, subCategories, 
                   transition: "all 0.15s",
                 }}
               >
-                {mode === "all" ? "🌍 All zones" : "📍 Specific zones"}
+                <TbMapPin size={13} />
+                {mode === "all" ? "All zones" : "Specific zones"}
               </button>
             );
           })}
@@ -523,7 +595,9 @@ function BannerForm({ form, errors, patch, services, categories, subCategories, 
       {/* ── Validity & display ── */}
       <div style={sectionCard}>
         <div style={sectionHeader}>
-          <span style={{ ...sectionIcon, background: "#fef3c7" }}>📅</span>
+          <span style={{ ...sectionIcon, background: "#e0f2fe", color: "#0369a1" }}>
+            <TbCalendarEvent size={15} />
+          </span>
           <p style={sectionTitle}>Validity & Display</p>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 14 }}>
