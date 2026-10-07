@@ -117,9 +117,11 @@ export const DS_NAV = [
         icon: "megaphone",
         path: "/promotion",
         children: [
-          { label: "Coupons", path: "/promotion/promo-codes" },
+          { label: "Campaigns", path: "/promotion/campaigns" },
+          { label: "Promotions", path: "/promotion/promotions" },
+          { label: "Coupons (Legacy)", path: "/promotion/promo-codes" },
           { label: "Banners & Offers", path: "/promotion/banners" },
-          { label: "Service Discounts", path: "/promotion/service-discounts" },
+          { label: "Service Discounts (Legacy)", path: "/promotion/service-discounts" },
         ],
       },
       { label: "Shop Reviews", icon: "star", path: "/shop-reviews" },

@@ -272,7 +272,17 @@ export const sidebarList = [
     size: "24px",
     children: [
       {
-        label: "Coupons",
+        label: "Campaigns",
+        path: "/promotion/campaigns",
+        size: "24px",
+      },
+      {
+        label: "Promotions",
+        path: "/promotion/promotions",
+        size: "24px",
+      },
+      {
+        label: "Coupons (Legacy)",
         path: "/promotion/promo-codes",
         size: "24px",
       },

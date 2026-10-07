@@ -6,7 +6,7 @@ export const api = createApi({
   baseQuery: baseQueryWithReauth,
   // setupListeners(store.dispatch) + window "online" → refetch subscribed queries.
   refetchOnReconnect: true,
-  tagTypes: ["ServiceConfig", "SupportContact", "PlatformOperationalHours", "RuntimeSettings", "Orders", "Coupons", "Banners", "AccountDeletionReasons", "ReviewReasonCodes", "ShopReviews", "ShopRatingsReport", "PendingAgents", "RejectedAgents", "AgentSettlement", "NotifyLogs", "PaymentFailures", "AdminNotificationPreferences", "ActionRequiredOrders", "RepairGarments", "RepairOptions", "Zones", "ZoneCatalog", "FailAttemptInstructions", "FailAttemptReasons", "Shops", "ShopAssignmentPolicy", "ShopPrinter", "ComplianceReport", "ComplianceEvents", "Customers", "ServiceDiscounts"],
+  tagTypes: ["ServiceConfig", "SupportContact", "PlatformOperationalHours", "RuntimeSettings", "Orders", "Coupons", "Banners", "AccountDeletionReasons", "ReviewReasonCodes", "ShopReviews", "ShopRatingsReport", "PendingAgents", "RejectedAgents", "AgentSettlement", "NotifyLogs", "PaymentFailures", "AdminNotificationPreferences", "ActionRequiredOrders", "RepairGarments", "RepairOptions", "Zones", "ZoneCatalog", "FailAttemptInstructions", "FailAttemptReasons", "Shops", "ShopAssignmentPolicy", "ShopPrinter", "ComplianceReport", "ComplianceEvents", "Customers", "ServiceDiscounts", "Campaigns", "Promotions"],
 
   endpoints: (builder) => {
     const reportQueryString = (params = {}) => {
@@ -2477,6 +2477,96 @@ export const api = createApi({
       invalidatesTags: ["ServiceDiscounts"],
     }),
 
+    // ─── Enterprise Campaigns ───────────────────────────────────────────────
+    getCampaigns: builder.query({
+      query: (params = {}) => {
+        const q = new URLSearchParams();
+        if (params.status) q.append("status", params.status);
+        if (params.page) q.append("page", params.page);
+        if (params.limit) q.append("limit", params.limit);
+        const qs = q.toString();
+        return { url: qs ? `admin/campaigns?${qs}` : "admin/campaigns", method: "GET" };
+      },
+      providesTags: ["Campaigns"],
+    }),
+    getCampaignById: builder.query({
+      query: (id) => ({ url: `admin/campaigns/${id}`, method: "GET" }),
+      providesTags: ["Campaigns"],
+    }),
+    createCampaign: builder.mutation({
+      query: (body) => ({ url: "admin/campaigns", method: "POST", body }),
+      invalidatesTags: ["Campaigns"],
+    }),
+    updateCampaign: builder.mutation({
+      query: ({ id, ...body }) => ({ url: `admin/campaigns/${id}`, method: "PUT", body }),
+      invalidatesTags: ["Campaigns"],
+    }),
+    deleteCampaign: builder.mutation({
+      query: (id) => ({ url: `admin/campaigns/${id}`, method: "DELETE" }),
+      invalidatesTags: ["Campaigns"],
+    }),
+
+    // ─── Enterprise Promotions ──────────────────────────────────────────────
+    getPromotions: builder.query({
+      query: (params = {}) => {
+        const q = new URLSearchParams();
+        if (params.status) q.append("status", params.status);
+        if (params.campaignId) q.append("campaignId", params.campaignId);
+        if (params.benefitType) q.append("benefitType", params.benefitType);
+        if (params.search) q.append("search", params.search);
+        if (params.page) q.append("page", params.page);
+        if (params.limit) q.append("limit", params.limit);
+        const qs = q.toString();
+        return { url: qs ? `admin/promotions?${qs}` : "admin/promotions", method: "GET" };
+      },
+      providesTags: ["Promotions"],
+    }),
+    getPromotionById: builder.query({
+      query: (id) => ({ url: `admin/promotions/${id}`, method: "GET" }),
+      providesTags: ["Promotions"],
+    }),
+    createPromotion: builder.mutation({
+      query: (body) => ({ url: "admin/promotions", method: "POST", body }),
+      invalidatesTags: ["Promotions"],
+    }),
+    updatePromotion: builder.mutation({
+      query: ({ id, ...body }) => ({ url: `admin/promotions/${id}`, method: "PUT", body }),
+      invalidatesTags: ["Promotions"],
+    }),
+    publishPromotion: builder.mutation({
+      query: ({ id, reason }) => ({ url: `admin/promotions/${id}/publish`, method: "POST", body: { reason } }),
+      invalidatesTags: ["Promotions"],
+    }),
+    pausePromotion: builder.mutation({
+      query: ({ id, reason }) => ({ url: `admin/promotions/${id}/pause`, method: "POST", body: { reason } }),
+      invalidatesTags: ["Promotions"],
+    }),
+    archivePromotion: builder.mutation({
+      query: ({ id, reason }) => ({ url: `admin/promotions/${id}/archive`, method: "POST", body: { reason } }),
+      invalidatesTags: ["Promotions"],
+    }),
+    clonePromotion: builder.mutation({
+      query: (id) => ({ url: `admin/promotions/${id}/clone`, method: "POST" }),
+      invalidatesTags: ["Promotions"],
+    }),
+    addPromotionCoupon: builder.mutation({
+      query: ({ promotionId, ...body }) => ({ url: `admin/promotions/${promotionId}/coupons`, method: "POST", body }),
+      invalidatesTags: ["Promotions"],
+    }),
+    removePromotionCoupon: builder.mutation({
+      query: (couponId) => ({ url: `admin/promotions/coupons/${couponId}`, method: "DELETE" }),
+      invalidatesTags: ["Promotions"],
+    }),
+    getPromotionAnalytics: builder.query({
+      query: (id) => ({ url: `admin/promotions/${id}/analytics`, method: "GET" }),
+    }),
+    getPromotionConflicts: builder.query({
+      query: () => ({ url: "admin/promotions/conflicts", method: "GET" }),
+    }),
+    simulatePromotion: builder.mutation({
+      query: (body) => ({ url: "admin/promotions/simulate", method: "POST", body }),
+    }),
+
     // ─── Banners & Offers ───────────────────────────────────────────────────
     // body is always FormData (multipart) — browser sets Content-Type + boundary automatically
     createBanner: builder.mutation({
@@ -2801,4 +2891,24 @@ export const {
   useGetShopAssignmentPolicyQuery,
   useGetShopLiveOpsQuery,
   useUpdateShopAssignmentPolicyMutation,
+  // Enterprise Campaigns
+  useGetCampaignsQuery,
+  useGetCampaignByIdQuery,
+  useCreateCampaignMutation,
+  useUpdateCampaignMutation,
+  useDeleteCampaignMutation,
+  // Enterprise Promotions
+  useGetPromotionsQuery,
+  useGetPromotionByIdQuery,
+  useCreatePromotionMutation,
+  useUpdatePromotionMutation,
+  usePublishPromotionMutation,
+  usePausePromotionMutation,
+  useArchivePromotionMutation,
+  useClonePromotionMutation,
+  useAddPromotionCouponMutation,
+  useRemovePromotionCouponMutation,
+  useGetPromotionAnalyticsQuery,
+  useGetPromotionConflictsQuery,
+  useSimulatePromotionMutation,
 } = api;

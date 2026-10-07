@@ -242,6 +242,14 @@ export const BannersPage = lazy(() =>
   import("../pages/promotion/BannersPage")
 );
 
+export const CampaignsPage = lazy(() =>
+  import("../pages/promotion/CampaignsPage")
+);
+
+export const PromotionsPage = lazy(() =>
+  import("../pages/promotion/PromotionsPage")
+);
+
 export const LoginPage = lazy(() => import("../pages/auth/LoginPage"));
 
 export const PrivacyPolicy = lazy(() => import("./PrivacyPolicy"));
