@@ -70,6 +70,18 @@ input[type="search"]::-webkit-search-results-decoration {
   display: none;
 }
 
+/* Hide number input steppers (↑↓) across the whole admin panel */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
 /* Firefox */
 input[type="search"]::-moz-search-clear {
   display: none;

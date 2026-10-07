@@ -38,6 +38,7 @@ import {
   useUpdateBannerMutation,
 } from "../../store/services/api";
 import { formatDate, formatMoney, joinMediaUrl, resolveCurrencySymbol } from "../../utilities/formatters";
+import ZoneMultiSelect from "./ZoneMultiSelect";
 import {
   DirectoryActionDelete,
   DirectoryActionEdit,
@@ -545,50 +546,15 @@ function BannerForm({ form, errors, patch, services, categories, subCategories, 
             );
           })}
         </div>
-        {form.zoneMode === "specific" && zones.length > 0 ? (
-          <div>
-            <p style={{ fontSize: 12, color: "#166534", fontWeight: 500, margin: "0 0 10px" }}>
-              Select zones — click to toggle:
-            </p>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-              {zones.map((z) => {
-                const id = String(z.id ?? z._id);
-                const selected = form.zoneIds.includes(id);
-                return (
-                  <button
-                    key={id}
-                    type="button"
-                    onClick={() => {
-                      const next = form.zoneIds.includes(id)
-                        ? form.zoneIds.filter((item) => item !== id)
-                        : [...form.zoneIds, id];
-                      patch("zoneIds", next);
-                    }}
-                    style={{
-                      padding: "6px 14px",
-                      borderRadius: 20,
-                      border: selected ? "2px solid #166534" : "1.5px solid #bbf7d0",
-                      background: selected ? "#166534" : "#f0fdf4",
-                      color: selected ? "#fff" : "#166534",
-                      fontSize: 12,
-                      fontWeight: selected ? 600 : 400,
-                      cursor: "pointer",
-                      transition: "all 0.15s",
-                    }}
-                  >
-                    {selected ? "✓ " : ""}{z.name ?? z.zoneName}
-                  </button>
-                );
-              })}
-            </div>
-            {errors.zoneIds ? (
-              <p style={{ color: "var(--danger, #ef4444)", fontSize: 12, margin: "8px 0 0" }}>{errors.zoneIds}</p>
-            ) : form.zoneIds.length > 0 ? (
-              <p style={{ fontSize: 11, color: "#6b7280", margin: "8px 0 0" }}>
-                {form.zoneIds.length} zone{form.zoneIds.length !== 1 ? "s" : ""} selected
-              </p>
-            ) : null}
-          </div>
+        {form.zoneMode === "specific" ? (
+          <Field label="Select zones*" error={errors?.zoneIds}>
+            <ZoneMultiSelect
+              zones={zones}
+              selectedIds={form.zoneIds}
+              onChange={(next) => patch("zoneIds", next)}
+              error={Boolean(errors?.zoneIds)}
+            />
+          </Field>
         ) : null}
       </div>
 

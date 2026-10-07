@@ -1,17 +1,10 @@
 import { useState, useMemo, useCallback } from "react";
 import dayjs from "dayjs";
 import {
-  TbTag,
   TbTarget,
   TbMapPin,
   TbCalendarEvent,
   TbPercentage,
-  TbCurrencyPound,
-  TbCategory,
-  TbLayersSubtract,
-  TbPuzzle,
-  TbBuildingStore,
-  TbInfoCircle,
 } from "react-icons/tb";
 import {
   Button,
@@ -32,6 +25,8 @@ import {
   DirectoryTableWrap,
 } from "../directory-table/directoryTable";
 import useToaster from "../../components/ui/Toaster";
+import ZoneMultiSelect from "./ZoneMultiSelect";
+import CatalogMultiSelect from "./CatalogMultiSelect";
 import {
   useGetServiceDiscountsQuery,
   useCreateServiceDiscountMutation,
@@ -50,10 +45,10 @@ import { TbPlus, TbTrash } from "../../shared/icons/index";
 
 const TARGET_TYPE_OPTIONS = [
   { value: "all",         label: "All services & add-ons" },
-  { value: "service",     label: "Specific service" },
-  { value: "category",    label: "Specific category" },
-  { value: "subCategory", label: "Specific item (sub-category)" },
-  { value: "addon",       label: "Specific add-on" },
+  { value: "service",     label: "Specific service(s)" },
+  { value: "category",    label: "Specific categor(y/ies)" },
+  { value: "subCategory", label: "Specific item(s)" },
+  { value: "addon",       label: "Specific add-on(s)" },
 ];
 
 const ZONE_MODE_OPTIONS = [
@@ -72,14 +67,30 @@ const blankForm = () => ({
   discountValue: "",
   maxDiscountCap: "",
   targetType: "all",
-  targetId: "",
-  targetCategoryId: "", // UI only — for filtering sub-categories
+  targetIds: [],
+  targetCategoryId: "", // UI only — optional filter for sub-categories
   zoneMode: "all",
   zoneIds: [],
   validFrom: "",
   validTo: "",
   isActive: true,
 });
+
+function parseTargetIds(row) {
+  if (Array.isArray(row?.targetIds) && row.targetIds.length) {
+    return row.targetIds.map(String);
+  }
+  if (row?.targetId != null && row.targetId !== "") {
+    return [String(row.targetId)];
+  }
+  return [];
+}
+
+function moneyLabel(n) {
+  const v = Number(n);
+  if (!Number.isFinite(v)) return null;
+  return `£${v.toFixed(2)}`;
+}
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -234,11 +245,11 @@ export default function ServiceDiscountsPage() {
   const openEdit = useCallback(
     (row) => {
       setEditRow(row);
-      // Resolve parent category for subCategory editing
+      const ids = parseTargetIds(row);
       let targetCategoryId = "";
-      if (row.targetType === "subCategory" && row.targetId) {
+      if (row.targetType === "subCategory" && ids[0]) {
         const sc = allSubCategories.find(
-          (s) => String(s.id ?? s._id) === String(row.targetId)
+          (s) => String(s.id ?? s._id) === String(ids[0])
         );
         targetCategoryId = sc
           ? String(sc.categoryId ?? sc.category_id ?? sc.parentId ?? "")
@@ -250,7 +261,7 @@ export default function ServiceDiscountsPage() {
         discountValue: row.discountValue != null ? String(row.discountValue) : "",
         maxDiscountCap: row.maxDiscountCap != null ? String(row.maxDiscountCap) : "",
         targetType: row.targetType || "all",
-        targetId: row.targetId != null ? String(row.targetId) : "",
+        targetIds: ids,
         targetCategoryId,
         zoneMode: row.zoneMode || "all",
         zoneIds: Array.isArray(row.zoneIds) ? row.zoneIds.map(String) : [],
@@ -263,19 +274,116 @@ export default function ServiceDiscountsPage() {
     [allSubCategories]
   );
 
+  /** Live price / exceed hints for selected priced leaves (items & add-ons). */
+  const priceGuard = useMemo(() => {
+    const val = Number(form.discountValue);
+    const selected = form.targetIds || [];
+    let priced = [];
+
+    if (form.targetType === "subCategory") {
+      priced = allSubCategories
+        .filter((sc) => selected.includes(String(sc.id ?? sc._id)))
+        .map((sc) => ({
+          id: String(sc.id ?? sc._id),
+          name: sc.name ?? sc.subCategoryName ?? `Item ${sc.id}`,
+          price: Number(sc.price) || 0,
+        }));
+    } else if (form.targetType === "addon") {
+      priced = allAddons
+        .filter((a) => selected.includes(String(a.id ?? a._id)))
+        .map((a) => ({
+          id: String(a.id ?? a._id),
+          name: a.name ?? a.addonName ?? `Add-on ${a.id}`,
+          price: Number(a.price) || 0,
+        }));
+    } else if (form.targetType === "category" && selected.length) {
+      priced = allSubCategories
+        .filter((sc) =>
+          selected.includes(String(sc.categoryId ?? sc.category_id ?? sc.parentId))
+        )
+        .map((sc) => ({
+          id: String(sc.id ?? sc._id),
+          name: sc.name ?? sc.subCategoryName ?? `Item ${sc.id}`,
+          price: Number(sc.price) || 0,
+        }))
+        .filter((p) => p.price > 0);
+    } else if (form.targetType === "service" && selected.length) {
+      const catIds = new Set(
+        allCategories
+          .filter((c) => selected.includes(String(c.serviceId ?? c.service_id)))
+          .map((c) => String(c.id ?? c._id))
+      );
+      // Fallback: some APIs nest serviceId only on category
+      if (!catIds.size) {
+        allCategories.forEach((c) => {
+          if (selected.includes(String(c.serviceId))) {
+            catIds.add(String(c.id ?? c._id));
+          }
+        });
+      }
+      priced = allSubCategories
+        .filter((sc) =>
+          catIds.has(String(sc.categoryId ?? sc.category_id ?? sc.parentId))
+        )
+        .map((sc) => ({
+          id: String(sc.id ?? sc._id),
+          name: sc.name ?? sc.subCategoryName ?? `Item ${sc.id}`,
+          price: Number(sc.price) || 0,
+        }))
+        .filter((p) => p.price > 0);
+    }
+
+    priced = priced.filter((p) => p.price > 0);
+    if (!priced.length) {
+      return { priced: [], min: null, exceeds: [], pctOver: false };
+    }
+    const min = priced.reduce((a, b) => (a.price <= b.price ? a : b));
+    const exceeds =
+      form.discountType === "flat" && Number.isFinite(val) && val > 0
+        ? priced.filter((p) => val > p.price)
+        : [];
+    const pctOver =
+      form.discountType === "percentage" && Number.isFinite(val) && val > 100;
+    return { priced, min, exceeds, pctOver, value: val };
+  }, [
+    form.discountType,
+    form.discountValue,
+    form.targetType,
+    form.targetIds,
+    allSubCategories,
+    allAddons,
+    allCategories,
+  ]);
+
   const handleSave = async () => {
-    if (!form.name.trim()) { toast.error("Rule name is required"); return; }
+    if (!form.name.trim()) {
+      toast.error("Rule name is required");
+      return;
+    }
     if (!form.discountValue || Number(form.discountValue) <= 0) {
-      toast.error("Discount value must be greater than zero"); return;
+      toast.error("Discount value must be greater than zero");
+      return;
     }
     if (form.discountType === "percentage" && Number(form.discountValue) > 100) {
-      toast.error("Percentage cannot exceed 100"); return;
+      toast.error("Percentage cannot exceed 100%");
+      return;
     }
-    if (form.targetType !== "all" && !form.targetId) {
-      toast.error("Please select a target from the dropdown"); return;
+    if (form.targetType !== "all" && !form.targetIds.length) {
+      toast.error("Select at least one target from the dropdown");
+      return;
     }
     if (form.zoneMode === "specific" && !form.zoneIds.length) {
-      toast.error("Select at least one zone for specific zone mode"); return;
+      toast.error("Select at least one zone for specific zone mode");
+      return;
+    }
+    if (form.discountType === "flat" && priceGuard.exceeds.length) {
+      const worst = priceGuard.exceeds.reduce((a, b) =>
+        a.price <= b.price ? a : b
+      );
+      toast.error(
+        `£${Number(form.discountValue).toFixed(2)} exceeds "${worst.name}" price (${moneyLabel(worst.price)}). Lower the discount or remove that target.`
+      );
+      return;
     }
 
     const payload = {
@@ -284,7 +392,12 @@ export default function ServiceDiscountsPage() {
       discountValue: Number(form.discountValue),
       maxDiscountCap: form.maxDiscountCap ? Number(form.maxDiscountCap) : null,
       targetType: form.targetType,
-      targetId: form.targetType !== "all" ? Number(form.targetId) : null,
+      targetIds:
+        form.targetType !== "all" ? form.targetIds.map(Number).filter(Boolean) : null,
+      targetId:
+        form.targetType !== "all" && form.targetIds.length === 1
+          ? Number(form.targetIds[0])
+          : null,
       zoneMode: form.zoneMode,
       zoneIds: form.zoneMode === "specific" ? form.zoneIds.map(Number) : null,
       validFrom: form.validFrom || null,
@@ -322,17 +435,6 @@ export default function ServiceDiscountsPage() {
     }
   };
 
-  // ── Zone multi-select toggle ───────────────────────────────────────────────
-  const toggleZoneId = (id) => {
-    const sid = String(id);
-    setForm((f) => ({
-      ...f,
-      zoneIds: f.zoneIds.includes(sid)
-        ? f.zoneIds.filter((z) => z !== sid)
-        : [...f.zoneIds, sid],
-    }));
-  };
-
   // ── Table columns ──────────────────────────────────────────────────────────
   const columns = useMemo(
     () => [
@@ -351,14 +453,22 @@ export default function ServiceDiscountsPage() {
       {
         key: "targetScope",
         header: "Applies To",
-        render: (row) => (
-          <div style={{ fontSize: 13 }}>
-            <div>{TARGET_TYPE_OPTIONS.find((o) => o.value === row.targetType)?.label ?? row.targetType}</div>
-            {row.targetType !== "all" && row.targetId && (
-              <div style={{ fontSize: 12, color: "#6b7280" }}>ID: {row.targetId}</div>
-            )}
-          </div>
-        ),
+        render: (row) => {
+          const ids = parseTargetIds(row);
+          return (
+            <div style={{ fontSize: 13 }}>
+              <div>
+                {TARGET_TYPE_OPTIONS.find((o) => o.value === row.targetType)?.label ??
+                  row.targetType}
+              </div>
+              {row.targetType !== "all" && ids.length > 0 ? (
+                <div style={{ fontSize: 12, color: "#6b7280" }}>
+                  {ids.length} target{ids.length !== 1 ? "s" : ""}
+                </div>
+              ) : null}
+            </div>
+          );
+        },
       },
       {
         key: "zoneScope",
@@ -427,7 +537,7 @@ export default function ServiceDiscountsPage() {
     <div>
       <PageHeader
         title="Service Discounts"
-        description="Set percentage or flat discounts on specific services, categories, items, or add-ons — scoped to all zones or selected zones."
+        description="Enterprise offers: multi-select services, categories, items, or add-ons. Flat discounts cannot exceed catalog prices; percentage max 100%."
         actions={
           <Button onClick={openCreate} icon={<TbPlus />}>
             New Discount
@@ -477,7 +587,11 @@ export default function ServiceDiscountsPage() {
         title={editRow ? "Edit Discount Rule" : "New Discount Rule"}
         primaryLabel={saving ? "Saving…" : editRow ? "Save changes" : "Create discount"}
         onPrimary={handleSave}
-        primaryDisabled={saving}
+        primaryDisabled={
+          saving ||
+          priceGuard.pctOver ||
+          (form.discountType === "flat" && priceGuard.exceeds.length > 0)
+        }
         secondaryLabel="Cancel"
         onSecondary={() => setModalOpen(false)}
       >
@@ -513,7 +627,23 @@ export default function ServiceDiscountsPage() {
                   options={DISCOUNT_TYPE_OPTIONS}
                 />
               </Field>
-              <Field label={`Value * ${form.discountType === "percentage" ? "(%)" : "(£)"}`}>
+              <Field
+                label={`Value * ${form.discountType === "percentage" ? "(%)" : "(£)"}`}
+                hint={
+                  form.discountType === "percentage"
+                    ? "Maximum 100%"
+                    : priceGuard.min
+                      ? `Cannot exceed cheapest selected price (${moneyLabel(priceGuard.min.price)})`
+                      : "Cannot exceed the catalog price of selected targets"
+                }
+                error={
+                  priceGuard.pctOver
+                    ? "Percentage cannot exceed 100%"
+                    : priceGuard.exceeds.length
+                      ? `Exceeds ${priceGuard.exceeds.length} priced target(s)`
+                      : undefined
+                }
+              >
                 <Input
                   type="number"
                   min="0.01"
@@ -522,6 +652,7 @@ export default function ServiceDiscountsPage() {
                   value={form.discountValue}
                   onChange={(e) => setField("discountValue", e.target.value)}
                   placeholder={form.discountType === "percentage" ? "e.g. 20" : "e.g. 5.00"}
+                  error={Boolean(priceGuard.pctOver || priceGuard.exceeds.length)}
                 />
               </Field>
             </div>
@@ -542,6 +673,48 @@ export default function ServiceDiscountsPage() {
                 </Field>
               </div>
             )}
+            {(priceGuard.pctOver || priceGuard.exceeds.length > 0 || (form.discountType === "flat" && priceGuard.min)) && (
+              <div
+                style={{
+                  marginTop: 12,
+                  padding: "10px 12px",
+                  borderRadius: 8,
+                  fontSize: 12,
+                  lineHeight: 1.45,
+                  border: `1px solid ${
+                    priceGuard.pctOver || priceGuard.exceeds.length ? "#fecaca" : "#bfdbfe"
+                  }`,
+                  background:
+                    priceGuard.pctOver || priceGuard.exceeds.length ? "#fef2f2" : "#eff6ff",
+                  color: priceGuard.pctOver || priceGuard.exceeds.length ? "#991b1b" : "#1e40af",
+                }}
+              >
+                {priceGuard.pctOver ? (
+                  <>Percentage discount cannot exceed <b>100%</b>. You entered {form.discountValue}%.</>
+                ) : priceGuard.exceeds.length ? (
+                  <>
+                    Flat discount <b>{moneyLabel(form.discountValue)}</b> exceeds catalog price for:{" "}
+                    {priceGuard.exceeds
+                      .slice(0, 3)
+                      .map((p) => `${p.name} (${moneyLabel(p.price)})`)
+                      .join(", ")}
+                    {priceGuard.exceeds.length > 3
+                      ? ` +${priceGuard.exceeds.length - 3} more`
+                      : ""}
+                    . Max allowed for this selection:{" "}
+                    <b>{moneyLabel(priceGuard.min.price)}</b>.
+                  </>
+                ) : (
+                  <>
+                    Selected priced items: cheapest is{" "}
+                    <b>
+                      {priceGuard.min.name} ({moneyLabel(priceGuard.min.price)})
+                    </b>
+                    . Flat discount must stay at or below this amount.
+                  </>
+                )}
+              </div>
+            )}
           </div>
 
           {/* ── TARGET SCOPE ── */}
@@ -555,33 +728,32 @@ export default function ServiceDiscountsPage() {
               </span>
             </div>
 
-            <Field label="Apply discount to *">
+            <Field label="Apply discount to *" hint="One rule, one target type — select multiple within that type">
               <Select
                 value={form.targetType}
                 onChange={(value) => {
                   setField("targetType", value);
-                  setField("targetId", "");
+                  setField("targetIds", []);
                   setField("targetCategoryId", "");
                 }}
                 options={TARGET_TYPE_OPTIONS}
               />
             </Field>
 
-            {/* Service dropdown */}
             {form.targetType === "service" && (
               <div style={{ marginTop: 12 }}>
                 <Field
-                  label="Select service *"
+                  label="Select service(s) *"
                   hint={
                     form.zoneMode === "specific" && form.zoneIds.length > 0
                       ? `Showing services available in selected zone${form.zoneIds.length > 1 ? "s" : ""}`
-                      : "Choose the service to apply this discount to"
+                      : "Multi-select — discount applies to every selected service tree"
                   }
                 >
-                  <Select
-                    value={form.targetId}
-                    onChange={(value) => setField("targetId", value)}
-                    placeholder="Choose a service…"
+                  <CatalogMultiSelect
+                    selectedIds={form.targetIds}
+                    onChange={(next) => setField("targetIds", next)}
+                    placeholder="Select one or more services…"
                     options={filteredServices.map((s) => ({
                       value: String(s.id ?? s._id),
                       label: s.name ?? s.serviceName ?? s.title ?? `Service ${s.id}`,
@@ -591,14 +763,16 @@ export default function ServiceDiscountsPage() {
               </div>
             )}
 
-            {/* Category dropdown */}
             {form.targetType === "category" && (
               <div style={{ marginTop: 12 }}>
-                <Field label="Select category *" hint="Choose the category">
-                  <Select
-                    value={form.targetId}
-                    onChange={(value) => setField("targetId", value)}
-                    placeholder="Choose a category…"
+                <Field
+                  label="Select categor(y/ies) *"
+                  hint="Multi-select — flat discount cannot exceed the cheapest item under these categories"
+                >
+                  <CatalogMultiSelect
+                    selectedIds={form.targetIds}
+                    onChange={(next) => setField("targetIds", next)}
+                    placeholder="Select one or more categories…"
                     options={allCategories.map((c) => ({
                       value: String(c.id ?? c._id),
                       label: c.name ?? c.categoryName ?? c.title ?? `Category ${c.id}`,
@@ -608,52 +782,57 @@ export default function ServiceDiscountsPage() {
               </div>
             )}
 
-            {/* Sub-category — pick category first, then sub-category */}
             {form.targetType === "subCategory" && (
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 12 }}>
-                <Field label="Category *" hint="Filter by parent category">
+              <div style={{ display: "grid", gap: 12, marginTop: 12 }}>
+                <Field label="Filter by category" hint="Optional — narrow the item list">
                   <Select
                     value={form.targetCategoryId}
-                    onChange={(value) => {
-                      setField("targetCategoryId", value);
-                      setField("targetId", "");
-                    }}
-                    placeholder="Choose category…"
-                    options={allCategories.map((c) => ({
-                      value: String(c.id ?? c._id),
-                      label: c.name ?? c.categoryName ?? `Category ${c.id}`,
-                    }))}
+                    onChange={(value) => setField("targetCategoryId", value)}
+                    placeholder="All categories"
+                    options={[
+                      { value: "", label: "All categories" },
+                      ...allCategories.map((c) => ({
+                        value: String(c.id ?? c._id),
+                        label: c.name ?? c.categoryName ?? `Category ${c.id}`,
+                      })),
+                    ]}
                   />
                 </Field>
                 <Field
-                  label="Item / sub-category *"
-                  hint={form.targetCategoryId ? "Choose item" : "Select category first"}
+                  label="Select item(s) *"
+                  hint="Each item shows its catalog price — flat discount cannot exceed any selected price"
                 >
-                  <Select
-                    value={form.targetId}
-                    onChange={(value) => setField("targetId", value)}
-                    placeholder={form.targetCategoryId ? "Choose item…" : "Select category first"}
-                    disabled={!form.targetCategoryId}
-                    options={filteredSubCats.map((sc) => ({
-                      value: String(sc.id ?? sc._id),
-                      label: sc.name ?? sc.subCategoryName ?? sc.title ?? `Item ${sc.id}`,
-                    }))}
+                  <CatalogMultiSelect
+                    selectedIds={form.targetIds}
+                    onChange={(next) => setField("targetIds", next)}
+                    placeholder="Select one or more items…"
+                    options={(form.targetCategoryId ? filteredSubCats : allSubCategories).map(
+                      (sc) => ({
+                        value: String(sc.id ?? sc._id),
+                        label:
+                          sc.name ?? sc.subCategoryName ?? sc.title ?? `Item ${sc.id}`,
+                        price: sc.price,
+                      })
+                    )}
                   />
                 </Field>
               </div>
             )}
 
-            {/* Add-on dropdown */}
             {form.targetType === "addon" && (
               <div style={{ marginTop: 12 }}>
-                <Field label="Select add-on *" hint="Choose the add-on service">
-                  <Select
-                    value={form.targetId}
-                    onChange={(value) => setField("targetId", value)}
-                    placeholder="Choose an add-on…"
+                <Field
+                  label="Select add-on(s) *"
+                  hint="Each add-on shows its catalog price — flat discount cannot exceed any selected price"
+                >
+                  <CatalogMultiSelect
+                    selectedIds={form.targetIds}
+                    onChange={(next) => setField("targetIds", next)}
+                    placeholder="Select one or more add-ons…"
                     options={allAddons.map((a) => ({
                       value: String(a.id ?? a._id),
                       label: a.name ?? a.addonName ?? a.title ?? `Add-on ${a.id}`,
+                      price: a.price,
                     }))}
                   />
                 </Field>
@@ -706,52 +885,21 @@ export default function ServiceDiscountsPage() {
               })}
             </div>
 
-            {/* Specific zone pills */}
             {form.zoneMode === "specific" && (
               <div>
-                {zones.length > 0 ? (
-                  <>
-                    <p style={{ fontSize: 12, color: "#166534", fontWeight: 500, margin: "0 0 10px" }}>
-                      Select zones — discount applies only to the checked zones:
-                    </p>
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                      {zones.map((z) => {
-                        const sid = String(z.id ?? z.zoneId);
-                        const selected = form.zoneIds.includes(sid);
-                        return (
-                          <button
-                            key={sid}
-                            type="button"
-                            onClick={() => toggleZoneId(z.id ?? z.zoneId)}
-                            style={{
-                              padding: "6px 14px",
-                              borderRadius: 20,
-                              border: selected ? "2px solid #166534" : "1.5px solid #bbf7d0",
-                              background: selected ? "#166534" : "#f0fdf4",
-                              color: selected ? "#fff" : "#166534",
-                              fontSize: 12,
-                              fontWeight: selected ? 600 : 400,
-                              cursor: "pointer",
-                              transition: "all 0.15s",
-                            }}
-                          >
-                            {selected && "✓ "}{z.name ?? z.zoneName}
-                          </button>
-                        );
-                      })}
-                    </div>
-                    {form.zoneIds.length > 0 && (
-                      <p style={{ fontSize: 11, color: "#6b7280", margin: "8px 0 0" }}>
-                        {form.zoneIds.length} zone{form.zoneIds.length !== 1 ? "s" : ""} selected
-                        {form.targetType === "service" && zoneCatalogData && (
-                          <> — service list filtered to {filteredServices.length} service{filteredServices.length !== 1 ? "s" : ""} available in this zone</>
-                        )}
-                      </p>
-                    )}
-                  </>
-                ) : (
-                  <p style={{ fontSize: 13, color: "#6b7280" }}>No zones configured.</p>
-                )}
+                <Field label="Select zones*">
+                  <ZoneMultiSelect
+                    zones={zones}
+                    selectedIds={form.zoneIds}
+                    onChange={(next) => setField("zoneIds", next)}
+                  />
+                </Field>
+                {form.zoneIds.length > 0 && form.targetType === "service" && zoneCatalogData ? (
+                  <p style={{ fontSize: 11, color: "#6b7280", margin: "8px 0 0" }}>
+                    Service list filtered to {filteredServices.length} service
+                    {filteredServices.length !== 1 ? "s" : ""} available in this zone
+                  </p>
+                ) : null}
               </div>
             )}
           </div>
