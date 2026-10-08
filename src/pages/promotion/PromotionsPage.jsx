@@ -20,8 +20,9 @@ import {
 import { TbPlus } from "../../shared/icons/index";
 import {
   TbDiscount, TbTruck, TbShoppingCart, TbMapPin, TbUsers, TbCalendarEvent,
-  TbPlayerPlay, TbPlayerPause, TbCopy, TbArchive, TbEye, TbFlask, TbTarget,
+  TbPlayerPlay, TbPlayerPause, TbCopy, TbArchive, TbEye, TbFlask, TbTarget, TbChartBar,
 } from "react-icons/tb";
+import { PromotionReportModal } from "./PromotionReport";
 import ZoneMultiSelect from "./ZoneMultiSelect";
 import CatalogMultiSelect from "./CatalogMultiSelect";
 import PromotionConditionBuilder, { DayPicker } from "./PromotionConditionBuilder";
@@ -515,6 +516,7 @@ export default function PromotionsPage() {
   const [viewRow, setViewRow] = useState(null);
   const [archiveTarget, setArchiveTarget] = useState(null);
   const [publishTarget, setPublishTarget] = useState(null);
+  const [reportRow, setReportRow] = useState(null);
   const [showSimulate, setShowSimulate] = useState(false);
 
   const { data, isLoading } = useGetPromotionsQuery({ page, limit: 20, status: statusFilter || undefined });
@@ -700,6 +702,9 @@ export default function PromotionsPage() {
       render: (row) => (
         <DirectoryActions>
           <DirectoryActionView onClick={() => setViewRow(row)} />
+          <DirectoryActionIcon title="Report" onClick={() => setReportRow(row)}>
+            <TbChartBar size={16} className="text-blue-600" />
+          </DirectoryActionIcon>
           {canEdit(row.status) && (
             <DirectoryActionEdit onClick={() => openEdit(row)} disabled={editLoadingId === row.id} />
           )}
@@ -1217,6 +1222,7 @@ export default function PromotionsPage() {
       </Modal>
 
       <PromotionSimulateModal open={showSimulate} onClose={() => setShowSimulate(false)} zones={zones} />
+      <PromotionReportModal promotion={reportRow} onClose={() => setReportRow(null)} />
     </>
   );
 }

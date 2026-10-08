@@ -2560,7 +2560,31 @@ export const api = createApi({
       invalidatesTags: ["Promotions", "Campaigns"],
     }),
     getPromotionAnalytics: builder.query({
-      query: (id) => ({ url: `admin/promotions/${id}/analytics`, method: "GET" }),
+      query: (arg) => {
+        const { id, from, to } = typeof arg === "object" && arg !== null ? arg : { id: arg };
+        const q = new URLSearchParams();
+        if (from) q.append("from", from);
+        if (to) q.append("to", to);
+        const qs = q.toString();
+        return { url: `admin/promotions/${id}/analytics${qs ? `?${qs}` : ""}`, method: "GET" };
+      },
+      providesTags: ["Promotions"],
+    }),
+    getCampaignReport: builder.query({
+      query: (id) => ({ url: `admin/campaigns/${id}/report`, method: "GET" }),
+      providesTags: ["Campaigns", "Promotions"],
+    }),
+    getOrderPromotions: builder.query({
+      query: (bookingId) => ({ url: `admin/orderPromotions/${bookingId}`, method: "GET" }),
+      providesTags: ["Promotions"],
+    }),
+    removeOrderPromotion: builder.mutation({
+      query: ({ bookingId, promotionId, reason }) => ({
+        url: `admin/orderPromotions/${bookingId}/remove/${promotionId}`,
+        method: "POST",
+        body: { reason },
+      }),
+      invalidatesTags: ["Promotions", "Orders"],
     }),
     getPromotionConflicts: builder.query({
       query: () => ({ url: "admin/promotions/conflicts", method: "GET" }),
@@ -2912,6 +2936,9 @@ export const {
   useAddPromotionCouponMutation,
   useRemovePromotionCouponMutation,
   useGetPromotionAnalyticsQuery,
+  useGetCampaignReportQuery,
+  useGetOrderPromotionsQuery,
+  useRemoveOrderPromotionMutation,
   useGetPromotionConflictsQuery,
   useSimulatePromotionMutation,
 } = api;
