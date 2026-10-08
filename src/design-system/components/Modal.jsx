@@ -42,6 +42,8 @@ export default function Modal({
   secondaryDisabled = false,
   size,
   maxHeight,
+  // false for long forms, so a stray click outside does not discard what was typed.
+  closeOnBackdrop = true,
 }) {
   const titleId = useId();
   const descId = useId();
@@ -182,7 +184,7 @@ export default function Modal({
   return createPortal(
     <DsScope
       className={`jd-modal-scrim${shown ? " is-open" : ""}`}
-      onClick={(e) => e.target === e.currentTarget && onClose?.()}
+      onClick={(e) => closeOnBackdrop && e.target === e.currentTarget && onClose?.()}
       onTransitionEnd={handleScrimTransitionEnd}
     >
       <div

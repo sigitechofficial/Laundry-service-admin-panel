@@ -1,22 +1,22 @@
-import { useMemo, useState, useCallback } from "react";
+import { useState, useCallback } from "react";
 import dayjs from "dayjs";
 import {
   Button, Field, Input, Modal, PageHeader, Select, Table, Textarea,
 } from "../../design-system";
 import { PaginationBar, Toggle } from "../misc-kit";
 import {
-  DirectoryActions, DirectoryActionEdit, DirectoryActionView,
-  DirectoryDotPill, DirectoryIdentity, DirectoryMetrics, DirectoryMetric,
+  DirectoryActions, DirectoryActionDelete, DirectoryActionEdit, DirectoryActionView,
+  DirectoryDotPill, DirectoryIdentity, DirectoryMetrics,
   DirectoryTableWrap, DirectoryToolbar, DirectoryToolbarEnd,
-  DirectoryToolSelect, DirectoryViewModal,
+  DirectoryToolSelect, DirectoryViewFields, DirectoryViewModal,
 } from "../directory-table/directoryTable";
 import useToaster from "../../components/ui/Toaster";
 import {
   useGetCampaignsQuery, useCreateCampaignMutation, useUpdateCampaignMutation, useDeleteCampaignMutation,
 } from "../../store/services/api";
 import { TbPlus } from "../../shared/icons/index";
-import { TbSpeakerphone, TbTarget, TbCurrencyPound, TbCalendarEvent } from "react-icons/tb";
-import { formatDate, formatAmount } from "../../utilities/formatters";
+import { TbSpeakerphone, TbCurrencyPound } from "react-icons/tb";
+import { formatDate } from "../../utilities/formatters";
 
 const STATUS_OPTIONS = [
   { value: "draft", label: "Draft" },
@@ -60,16 +60,18 @@ const INITIAL_FORM = () => ({
   status: "draft",
 });
 
-const statusColor = (s) => {
-  switch (s) {
-    case "active": return "green";
-    case "paused": return "yellow";
-    case "draft": return "blue";
-    case "completed": return "purple";
-    case "archived": return "gray";
-    default: return "gray";
-  }
+const FILTER_OPTIONS = [{ value: "", label: "All statuses" }, ...STATUS_OPTIONS];
+
+const STATUS_TONES = {
+  active: "success",
+  paused: "warning",
+  draft: "created",
+  completed: "info",
+  archived: "neutral",
 };
+
+const statusLabel = (s) => STATUS_OPTIONS.find((o) => o.value === s)?.label || s;
+const pounds = (minor) => (minor ? `£${(Number(minor) / 100).toFixed(2)}` : "—");
 
 export default function CampaignsPage() {
   const [page, setPage] = useState(1);
@@ -78,12 +80,14 @@ export default function CampaignsPage() {
   const [form, setForm] = useState(INITIAL_FORM());
   const [editId, setEditId] = useState(null);
   const [viewRow, setViewRow] = useState(null);
-  const { toastSuccess, toastError, Toaster } = useToaster();
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const toast = useToaster();
 
   const { data, isLoading } = useGetCampaignsQuery({ page, limit: 20, status: statusFilter || undefined });
   const [createCampaign, { isLoading: creating }] = useCreateCampaignMutation();
   const [updateCampaign, { isLoading: updating }] = useUpdateCampaignMutation();
-  const [deleteCampaign] = useDeleteCampaignMutation();
+  const [deleteCampaign, { isLoading: deleting }] = useDeleteCampaignMutation();
+  const saving = creating || updating;
 
   const campaigns = data?.rows || [];
   const totalCount = data?.count || 0;
@@ -97,7 +101,7 @@ export default function CampaignsPage() {
       description: row.description || "",
       objective: row.objective || "",
       channel: row.channel || "",
-      budgetMinor: row.budgetMinor ? String(row.budgetMinor / 100) : "",
+      budgetMinor: row.budgetMinor != null ? String(row.budgetMinor / 100) : "",
       currency: row.currency || "GBP",
       startDate: row.startDate ? dayjs(row.startDate).format("YYYY-MM-DD") : "",
       endDate: row.endDate ? dayjs(row.endDate).format("YYYY-MM-DD") : "",
@@ -108,99 +112,131 @@ export default function CampaignsPage() {
   };
 
   const handleSave = async () => {
+    if (saving) return;
+    if (!form.name.trim()) return toast.error("Campaign name is required");
+    const budget = form.budgetMinor === "" ? null : Number(form.budgetMinor);
+    if (budget != null && !(budget >= 0)) return toast.error("Budget cannot be negative");
+    if (form.startDate && form.endDate && form.endDate < form.startDate) {
+      return toast.error("End date must be after the start date");
+    }
     try {
+      // Optional fields go as null, never "".
       const payload = {
         ...form,
-        budgetMinor: form.budgetMinor ? Math.round(parseFloat(form.budgetMinor) * 100) : null,
+        name: form.name.trim(),
+        description: form.description.trim() || null,
+        objective: form.objective || null,
+        channel: form.channel || null,
+        budgetMinor: budget == null ? null : Math.round(budget * 100),
+        startDate: form.startDate ? dayjs(form.startDate).startOf("day").toISOString() : null,
+        endDate: form.endDate ? dayjs(form.endDate).endOf("day").toISOString() : null,
       };
       if (editId) {
         await updateCampaign({ id: editId, ...payload }).unwrap();
-        toastSuccess("Campaign updated");
+        toast.success("Campaign updated");
       } else {
         await createCampaign(payload).unwrap();
-        toastSuccess("Campaign created");
+        toast.success("Campaign created");
       }
       setShowForm(false);
     } catch (err) {
-      toastError(err?.data?.message || "Failed to save campaign");
+      toast.error(err?.data?.message || "Failed to save campaign");
     }
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm("Delete or archive this campaign?")) return;
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
     try {
-      await deleteCampaign(id).unwrap();
-      toastSuccess("Campaign removed");
+      const res = await deleteCampaign(deleteTarget.id).unwrap();
+      // Campaigns that still have promotions are archived instead of deleted.
+      toast.success(res?.data?.archived ? "Campaign archived (it has promotions)" : "Campaign deleted");
+      setDeleteTarget(null);
     } catch (err) {
-      toastError(err?.data?.message || "Failed to delete");
+      toast.error(err?.data?.message || "Failed to delete");
     }
   };
 
-  const columns = useMemo(() => [
+  const columns = [
     {
+      key: "campaign",
       header: "Campaign",
-      cell: (row) => (
+      render: (row) => (
         <DirectoryIdentity
           name={row.name}
-          subtitle={row.objective ? OBJECTIVE_OPTIONS.find((o) => o.value === row.objective)?.label : "—"}
+          meta={row.objective ? OBJECTIVE_OPTIONS.find((o) => o.value === row.objective)?.label : "—"}
         />
       ),
     },
     {
+      key: "status",
       header: "Status",
-      cell: (row) => <DirectoryDotPill color={statusColor(row.status)} label={row.status} />,
+      render: (row) => <DirectoryDotPill tone={STATUS_TONES[row.status] || "neutral"}>{statusLabel(row.status)}</DirectoryDotPill>,
     },
+    { key: "budget", header: "Budget", render: (row) => pounds(row.budgetMinor) },
+    { key: "promotions", header: "Promotions", render: (row) => row.promotions?.length || 0 },
     {
-      header: "Budget",
-      cell: (row) => row.budgetMinor ? `£${(row.budgetMinor / 100).toFixed(2)}` : "—",
-    },
-    {
-      header: "Promotions",
-      cell: (row) => (row.promotions?.length || 0),
-    },
-    {
+      key: "dates",
       header: "Dates",
-      cell: (row) => {
+      render: (row) => {
         if (!row.startDate && !row.endDate) return "Always";
         return `${row.startDate ? formatDate(row.startDate) : "∞"} — ${row.endDate ? formatDate(row.endDate) : "∞"}`;
       },
     },
     {
-      header: "",
-      cell: (row) => (
+      key: "actions",
+      header: "Actions",
+      render: (row) => (
         <DirectoryActions>
           <DirectoryActionView onClick={() => setViewRow(row)} />
           <DirectoryActionEdit onClick={() => openEdit(row)} />
+          <DirectoryActionDelete onClick={() => setDeleteTarget(row)} />
         </DirectoryActions>
       ),
     },
-  ], []);
+  ];
 
   return (
     <>
-      <Toaster />
-      <PageHeader title="Campaigns" subtitle="Marketing containers for enterprise promotions" />
+      <PageHeader
+        title="Campaigns"
+        description="Marketing containers for enterprise promotions"
+        actions={
+          <Button onClick={openCreate}>
+            <TbPlus size={18} /> New Campaign
+          </Button>
+        }
+      />
 
       <DirectoryToolbar>
-        <DirectoryToolSelect
-          placeholder="All statuses"
-          options={STATUS_OPTIONS}
-          value={statusFilter}
-          onChange={setStatusFilter}
-        />
+        <DirectoryToolSelect>
+          <Select
+            aria-label="Campaign status"
+            options={FILTER_OPTIONS}
+            value={statusFilter}
+            onChange={(v) => { setStatusFilter(v ?? ""); setPage(1); }}
+            placeholder="All statuses"
+          />
+        </DirectoryToolSelect>
         <DirectoryToolbarEnd>
-          <Button onClick={openCreate} icon={<TbPlus />}>New Campaign</Button>
+          <span style={{ fontSize: 13, color: "#6b7280" }}>
+            {totalCount} campaign{totalCount !== 1 ? "s" : ""}
+          </span>
         </DirectoryToolbarEnd>
       </DirectoryToolbar>
 
       <DirectoryTableWrap>
-        <Table columns={columns} data={campaigns} loading={isLoading} emptyText="No campaigns yet" />
+        <Table
+          columns={columns}
+          rows={campaigns}
+          rowKey={(row) => row.id}
+          empty={isLoading ? "Loading…" : "No campaigns yet"}
+        />
       </DirectoryTableWrap>
 
       <PaginationBar page={page} limit={20} total={totalCount} onPageChange={setPage} />
 
       {/* ─── Create/Edit Modal ─────────────────────────────────── */}
-      <Modal open={showForm} onClose={() => setShowForm(false)} title={editId ? "Edit Campaign" : "New Campaign"} size="lg">
+      <Modal open={showForm} onClose={() => setShowForm(false)} title={editId ? "Edit Campaign" : "New Campaign"} size="lg" hideFooter closeOnBackdrop={false}>
         <div className="space-y-4 p-4">
           <div className="bg-white border border-gray-200 rounded-xl p-5 space-y-4">
             <div className="flex items-center gap-2 text-gray-900 font-semibold text-sm">
@@ -228,7 +264,7 @@ export default function CampaignsPage() {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <Field label="Budget (£)">
-                <Input type="number" value={form.budgetMinor} onChange={(e) => setField("budgetMinor", e.target.value)} placeholder="e.g. 5000" />
+                <Input type="number" min="0" step="0.01" value={form.budgetMinor} onChange={(e) => setField("budgetMinor", e.target.value)} placeholder="e.g. 5000" />
               </Field>
               <Field label="Status">
                 <Select options={STATUS_OPTIONS} value={form.status} onChange={(v) => setField("status", v)} />
@@ -239,15 +275,15 @@ export default function CampaignsPage() {
                 <Input type="date" value={form.startDate} onChange={(e) => setField("startDate", e.target.value)} />
               </Field>
               <Field label="End Date">
-                <Input type="date" value={form.endDate} onChange={(e) => setField("endDate", e.target.value)} />
+                <Input type="date" value={form.endDate} min={form.startDate || undefined} onChange={(e) => setField("endDate", e.target.value)} />
               </Field>
             </div>
           </div>
 
           <div className="flex justify-end gap-3 pt-2">
-            <Button variant="outline" onClick={() => setShowForm(false)}>Cancel</Button>
-            <Button onClick={handleSave} loading={creating || updating}>
-              {editId ? "Update Campaign" : "Create Campaign"}
+            <Button variant="secondary" onClick={() => setShowForm(false)}>Cancel</Button>
+            <Button onClick={handleSave} disabled={saving}>
+              {saving ? "Saving…" : editId ? "Update Campaign" : "Create Campaign"}
             </Button>
           </div>
         </div>
@@ -256,18 +292,41 @@ export default function CampaignsPage() {
       {/* ─── View Modal ───────────────────────────────────────── */}
       <DirectoryViewModal open={!!viewRow} onClose={() => setViewRow(null)} title={viewRow?.name || "Campaign"}>
         {viewRow && (
-          <DirectoryMetrics>
-            <DirectoryMetric label="Status" value={viewRow.status} />
-            <DirectoryMetric label="Objective" value={viewRow.objective || "—"} />
-            <DirectoryMetric label="Channel" value={viewRow.channel || "—"} />
-            <DirectoryMetric label="Budget" value={viewRow.budgetMinor ? `£${(viewRow.budgetMinor / 100).toFixed(2)}` : "—"} />
-            <DirectoryMetric label="Used" value={viewRow.usedBudgetMinor ? `£${(viewRow.usedBudgetMinor / 100).toFixed(2)}` : "£0.00"} />
-            <DirectoryMetric label="Promotions" value={viewRow.promotions?.length || 0} />
-            <DirectoryMetric label="Start" value={viewRow.startDate ? formatDate(viewRow.startDate) : "—"} />
-            <DirectoryMetric label="End" value={viewRow.endDate ? formatDate(viewRow.endDate) : "—"} />
-          </DirectoryMetrics>
+          <div className="space-y-4">
+            <DirectoryMetrics
+              items={[
+                { label: "Status", value: statusLabel(viewRow.status) },
+                { label: "Budget", value: pounds(viewRow.budgetMinor) },
+                { label: "Used", value: viewRow.usedBudgetMinor ? pounds(viewRow.usedBudgetMinor) : "£0.00" },
+                { label: "Promotions", value: viewRow.promotions?.length || 0 },
+              ]}
+            />
+            <DirectoryViewFields
+              fields={[
+                { label: "Objective", value: OBJECTIVE_OPTIONS.find((o) => o.value === viewRow.objective)?.label || "—" },
+                { label: "Channel", value: CHANNEL_OPTIONS.find((o) => o.value === viewRow.channel)?.label || "—" },
+                { label: "Start", value: viewRow.startDate ? formatDate(viewRow.startDate) : "—" },
+                { label: "End", value: viewRow.endDate ? formatDate(viewRow.endDate) : "—" },
+              ]}
+            />
+          </div>
         )}
       </DirectoryViewModal>
+
+      {/* ─── Delete Confirm ───────────────────────────────────── */}
+      <Modal
+        open={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        title="Delete or archive campaign?"
+        primaryLabel={deleting ? "Deleting…" : "Delete"}
+        onPrimary={handleDelete}
+        primaryDisabled={deleting}
+        danger
+      >
+        <p style={{ fontSize: 14, color: "#374151" }}>
+          Delete <strong>&ldquo;{deleteTarget?.name}&rdquo;</strong>? Campaigns that still have promotions are archived instead of deleted.
+        </p>
+      </Modal>
     </>
   );
 }

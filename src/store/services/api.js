@@ -2503,7 +2503,8 @@ export const api = createApi({
     }),
     deleteCampaign: builder.mutation({
       query: (id) => ({ url: `admin/campaigns/${id}`, method: "DELETE" }),
-      invalidatesTags: ["Campaigns"],
+      // Deleting a campaign detaches its promotions — refresh both lists.
+      invalidatesTags: ["Campaigns", "Promotions"],
     }),
 
     // ─── Enterprise Promotions ──────────────────────────────────────────────
@@ -2521,41 +2522,42 @@ export const api = createApi({
       },
       providesTags: ["Promotions"],
     }),
+    // Full detail (conditions, zoneOverrides, couponCodes) — the edit form must load this, not the list row.
     getPromotionById: builder.query({
       query: (id) => ({ url: `admin/promotions/${id}`, method: "GET" }),
       providesTags: ["Promotions"],
     }),
     createPromotion: builder.mutation({
       query: (body) => ({ url: "admin/promotions", method: "POST", body }),
-      invalidatesTags: ["Promotions"],
+      invalidatesTags: ["Promotions", "Campaigns"],
     }),
     updatePromotion: builder.mutation({
       query: ({ id, ...body }) => ({ url: `admin/promotions/${id}`, method: "PUT", body }),
-      invalidatesTags: ["Promotions"],
+      invalidatesTags: ["Promotions", "Campaigns"],
     }),
     publishPromotion: builder.mutation({
       query: ({ id, reason }) => ({ url: `admin/promotions/${id}/publish`, method: "POST", body: { reason } }),
-      invalidatesTags: ["Promotions"],
+      invalidatesTags: ["Promotions", "Campaigns"],
     }),
     pausePromotion: builder.mutation({
       query: ({ id, reason }) => ({ url: `admin/promotions/${id}/pause`, method: "POST", body: { reason } }),
-      invalidatesTags: ["Promotions"],
+      invalidatesTags: ["Promotions", "Campaigns"],
     }),
     archivePromotion: builder.mutation({
       query: ({ id, reason }) => ({ url: `admin/promotions/${id}/archive`, method: "POST", body: { reason } }),
-      invalidatesTags: ["Promotions"],
+      invalidatesTags: ["Promotions", "Campaigns"],
     }),
     clonePromotion: builder.mutation({
       query: (id) => ({ url: `admin/promotions/${id}/clone`, method: "POST" }),
-      invalidatesTags: ["Promotions"],
+      invalidatesTags: ["Promotions", "Campaigns"],
     }),
     addPromotionCoupon: builder.mutation({
       query: ({ promotionId, ...body }) => ({ url: `admin/promotions/${promotionId}/coupons`, method: "POST", body }),
-      invalidatesTags: ["Promotions"],
+      invalidatesTags: ["Promotions", "Campaigns"],
     }),
     removePromotionCoupon: builder.mutation({
       query: (couponId) => ({ url: `admin/promotions/coupons/${couponId}`, method: "DELETE" }),
-      invalidatesTags: ["Promotions"],
+      invalidatesTags: ["Promotions", "Campaigns"],
     }),
     getPromotionAnalytics: builder.query({
       query: (id) => ({ url: `admin/promotions/${id}/analytics`, method: "GET" }),
@@ -2900,6 +2902,7 @@ export const {
   // Enterprise Promotions
   useGetPromotionsQuery,
   useGetPromotionByIdQuery,
+  useLazyGetPromotionByIdQuery,
   useCreatePromotionMutation,
   useUpdatePromotionMutation,
   usePublishPromotionMutation,
