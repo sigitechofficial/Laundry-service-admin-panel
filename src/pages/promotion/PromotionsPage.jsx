@@ -46,6 +46,12 @@ const BENEFIT_TYPES = [
   { value: "fixed_price", label: "Fixed Price Offer" },
 ];
 
+// Same as basket_discount in % / £ mode — kept for labels and existing promotions,
+// but not offered when picking a type (unless the promotion already uses it).
+const RETIRED_BENEFIT_TYPES = ["percentage_discount", "fixed_amount_discount"];
+const benefitTypeOptions = (current) =>
+  BENEFIT_TYPES.filter((b) => !RETIRED_BENEFIT_TYPES.includes(b.value) || b.value === current);
+
 // discountMode is fixed for these types; MODE_CHOICE_TYPES let the admin pick.
 const FORCED_MODE = {
   percentage_discount: "percent",
@@ -194,7 +200,7 @@ const INITIAL_FORM = () => ({
   description: "",
   internalNotes: "",
   campaignId: "",
-  benefitType: "percentage_discount",
+  benefitType: "basket_discount",
   discountMode: "percent",
   discountValue: "",
   maxDiscountCap: "",
@@ -786,7 +792,7 @@ export default function PromotionsPage() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <Field label="Benefit Type *">
-                  <Select options={BENEFIT_TYPES} value={form.benefitType} onChange={setBenefitType} />
+                  <Select options={benefitTypeOptions(form.benefitType)} value={form.benefitType} onChange={setBenefitType} />
                 </Field>
                 {MODE_CHOICE_TYPES.includes(form.benefitType) && (
                   <Field label="Discount Mode *">
