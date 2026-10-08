@@ -282,11 +282,6 @@ export const sidebarList = [
         size: "24px",
       },
       {
-        label: "Coupons (Legacy)",
-        path: "/promotion/promo-codes",
-        size: "24px",
-      },
-      {
         label: "Banners & Offers",
         path: "/promotion/banners",
         size: "24px",
