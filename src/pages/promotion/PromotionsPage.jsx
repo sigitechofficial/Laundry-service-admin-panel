@@ -49,8 +49,12 @@ const BENEFIT_TYPES = [
 // Same as basket_discount in % / £ mode — kept for labels and existing promotions,
 // but not offered when picking a type (unless the promotion already uses it).
 const RETIRED_BENEFIT_TYPES = ["percentage_discount", "fixed_amount_discount"];
+// Cashback is calculated but nothing pays it out yet (no customer wallet credit).
+const NOT_READY_BENEFIT_TYPES = ["cashback"];
 const benefitTypeOptions = (current) =>
-  BENEFIT_TYPES.filter((b) => !RETIRED_BENEFIT_TYPES.includes(b.value) || b.value === current);
+  BENEFIT_TYPES.filter(
+    (b) => ![...RETIRED_BENEFIT_TYPES, ...NOT_READY_BENEFIT_TYPES].includes(b.value) || b.value === current
+  );
 
 // discountMode is fixed for these types; MODE_CHOICE_TYPES let the admin pick.
 const FORCED_MODE = {
@@ -800,6 +804,12 @@ export default function PromotionsPage() {
                   </Field>
                 )}
               </div>
+              {DELIVERY_TYPES.includes(form.benefitType) && (
+                <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                  Delivery is free today, so there is no delivery fee to discount. This promotion will save £0
+                  until a delivery fee is added. It never discounts the service fee.
+                </p>
+              )}
               {needsValue(form.benefitType) && (
                 <div className="grid grid-cols-2 gap-4">
                   <Field
