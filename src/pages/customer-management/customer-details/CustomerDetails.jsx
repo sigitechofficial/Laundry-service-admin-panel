@@ -16,6 +16,7 @@ import { useEditCustomerMutation, useGetCustomerByIdQuery, useExcludeCustomerFro
 import { Delay } from "../../../components/shared/Loaders";
 import ZoiperCallButton from "../../../components/shared/ZoiperCallButton";
 import useToaster from "../../../components/ui/Toaster";
+import { openOrdersNotice } from "../openOrdersNotice";
 import { getApiErrorMessage } from "../../../store/services/apiErrors";
 import { customerPhoneError } from "../../../utilities/customerPhone";
 import DeleteOrderModal from "../../order-management/order-modals/DeleteOrderModal";
@@ -53,7 +54,7 @@ const PANEL = {
 export default function CustomerDetails() {
   const navigate = useNavigate();
   const { id } = useParams();
-  const { success, error: showError } = useToaster();
+  const { success, error: showError, warning } = useToaster();
   const [activeTab, setActiveTab] = useState("overview");
   const [searchOrders, setSearchOrders] = useState("");
   const [shopFilterId, setShopFilterId] = useState("");
@@ -284,7 +285,7 @@ export default function CustomerDetails() {
         }).unwrap();
         success(`${shop.shopName || "Shop"} included — marketplace can offer it again`);
       } else {
-        await excludeCustomerFromShop({
+        const res = await excludeCustomerFromShop({
           customerId: id,
           shopId: shop.shopId,
           reason: reason || undefined,
@@ -292,6 +293,8 @@ export default function CustomerDetails() {
         success(
           `${shop.shopName || "Shop"} excluded — new marketplace orders will skip it`
         );
+        const notice = openOrdersNotice((res?.data ?? res)?.openOrders);
+        if (notice) warning(notice);
       }
       setExcludeModalShop(null);
       refetch();

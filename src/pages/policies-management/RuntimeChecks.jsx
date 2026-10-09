@@ -162,16 +162,8 @@ export default function RuntimeChecks() {
     const acceptWindowMins = Number(shopAcceptWindowMinutes);
     const acceptMax = Number(shopAcceptMaxOrders);
     if (shopAcceptCapEnabled) {
-      if (
-        !Number.isInteger(acceptWindowMins) ||
-        acceptWindowMins < 1 ||
-        acceptWindowMins > 1440
-      ) {
-        showError("Accept capacity window must be between 1 and 1440 minutes");
-        return;
-      }
       if (!Number.isInteger(acceptMax) || acceptMax < 0 || acceptMax > 500) {
-        showError("Max accepts per window must be between 0 and 500");
+        showError("Max orders per slot must be between 0 and 500");
         return;
       }
     }
@@ -372,41 +364,27 @@ export default function RuntimeChecks() {
           </DirectoryFormCard>
 
           <DirectoryFormCard
-            title="Shop accept capacity (all shops)"
-            hint="Limit how many marketplace orders a shop can accept inside a rolling time window. Example: 4 orders per 60 minutes. 0 = no shop may accept via marketplace (admin can still assign). Shops over the limit are skipped so the order goes to others. Override per shop on Shop → Order routing."
+            title="Shop slot capacity (all shops)"
+            hint="How many pickups + deliveries one shop can have in one booking slot (e.g. 11:00–12:00). A new order needs room in its pickup slot and its delivery slot; other slots, days and future dates have their own room. Shops with a full slot are skipped so the order goes to others; if every shop is full, admins are alerted and the order is offered again when a slot frees. When off, each shop takes 1 order per pickup / delivery slot. Override per shop on Shop → Order routing. Admin assign always works."
           >
             <Toggle
               checked={shopAcceptCapEnabled}
               onChange={(e) => setShopAcceptCapEnabled(e.target.checked)}
-              label="Enforce accept capacity for all shops"
+              label="Use slot capacity for all shops"
             />
             {shopAcceptCapEnabled && (
               <div
                 style={{
                   marginTop: 16,
                   display: "grid",
-                  gridTemplateColumns: "1fr 1fr",
+                  gridTemplateColumns: "minmax(0, 320px)",
                   gap: 12,
                 }}
               >
                 <Field
-                  label="Window (minutes)"
-                  htmlFor="rc-accept-window"
-                  hint="Rolling lookback, e.g. 60 = last hour."
-                >
-                  <Input
-                    id="rc-accept-window"
-                    type="number"
-                    min={1}
-                    max={1440}
-                    value={shopAcceptWindowMinutes}
-                    onChange={(e) => setShopAcceptWindowMinutes(e.target.value)}
-                  />
-                </Field>
-                <Field
-                  label="Max accepts in window"
+                  label="Max orders per slot"
                   htmlFor="rc-accept-max"
-                  hint="0 = nobody can accept via marketplace."
+                  hint="Pickups + deliveries per slot, e.g. 4. 0 = nobody can accept via marketplace."
                 >
                   <Input
                     id="rc-accept-max"

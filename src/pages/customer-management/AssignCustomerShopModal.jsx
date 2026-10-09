@@ -1,3 +1,4 @@
+import { openOrdersNotice } from "./openOrdersNotice";
 import { useEffect, useMemo, useState } from "react";
 import { Badge, Button, Input, Modal } from "../../design-system";
 import {
@@ -78,7 +79,7 @@ export default function AssignCustomerShopModal({
       if (!ok) return;
     }
     try {
-      await assignShop({
+      const res = await assignShop({
         customerId,
         shopId: selectedShopId,
         sourceShopId: sourceShopId || undefined,
@@ -86,6 +87,8 @@ export default function AssignCustomerShopModal({
       toast.success(
         `Assigned ${customerName || "customer"} to ${shop?.shopName || "shop"}. New orders will offer this shop first.`
       );
+      const notice = openOrdersNotice((res?.data ?? res)?.openOrders);
+      if (notice) toast.warning(notice);
       onSuccess?.();
       onClose?.();
     } catch (err) {

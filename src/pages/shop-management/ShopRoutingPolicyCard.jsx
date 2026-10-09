@@ -45,75 +45,96 @@ function toDateTimeLocal(value) {
   return new Date(offsetMs).toISOString().slice(0, 16);
 }
 
-function formatResetClock(iso) {
-  if (!iso) return "";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "";
-  return d.toLocaleTimeString(undefined, {
-    hour: "numeric",
-    minute: "2-digit",
+/** "2026-10-22" → "Thu 22 Oct" (date only, no timezone shift). */
+function formatSlotDay(day) {
+  const [y, m, d] = String(day || "").split("-").map(Number);
+  if (!y || !m || !d) return String(day || "");
+  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString("en-GB", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    timeZone: "UTC",
   });
 }
 
-function AcceptCapacityUsage({ capacity }) {
-  if (!capacity || capacity.enabled !== true) {
+/** Slot capacity: per-slot limit and how full the shop's upcoming slots are. */
+function SlotCapacityUsage({ capacity }) {
+  const slot = capacity?.slotCapacity;
+  if (!slot) {
     return (
       <div style={USAGE_BOX}>
-        <strong style={{ fontSize: 13 }}>Accept window usage</strong>
-        <p style={{ ...HINT, marginTop: 6 }}>
-          Global accept capacity is off for this shop (or not configured).
-        </p>
+        <strong style={{ fontSize: 13 }}>Slot capacity</strong>
+        <p style={{ ...HINT, marginTop: 6 }}>Not available for this shop.</p>
       </div>
     );
   }
-
-  const used = Number(capacity.used) || 0;
-  const limit = capacity.limit;
-  const remaining =
-    capacity.remaining != null
-      ? Number(capacity.remaining)
-      : limit != null
-        ? Math.max(0, Number(limit) - used)
-        : null;
-  const windowMins = capacity.windowMinutes;
-  const atCap = capacity.atCapacity === true;
-  const resetLabel = formatResetClock(capacity.resetsAt);
-
+  const upcoming = Array.isArray(slot.upcoming) ? slot.upcoming : [];
+  const fullCount = upcoming.filter((u) => u.full).length;
   return (
     <div
       style={{
         ...USAGE_BOX,
-        background: atCap ? "#fff7ed" : "#f8fafc",
-        borderColor: atCap ? "#fdba74" : "#e2e8f0",
+        background: fullCount ? "#fff7ed" : "#f8fafc",
+        borderColor: fullCount ? "#fdba74" : "#e2e8f0",
       }}
     >
-      <strong style={{ fontSize: 13, color: atCap ? "#b45309" : undefined }}>
-        Accept window usage
-      </strong>
+      <strong style={{ fontSize: 13 }}>Slot capacity</strong>
       <p style={{ margin: "6px 0 0", fontSize: 14, lineHeight: 1.45 }}>
-        {limit == null ? (
-          <>{used} accepted in the current window</>
+        {slot.limit === 0 ? (
+          <strong>0 — no marketplace orders (admin can still assign)</strong>
+        ) : slot.mode === "single" ? (
+          <>
+            <strong>1 order</strong> per pickup / delivery slot (capacity off)
+          </>
         ) : (
           <>
-            <strong>
-              {used} of {limit}
-            </strong>{" "}
-            accepted · <strong>{remaining ?? 0}</strong> left
-            {windowMins != null ? ` · ${windowMins} min window` : null}
+            Up to <strong>{slot.limit}</strong> pickups + deliveries per slot
+            {slot.source === "shop" ? " (this shop's own limit)" : " (all-shops setting)"}
           </>
         )}
       </p>
-      {atCap ? (
-        <p style={{ ...HINT, marginTop: 6, color: "#9a3412" }}>
-          {limit === 0
-            ? "Marketplace accepts are blocked (limit set to 0)."
-            : resetLabel
-              ? `At capacity — can accept again around ${resetLabel}.`
-              : "At capacity — wait for the rolling window to free a slot."}
-        </p>
+      {upcoming.length ? (
+        <div style={{ marginTop: 10, overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+            <thead>
+              <tr style={{ textAlign: "left", color: "var(--muted)", fontSize: 12 }}>
+                <th style={{ padding: "4px 6px" }}>Slot</th>
+                <th style={{ padding: "4px 6px" }}>Pickups</th>
+                <th style={{ padding: "4px 6px" }}>Deliveries</th>
+                <th style={{ padding: "4px 6px", textAlign: "right" }}>Used</th>
+              </tr>
+            </thead>
+            <tbody>
+              {upcoming.map((u) => (
+                <tr key={`${u.date}-${u.from}-${u.to}`} style={{ borderTop: "1px solid #eef0f4" }}>
+                  <td style={{ padding: "4px 6px", whiteSpace: "nowrap" }}>
+                    {formatSlotDay(u.date)} {u.from}–{u.to}
+                  </td>
+                  <td style={{ padding: "4px 6px" }}>{u.pickups}</td>
+                  <td style={{ padding: "4px 6px" }}>{u.deliveries}</td>
+                  <td
+                    style={{
+                      padding: "4px 6px",
+                      textAlign: "right",
+                      fontWeight: 600,
+                      color: u.full ? "#b45309" : undefined,
+                    }}
+                  >
+                    {u.used} / {u.limit}
+                    {u.full ? " · Full" : ""}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       ) : (
-        <p style={HINT}>Updates as this shop accepts marketplace orders.</p>
+        <p style={HINT}>No pickups or deliveries booked from today.</p>
       )}
+      <p style={HINT}>
+        A full slot gets no new offers; the order goes to other shops (admin is
+        alerted if every shop is full). Other slots and days are not affected.
+      </p>
     </div>
   );
 }
@@ -135,7 +156,6 @@ export default function ShopRoutingPolicyCard({ shopUserId }) {
   const [reason, setReason] = useState("");
   const [expiresAt, setExpiresAt] = useState("");
   const [acceptCapOverride, setAcceptCapOverride] = useState(false);
-  const [acceptWindowMinutes, setAcceptWindowMinutes] = useState("60");
   const [acceptMaxOrders, setAcceptMaxOrders] = useState("4");
 
   useEffect(() => {
@@ -145,9 +165,6 @@ export default function ShopRoutingPolicyCard({ shopUserId }) {
     setReason(policy.reason || "");
     setExpiresAt(toDateTimeLocal(policy.expiresAt));
     setAcceptCapOverride(Boolean(policy.acceptCapOverride));
-    setAcceptWindowMinutes(
-      String(policy.acceptWindowMinutes != null ? policy.acceptWindowMinutes : 60)
-    );
     setAcceptMaxOrders(
       String(policy.acceptMaxOrders != null ? policy.acceptMaxOrders : 4)
     );
@@ -158,7 +175,6 @@ export default function ShopRoutingPolicyCard({ shopUserId }) {
     policy?.reason,
     policy?.expiresAt,
     policy?.acceptCapOverride,
-    policy?.acceptWindowMinutes,
     policy?.acceptMaxOrders,
   ]);
 
@@ -170,17 +186,10 @@ export default function ShopRoutingPolicyCard({ shopUserId }) {
       return;
     }
 
-    let windowMins = Number(acceptWindowMinutes);
-    let maxOrders = Number(acceptMaxOrders);
-    if (acceptCapOverride) {
-      if (!Number.isInteger(windowMins) || windowMins < 1 || windowMins > 1440) {
-        showError("Accept window must be between 1 and 1440 minutes");
-        return;
-      }
-      if (!Number.isInteger(maxOrders) || maxOrders < 0 || maxOrders > 500) {
-        showError("Max accepts must be between 0 and 500 (0 = none)");
-        return;
-      }
+    const maxOrders = Number(acceptMaxOrders);
+    if (acceptCapOverride && (!Number.isInteger(maxOrders) || maxOrders < 0 || maxOrders > 500)) {
+      showError("Max orders per slot must be between 0 and 500 (0 = none)");
+      return;
     }
 
     try {
@@ -191,7 +200,6 @@ export default function ShopRoutingPolicyCard({ shopUserId }) {
         reason: restricted ? reason.trim() : null,
         expiresAt: restricted && expiresAt ? new Date(expiresAt).toISOString() : null,
         acceptCapOverride,
-        acceptWindowMinutes: acceptCapOverride ? windowMins : null,
         acceptMaxOrders: acceptCapOverride ? maxOrders : null,
       }).unwrap();
       success("Order routing updated");
@@ -218,7 +226,7 @@ export default function ShopRoutingPolicyCard({ shopUserId }) {
         </p>
       ) : (
         <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 16 }}>
-          <AcceptCapacityUsage capacity={acceptCapacity} />
+          <SlotCapacityUsage capacity={acceptCapacity} />
 
           <div>
             <Toggle
@@ -253,40 +261,27 @@ export default function ShopRoutingPolicyCard({ shopUserId }) {
             <Toggle
               checked={acceptCapOverride}
               onChange={(e) => setAcceptCapOverride(e.target.checked)}
-              label="Custom accept capacity for this shop"
+              label="Custom slot capacity for this shop"
             />
             <p style={HINT}>
-              Override the global Runtime checks limit. Example: only 1 order
-              per hour, or 0 (this shop skipped; others still get the offer).
-              Leave off to inherit the all-shops setting.
+              Override the all-shops setting (Policies → Runtime checks) for
+              this shop only. Example: 6 for a big shop, 2 for a small one, or 0
+              (this shop skipped; others still get the offer). Leave off to
+              inherit the all-shops setting.
             </p>
             {acceptCapOverride ? (
               <div
                 style={{
                   marginTop: 12,
                   display: "grid",
-                  gridTemplateColumns: "1fr 1fr",
+                  gridTemplateColumns: "minmax(0, 320px)",
                   gap: 12,
                 }}
               >
                 <Field
-                  label="Window (minutes)"
-                  htmlFor="shop-accept-window"
-                  hint="Rolling lookback, e.g. 60 = last hour."
-                >
-                  <Input
-                    id="shop-accept-window"
-                    type="number"
-                    min={1}
-                    max={1440}
-                    value={acceptWindowMinutes}
-                    onChange={(e) => setAcceptWindowMinutes(e.target.value)}
-                  />
-                </Field>
-                <Field
-                  label="Max accepts"
+                  label="Max orders per slot"
                   htmlFor="shop-accept-max"
-                  hint="0 = cannot accept via marketplace."
+                  hint="Pickups + deliveries in one slot (e.g. 11:00–12:00). 0 = no marketplace orders."
                 >
                   <Input
                     id="shop-accept-max"
