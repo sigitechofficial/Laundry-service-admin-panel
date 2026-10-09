@@ -259,6 +259,15 @@ export default function AssignOrderModal({
   }, [filteredShops, selectedShopId]);
 
   const handleAssign = async () => {
+    const target = shops.find((s) => s.laundryShopId === selectedShopId);
+    if (
+      target?.customerExcludedFromShop &&
+      !window.confirm(
+        `This customer is excluded from ${target.shopName} (bad experience). Assign anyway?`
+      )
+    ) {
+      return;
+    }
     if (!selectedShopId) {
       toast.error("Select a shop first.");
       return;
@@ -336,6 +345,7 @@ export default function AssignOrderModal({
               {shop.isCurrentShop ? " (current)" : ""}
             </div>
             <span style={{ display: "inline-flex", gap: 6 }}>
+              {shop.customerExcludedFromShop ? <Badge tone="danger">Customer excluded</Badge> : null}
               {slotBadge(shop.slotCapacity)}
               <Badge tone={shop.isOpenNow ? "success" : "neutral"}>
                 {shop.isOpenNow ? "Open" : "Closed"}

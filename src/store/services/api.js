@@ -1682,7 +1682,8 @@ export const api = createApi({
         method: "POST",
         body,
       }),
-      invalidatesTags: (_r, _e, { orderId }) => [{ type: "Orders", id: orderId }, "Orders"],
+      // Also the customer's Recurring tab (it caches per customer).
+      invalidatesTags: (_r, _e, { orderId }) => [{ type: "Orders", id: orderId }, "Orders", "Customers"],
     }),
 
     deleteOrder: builder.mutation({

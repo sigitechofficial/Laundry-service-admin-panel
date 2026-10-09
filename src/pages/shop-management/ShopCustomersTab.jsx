@@ -1,3 +1,4 @@
+import { openOrdersNotice } from "../customer-management/openOrdersNotice";
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Badge, Button, Select, Table } from "../../design-system";
@@ -73,6 +74,9 @@ export default function ShopCustomersTab({ shopId, currencySymbol = "£" }) {
   const [includeCustomer] = useIncludeCustomerForShopMutation();
 
   const payload = data?.data ?? data ?? {};
+  // The page's shopId is the business-info id; exclude / include / assign need
+  // the shop ADDRESS id (laundryShopId), which the API resolves and returns.
+  const shopAddressId = Number(payload.shopId) > 0 ? Number(payload.shopId) : null;
   const summary = payload.summary || {};
   const recentRoutingEvents = Array.isArray(payload.recentRoutingEvents)
     ? payload.recentRoutingEvents
@@ -117,13 +121,13 @@ export default function ShopCustomersTab({ shopId, currencySymbol = "£" }) {
   const money = (n) => formatMoney(Number(n) || 0, currencySymbol);
 
   const toggleExclusion = async (row) => {
-    if (!shopId || !row?.customerId) return;
+    if (!shopAddressId || !row?.customerId) return;
     setBusyId(row.customerId);
     try {
       if (row.isExcluded) {
         await includeCustomer({
           customerId: row.customerId,
-          shopId,
+          shopId: shopAddressId,
         }).unwrap();
       } else {
         const reason = window.prompt(
@@ -131,11 +135,13 @@ export default function ShopCustomersTab({ shopId, currencySymbol = "£" }) {
           "Customer not satisfied with this shop"
         );
         if (reason === null) return;
-        await excludeCustomer({
+        const res = await excludeCustomer({
           customerId: row.customerId,
-          shopId,
+          shopId: shopAddressId,
           reason: reason.trim() || undefined,
         }).unwrap();
+        const notice = openOrdersNotice((res?.data ?? res)?.openOrders);
+        if (notice) window.alert(notice);
       }
     } catch (err) {
       window.alert(
@@ -445,7 +451,7 @@ export default function ShopCustomersTab({ shopId, currencySymbol = "£" }) {
         open={Boolean(assignTarget)}
         customerId={assignTarget?.customerId}
         customerName={assignTarget?.name}
-        sourceShopId={shopId}
+        sourceShopId={shopAddressId}
         onClose={() => setAssignTarget(null)}
         onSuccess={() => refetch()}
       />

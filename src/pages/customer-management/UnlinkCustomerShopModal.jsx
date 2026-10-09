@@ -1,3 +1,4 @@
+import { openOrdersNotice } from "./openOrdersNotice";
 import { useState } from "react";
 import { Modal } from "../../design-system";
 import { useClearCustomerShopAssignmentMutation } from "../../store/services/api";
@@ -38,9 +39,11 @@ export default function UnlinkCustomerShopModal({
         );
       } else {
         toast.success(
-          "Unlinked. New orders broadcast to zone shops (excluded shops still skipped)."
+          "Unlinked. New orders first go to the shop where this customer last completed an order (if any), then to all zone shops. Excluded shops stay skipped."
         );
       }
+      const notice = openOrdersNotice(data?.openOrders);
+      if (notice) toast.warning(notice);
       onSuccess?.();
       onClose?.();
     } catch (err) {
@@ -125,10 +128,9 @@ export default function UnlinkCustomerShopModal({
                 marginTop: 4,
               }}
             >
-              After this: first offer goes to the shop where this customer
-              already returns (or last completed in zone)
-              {assignedShopName ? ` — not ${assignedShopName}` : ""}. Excluded
-              shops stay blocked.
+              After this: the shop with most completed orders for this customer
+              (not excluded) becomes the preferred shop again. Excluded shops
+              stay blocked.
             </span>
           </span>
         </label>
