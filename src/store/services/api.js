@@ -23,6 +23,15 @@ export const api = createApi({
       if (params.sort) q.append("sort", params.sort);
       if (params.sentiment) q.append("sentiment", params.sentiment);
       if (params.reasonCode) q.append("reasonCode", params.reasonCode);
+      // Promotions / Campaigns spend reports
+      if (params.dir) q.append("dir", params.dir);
+      if (params.status) q.append("status", params.status);
+      if (params.benefitType) q.append("benefitType", params.benefitType);
+      if (params.campaignId) q.append("campaignId", params.campaignId);
+      if (params.objective) q.append("objective", params.objective);
+      if (params.channel) q.append("channel", params.channel);
+      if (params.onlyUsed) q.append("onlyUsed", "1");
+      if (params.export) q.append("export", "1");
       return q.toString();
     };
 
@@ -1799,6 +1808,16 @@ export const api = createApi({
       query: (params = {}) => reportQuery("admin/reports/overdue", params),
     }),
 
+    reportsPromotions: builder.query({
+      query: (params = {}) => reportQuery("admin/reports/promotions", params),
+      providesTags: ["Promotions"],
+    }),
+
+    reportsCampaigns: builder.query({
+      query: (params = {}) => reportQuery("admin/reports/campaigns", params),
+      providesTags: ["Campaigns", "Promotions"],
+    }),
+
     reportsReviewReasonShops: builder.query({
       query: (params = {}) => reportQuery("admin/reports/review-reason-shops", params),
     }),
@@ -2561,17 +2580,27 @@ export const api = createApi({
     }),
     getPromotionAnalytics: builder.query({
       query: (arg) => {
-        const { id, from, to } = typeof arg === "object" && arg !== null ? arg : { id: arg };
+        const { id, from, to, inRange, recentLimit } = typeof arg === "object" && arg !== null ? arg : { id: arg };
         const q = new URLSearchParams();
         if (from) q.append("from", from);
         if (to) q.append("to", to);
+        if (inRange) q.append("inRange", "1");
+        if (recentLimit) q.append("recentLimit", String(recentLimit));
         const qs = q.toString();
         return { url: `admin/promotions/${id}/analytics${qs ? `?${qs}` : ""}`, method: "GET" };
       },
       providesTags: ["Promotions"],
     }),
     getCampaignReport: builder.query({
-      query: (id) => ({ url: `admin/campaigns/${id}/report`, method: "GET" }),
+      query: (arg) => {
+        const { id, from, to, inRange } = typeof arg === "object" && arg !== null ? arg : { id: arg };
+        const q = new URLSearchParams();
+        if (from) q.append("from", from);
+        if (to) q.append("to", to);
+        if (inRange) q.append("inRange", "1");
+        const qs = q.toString();
+        return { url: `admin/campaigns/${id}/report${qs ? `?${qs}` : ""}`, method: "GET" };
+      },
       providesTags: ["Campaigns", "Promotions"],
     }),
     getCustomerCredit: builder.query({
@@ -2797,6 +2826,10 @@ export const {
   useReportsPaymentsQuery,
   useReportsCancellationsQuery,
   useReportsCustomersQuery,
+  useReportsPromotionsQuery,
+  useLazyReportsPromotionsQuery,
+  useReportsCampaignsQuery,
+  useLazyReportsCampaignsQuery,
   useReportsDriversQuery,
   useReportsOverdueQuery,
   useReportsReviewReasonShopsQuery,
@@ -2948,6 +2981,7 @@ export const {
   useAddPromotionCouponMutation,
   useRemovePromotionCouponMutation,
   useGetPromotionAnalyticsQuery,
+  useLazyGetPromotionAnalyticsQuery,
   useGetCampaignReportQuery,
   useGetOrderPromotionsQuery,
   useGetCustomerCreditQuery,

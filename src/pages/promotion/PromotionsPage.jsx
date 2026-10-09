@@ -28,24 +28,10 @@ import CatalogMultiSelect from "./CatalogMultiSelect";
 import PromotionConditionBuilder, { DayPicker } from "./PromotionConditionBuilder";
 import PromotionSimulateModal from "./PromotionSimulateModal";
 import { CONDITION_DEFS, WEEKDAYS, conditionError, serializeCondition } from "./promotionConditions";
+import { BENEFIT_TYPES, STATUS_OPTIONS, STATUS_TONES } from "./promotionLabels";
 
 /* ─── Constants ──────────────────────────────────────────────────────────── */
 
-// buy_x_get_y and bundle are rejected by the backend for now — not offered.
-const BENEFIT_TYPES = [
-  { value: "percentage_discount", label: "Percentage Discount" },
-  { value: "fixed_amount_discount", label: "Fixed Amount Discount" },
-  { value: "free_delivery", label: "Free Delivery" },
-  { value: "delivery_discount", label: "Delivery Discount" },
-  { value: "basket_discount", label: "Basket Discount" },
-  { value: "item_discount", label: "Item Discount" },
-  { value: "category_discount", label: "Category Discount" },
-  { value: "service_discount", label: "Service Discount" },
-  { value: "first_order_discount", label: "First Order Discount" },
-  { value: "first_x_orders_discount", label: "First X Orders Discount" },
-  { value: "cashback", label: "Cashback" },
-  { value: "fixed_price", label: "Fixed Price Offer" },
-];
 
 // Same as basket_discount in % / £ mode — kept for labels and existing promotions,
 // but not offered when picking a type (unless the promotion already uses it).
@@ -101,29 +87,6 @@ const REPRICING_POLICIES = [
   { value: "revalidate", label: "Revalidate — keep if still qualifies" },
   { value: "lock", label: "Lock — preserve original benefit" },
 ];
-
-const STATUS_OPTIONS = [
-  { value: "", label: "All statuses" },
-  { value: "draft", label: "Draft" },
-  { value: "pending_approval", label: "Pending approval" },
-  { value: "approved", label: "Approved" },
-  { value: "scheduled", label: "Scheduled" },
-  { value: "active", label: "Active" },
-  { value: "paused", label: "Paused" },
-  { value: "expired", label: "Expired" },
-  { value: "archived", label: "Archived" },
-];
-
-const STATUS_TONES = {
-  active: "success",
-  scheduled: "teal",
-  draft: "created",
-  pending_approval: "warning",
-  approved: "info",
-  paused: "warning",
-  expired: "danger",
-  archived: "neutral",
-};
 
 const statusLabel = (s) => STATUS_OPTIONS.find((o) => o.value === s)?.label || s;
 const benefitLabel = (type) => BENEFIT_TYPES.find((b) => b.value === type)?.label || type;

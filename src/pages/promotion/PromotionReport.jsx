@@ -1,8 +1,18 @@
 import { useMemo, useState } from "react";
 import dayjs from "dayjs";
 import { Select } from "../../design-system";
-import { DirectoryMetrics, DirectoryViewModal } from "../directory-table/directoryTable";
-import { useGetPromotionAnalyticsQuery, useGetCampaignReportQuery } from "../../store/services/api";
+import {
+  DirectoryDateInput,
+  DirectoryExportButton,
+  DirectoryMetrics,
+  DirectoryViewModal,
+} from "../directory-table/directoryTable";
+import {
+  useGetPromotionAnalyticsQuery,
+  useLazyGetPromotionAnalyticsQuery,
+  useGetCampaignReportQuery,
+} from "../../store/services/api";
+import useCsvExport from "../../hooks/useCsvExport";
 
 const money = (n) => `£${Number(n || 0).toFixed(2)}`;
 /** What a use cost: its discount plus its cashback (cashback promotions give no discount). */
@@ -13,7 +23,51 @@ const RANGES = [
   { value: "30", label: "Last 30 days" },
   { value: "90", label: "Last 90 days" },
   { value: "365", label: "Last 12 months" },
+  { value: "custom", label: "Custom dates" },
 ];
+
+/**
+ * Period picker for one promotion / campaign. Every figure in the report follows it
+ * (inRange); custom ranges are capped at 12 months by the server.
+ */
+function useReportRange(initial = "30") {
+  const [choice, setChoice] = useState(initial);
+  const [startDate, setStartDate] = useState(dayjs().subtract(30, "day").format("YYYY-MM-DD"));
+  const [endDate, setEndDate] = useState(dayjs().format("YYYY-MM-DD"));
+  // Fixed per choice: a fresh "now" on every render would be a new query each time.
+  const range = useMemo(() => {
+    if (choice === "custom") {
+      const from = dayjs(startDate);
+      const to = dayjs(endDate);
+      if (!from.isValid() || !to.isValid() || from.isAfter(to)) return null;
+      return { from: from.startOf("day").toISOString(), to: to.endOf("day").toISOString(), inRange: true };
+    }
+    return { from: dayjs().subtract(Number(choice), "day").startOf("day").toISOString(), to: dayjs().toISOString(), inRange: true };
+  }, [choice, startDate, endDate]);
+  const label = choice === "custom"
+    ? `${dayjs(startDate).format("DD MMM YYYY")} – ${dayjs(endDate).format("DD MMM YYYY")}`
+    : RANGES.find((r) => r.value === choice)?.label;
+  // Local days for file names (toISOString would shift them to UTC).
+  const fileDates = range ? { from: dayjs(range.from).format("YYYY-MM-DD"), to: dayjs(range.to).format("YYYY-MM-DD") } : {};
+  return { choice, setChoice, startDate, setStartDate, endDate, setEndDate, range, label, fileDates };
+}
+
+function RangePicker({ r }) {
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <div className="w-44">
+        <Select aria-label="Report period" options={RANGES} value={r.choice} onChange={r.setChoice} />
+      </div>
+      {r.choice === "custom" && (
+        <>
+          <DirectoryDateInput id="promo-report-from" aria-label="From date" value={r.startDate} onChange={r.setStartDate} />
+          <DirectoryDateInput id="promo-report-to" aria-label="To date" value={r.endDate} onChange={r.setEndDate} />
+        </>
+      )}
+      {r.choice === "custom" && !r.range && <span className="text-xs text-red-600">Pick a start date before the end date</span>}
+    </div>
+  );
+}
 
 function SectionTitle({ children }) {
   return <h4 className="text-sm font-semibold text-gray-900 mb-2">{children}</h4>;
@@ -86,31 +140,52 @@ function ZoneTable({ zones }) {
   );
 }
 
-function rangeDates(days) {
-  return { from: dayjs().subtract(Number(days), "day").startOf("day").toISOString(), to: dayjs().toISOString() };
-}
+const ORDER_CSV_COLUMNS = [
+  { header: "Order", value: (r) => r.orderTrackId || (r.bookingId ? `#${r.bookingId}` : "") },
+  { header: "Customer", value: (r) => r.customerName || (r.customerId ? `#${r.customerId}` : "") },
+  { header: "Zone", value: (r) => r.zoneName || "" },
+  { header: "Code", value: (r) => r.couponCode || "Automatic" },
+  { header: "Discount", value: (r) => Number(r.discount || 0).toFixed(2) },
+  { header: "Cashback", value: (r) => Number(r.cashback || 0).toFixed(2) },
+  { header: "Cost", value: (r) => costOf(r).toFixed(2) },
+  { header: "Paid at", value: (r) => (r.paidAt ? dayjs(r.paidAt).format("YYYY-MM-DD HH:mm") : "") },
+];
 
 /** Report for one promotion: uses, money, customers, by zone / day / code, recent orders. */
 export function PromotionReportModal({ promotion, onClose }) {
-  const [days, setDays] = useState("30");
-  // Fixed per range choice: a fresh "now" on every render would be a new query each time.
-  const range = useMemo(() => rangeDates(days), [days]);
+  const r = useReportRange("30");
   const { data, isFetching, isError } = useGetPromotionAnalyticsQuery(
-    { id: promotion?.id, ...range },
-    { skip: !promotion?.id }
+    { id: promotion?.id, ...r.range },
+    { skip: !promotion?.id || !r.range }
   );
   const report = data?.data?.report;
   const s = report?.summary;
   const isCashback = report?.promotion?.benefitType === "cashback";
+  const [fetchOrders] = useLazyGetPromotionAnalyticsQuery();
+  const csv = useCsvExport({
+    filenameBase: `promotion-${promotion?.id}-orders`,
+    filenameFilters: r.fileDates,
+    columns: ORDER_CSV_COLUMNS,
+    emptyMessage: "No paid orders used this promotion in this period.",
+    fetchAll: () =>
+      fetchOrders({ id: promotion?.id, ...r.range, recentLimit: 5000 })
+        .unwrap()
+        .then((res) => ({ rows: res?.data?.report?.recent || [] })),
+  });
 
   return (
     <DirectoryViewModal open={!!promotion} onClose={onClose} title={`Report · ${promotion?.name || ""}`} size="xl">
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+        <RangePicker r={r} />
+        <DirectoryExportButton label="Download orders CSV" onClick={csv.run} loading={csv.isExporting} disabled={!report || !s?.uses} />
+      </div>
       {isError ? (
         <p className="text-sm text-red-600">Could not load the report.</p>
       ) : !report ? (
         <p className="text-sm text-gray-500">{isFetching ? "Loading…" : "No data"}</p>
       ) : (
         <div className="space-y-5">
+          <p className="text-xs text-gray-500">All figures are for <strong>{r.label}</strong>. Paid uses count on the day the order was paid; refunds on the day they were refunded. Cost = discount + cashback.</p>
           <DirectoryMetrics
             items={[
               { label: "Paid uses", value: s.uses, hint: report.promotion.usageLimit != null ? `${report.promotion.usesLeft} left of ${report.promotion.usageLimit}` : "No limit" },
@@ -122,16 +197,11 @@ export function PromotionReportModal({ promotion, onClose }) {
             ]}
           />
           <p className="text-xs text-gray-500">
-            Refunded: {s.refunded} ({money(s.refundedDiscount)} returned to budget) · Did not go ahead: {s.released}
+            Refunded: {s.refunded} ({money(Number(s.refundedDiscount || 0) + Number(s.refundedCashback || 0))} returned to budget) · Did not go ahead: {s.released}
           </p>
 
           <div>
-            <div className="flex items-center justify-between mb-2">
-              <SectionTitle>{isCashback ? "Cashback per day" : "Discount per day"}</SectionTitle>
-              <div className="w-44">
-                <Select options={RANGES} value={days} onChange={setDays} />
-              </div>
-            </div>
+            <SectionTitle>{isCashback ? "Cashback per day" : "Discount per day"}</SectionTitle>
             <DailyBars days={report.byDay} />
           </div>
 
@@ -155,10 +225,11 @@ export function PromotionReportModal({ promotion, onClose }) {
           )}
 
           <div>
-            <SectionTitle>Recent paid orders</SectionTitle>
+            <SectionTitle>Latest paid orders{report.recent.length >= 20 ? " (last 20 — Download orders CSV for all)" : ""}</SectionTitle>
             <SimpleTable
               columns={[
                 { key: "orderTrackId", header: "Order", render: (r) => r.orderTrackId || (r.bookingId ? `#${r.bookingId}` : "—") },
+                { key: "customerName", header: "Customer", render: (r) => r.customerName || (r.customerId ? `#${r.customerId}` : "—") },
                 { key: "couponCode", header: "Code", render: (r) => r.couponCode || "Automatic" },
                 { key: "paidAt", header: "Paid", render: (r) => (r.paidAt ? dayjs(r.paidAt).format("DD MMM YYYY HH:mm") : "—") },
                 { key: "discount", header: isCashback ? "Cashback" : "Discount", align: "right", render: (r) => money(costOf(r)) },
@@ -173,22 +244,53 @@ export function PromotionReportModal({ promotion, onClose }) {
 }
 
 /** Campaign budget, spend and each promotion's share (inside the campaign view). */
+const CAMPAIGN_PROMO_CSV_COLUMNS = [
+  { key: "id", header: "Promotion ID" },
+  { key: "name", header: "Promotion" },
+  { key: "status", header: "Status" },
+  { key: "benefitType", header: "Benefit" },
+  { key: "uses", header: "Paid uses" },
+  { header: "Discount", value: (r) => Number(r.discount || 0).toFixed(2) },
+  { header: "Cashback", value: (r) => Number(r.cashback || 0).toFixed(2) },
+  { header: "Cost", value: (r) => costOf(r).toFixed(2) },
+];
+
 export function CampaignReportSection({ campaignId }) {
-  const { data, isFetching, isError } = useGetCampaignReportQuery(campaignId, { skip: !campaignId });
+  const r = useReportRange("365");
+  const { data, isFetching, isError } = useGetCampaignReportQuery(
+    { id: campaignId, ...r.range },
+    { skip: !campaignId || !r.range }
+  );
   const report = data?.data;
+  const promoRows = useMemo(
+    () => [...(report?.promotions || [])].sort((a, b) => costOf(b) - costOf(a)),
+    [report?.promotions]
+  );
+  const csv = useCsvExport({
+    filenameBase: `campaign-${campaignId}-promotions`,
+    filenameFilters: r.fileDates,
+    columns: CAMPAIGN_PROMO_CSV_COLUMNS,
+    rows: promoRows,
+    emptyMessage: "No promotions linked to this campaign.",
+  });
   if (isError) return <p className="text-sm text-red-600">Could not load the campaign report.</p>;
   if (!report) return <p className="text-sm text-gray-500">{isFetching ? "Loading report…" : ""}</p>;
   const b = report.budget;
   const pct = b.percentUsed ?? 0;
+  const spentInRange = Number(report.summary.totalDiscount || 0) + Number(report.summary.totalCashback || 0);
 
   return (
     <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <RangePicker r={r} />
+        <DirectoryExportButton label="Download CSV" onClick={csv.run} loading={csv.isExporting} disabled={!promoRows.length} />
+      </div>
       <DirectoryMetrics
         items={[
           { label: "Budget", value: b.budget != null ? money(b.budget) : "No limit" },
-          { label: "Spent", value: money(b.spent), hint: b.percentUsed != null ? `${b.percentUsed}% of budget (discounts + cashback)` : "Discounts + cashback" },
-          { label: "Remaining", value: b.remaining != null ? money(b.remaining) : "—" },
-          { label: "Paid uses", value: report.summary.uses, hint: `${report.summary.uniqueCustomers} customers` },
+          { label: "Budget used (all time)", value: money(b.spent), hint: b.percentUsed != null ? `${b.percentUsed}% of budget · ${b.remaining != null ? money(b.remaining) : "—"} left` : "Discounts + cashback" },
+          { label: `Spent · ${r.label}`, value: money(spentInRange), hint: `${money(report.summary.totalDiscount)} discount + ${money(report.summary.totalCashback)} cashback` },
+          { label: "Paid uses", value: report.summary.uses, hint: `${report.summary.uniqueCustomers} customers in this period` },
         ]}
       />
       {b.budget != null && (
@@ -200,7 +302,7 @@ export function CampaignReportSection({ campaignId }) {
         </div>
       )}
       <div>
-        <SectionTitle>Promotions in this campaign</SectionTitle>
+        <SectionTitle>Promotions in this campaign (most spent first)</SectionTitle>
         <SimpleTable
           empty="No promotions linked to this campaign"
           columns={[
@@ -211,8 +313,9 @@ export function CampaignReportSection({ campaignId }) {
             ...(report.promotions.some((p) => Number(p.cashback) > 0)
               ? [{ key: "cashback", header: "Cashback", align: "right", render: (r) => money(r.cashback) }]
               : []),
+            { key: "cost", header: "Cost", align: "right", render: (r) => money(costOf(r)) },
           ]}
-          rows={report.promotions.map((p) => ({ ...p, key: p.id }))}
+          rows={promoRows.map((p) => ({ ...p, key: p.id }))}
         />
       </div>
       <div>

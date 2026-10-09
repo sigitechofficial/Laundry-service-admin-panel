@@ -56,32 +56,47 @@ export default function OrderPromotionsCard({ bookingId, currencySymbol = "£", 
           const st = STATUS[row.status] || { label: row.status, tone: "bg-gray-100 text-gray-600" };
           const applied = appliedById.get(row.promotionId);
           return (
-            <li key={row.promotionId} className="flex items-start justify-between gap-3 text-sm">
-              <div className="min-w-0">
-                <p className="m-0 font-medium text-gray-900 truncate">{row.name || `Promotion #${row.promotionId}`}</p>
-                <p className="m-0 text-xs text-gray-500">
-                  {row.couponCode ? <span className="font-mono">{row.couponCode}</span> : "Automatic"}
-                  {row.committedAt ? ` · paid ${dayjs(row.committedAt).format("DD MMM HH:mm")}` : ""}
-                  {row.reason && row.status !== "COMMITTED" ? ` · ${row.reason}` : ""}
-                </p>
+            <li key={row.promotionId} className="text-sm">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <p className="m-0 font-medium text-gray-900 break-words">{row.name || `Promotion #${row.promotionId}`}</p>
+                  <p className="m-0 text-xs text-gray-500">
+                    {row.couponCode ? <span className="font-mono">{row.couponCode}</span> : "Automatic"}
+                    {row.committedAt ? ` · paid ${dayjs(row.committedAt).format("DD MMM HH:mm")}` : ""}
+                    {row.reason && row.status !== "COMMITTED" ? ` · ${row.reason}` : ""}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${st.tone}`}>{st.label}</span>
+                  <span className="tabular-nums w-24 text-right whitespace-nowrap">
+                    {row.benefitType === "cashback"
+                      ? row.cashback ? `${money(row.cashback)} cashback` : "cashback"
+                      : applied ? `−${money(applied.amount)}` : row.discount ? `−${money(row.discount)}` : "—"}
+                  </span>
+                  {row.status === "RESERVED" && (
+                    <button
+                      type="button"
+                      className="text-xs text-red-600 hover:underline"
+                      onClick={() => setTarget(row)}
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
               </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${st.tone}`}>{st.label}</span>
-                <span className="tabular-nums w-24 text-right">
-                  {row.benefitType === "cashback"
-                    ? row.cashback ? `${money(row.cashback)} cashback` : "cashback"
-                    : applied ? `−${money(applied.amount)}` : row.discount ? `−${money(row.discount)}` : "—"}
-                </span>
-                {row.status === "RESERVED" && (
-                  <button
-                    type="button"
-                    className="text-xs text-red-600 hover:underline"
-                    onClick={() => setTarget(row)}
-                  >
-                    Remove
-                  </button>
-                )}
-              </div>
+              {applied?.lines?.length > 0 && (
+                <ul className="m-0 mt-1 p-0 pl-3 list-none text-xs text-gray-600 space-y-0.5 border-l-2 border-gray-100">
+                  {applied.lines.map((l, i) => (
+                    <li key={`${l.lineType}-${l.lineItemId}-${i}`} className="flex justify-between gap-3">
+                      <span className="min-w-0">
+                        {l.item}
+                        {l.label ? <span className="text-gray-400"> · {l.label}</span> : null}
+                      </span>
+                      <span className="tabular-nums whitespace-nowrap">−{money(l.amount)}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </li>
           );
         })}
