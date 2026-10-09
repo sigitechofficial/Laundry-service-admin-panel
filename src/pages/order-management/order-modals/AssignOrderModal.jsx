@@ -68,6 +68,24 @@ function formatPickupLabel(payload, bookingSnapshot) {
   return null;
 }
 
+/**
+ * How full the shop is in this order's pickup / delivery slots (pickups +
+ * deliveries vs its limit). Information only: an admin assign always works.
+ */
+function slotBadge(slot) {
+  if (!slot) return null;
+  if (!slot.hasRoom) {
+    return (
+      <Badge tone="warning">
+        {slot.limit === 0 ? "Capacity 0" : "Slot full"} · admin can still assign
+      </Badge>
+    );
+  }
+  const busiest = (slot.slots || []).reduce((m, x) => (x.used > (m?.used ?? -1) ? x : m), null);
+  if (!busiest) return null;
+  return <Badge tone="neutral">Slot {busiest.used}/{busiest.limit}</Badge>;
+}
+
 export default function AssignOrderModal({
   open,
   bookingId,
@@ -317,9 +335,12 @@ export default function AssignOrderModal({
               {shop.shopName || `Shop #${shop.laundryShopId}`}
               {shop.isCurrentShop ? " (current)" : ""}
             </div>
-            <Badge tone={shop.isOpenNow ? "success" : "neutral"}>
-              {shop.isOpenNow ? "Open" : "Closed"}
-            </Badge>
+            <span style={{ display: "inline-flex", gap: 6 }}>
+              {slotBadge(shop.slotCapacity)}
+              <Badge tone={shop.isOpenNow ? "success" : "neutral"}>
+                {shop.isOpenNow ? "Open" : "Closed"}
+              </Badge>
+            </span>
           </div>
           <div style={{ fontSize: 12.5, color: "var(--ink-2)", marginTop: 4, fontWeight: 600 }}>
             {formatDistanceKm(shop.distanceKm)
