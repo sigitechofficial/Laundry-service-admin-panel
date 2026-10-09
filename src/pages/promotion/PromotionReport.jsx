@@ -5,6 +5,8 @@ import { DirectoryMetrics, DirectoryViewModal } from "../directory-table/directo
 import { useGetPromotionAnalyticsQuery, useGetCampaignReportQuery } from "../../store/services/api";
 
 const money = (n) => `£${Number(n || 0).toFixed(2)}`;
+/** What a use cost: its discount plus its cashback (cashback promotions give no discount). */
+const costOf = (r) => Number(r.discount || 0) + Number(r.cashback || 0);
 
 const RANGES = [
   { value: "7", label: "Last 7 days" },
@@ -45,7 +47,7 @@ function SimpleTable({ columns, rows, empty = "No paid uses yet" }) {
 
 /** Paid discount per day as a row of bars (one per day, height = share of the busiest day). */
 function DailyBars({ days = [] }) {
-  const max = Math.max(0, ...days.map((d) => d.discount));
+  const max = Math.max(0, ...days.map(costOf));
   if (!days.length) return null;
   return (
     <div>
@@ -53,9 +55,9 @@ function DailyBars({ days = [] }) {
         {days.map((d) => (
           <div
             key={d.date}
-            title={`${dayjs(d.date).format("DD MMM")}: ${d.uses} uses, ${money(d.discount)}`}
+            title={`${dayjs(d.date).format("DD MMM")}: ${d.uses} uses, ${money(costOf(d))}`}
             className="flex-1 bg-blue-500/80 rounded-t-sm min-w-[2px]"
-            style={{ height: max ? `${Math.max(2, (d.discount / max) * 100)}%` : "2px", opacity: d.uses ? 1 : 0.25 }}
+            style={{ height: max ? `${Math.max(2, (costOf(d) / max) * 100)}%` : "2px", opacity: d.uses ? 1 : 0.25 }}
           />
         ))}
       </div>
@@ -75,6 +77,9 @@ function ZoneTable({ zones }) {
         { key: "uses", header: "Uses", align: "right" },
         { key: "customers", header: "Customers", align: "right" },
         { key: "discount", header: "Discount", align: "right", render: (r) => money(r.discount) },
+        ...(zones.some((z) => Number(z.cashback) > 0)
+          ? [{ key: "cashback", header: "Cashback", align: "right", render: (r) => money(r.cashback) }]
+          : []),
       ]}
       rows={zones.map((z) => ({ ...z, key: z.zoneId ?? z.zoneName }))}
     />
@@ -96,6 +101,7 @@ export function PromotionReportModal({ promotion, onClose }) {
   );
   const report = data?.data?.report;
   const s = report?.summary;
+  const isCashback = report?.promotion?.benefitType === "cashback";
 
   return (
     <DirectoryViewModal open={!!promotion} onClose={onClose} title={`Report · ${promotion?.name || ""}`} size="xl">
@@ -108,7 +114,9 @@ export function PromotionReportModal({ promotion, onClose }) {
           <DirectoryMetrics
             items={[
               { label: "Paid uses", value: s.uses, hint: report.promotion.usageLimit != null ? `${report.promotion.usesLeft} left of ${report.promotion.usageLimit}` : "No limit" },
-              { label: "Discount given", value: money(s.totalDiscount), hint: `Avg ${money(s.averageDiscount)} per order` },
+              isCashback
+                ? { label: "Cashback given", value: money(s.totalCashback), hint: `${money(s.cashbackCredited)} credited · ${money(s.cashbackPending)} waiting for delivery` }
+                : { label: "Discount given", value: money(s.totalDiscount), hint: `Avg ${money(s.averageDiscount)} per order` },
               { label: "Customers", value: s.uniqueCustomers },
               { label: "Orders holding it", value: s.bookingsHolding, hint: "Booked, not invoiced/paid yet" },
             ]}
@@ -119,7 +127,7 @@ export function PromotionReportModal({ promotion, onClose }) {
 
           <div>
             <div className="flex items-center justify-between mb-2">
-              <SectionTitle>Discount per day</SectionTitle>
+              <SectionTitle>{isCashback ? "Cashback per day" : "Discount per day"}</SectionTitle>
               <div className="w-44">
                 <Select options={RANGES} value={days} onChange={setDays} />
               </div>
@@ -139,7 +147,7 @@ export function PromotionReportModal({ promotion, onClose }) {
                 columns={[
                   { key: "code", header: "Code", render: (r) => <span className="font-mono">{r.code}</span> },
                   { key: "uses", header: "Uses", align: "right" },
-                  { key: "discount", header: "Discount", align: "right", render: (r) => money(r.discount) },
+                  { key: "discount", header: isCashback ? "Cashback" : "Discount", align: "right", render: (r) => money(costOf(r)) },
                 ]}
                 rows={report.byCode.map((c) => ({ ...c, key: c.code }))}
               />
@@ -153,7 +161,7 @@ export function PromotionReportModal({ promotion, onClose }) {
                 { key: "orderTrackId", header: "Order", render: (r) => r.orderTrackId || (r.bookingId ? `#${r.bookingId}` : "—") },
                 { key: "couponCode", header: "Code", render: (r) => r.couponCode || "Automatic" },
                 { key: "paidAt", header: "Paid", render: (r) => (r.paidAt ? dayjs(r.paidAt).format("DD MMM YYYY HH:mm") : "—") },
-                { key: "discount", header: "Discount", align: "right", render: (r) => money(r.discount) },
+                { key: "discount", header: isCashback ? "Cashback" : "Discount", align: "right", render: (r) => money(costOf(r)) },
               ]}
               rows={report.recent.map((r) => ({ ...r, key: r.redemptionId }))}
             />
@@ -178,7 +186,7 @@ export function CampaignReportSection({ campaignId }) {
       <DirectoryMetrics
         items={[
           { label: "Budget", value: b.budget != null ? money(b.budget) : "No limit" },
-          { label: "Spent", value: money(b.spent), hint: b.percentUsed != null ? `${b.percentUsed}% of budget` : undefined },
+          { label: "Spent", value: money(b.spent), hint: b.percentUsed != null ? `${b.percentUsed}% of budget (discounts + cashback)` : "Discounts + cashback" },
           { label: "Remaining", value: b.remaining != null ? money(b.remaining) : "—" },
           { label: "Paid uses", value: report.summary.uses, hint: `${report.summary.uniqueCustomers} customers` },
         ]}
@@ -200,6 +208,9 @@ export function CampaignReportSection({ campaignId }) {
             { key: "status", header: "Status" },
             { key: "uses", header: "Uses", align: "right" },
             { key: "discount", header: "Discount", align: "right", render: (r) => money(r.discount) },
+            ...(report.promotions.some((p) => Number(p.cashback) > 0)
+              ? [{ key: "cashback", header: "Cashback", align: "right", render: (r) => money(r.cashback) }]
+              : []),
           ]}
           rows={report.promotions.map((p) => ({ ...p, key: p.id }))}
         />

@@ -50,12 +50,8 @@ const BENEFIT_TYPES = [
 // Same as basket_discount in % / £ mode — kept for labels and existing promotions,
 // but not offered when picking a type (unless the promotion already uses it).
 const RETIRED_BENEFIT_TYPES = ["percentage_discount", "fixed_amount_discount"];
-// Cashback is calculated but nothing pays it out yet (no customer wallet credit).
-const NOT_READY_BENEFIT_TYPES = ["cashback"];
 const benefitTypeOptions = (current) =>
-  BENEFIT_TYPES.filter(
-    (b) => ![...RETIRED_BENEFIT_TYPES, ...NOT_READY_BENEFIT_TYPES].includes(b.value) || b.value === current
-  );
+  BENEFIT_TYPES.filter((b) => !RETIRED_BENEFIT_TYPES.includes(b.value) || b.value === current);
 
 // discountMode is fixed for these types; MODE_CHOICE_TYPES let the admin pick.
 const FORCED_MODE = {
@@ -815,6 +811,13 @@ export default function PromotionsPage() {
                   until a delivery fee is added. It never discounts the service fee.
                 </p>
               )}
+              {form.benefitType === "cashback" && (
+                <p className="text-xs text-blue-800 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+                  Cashback does not lower this order's price. It is worked out on the final invoice and added to the
+                  customer's credit after delivery (once paid). The credit is used automatically on their next order.
+                  Campaign budget counts the cashback.
+                </p>
+              )}
               {needsValue(form.benefitType) && (
                 <div className="grid grid-cols-2 gap-4">
                   <Field
@@ -832,7 +835,7 @@ export default function PromotionsPage() {
                     />
                   </Field>
                   {capVisible && (
-                    <Field label="Max Discount Cap (£)" hint="Caps the whole promotion's saving">
+                    <Field label={form.benefitType === "cashback" ? "Max Cashback (£)" : "Max Discount Cap (£)"} hint={form.benefitType === "cashback" ? "Most cashback one order can earn" : "Caps the whole promotion's saving"}>
                       <Input type="number" min="0" step="0.01" value={form.maxDiscountCap} onChange={(e) => setField("maxDiscountCap", e.target.value)} placeholder="No cap" />
                     </Field>
                   )}

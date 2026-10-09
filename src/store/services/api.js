@@ -6,7 +6,7 @@ export const api = createApi({
   baseQuery: baseQueryWithReauth,
   // setupListeners(store.dispatch) + window "online" → refetch subscribed queries.
   refetchOnReconnect: true,
-  tagTypes: ["ServiceConfig", "SupportContact", "PlatformOperationalHours", "RuntimeSettings", "Orders", "Coupons", "Banners", "AccountDeletionReasons", "ReviewReasonCodes", "ShopReviews", "ShopRatingsReport", "PendingAgents", "RejectedAgents", "AgentSettlement", "NotifyLogs", "PaymentFailures", "AdminNotificationPreferences", "ActionRequiredOrders", "RepairGarments", "RepairOptions", "Zones", "ZoneCatalog", "FailAttemptInstructions", "FailAttemptReasons", "Shops", "ShopAssignmentPolicy", "ShopPrinter", "ComplianceReport", "ComplianceEvents", "Customers", "ServiceDiscounts", "Campaigns", "Promotions"],
+  tagTypes: ["ServiceConfig", "SupportContact", "PlatformOperationalHours", "RuntimeSettings", "Orders", "Coupons", "Banners", "AccountDeletionReasons", "ReviewReasonCodes", "ShopReviews", "ShopRatingsReport", "PendingAgents", "RejectedAgents", "AgentSettlement", "NotifyLogs", "PaymentFailures", "AdminNotificationPreferences", "ActionRequiredOrders", "RepairGarments", "RepairOptions", "Zones", "ZoneCatalog", "FailAttemptInstructions", "FailAttemptReasons", "Shops", "ShopAssignmentPolicy", "ShopPrinter", "ComplianceReport", "ComplianceEvents", "Customers", "ServiceDiscounts", "Campaigns", "Promotions", "CustomerCredit"],
 
   endpoints: (builder) => {
     const reportQueryString = (params = {}) => {
@@ -2574,6 +2574,18 @@ export const api = createApi({
       query: (id) => ({ url: `admin/campaigns/${id}/report`, method: "GET" }),
       providesTags: ["Campaigns", "Promotions"],
     }),
+    getCustomerCredit: builder.query({
+      query: ({ customerId, page = 1 }) => ({ url: `admin/customerCredit/${customerId}?page=${page}`, method: "GET" }),
+      providesTags: ["CustomerCredit"],
+    }),
+    adjustCustomerCredit: builder.mutation({
+      query: ({ customerId, amount, reason, requestId }) => ({
+        url: `admin/customerCredit/${customerId}/adjust`,
+        method: "POST",
+        body: { amount, reason, requestId },
+      }),
+      invalidatesTags: ["CustomerCredit"],
+    }),
     getOrderPromotions: builder.query({
       query: (bookingId) => ({ url: `admin/orderPromotions/${bookingId}`, method: "GET" }),
       providesTags: ["Promotions"],
@@ -2938,6 +2950,8 @@ export const {
   useGetPromotionAnalyticsQuery,
   useGetCampaignReportQuery,
   useGetOrderPromotionsQuery,
+  useGetCustomerCreditQuery,
+  useAdjustCustomerCreditMutation,
   useRemoveOrderPromotionMutation,
   useGetPromotionConflictsQuery,
   useSimulatePromotionMutation,
