@@ -1,25 +1,44 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Button, Field, Input, Modal, PageHeader, Table, Textarea } from "../../design-system";
 import { Delay } from "../../components/shared/Loaders";
 import useToaster from "../../components/ui/Toaster";
 import { DATE_TIME_FORMAT, formatAmount, formatDate } from "../../utilities/formatters";
+import { CSV_EXPORT_MAX_ROWS, csvFormat } from "../../utilities/csvExport";
+import { useCsvExport } from "../../hooks/useCsvExport";
 import {
   DirectoryDotPill,
+  DirectoryExportButton,
   DirectoryIdentity,
   DirectoryMetrics,
   DirectoryMoney,
   DirectoryStatusPill,
   DirectoryTableWrap,
+  DirectoryToolbar,
+  DirectoryToolbarEnd,
 } from "../directory-table/directoryTable";
 import {
   useGetAgentSettlementDetailQuery,
+  useLazyGetAgentSettlementDetailQuery,
   useRecordAgentPayoutMutation,
   useRecordCashSettlementMutation,
 } from "../../store/services/api";
 import { getApiErrorMessage } from "../../store/services/apiErrors";
 import { shopDetailPath, shopSettlementPath } from "../reports/reportUi";
 import ShopPayoutAccountCard from "./ShopPayoutAccountCard";
+import {
+  AlreadySubmittedNotice,
+  DisabledReason,
+  RealMoneyCheck,
+  SettlementFigures,
+} from "./settlementActionParts";
+import {
+  NO_STRIPE_REASON,
+  cashStillToRecord,
+  figureAfter,
+  parseSettlementAmount,
+  settlementErrorMessage,
+} from "./settlementMoney";
 
 const CARD = {
   padding: 20,
@@ -67,6 +86,76 @@ const STATUS_TONE = {
 
 function money(amount, source) {
   return formatAmount(amount, source, { applyDefault: true });
+}
+
+const PENDING_REMITTANCES_PATH = "/shop-management/agent-settlement?tab=remittances";
+const EMPTY_ACTION = { open: false, type: null, amount: "", note: "", confirmedReal: false };
+
+/** Server caps: ledgerLimit ≤ 200, ordersLimit ≤ 100 (agentWalletService). */
+const LEDGER_EXPORT_PAGE_SIZE = 200;
+const ORDERS_EXPORT_PAGE_SIZE = 100;
+
+const LEDGER_CSV_COLUMNS = [
+  { header: "Date", value: (r) => csvFormat.dateTime(r.createdAt) },
+  { header: "Type", value: (r) => r.label || r.referenceType || "" },
+  { header: "Description", value: (r) => r.description || "" },
+  { header: "Order", value: (r) => (r.bookingId ? r.orderTrackId || r.bookingId : "") },
+  { header: "Money in", value: (r) => csvFormat.money(r.moneyIn) },
+  { header: "Money out", value: (r) => csvFormat.money(r.moneyOut) },
+  {
+    header: "Balance after",
+    value: (r) => csvFormat.money(r.balanceAfter ?? r.settlementBalanceAfter),
+  },
+  { header: "Status", value: (r) => r.status || "" },
+];
+
+const ORDERS_CSV_COLUMNS = [
+  { header: "Date", value: (r) => csvFormat.dateTime(r.completedAt) },
+  { header: "Order", value: (r) => r.orderTrackId || r.bookingId || "" },
+  {
+    header: "Channel",
+    value: (r) => (r.mixed ? "Mixed" : r.channel === "cash" ? "Cash" : "Card"),
+  },
+  { header: "Order total", value: (r) => csvFormat.money(r.orderTotal) },
+  { header: "Laundry / services", value: (r) => csvFormat.money(r.laundry) },
+  { header: "Shop share", value: (r) => csvFormat.money(r.laundryCommission) },
+  { header: "Booking tip", value: (r) => csvFormat.money(r.bookingTip) },
+  { header: "Platform fee", value: (r) => csvFormat.money(r.serviceFee) },
+  { header: "Admin commission", value: (r) => csvFormat.money(r.platformShare) },
+  {
+    header: "Admin take",
+    value: (r) =>
+      csvFormat.money(r.platformTake ?? Number(r.serviceFee || 0) + Number(r.platformShare || 0)),
+  },
+  {
+    header: "Agent earning",
+    value: (r) => csvFormat.money(r.isFullyRefunded ? 0 : r.commissionNet ?? r.commissionAmount),
+  },
+  { header: "Commission clawback", value: (r) => csvFormat.money(r.commissionClawbackAmount) },
+  { header: "Extra tip", value: (r) => csvFormat.money(r.extraTipNet ?? r.extraTipAmount) },
+  { header: "Extra tip clawback", value: (r) => csvFormat.money(r.extraTipClawbackAmount) },
+  {
+    header: "Cash collected",
+    value: (r) => (r.channel === "cash" ? csvFormat.money(r.cashNet ?? r.cashCollectedAmount) : ""),
+  },
+  { header: "Cash refunded", value: (r) => csvFormat.money(r.cashRefundedAmount) },
+  { header: "Fully refunded", value: (r) => csvFormat.bool(r.isFullyRefunded) },
+];
+
+/** One "who owes whom" figure with its one-line explanation. */
+function OweLine({ title, text, extra, tone }) {
+  const color = tone === "warning" ? "#92400e" : "#065f46";
+  return (
+    <div style={{ minWidth: 0 }}>
+      <p style={{ margin: 0, fontSize: 16, fontWeight: 800, color, fontVariantNumeric: "tabular-nums" }}>
+        {title}
+      </p>
+      <p style={{ margin: "4px 0 0", fontSize: 12.5, color: "#4b5563", lineHeight: 1.5 }}>{text}</p>
+      {extra ? (
+        <p style={{ margin: "4px 0 0", fontSize: 12, color: "#6b7280", lineHeight: 1.5 }}>{extra}</p>
+      ) : null}
+    </div>
+  );
 }
 
 function Line({ label, value, hint, strong, tone }) {
@@ -377,7 +466,8 @@ export default function AgentSettlementDetail() {
   const [ordersPage, setOrdersPage] = useState(1);
   const [ledgerPage, setLedgerPage] = useState(1);
   const [ledgerRail, setLedgerRail] = useState("");
-  const [action, setAction] = useState({ open: false, type: null, amount: "", note: "" });
+  const [action, setAction] = useState(EMPTY_ACTION);
+  const submittingRef = useRef(false);
 
   const { data, isLoading, isError, error: loadError, refetch } = useGetAgentSettlementDetailQuery(
     {
@@ -392,6 +482,7 @@ export default function AgentSettlementDetail() {
   );
   const [recordCash, { isLoading: recordingCash }] = useRecordCashSettlementMutation();
   const [recordPayout, { isLoading: recordingPayout }] = useRecordAgentPayoutMutation();
+  const [fetchSettlementPage] = useLazyGetAgentSettlementDetailQuery();
 
   const detail = data?.data;
   const agent = detail?.agent || {};
@@ -568,30 +659,44 @@ export default function AgentSettlementDetail() {
         key: "status",
         header: "Status",
         render: (row) => (
-          <DirectoryDotPill
-            tone={
-              row.status === "completed"
-                ? "success"
+          <div>
+            <DirectoryDotPill
+              tone={
+                row.status === "completed"
+                  ? "success"
+                  : row.status === "failed"
+                    ? "danger"
+                    : "warning"
+              }
+            >
+              {row.status === "completed"
+                ? "Confirmed"
                 : row.status === "failed"
-                  ? "danger"
-                  : "warning"
-            }
-          >
-            {row.status === "completed"
-              ? "Confirmed"
-              : row.status === "failed"
-                ? "Rejected"
-                : "Pending"}
-          </DirectoryDotPill>
+                  ? "Rejected"
+                  : "Pending"}
+            </DirectoryDotPill>
+            {row.reviewedAt ? (
+              <div style={{ marginTop: 4, fontSize: 11, color: "#6b7280" }}>
+                Reviewed {formatDate(row.reviewedAt, DATE_TIME_FORMAT)}
+              </div>
+            ) : null}
+          </div>
         ),
       },
       {
-        key: "description",
-        header: "Detail",
+        key: "note",
+        header: "Agent note",
         render: (row) => (
           <span style={{ fontSize: 12, color: "#475569" }}>
-            {row.description || "—"}
+            {row.note || (!row.adminNote && row.description) || "—"}
           </span>
+        ),
+      },
+      {
+        key: "adminNote",
+        header: "Admin note",
+        render: (row) => (
+          <span style={{ fontSize: 12, color: "#475569" }}>{row.adminNote || "—"}</span>
         ),
       },
     ],
@@ -720,38 +825,134 @@ export default function AgentSettlementDetail() {
   const ledgerTotalPages = Math.max(1, ledgerPagination.totalPages || 1);
   const acting = recordingCash || recordingPayout;
   const cashDue = Number(summary.cashDueToPlatform || 0);
+  const pendingCash = Number(summary.pendingCashRemittance || 0);
+  const cashToRecord = cashStillToRecord(cashDue, pendingCash);
   const payable = Number(summary.platformOwesAgent || 0);
   const stripeReady = Boolean(shop.connectAccountConnected);
+  const shopLabel = shop.name || agent.name || "This shop";
+
+  const isCashAction = action.type === "cash";
+  const cashAlreadySubmitted = isCashAction && cashToRecord <= 0 && pendingCash > 0;
+  const actionAmount = parseSettlementAmount(action.amount);
+  const actionMax = isCashAction ? cashToRecord : payable;
+  const actionAmountTooHigh =
+    !cashAlreadySubmitted && actionAmount != null && actionAmount > actionMax + 0.005;
+  const actionAmountLabel = actionAmount != null ? money(actionAmount, summary) : "";
+
+  const closeAction = () => {
+    if (acting) return;
+    setAction(EMPTY_ACTION);
+  };
 
   const submitAction = async () => {
-    const amount = Number(action.amount);
-    if (!Number.isFinite(amount) || amount <= 0) {
+    if (submittingRef.current || acting) return;
+    if (cashAlreadySubmitted) {
+      setAction(EMPTY_ACTION);
+      navigate(PENDING_REMITTANCES_PATH);
+      return;
+    }
+    const amount = actionAmount;
+    if (amount == null) {
       toastError("Enter a valid amount");
       return;
     }
+    if (!isCashAction && (!stripeReady || !action.confirmedReal)) {
+      toastError(stripeReady ? "Tick the confirmation first — this sends real money now." : NO_STRIPE_REASON);
+      return;
+    }
+    if (!canonicalShopId) {
+      toastError("This settlement has no shop id");
+      return;
+    }
+    submittingRef.current = true;
     try {
-      if (!canonicalShopId) {
-        toastError("This settlement has no shop id");
-        return;
-      }
-      if (action.type === "cash") {
+      if (isCashAction) {
         await recordCash({
           shopId: canonicalShopId,
-          body: { amount, note: action.note || undefined },
+          body: { amount, note: action.note?.trim() || undefined },
         }).unwrap();
         success(`Recorded ${money(amount, summary)} cash received from this shop`);
       } else {
         await recordPayout({
           shopId: canonicalShopId,
-          body: { amount, note: action.note || undefined },
+          body: { amount, note: action.note?.trim() || undefined },
         }).unwrap();
         success(`Sent ${money(amount, summary)} to the agent's Stripe Connect account`);
       }
-      setAction({ open: false, type: null, amount: "", note: "" });
+      setAction(EMPTY_ACTION);
     } catch (err) {
-      toastError(err?.data?.message || err?.message || "Could not save");
+      toastError(settlementErrorMessage(err, "Could not save"));
+    } finally {
+      submittingRef.current = false;
     }
   };
+
+  const exportShopId = canonicalShopId || shopId;
+
+  /** Walk every page of the ledger or orders list (server caps the page size). */
+  const fetchAllSettlementRows = useCallback(
+    async (kind) => {
+      const isLedger = kind === "ledger";
+      const rows = [];
+      let page = 1;
+      let totalPages;
+      let total;
+      do {
+        const res = await fetchSettlementPage(
+          isLedger
+            ? {
+                shopId: exportShopId,
+                ledgerPage: page,
+                ledgerLimit: LEDGER_EXPORT_PAGE_SIZE,
+                ledgerRail: ledgerRail || undefined,
+                ordersPage: 1,
+                ordersLimit: 1,
+              }
+            : {
+                shopId: exportShopId,
+                ordersPage: page,
+                ordersLimit: ORDERS_EXPORT_PAGE_SIZE,
+                ledgerPage: 1,
+                ledgerLimit: 1,
+              },
+          false
+        ).unwrap();
+        const payload = res?.data || {};
+        const chunk = (isLedger ? payload.ledger : payload.orders) || [];
+        const pagination = (isLedger ? payload.ledgerPagination : payload.ordersPagination) || {};
+        rows.push(...chunk);
+        totalPages = Number(pagination.totalPages || 0);
+        total = Number(pagination.total ?? rows.length);
+        if (!chunk.length) break;
+        page += 1;
+      } while (page <= totalPages && rows.length < CSV_EXPORT_MAX_ROWS);
+      return {
+        rows: rows.slice(0, CSV_EXPORT_MAX_ROWS),
+        pagination: { truncated: total > CSV_EXPORT_MAX_ROWS, totalRecords: total },
+      };
+    },
+    [exportShopId, fetchSettlementPage, ledgerRail]
+  );
+
+  const fetchAllLedgerRows = useCallback(() => fetchAllSettlementRows("ledger"), [fetchAllSettlementRows]);
+  const fetchAllOrderRows = useCallback(() => fetchAllSettlementRows("orders"), [fetchAllSettlementRows]);
+  const ledgerCsvFilters = useMemo(
+    () => ({ shop: exportShopId, rail: ledgerRail }),
+    [exportShopId, ledgerRail]
+  );
+  const ordersCsvFilters = useMemo(() => ({ shop: exportShopId }), [exportShopId]);
+  const ledgerCsv = useCsvExport({
+    filenameBase: "settlement-statement",
+    columns: LEDGER_CSV_COLUMNS,
+    fetchAll: fetchAllLedgerRows,
+    filenameFilters: ledgerCsvFilters,
+  });
+  const ordersCsv = useCsvExport({
+    filenameBase: "settlement-orders",
+    columns: ORDERS_CSV_COLUMNS,
+    fetchAll: fetchAllOrderRows,
+    filenameFilters: ordersCsvFilters,
+  });
 
   if (isLoading) return <Delay />;
 
@@ -791,24 +992,70 @@ export default function AgentSettlementDetail() {
             ) : null}
             <Button
               variant="secondary"
-              disabled={cashDue <= 0}
+              disabled={cashDue <= 0 || acting}
               onClick={() =>
-                setAction({ open: true, type: "cash", amount: String(cashDue), note: "" })
+                setAction({
+                  ...EMPTY_ACTION,
+                  open: true,
+                  type: "cash",
+                  // Only what the shop has not already submitted in Pending remittances.
+                  amount: cashToRecord > 0 ? cashToRecord.toFixed(2) : "",
+                })
               }
             >
               Record cash received
             </Button>
-            <Button
-              disabled={payable <= 0 || !stripeReady}
-              onClick={() =>
-                setAction({ open: true, type: "payout", amount: String(payable), note: "" })
-              }
-            >
-              Pay to Stripe Connect
-            </Button>
+            <DisabledReason reason={stripeReady ? null : NO_STRIPE_REASON}>
+              <Button
+                disabled={payable <= 0 || !stripeReady || acting}
+                aria-label={stripeReady ? undefined : `Pay to Stripe Connect — ${NO_STRIPE_REASON}`}
+                onClick={() =>
+                  setAction({
+                    ...EMPTY_ACTION,
+                    open: true,
+                    type: "payout",
+                    amount: payable > 0 ? payable.toFixed(2) : "",
+                  })
+                }
+              >
+                Pay to Stripe Connect
+              </Button>
+            </DisabledReason>
           </>
         }
       />
+
+      <div
+        style={{
+          ...CARD,
+          marginBottom: 16,
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+          gap: 16,
+        }}
+        aria-label="Who owes whom"
+      >
+        <OweLine
+          tone="warning"
+          title={`Shop still to hand over: ${money(cashDue, summary)} cash`}
+          text="Cash this shop collected from customers that it has not handed to the platform yet, after its own earnings are netted off."
+          extra={
+            pendingCash > 0
+              ? `${money(pendingCash, summary)} of it is already submitted by the shop and waiting in Pending remittances.`
+              : null
+          }
+        />
+        <OweLine
+          tone="success"
+          title={`Platform still to pay: ${money(payable, summary)} (card earnings)`}
+          text="Card-order earnings the platform holds for this shop that have not been sent to its Stripe Connect account yet."
+          extra={
+            stripeReady
+              ? null
+              : `${NO_STRIPE_REASON} — Pay to Stripe Connect stays off until it does.`
+          }
+        />
+      </div>
 
       <div style={{ ...CARD, marginBottom: 16, display: "flex", flexWrap: "wrap", gap: 24, justifyContent: "space-between" }}>
         <div>
@@ -1242,6 +1489,18 @@ export default function AgentSettlementDetail() {
             ))}
           </div>
           <DirectoryTableWrap
+            toolbar={
+              <DirectoryToolbar>
+                <DirectoryToolbarEnd>
+                  <DirectoryExportButton
+                    onClick={ledgerCsv.run}
+                    loading={ledgerCsv.isExporting}
+                    count={Number(ledgerPagination.total || 0)}
+                    title="Download every statement row for the selected filter (all pages)"
+                  />
+                </DirectoryToolbarEnd>
+              </DirectoryToolbar>
+            }
             footer={
               <div style={PAGE_ROW}>
                 <p className="jd-lead" style={{ margin: 0 }}>
@@ -1313,6 +1572,18 @@ export default function AgentSettlementDetail() {
 
       {tab === "orders" ? (
         <DirectoryTableWrap
+          toolbar={
+            <DirectoryToolbar>
+              <DirectoryToolbarEnd>
+                <DirectoryExportButton
+                  onClick={ordersCsv.run}
+                  loading={ordersCsv.isExporting}
+                  count={Number(ordersPagination.total || 0)}
+                  title="Download every paid order for this shop (all pages)"
+                />
+              </DirectoryToolbarEnd>
+            </DirectoryToolbar>
+          }
           footer={
             <div style={PAGE_ROW}>
               <p className="jd-lead" style={{ margin: 0 }}>
@@ -1344,38 +1615,138 @@ export default function AgentSettlementDetail() {
 
       <Modal
         open={action.open}
-        onClose={() => setAction({ open: false, type: null, amount: "", note: "" })}
-        title={action.type === "cash" ? "Record cash received from agent" : "Pay agent via Stripe Connect"}
-        primaryLabel={acting ? "Saving…" : "Confirm"}
+        onClose={closeAction}
+        title={isCashAction ? "Record cash received from agent" : "Pay agent via Stripe Connect"}
+        description={
+          isCashAction
+            ? "Cash the shop handed over to you. Recording it lowers the cash still due."
+            : "Sends card earnings to the shop's Stripe Connect account immediately."
+        }
+        primaryLabel={
+          acting
+            ? isCashAction
+              ? "Saving…"
+              : "Sending…"
+            : isCashAction
+              ? cashAlreadySubmitted
+                ? "Open Pending remittances"
+                : actionAmountLabel
+                  ? `Record ${actionAmountLabel} cash received`
+                  : "Record cash received"
+              : actionAmountLabel
+                ? `Send ${actionAmountLabel} to Stripe Connect`
+                : "Send to Stripe Connect"
+        }
         onPrimary={submitAction}
-        primaryDisabled={acting}
+        secondaryDisabled={acting}
+        closeOnBackdrop={!acting}
+        primaryDisabled={
+          acting ||
+          (!cashAlreadySubmitted && (actionAmount == null || actionAmountTooHigh)) ||
+          (!isCashAction && (!stripeReady || !action.confirmedReal))
+        }
       >
-        <p style={{ margin: "0 0 12px", fontSize: 13, color: "#4b5563" }}>
-          {action.type === "cash"
-            ? `Live cash due is ${money(cashDue, summary)}. After confirm that due becomes £0 (or lower) and a “Cash handed to platform” row is added to Recent activity.`
-            : stripeReady
-              ? `Live payable is ${money(payable, summary)}. Confirm sends this amount to the agent's Stripe Connect account. They cannot withdraw the same earnings again.`
-              : "Stripe Connect onboarding must be complete before you can pay this agent."}
-        </p>
-        <Field label="Amount" htmlFor="settle-amount">
-          <Input
-            id="settle-amount"
-            type="number"
-            min={0}
-            step="0.01"
-            value={action.amount}
-            onChange={(e) => setAction((prev) => ({ ...prev, amount: e.target.value }))}
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <SettlementFigures
+            rows={
+              isCashAction
+                ? [
+                    { label: "Shop", value: shopLabel },
+                    {
+                      label: "Cash still due",
+                      value: money(cashDue, summary),
+                      tone: "warning",
+                      hint:
+                        pendingCash > 0
+                          ? `${money(pendingCash, summary)} of this is already submitted by the shop and waiting in Pending remittances`
+                          : null,
+                    },
+                    pendingCash > 0 && !cashAlreadySubmitted
+                      ? { label: "You can record now", value: money(cashToRecord, summary) }
+                      : null,
+                    cashAlreadySubmitted
+                      ? null
+                      : {
+                          label: "After this: cash still due",
+                          value:
+                            actionAmount != null
+                              ? money(figureAfter(cashDue, actionAmount), summary)
+                              : "—",
+                          strong: true,
+                        },
+                  ]
+                : [
+                    { label: "Shop", value: shopLabel },
+                    {
+                      label: "Still payable",
+                      value: money(payable, summary),
+                      tone: "success",
+                      hint: "Card earnings not yet sent to Stripe Connect",
+                    },
+                    {
+                      label: "After this: still payable",
+                      value:
+                        actionAmount != null
+                          ? money(figureAfter(payable, actionAmount), summary)
+                          : "—",
+                      strong: true,
+                    },
+                  ]
+            }
           />
-        </Field>
-        <Field label="Note" htmlFor="settle-note">
-          <Textarea
-            id="settle-note"
-            rows={3}
-            value={action.note}
-            onChange={(e) => setAction((prev) => ({ ...prev, note: e.target.value }))}
-            placeholder="e.g. Collected at shop / Weekly payout"
-          />
-        </Field>
+          {cashAlreadySubmitted ? (
+            <AlreadySubmittedNotice>
+              {money(pendingCash, summary)} is already submitted by the shop — confirm it in
+              Pending remittances.
+            </AlreadySubmittedNotice>
+          ) : (
+            <>
+              <Field
+                label="Amount"
+                htmlFor="settle-amount"
+                error={
+                  actionAmountTooHigh
+                    ? `More than the ${money(actionMax, summary)} ${
+                        isCashAction ? "you can record now" : "still payable"
+                      }`
+                    : undefined
+                }
+              >
+                <Input
+                  id="settle-amount"
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={action.amount}
+                  disabled={acting}
+                  onChange={(e) => setAction((prev) => ({ ...prev, amount: e.target.value }))}
+                />
+              </Field>
+              <Field label="Note" htmlFor="settle-note">
+                <Textarea
+                  id="settle-note"
+                  rows={3}
+                  value={action.note}
+                  disabled={acting}
+                  onChange={(e) => setAction((prev) => ({ ...prev, note: e.target.value }))}
+                  placeholder="e.g. Collected at shop / Weekly payout"
+                />
+              </Field>
+            </>
+          )}
+          {!isCashAction ? (
+            stripeReady ? (
+              <RealMoneyCheck
+                id="settle-real-money"
+                checked={action.confirmedReal}
+                disabled={acting}
+                onChange={(checked) => setAction((prev) => ({ ...prev, confirmedReal: checked }))}
+              />
+            ) : (
+              <AlreadySubmittedNotice>{NO_STRIPE_REASON}.</AlreadySubmittedNotice>
+            )
+          ) : null}
+        </div>
       </Modal>
     </div>
   );

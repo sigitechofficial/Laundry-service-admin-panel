@@ -47,9 +47,7 @@ import {
   RuntimeChecks,
   FailAttemptInstructionsPage,
   LocationCompliancePage,
-  PromoCodesPage,
   BannersPage,
-  ServiceDiscountsPage,
   CampaignsPage,
   PromotionsPage,
   NotifyLogsPage,
@@ -317,19 +315,9 @@ export const privateRoutes = [
     resourceKey: "policies_management_page",
   },
   {
-    path: "/promotion/promo-codes",
-    element: PromoCodesPage,
-    resourceKey: "promotion_promo_codes_page",
-  },
-  {
     path: "/promotion/banners",
     element: BannersPage,
     resourceKey: "promotion_banners_page",
-  },
-  {
-    path: "/promotion/service-discounts",
-    element: ServiceDiscountsPage,
-    resourceKey: "promotion_promo_codes_page",
   },
   {
     path: "/promotion/campaigns",
@@ -351,7 +339,10 @@ export const privateRoutes = [
 /** Parent nav paths and retired aliases that must resolve to a live screen. */
 export const privateRedirects = [
   { path: "/orders", to: "/orders/action-required" },
-  { path: "/promotion", to: "/promotion/promo-codes" },
+  { path: "/promotion", to: "/promotion/promotions" },
+  // Coupons (Legacy) and Service Discounts (Legacy) were retired: Promotions replace both.
+  { path: "/promotion/promo-codes", to: "/promotion/promotions" },
+  { path: "/promotion/service-discounts", to: "/promotion/promotions" },
   { path: "/shop-ratings-report", to: "/reports/shop-ratings" },
   { path: "/zone-management/catalog", to: "/services-management/dashboard" },
 ];

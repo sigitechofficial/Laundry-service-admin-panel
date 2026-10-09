@@ -15,6 +15,8 @@ import CancellationsReport from "./CancellationsReport";
 import CustomersReport from "./CustomersReport";
 import DriversReport from "./DriversReport";
 import OverdueReport from "./OverdueReport";
+import PromotionsReport from "./PromotionsReport";
+import CampaignsReport from "./CampaignsReport";
 
 const REPORT_TABS = [
   { label: "Daily Earnings", path: "/reports/daily-earning" },
@@ -29,6 +31,8 @@ const REPORT_TABS = [
   { label: "On hold", path: "/reports/on-hold" },
   { label: "Overdue", path: "/reports/overdue" },
   { label: "Shop Ratings", path: "/reports/shop-ratings" },
+  { label: "Promotions", path: "/reports/promotions" },
+  { label: "Campaigns", path: "/reports/campaigns" },
 ];
 
 const REPORT_PANELS = {
@@ -44,6 +48,8 @@ const REPORT_PANELS = {
   "/reports/on-hold": OnHoldReport,
   "/reports/overdue": OverdueReport,
   "/reports/shop-ratings": ShopRatingsReport,
+  "/reports/promotions": PromotionsReport,
+  "/reports/campaigns": CampaignsReport,
 };
 
 export default function ReportsLayout() {

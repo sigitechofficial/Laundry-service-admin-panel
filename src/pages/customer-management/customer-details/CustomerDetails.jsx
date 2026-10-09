@@ -40,6 +40,7 @@ import UnlinkCustomerShopModal from "../UnlinkCustomerShopModal";
 import ExcludeCustomerShopModal from "../ExcludeCustomerShopModal";
 import ConfirmAssignShopModal from "../ConfirmAssignShopModal";
 import CustomerRoutingEventsPanel from "../CustomerRoutingEventsPanel";
+import CustomerCreditPanel from "../CustomerCreditPanel";
 
 const PANEL = {
   padding: 16,
@@ -447,6 +448,7 @@ export default function CustomerDetails() {
     { id: "orders", label: "Orders" },
     { id: "shops", label: "Shops" },
     { id: "recurring", label: "Recurring" },
+    { id: "credit", label: "Credit" },
     { id: "addresses", label: "Addresses" },
     { id: "settings", label: "Settings" },
   ];
@@ -767,6 +769,8 @@ export default function CustomerDetails() {
           </div>
         </div>
       )}
+
+      {activeTab === "credit" && <CustomerCreditPanel customerId={id} />}
 
       {activeTab === "addresses" && (
         <div style={PANEL}>

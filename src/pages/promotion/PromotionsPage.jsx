@@ -20,31 +20,24 @@ import {
 import { TbPlus } from "../../shared/icons/index";
 import {
   TbDiscount, TbTruck, TbShoppingCart, TbMapPin, TbUsers, TbCalendarEvent,
-  TbPlayerPlay, TbPlayerPause, TbCopy, TbArchive, TbEye, TbFlask, TbTarget,
+  TbPlayerPlay, TbPlayerPause, TbCopy, TbArchive, TbEye, TbFlask, TbTarget, TbChartBar,
 } from "react-icons/tb";
+import { PromotionReportModal } from "./PromotionReport";
 import ZoneMultiSelect from "./ZoneMultiSelect";
 import CatalogMultiSelect from "./CatalogMultiSelect";
 import PromotionConditionBuilder, { DayPicker } from "./PromotionConditionBuilder";
 import PromotionSimulateModal from "./PromotionSimulateModal";
 import { CONDITION_DEFS, WEEKDAYS, conditionError, serializeCondition } from "./promotionConditions";
+import { BENEFIT_TYPES, STATUS_OPTIONS, STATUS_TONES } from "./promotionLabels";
 
 /* ─── Constants ──────────────────────────────────────────────────────────── */
 
-// buy_x_get_y and bundle are rejected by the backend for now — not offered.
-const BENEFIT_TYPES = [
-  { value: "percentage_discount", label: "Percentage Discount" },
-  { value: "fixed_amount_discount", label: "Fixed Amount Discount" },
-  { value: "free_delivery", label: "Free Delivery" },
-  { value: "delivery_discount", label: "Delivery Discount" },
-  { value: "basket_discount", label: "Basket Discount" },
-  { value: "item_discount", label: "Item Discount" },
-  { value: "category_discount", label: "Category Discount" },
-  { value: "service_discount", label: "Service Discount" },
-  { value: "first_order_discount", label: "First Order Discount" },
-  { value: "first_x_orders_discount", label: "First X Orders Discount" },
-  { value: "cashback", label: "Cashback" },
-  { value: "fixed_price", label: "Fixed Price Offer" },
-];
+
+// Same as basket_discount in % / £ mode — kept for labels and existing promotions,
+// but not offered when picking a type (unless the promotion already uses it).
+const RETIRED_BENEFIT_TYPES = ["percentage_discount", "fixed_amount_discount"];
+const benefitTypeOptions = (current) =>
+  BENEFIT_TYPES.filter((b) => !RETIRED_BENEFIT_TYPES.includes(b.value) || b.value === current);
 
 // discountMode is fixed for these types; MODE_CHOICE_TYPES let the admin pick.
 const FORCED_MODE = {
@@ -94,29 +87,6 @@ const REPRICING_POLICIES = [
   { value: "revalidate", label: "Revalidate — keep if still qualifies" },
   { value: "lock", label: "Lock — preserve original benefit" },
 ];
-
-const STATUS_OPTIONS = [
-  { value: "", label: "All statuses" },
-  { value: "draft", label: "Draft" },
-  { value: "pending_approval", label: "Pending approval" },
-  { value: "approved", label: "Approved" },
-  { value: "scheduled", label: "Scheduled" },
-  { value: "active", label: "Active" },
-  { value: "paused", label: "Paused" },
-  { value: "expired", label: "Expired" },
-  { value: "archived", label: "Archived" },
-];
-
-const STATUS_TONES = {
-  active: "success",
-  scheduled: "teal",
-  draft: "created",
-  pending_approval: "warning",
-  approved: "info",
-  paused: "warning",
-  expired: "danger",
-  archived: "neutral",
-};
 
 const statusLabel = (s) => STATUS_OPTIONS.find((o) => o.value === s)?.label || s;
 const benefitLabel = (type) => BENEFIT_TYPES.find((b) => b.value === type)?.label || type;
@@ -194,7 +164,7 @@ const INITIAL_FORM = () => ({
   description: "",
   internalNotes: "",
   campaignId: "",
-  benefitType: "percentage_discount",
+  benefitType: "basket_discount",
   discountMode: "percent",
   discountValue: "",
   maxDiscountCap: "",
@@ -505,6 +475,7 @@ export default function PromotionsPage() {
   const [viewRow, setViewRow] = useState(null);
   const [archiveTarget, setArchiveTarget] = useState(null);
   const [publishTarget, setPublishTarget] = useState(null);
+  const [reportRow, setReportRow] = useState(null);
   const [showSimulate, setShowSimulate] = useState(false);
 
   const { data, isLoading } = useGetPromotionsQuery({ page, limit: 20, status: statusFilter || undefined });
@@ -690,6 +661,9 @@ export default function PromotionsPage() {
       render: (row) => (
         <DirectoryActions>
           <DirectoryActionView onClick={() => setViewRow(row)} />
+          <DirectoryActionIcon title="Report" onClick={() => setReportRow(row)}>
+            <TbChartBar size={16} className="text-blue-600" />
+          </DirectoryActionIcon>
           {canEdit(row.status) && (
             <DirectoryActionEdit onClick={() => openEdit(row)} disabled={editLoadingId === row.id} />
           )}
@@ -786,7 +760,7 @@ export default function PromotionsPage() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <Field label="Benefit Type *">
-                  <Select options={BENEFIT_TYPES} value={form.benefitType} onChange={setBenefitType} />
+                  <Select options={benefitTypeOptions(form.benefitType)} value={form.benefitType} onChange={setBenefitType} />
                 </Field>
                 {MODE_CHOICE_TYPES.includes(form.benefitType) && (
                   <Field label="Discount Mode *">
@@ -794,6 +768,19 @@ export default function PromotionsPage() {
                   </Field>
                 )}
               </div>
+              {DELIVERY_TYPES.includes(form.benefitType) && (
+                <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                  Delivery is free today, so there is no delivery fee to discount. This promotion will save £0
+                  until a delivery fee is added. It never discounts the service fee.
+                </p>
+              )}
+              {form.benefitType === "cashback" && (
+                <p className="text-xs text-blue-800 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+                  Cashback does not lower this order's price. It is worked out on the final invoice and added to the
+                  customer's credit after delivery (once paid). The credit is used automatically on their next order.
+                  Campaign budget counts the cashback.
+                </p>
+              )}
               {needsValue(form.benefitType) && (
                 <div className="grid grid-cols-2 gap-4">
                   <Field
@@ -811,7 +798,7 @@ export default function PromotionsPage() {
                     />
                   </Field>
                   {capVisible && (
-                    <Field label="Max Discount Cap (£)" hint="Caps the whole promotion's saving">
+                    <Field label={form.benefitType === "cashback" ? "Max Cashback (£)" : "Max Discount Cap (£)"} hint={form.benefitType === "cashback" ? "Most cashback one order can earn" : "Caps the whole promotion's saving"}>
                       <Input type="number" min="0" step="0.01" value={form.maxDiscountCap} onChange={(e) => setField("maxDiscountCap", e.target.value)} placeholder="No cap" />
                     </Field>
                   )}
@@ -1201,6 +1188,7 @@ export default function PromotionsPage() {
       </Modal>
 
       <PromotionSimulateModal open={showSimulate} onClose={() => setShowSimulate(false)} zones={zones} />
+      <PromotionReportModal promotion={reportRow} onClose={() => setReportRow(null)} />
     </>
   );
 }

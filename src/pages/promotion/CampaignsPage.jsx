@@ -11,6 +11,7 @@ import {
   DirectoryToolSelect, DirectoryViewFields, DirectoryViewModal,
 } from "../directory-table/directoryTable";
 import useToaster from "../../components/ui/Toaster";
+import { CampaignReportSection } from "./PromotionReport";
 import {
   useGetCampaignsQuery, useCreateCampaignMutation, useUpdateCampaignMutation, useDeleteCampaignMutation,
 } from "../../store/services/api";
@@ -290,25 +291,19 @@ export default function CampaignsPage() {
       </Modal>
 
       {/* ─── View Modal ───────────────────────────────────────── */}
-      <DirectoryViewModal open={!!viewRow} onClose={() => setViewRow(null)} title={viewRow?.name || "Campaign"}>
+      <DirectoryViewModal open={!!viewRow} onClose={() => setViewRow(null)} title={viewRow?.name || "Campaign"} size="lg">
         {viewRow && (
           <div className="space-y-4">
-            <DirectoryMetrics
-              items={[
-                { label: "Status", value: statusLabel(viewRow.status) },
-                { label: "Budget", value: pounds(viewRow.budgetMinor) },
-                { label: "Used", value: viewRow.usedBudgetMinor ? pounds(viewRow.usedBudgetMinor) : "£0.00" },
-                { label: "Promotions", value: viewRow.promotions?.length || 0 },
-              ]}
-            />
             <DirectoryViewFields
               fields={[
+                { label: "Status", value: statusLabel(viewRow.status) },
                 { label: "Objective", value: OBJECTIVE_OPTIONS.find((o) => o.value === viewRow.objective)?.label || "—" },
                 { label: "Channel", value: CHANNEL_OPTIONS.find((o) => o.value === viewRow.channel)?.label || "—" },
                 { label: "Start", value: viewRow.startDate ? formatDate(viewRow.startDate) : "—" },
                 { label: "End", value: viewRow.endDate ? formatDate(viewRow.endDate) : "—" },
               ]}
             />
+            <CampaignReportSection campaignId={viewRow.id} />
           </div>
         )}
       </DirectoryViewModal>

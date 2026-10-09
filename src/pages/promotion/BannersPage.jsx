@@ -35,6 +35,7 @@ import {
   useGetAllZonesQuery,
   useGetCategoriesQuery,
   useGetSubCategoriesQuery,
+  useGetPromotionsQuery,
   useUpdateBannerMutation,
 } from "../../store/services/api";
 import { formatDate, formatMoney, joinMediaUrl, resolveCurrencySymbol } from "../../utilities/formatters";
@@ -83,6 +84,7 @@ const initialForm = () => ({
   displayOrder: "1",
   showOnHome: true,
   isActive: true,
+  promotionId: "",
 });
 
 function extractList(response, ...keys) {
@@ -273,7 +275,8 @@ function BannerImageField({ value, onChange, error }) {
   );
 }
 
-function BannerForm({ form, errors, patch, services, categories, subCategories, zones }) {
+function BannerForm({ form, errors, patch, services, categories, subCategories, zones, promotions = [] }) {
+  const linkedPromotion = promotions.find((p) => String(p.id) === String(form.promotionId));
   const filteredSubCats = useMemo(
     () =>
       form.targetCategoryId
@@ -394,7 +397,28 @@ function BannerForm({ form, errors, patch, services, categories, subCategories, 
           </span>
           <p style={{ ...sectionTitle, color: "#92400e" }}>Offer Details</p>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 14 }}>
+        <Field
+          label="Linked promotion"
+          hint="Recommended: the badge then comes from the promotion, and the banner only shows while that promotion runs in the customer's zone."
+        >
+          <Select
+            aria-label="Linked promotion"
+            value={String(form.promotionId || "")}
+            onChange={(value) => patch("promotionId", value)}
+            options={[
+              { value: "", label: "None (set the offer below)" },
+              ...promotions.map((p) => ({ value: String(p.id), label: `${p.name} (${p.status})` })),
+            ]}
+          />
+        </Field>
+        {linkedPromotion ? (
+          <p style={{ margin: "10px 0 0", fontSize: 12, color: "#92400e" }}>
+            Badge, value and cap follow <strong>{linkedPromotion.name}</strong>. If it is paused, ends or is
+            archived, this banner disappears from the app by itself.
+          </p>
+        ) : null}
+        {!linkedPromotion ? (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 14, marginTop: 12 }}>
           <Field label="Offer type *">
             <Select
               aria-label="Offer type"
@@ -433,6 +457,7 @@ function BannerForm({ form, errors, patch, services, categories, subCategories, 
             </Field>
           ) : null}
         </div>
+        ) : null}
       </div>
 
       {/* ── Target scope ── */}
@@ -620,6 +645,12 @@ export default function BannersPage() {
   const { data: categoriesResponse } = useGetCategoriesQuery();
   const { data: subCatsResponse } = useGetSubCategoriesQuery();
   const { data: zonesResponse } = useGetAllZonesQuery();
+  const { data: promotionsResponse } = useGetPromotionsQuery({ page: 1, limit: 200 });
+  // Promotions a banner can advertise (not archived/expired).
+  const linkablePromotions = useMemo(
+    () => (promotionsResponse?.rows || []).filter((p) => !["archived", "expired"].includes(p.status)),
+    [promotionsResponse]
+  );
 
   const [createBanner, { isLoading: creating }] = useCreateBannerMutation();
   const [updateBanner, { isLoading: updating }] = useUpdateBannerMutation();
@@ -681,6 +712,7 @@ export default function BannersPage() {
       title: b.title ?? "",
       description: b.description ?? "",
       bannerImage: resolveBannerImageUrl(b.bannerImage),
+      promotionId: b.promotionId ? String(b.promotionId) : "",
       offerType: b.offerType ?? "percentage",
       discountValue: String(b.discountValue ?? ""),
       maxDiscountCap: String(b.maxDiscountCap ?? ""),
@@ -728,7 +760,7 @@ export default function BannersPage() {
     const next = {};
     if (!form.title.trim()) next.title = "Title is required.";
 
-    if (form.offerType !== "free_delivery") {
+    if (!form.promotionId && form.offerType !== "free_delivery") {
       const val = parseFloat(String(form.discountValue).trim());
       if (!Number.isFinite(val) || val <= 0) next.discountValue = "Enter a valid discount value greater than zero.";
       if (form.offerType === "percentage" && val > 100) next.discountValue = "Percentage cannot exceed 100.";
@@ -758,11 +790,13 @@ export default function BannersPage() {
     const fd = new FormData();
     fd.append("title", form.title.trim());
     if (form.description.trim()) fd.append("description", form.description.trim());
-    fd.append("offerType", form.offerType);
-    if (form.offerType !== "free_delivery") {
+    // Always sent so an edit can also unlink ("" = no promotion).
+    fd.append("promotionId", form.promotionId ? String(form.promotionId) : "");
+    if (!form.promotionId) fd.append("offerType", form.offerType);
+    if (!form.promotionId && form.offerType !== "free_delivery") {
       fd.append("discountValue", String(parseFloat(String(form.discountValue))));
     }
-    if (form.offerType === "percentage" && form.maxDiscountCap) {
+    if (!form.promotionId && form.offerType === "percentage" && form.maxDiscountCap) {
       fd.append("maxDiscountCap", String(parseFloat(form.maxDiscountCap)));
     }
     fd.append("targetType", form.targetType);
@@ -928,6 +962,7 @@ export default function BannersPage() {
           categories={categories}
           subCategories={subCategories}
           zones={zones}
+          promotions={linkablePromotions}
         />
       </Modal>
 

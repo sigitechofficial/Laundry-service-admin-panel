@@ -52,6 +52,8 @@ import OrderAssignActionButton from "../order-modals/OrderAssignActionButton";
 import { canAdminAssignOrReassignFromBooking } from "../../../shared/adminAssignGate";
 import InvoiceDetailModal from "../invoice/InvoiceDetailModal";
 import IssueRefundModal from "./IssueRefundModal";
+import OrderPromotionsCard from "./OrderPromotionsCard";
+import PrintTagsToShopButton from "./PrintTagsToShopButton";
 import ChangePaymentMethodModal from "./ChangePaymentMethodModal";
 import {
   buildInvoiceView,
@@ -1325,6 +1327,7 @@ export default function OrderDetailsPage() {
                 {isFetchingInvoice ? "Loading..." : "View / Print Invoice"}
               </Button>
             ) : null}
+            {shopOwnerUserId ? <PrintTagsToShopButton bookingId={bookingId} /> : null}
             {canShowAdminAssign ? (
               <OrderAssignActionButton
                 booking={orderData}
@@ -2880,6 +2883,11 @@ export default function OrderDetailsPage() {
                     </strong>
                   </div>
                 </div>
+                <OrderPromotionsCard
+                  bookingId={orderId}
+                  currencySymbol={paymentCurrencySymbol}
+                  onChanged={refetchOrder}
+                />
                 {Number(extraTipAmount) > 0 ? (
                   <p className={styles.earningsFootnote}>
                     Post-complete extra tip {formatMoney(extraTipAmount, paymentCurrencySymbol)} is

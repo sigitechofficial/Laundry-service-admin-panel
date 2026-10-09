@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   Button,
   Field,
@@ -51,6 +51,20 @@ import {
   useSyncAgentWalletsMutation,
 } from "../../store/services/api";
 import { shopSettlementPath } from "../reports/reportUi";
+import {
+  AlreadySubmittedNotice,
+  DisabledReason,
+  RealMoneyCheck,
+  RemittanceNotes,
+  SettlementFigures,
+} from "./settlementActionParts";
+import {
+  NO_STRIPE_REASON,
+  cashStillToRecord,
+  figureAfter,
+  parseSettlementAmount,
+  settlementErrorMessage,
+} from "./settlementMoney";
 
 const isSuccess = (res) => res?.status === "1" || res?.status === 1;
 
@@ -64,14 +78,22 @@ const emptyActionModal = {
   shopId: null,
   agentId: null,
   agentName: "",
+  shopName: "",
   remittanceId: null,
   withdrawalId: null,
   currency: "",
-  maxAmount: 0,
+  cashDue: 0,
+  pending: 0,
+  payable: 0,
+  rowAmount: 0,
+  agentNote: "",
   amount: "",
   note: "",
   connectReady: true,
+  confirmedReal: false,
 };
+
+const SETTLEMENT_TABS = ["cash-due", "remittances", "withdrawals"];
 
 const TAB_ROW = {
   display: "flex",
@@ -152,8 +174,11 @@ const REMITTANCE_CSV_COLUMNS = [
   { header: "Email", value: (r) => (r.email === "-" ? "" : r.email) },
   { header: "Currency", value: (r) => r.currency || "" },
   { header: "Amount", value: (r) => csvFormat.money(r.amount) },
-  { header: "Note", value: (r) => (r.description === "-" ? "" : r.description) },
+  { header: "Agent note", value: (r) => r.note || "" },
+  { header: "Admin note", value: (r) => r.adminNote || "" },
+  { header: "Description", value: (r) => (r.description === "-" ? "" : r.description) },
   { header: "Submitted at", value: (r) => csvFormat.dateTime(r.submittedAtMs || null) },
+  { header: "Reviewed at", value: (r) => csvFormat.dateTime(r.reviewedAt || null) },
 ];
 
 const WITHDRAWAL_CSV_COLUMNS = [
@@ -197,8 +222,13 @@ function compareSettlementRows(a, b, sortBy, sortDir) {
 
 export default function AgentSettlement() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { success, error: showError } = useToaster();
-  const [tab, setTab] = useState("cash-due");
+  // `?tab=remittances` lets the shop detail page link straight to Pending remittances.
+  const [tab, setTab] = useState(() => {
+    const requested = searchParams.get("tab");
+    return SETTLEMENT_TABS.includes(requested) ? requested : "cash-due";
+  });
   const [searchTerm, setSearchTerm] = useState("");
   // Client-side sort for the remittance / withdrawal tabs (small, already-loaded pages).
   const [sortBy, setSortBy] = useState("submittedAtMs");
@@ -387,6 +417,7 @@ export default function AgentSettlement() {
         pendingLabel: formatAgentMoney(agent.pendingCashRemittance, agent),
         platformOwes: Number(agent.platformOwesAgent || 0),
         platformOwesLabel: formatAgentMoney(agent.platformOwesAgent, agent),
+        connectReady: Boolean(agent.connectAccountConnected),
         totalCashCollected: formatAgentMoney(agent.totalCashCollected, agent),
         totalCashCollectedRaw: Number(agent.totalCashCollected || 0),
         totalCashRemitted: formatAgentMoney(agent.totalCashRemitted, agent),
@@ -418,6 +449,9 @@ export default function AgentSettlement() {
         amount: Number(row.amount || 0),
         amountLabel: formatAgentMoney(row.amount, row),
         description: row.description || "-",
+        note: row.note || "",
+        adminNote: row.adminNote || "",
+        reviewedAt: row.reviewedAt || null,
         submittedAt: formatDate(row.createdAt, DATE_TIME_FORMAT),
         submittedAtMs: row.createdAt ? new Date(row.createdAt).getTime() || 0 : 0,
       })),
@@ -567,11 +601,15 @@ export default function AgentSettlement() {
   });
 
   const openActionModal = useCallback((type, row) => {
-    const maxAmount =
+    const cashDue = Number(row.cashDue || 0);
+    const pending = Number(row.pendingRemittance || 0);
+    const payable = Number(row.platformOwes || 0);
+    // Record cash pre-fills only what the shop has not already submitted itself.
+    const prefill =
       type === "cash-settlement"
-        ? Number(row.cashDue || 0)
+        ? cashStillToRecord(cashDue, pending)
         : type === "payout"
-          ? Number(row.platformOwes || 0)
+          ? payable
           : 0;
 
     setActionModal({
@@ -580,13 +618,19 @@ export default function AgentSettlement() {
       shopId: row.shopId || null,
       agentId: row.agentUserId || null,
       agentName: row.name,
+      shopName: row.shopName && row.shopName !== "-" ? row.shopName : row.name,
       remittanceId: type.includes("remittance") ? row.id : null,
       withdrawalId: type.includes("withdrawal") ? row.id : null,
       currency: row.currency,
-      maxAmount,
-      amount: maxAmount > 0 ? String(maxAmount.toFixed(2)) : "",
+      cashDue,
+      pending,
+      payable,
+      rowAmount: Number(row.amount || 0),
+      agentNote: row.note || "",
+      amount: prefill > 0 ? String(prefill.toFixed(2)) : "",
       note: "",
       connectReady: row.connectReady !== false,
+      confirmedReal: false,
     });
   }, []);
 
@@ -597,12 +641,40 @@ export default function AgentSettlement() {
   const handleSubmitAction = useCallback(async () => {
     if (actingRef.current || isActing) return;
 
-    const parsedAmount = parseFloat(actionModal.amount);
+    const isCash = actionModal.type === "cash-settlement";
+    const isPayout = actionModal.type === "payout";
+    const sendsRealMoney = isPayout || actionModal.type === "approve-withdrawal";
+
+    // Everything still due is already submitted by the shop: send the admin to
+    // Pending remittances instead of recording the same cash a second time.
     if (
-      (actionModal.type === "cash-settlement" || actionModal.type === "payout") &&
-      (!Number.isFinite(parsedAmount) || parsedAmount <= 0)
+      isCash &&
+      cashStillToRecord(actionModal.cashDue, actionModal.pending) <= 0 &&
+      actionModal.pending > 0
     ) {
+      closeActionModal();
+      switchTab("remittances");
+      return;
+    }
+
+    const parsedAmount = parseSettlementAmount(actionModal.amount);
+    if ((isCash || isPayout) && parsedAmount == null) {
       showError("Enter a valid amount");
+      return;
+    }
+    if (sendsRealMoney && (!actionModal.connectReady || !actionModal.confirmedReal)) {
+      showError(
+        actionModal.connectReady
+          ? "Tick the confirmation first — this sends real money now."
+          : NO_STRIPE_REASON
+      );
+      return;
+    }
+    if (
+      (actionModal.type === "reject-remittance" || actionModal.type === "reject-withdrawal") &&
+      !actionModal.note?.trim()
+    ) {
+      showError("A reason is required to reject");
       return;
     }
 
@@ -618,7 +690,7 @@ export default function AgentSettlement() {
       } else if (actionModal.type === "reject-remittance") {
         res = await rejectRemittance({
           remittanceId: actionModal.remittanceId,
-          body: { note: actionModal.note?.trim() || undefined },
+          body: { note: actionModal.note.trim() },
         }).unwrap();
       } else if (actionModal.type === "approve-withdrawal") {
         if (!actionModal.withdrawalId) {
@@ -634,15 +706,11 @@ export default function AgentSettlement() {
           showError("Missing withdrawal id");
           return;
         }
-        if (!actionModal.note?.trim()) {
-          showError("Rejection note is required");
-          return;
-        }
         res = await rejectWithdrawal({
           withdrawalId: actionModal.withdrawalId,
           body: { note: actionModal.note.trim() },
         }).unwrap();
-      } else if (actionModal.type === "cash-settlement") {
+      } else if (isCash) {
         if (!actionModal.shopId) {
           showError("This row has no shop id");
           return;
@@ -654,7 +722,7 @@ export default function AgentSettlement() {
             note: actionModal.note?.trim() || undefined,
           },
         }).unwrap();
-      } else if (actionModal.type === "payout") {
+      } else if (isPayout) {
         if (!actionModal.shopId) {
           showError("This row has no shop id");
           return;
@@ -675,7 +743,7 @@ export default function AgentSettlement() {
         showError(res?.message || "Action failed");
       }
     } catch (err) {
-      showError(err?.data?.message || "Action failed");
+      showError(settlementErrorMessage(err, "Action failed"));
     } finally {
       actingRef.current = false;
     }
@@ -691,6 +759,7 @@ export default function AgentSettlement() {
     rejectWithdrawal,
     showError,
     success,
+    switchTab,
   ]);
 
   const handleSyncWallets = useCallback(async () => {
@@ -798,14 +867,17 @@ export default function AgentSettlement() {
             >
               Record
             </Button>
-            <Button
-              size="sm"
-              variant="secondary"
-              disabled={!row.shopId || row.platformOwes <= 0 || isActing || row.connectReady === false}
-              onClick={() => openActionModal("payout", row)}
-            >
-              Pay to Connect
-            </Button>
+            <DisabledReason reason={row.connectReady ? null : NO_STRIPE_REASON}>
+              <Button
+                size="sm"
+                variant="secondary"
+                disabled={!row.shopId || row.platformOwes <= 0 || isActing || !row.connectReady}
+                aria-label={row.connectReady ? undefined : `Pay to Connect — ${NO_STRIPE_REASON}`}
+                onClick={() => openActionModal("payout", row)}
+              >
+                Pay to Connect
+              </Button>
+            </DisabledReason>
           </DirectoryActions>
         ),
       },
@@ -835,6 +907,16 @@ export default function AgentSettlement() {
         sortable: true,
         sortKey: "amount",
         render: (row) => <DirectoryMoney>{row.amountLabel}</DirectoryMoney>,
+      },
+      {
+        key: "notes",
+        header: "Notes",
+        render: (row) => (
+          <RemittanceNotes
+            row={{ ...row, description: row.description === "-" ? "" : row.description }}
+            formatReviewed={(value) => formatDate(value, DATE_TIME_FORMAT)}
+          />
+        ),
       },
       {
         key: "submittedAt",
@@ -972,8 +1054,140 @@ export default function AgentSettlement() {
     }
   }, [actionModal.type]);
 
-  const showAmountField =
-    actionModal.type === "cash-settlement" || actionModal.type === "payout";
+  const modalMoney = (amount) => formatAgentMoney(amount, actionModal);
+  const isCashModal = actionModal.type === "cash-settlement";
+  const isPayoutModal = actionModal.type === "payout";
+  const isRemittanceModal =
+    actionModal.type === "confirm-remittance" || actionModal.type === "reject-remittance";
+  const isWithdrawalModal =
+    actionModal.type === "approve-withdrawal" || actionModal.type === "reject-withdrawal";
+  const modalSendsRealMoney = isPayoutModal || actionModal.type === "approve-withdrawal";
+  const modalNeedsReason =
+    actionModal.type === "reject-remittance" || actionModal.type === "reject-withdrawal";
+  const modalCashToRecord = cashStillToRecord(actionModal.cashDue, actionModal.pending);
+  const cashAlreadySubmitted =
+    isCashModal && modalCashToRecord <= 0 && actionModal.pending > 0;
+  const showAmountField = (isCashModal && !cashAlreadySubmitted) || isPayoutModal;
+  const modalAmount = parseSettlementAmount(actionModal.amount);
+  const modalMaxAmount = isCashModal ? modalCashToRecord : actionModal.payable;
+  const modalAmountTooHigh =
+    showAmountField && modalAmount != null && modalAmount > modalMaxAmount + 0.005;
+  const modalAmountLabel = modalAmount != null ? modalMoney(modalAmount) : "";
+
+  const modalPrimaryLabel = isActing
+    ? modalSendsRealMoney
+      ? "Sending…"
+      : "Saving…"
+    : isCashModal
+      ? cashAlreadySubmitted
+        ? "Open Pending remittances"
+        : modalAmountLabel
+          ? `Record ${modalAmountLabel} cash received`
+          : "Record cash received"
+      : isPayoutModal
+        ? modalAmountLabel
+          ? `Send ${modalAmountLabel} to Stripe Connect`
+          : "Send to Stripe Connect"
+        : actionModal.type === "confirm-remittance"
+          ? `Confirm ${modalMoney(actionModal.rowAmount)} remittance`
+          : actionModal.type === "reject-remittance"
+            ? "Reject remittance"
+            : actionModal.type === "approve-withdrawal"
+              ? `Approve & send ${modalMoney(actionModal.rowAmount)} to Stripe Connect`
+              : actionModal.type === "reject-withdrawal"
+                ? "Reject withdrawal"
+                : "Save";
+
+  const modalPrimaryDisabled =
+    isActing ||
+    (showAmountField && (modalAmount == null || modalAmountTooHigh)) ||
+    (modalSendsRealMoney && (!actionModal.connectReady || !actionModal.confirmedReal)) ||
+    (modalNeedsReason && !actionModal.note?.trim());
+
+  const modalDescription = isCashModal
+    ? "Cash the shop handed over to you. Recording it lowers the cash still due."
+    : isPayoutModal
+      ? "Sends card earnings to the shop's Stripe Connect account immediately."
+      : actionModal.type === "confirm-remittance"
+        ? "The shop says it handed over this cash. Confirm only once you have received it."
+        : actionModal.type === "reject-remittance"
+          ? "The amount goes back into the shop's cash still due."
+          : actionModal.type === "approve-withdrawal"
+            ? "Transfers this amount to the shop's Stripe Connect account immediately."
+            : actionModal.type === "reject-withdrawal"
+              ? "Releases the reserved amount back to the shop's wallet."
+              : undefined;
+
+  const modalFigures = isCashModal
+    ? [
+        { label: "Shop", value: actionModal.shopName || "—" },
+        {
+          label: "Cash still due",
+          value: modalMoney(actionModal.cashDue),
+          tone: "warning",
+          hint:
+            actionModal.pending > 0
+              ? `${modalMoney(actionModal.pending)} of this is already submitted by the shop and waiting in Pending remittances`
+              : null,
+        },
+        actionModal.pending > 0 && !cashAlreadySubmitted
+          ? { label: "You can record now", value: modalMoney(modalCashToRecord) }
+          : null,
+        cashAlreadySubmitted
+          ? null
+          : {
+              label: "After this: cash still due",
+              value:
+                modalAmount != null
+                  ? modalMoney(figureAfter(actionModal.cashDue, modalAmount))
+                  : "—",
+              strong: true,
+            },
+      ]
+    : isPayoutModal
+      ? [
+          { label: "Shop", value: actionModal.shopName || "—" },
+          {
+            label: "Still payable",
+            value: modalMoney(actionModal.payable),
+            tone: "success",
+            hint: "Card earnings not yet sent to Stripe Connect",
+          },
+          {
+            label: "After this: still payable",
+            value:
+              modalAmount != null
+                ? modalMoney(figureAfter(actionModal.payable, modalAmount))
+                : "—",
+            strong: true,
+          },
+        ]
+      : isRemittanceModal
+        ? [
+            {
+              label: "Shop / agent",
+              value: actionModal.agentName || "—",
+              hint: actionModal.shopId ? `Shop #${actionModal.shopId}` : null,
+            },
+            { label: "Remittance amount", value: modalMoney(actionModal.rowAmount), strong: true },
+            actionModal.agentNote
+              ? { label: "Agent note", value: actionModal.agentNote }
+              : null,
+          ]
+        : isWithdrawalModal
+          ? [
+              {
+                label: "Shop / agent",
+                value: actionModal.agentName || "—",
+                hint: actionModal.shopId ? `Shop #${actionModal.shopId}` : null,
+              },
+              { label: "Withdrawal amount", value: modalMoney(actionModal.rowAmount), strong: true },
+              {
+                label: "Stripe Connect",
+                value: actionModal.connectReady ? "Connected" : "Not connected",
+              },
+            ]
+          : [];
 
   const remittanceTotalPages = Math.max(
     1,
@@ -1309,78 +1523,85 @@ export default function AgentSettlement() {
       <Modal
         open={actionModal.open}
         title={modalTitle}
-        description={`Agent: ${actionModal.agentName}${
-          actionModal.maxAmount > 0 && showAmountField
-            ? ` — max ${formatAgentMoney(actionModal.maxAmount, actionModal)}`
-            : ""
-        }${
-          actionModal.type === "approve-withdrawal" && !actionModal.connectReady
-            ? " — Stripe Connect onboarding required before approve"
-            : ""
-        }`}
+        description={modalDescription}
         onClose={closeActionModal}
         onPrimary={handleSubmitAction}
-        primaryLabel={
-          isActing
-            ? "Saving…"
-            : actionModal.type === "confirm-remittance" ||
-                actionModal.type === "approve-withdrawal"
-              ? "Approve"
-              : actionModal.type === "reject-remittance" ||
-                  actionModal.type === "reject-withdrawal"
-                ? "Reject"
-                : "Save"
-        }
+        primaryLabel={modalPrimaryLabel}
         secondaryLabel="Cancel"
-        danger={
-          actionModal.type === "reject-remittance" ||
-          actionModal.type === "reject-withdrawal"
-        }
-        primaryDisabled={
-          (actionModal.type === "approve-withdrawal" && !actionModal.connectReady) ||
-          (actionModal.type === "payout" && !actionModal.connectReady)
-        }
+        secondaryDisabled={isActing}
+        closeOnBackdrop={!isActing}
+        danger={modalNeedsReason}
+        primaryDisabled={modalPrimaryDisabled}
       >
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <SettlementFigures rows={modalFigures} />
+          {cashAlreadySubmitted ? (
+            <AlreadySubmittedNotice>
+              {modalMoney(actionModal.pending)} is already submitted by the shop — confirm it in
+              Pending remittances.
+            </AlreadySubmittedNotice>
+          ) : null}
           {showAmountField ? (
-            <Field label="Amount" htmlFor="settlement-amount">
+            <Field
+              label="Amount"
+              htmlFor="settlement-amount"
+              error={
+                modalAmountTooHigh
+                  ? `More than the ${modalMoney(modalMaxAmount)} ${
+                      isCashModal ? "you can record now" : "still payable"
+                    }`
+                  : undefined
+              }
+            >
               <Input
                 id="settlement-amount"
                 type="number"
                 min={0}
                 step="0.01"
                 value={actionModal.amount}
+                disabled={isActing}
                 onChange={(e) =>
                   setActionModal((prev) => ({ ...prev, amount: e.target.value }))
                 }
               />
             </Field>
           ) : null}
-          <Field
-            label={
-              actionModal.type === "reject-withdrawal"
-                ? "Rejection reason (required)"
-                : "Note (optional)"
-            }
-            htmlFor="settlement-note"
-          >
-            <Textarea
-              id="settlement-note"
-              rows={3}
-              value={actionModal.note}
-              onChange={(e) =>
-                setActionModal((prev) => ({ ...prev, note: e.target.value }))
-              }
-              placeholder={
-                actionModal.type === "reject-remittance" ||
-                actionModal.type === "reject-withdrawal"
-                  ? "Reason for rejection"
-                  : actionModal.type === "approve-withdrawal"
-                    ? "Optional approval note"
-                    : "Optional note"
+          {modalSendsRealMoney && !actionModal.connectReady ? (
+            <AlreadySubmittedNotice>{NO_STRIPE_REASON}.</AlreadySubmittedNotice>
+          ) : null}
+          {cashAlreadySubmitted ? null : (
+            <Field
+              label={modalNeedsReason ? "Rejection reason (required)" : "Note (optional)"}
+              htmlFor="settlement-note"
+            >
+              <Textarea
+                id="settlement-note"
+                rows={3}
+                value={actionModal.note}
+                disabled={isActing}
+                onChange={(e) =>
+                  setActionModal((prev) => ({ ...prev, note: e.target.value }))
+                }
+                placeholder={
+                  modalNeedsReason
+                    ? "Reason for rejection"
+                    : actionModal.type === "approve-withdrawal"
+                      ? "Optional approval note"
+                      : "Optional note"
+                }
+              />
+            </Field>
+          )}
+          {modalSendsRealMoney && actionModal.connectReady ? (
+            <RealMoneyCheck
+              id="settlement-real-money"
+              checked={actionModal.confirmedReal}
+              disabled={isActing}
+              onChange={(checked) =>
+                setActionModal((prev) => ({ ...prev, confirmedReal: checked }))
               }
             />
-          </Field>
+          ) : null}
         </div>
       </Modal>
 
@@ -1394,7 +1615,19 @@ export default function AgentSettlement() {
           { label: "Agent", value: viewRow?.name },
           { label: "Email", value: viewRow?.email },
           { label: "Amount", value: viewRow?.amountLabel },
-          { label: "Note", value: viewRow?.description },
+          ...(viewRow?.kind === "remit"
+            ? [
+                { label: "Agent note", value: viewRow?.note || "—" },
+                { label: "Admin note", value: viewRow?.adminNote || "—" },
+                { label: "Description", value: viewRow?.description },
+                viewRow?.reviewedAt
+                  ? {
+                      label: "Reviewed",
+                      value: formatDate(viewRow.reviewedAt, DATE_TIME_FORMAT),
+                    }
+                  : null,
+              ]
+            : [{ label: "Note", value: viewRow?.description }]),
           {
             label: viewRow?.kind === "withdrawal" ? "Requested" : "Submitted",
             value: viewRow?.submittedAt,
