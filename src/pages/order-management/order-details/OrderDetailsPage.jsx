@@ -53,6 +53,7 @@ import { canAdminAssignOrReassignFromBooking } from "../../../shared/adminAssign
 import InvoiceDetailModal from "../invoice/InvoiceDetailModal";
 import IssueRefundModal from "./IssueRefundModal";
 import OrderPromotionsCard from "./OrderPromotionsCard";
+import PrintTagsToShopButton from "./PrintTagsToShopButton";
 import ChangePaymentMethodModal from "./ChangePaymentMethodModal";
 import {
   buildInvoiceView,
@@ -1326,6 +1327,7 @@ export default function OrderDetailsPage() {
                 {isFetchingInvoice ? "Loading..." : "View / Print Invoice"}
               </Button>
             ) : null}
+            {shopOwnerUserId ? <PrintTagsToShopButton bookingId={bookingId} /> : null}
             {canShowAdminAssign ? (
               <OrderAssignActionButton
                 booking={orderData}
