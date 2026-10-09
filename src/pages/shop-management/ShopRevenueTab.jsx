@@ -777,7 +777,7 @@ export default function ShopRevenueTab({ shopId, fallbackSymbol = "£" }) {
         {payload.definitions?.totalEarnings ||
           "Total earnings are lifetime shop commission. Period chips only change collected order stats, the chart, and logs."}{" "}
         {payload.definitions?.withdrawn ||
-          "Admin payout releases card earnings into the wallet. The agent withdraws to Stripe Connect after that."}
+          "Admin payout is an immediate Stripe Connect transfer of card earnings to the shop's connected account. Agent withdrawal requests also go to Stripe Connect after admin approval."}
       </p>
     </div>
   );

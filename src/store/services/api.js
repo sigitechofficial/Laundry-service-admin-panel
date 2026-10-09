@@ -2787,6 +2787,7 @@ export const {
   useCreateShopPayoutOnboardingLinkMutation,
   useGetAgentSettlementQuery,
   useGetAgentSettlementDetailQuery,
+  useLazyGetAgentSettlementDetailQuery,
   useGetNotifyLogsQuery,
   useLazySearchNotificationRecipientsQuery,
   usePreviewAdminNotificationMutation,
