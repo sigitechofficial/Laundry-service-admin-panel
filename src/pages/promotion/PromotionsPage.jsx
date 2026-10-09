@@ -463,6 +463,128 @@ function CouponCodesBuilder({ codes, onChange, onDuplicate }) {
 
 /* ─── Main Component ─────────────────────────────────────────────────────── */
 
+const labelOf = (options, value) => options.find((o) => o.value === value)?.label || value || "—";
+const fmtDate = (v) => (v ? dayjs(v).format("DD MMM YYYY, HH:mm") : null);
+
+function ViewStat({ label, value, hint }) {
+  return (
+    <div className="rounded-lg bg-white border border-gray-200 px-3 py-2 min-w-0">
+      <p className="m-0 text-[11px] font-semibold uppercase tracking-wide text-gray-500">{label}</p>
+      <p className="m-0 text-lg font-semibold text-gray-900 tabular-nums">{value}</p>
+      {hint ? <p className="m-0 text-[11px] text-gray-500 truncate">{hint}</p> : null}
+    </div>
+  );
+}
+
+function ViewSection({ title, children }) {
+  return (
+    <section>
+      <h4 className="m-0 mb-1 text-xs font-bold uppercase tracking-wide text-gray-500">{title}</h4>
+      {children}
+    </section>
+  );
+}
+
+/** Read-only promotion summary: what it gives, to whom, under which rules, and when. */
+function PromotionViewBody({ promotion: p }) {
+  const zones = parseJson(p.zoneIds, []) || [];
+  const days = parseJson(p.recurringDays, []) || [];
+  const dayText = days.length
+    ? WEEKDAYS.filter((d) => days.includes(d.value)).map((d) => d.label).join(", ")
+    : null;
+  const windowText = p.recurringStartTime && p.recurringEndTime
+    ? `${String(p.recurringStartTime).slice(0, 5)}–${String(p.recurringEndTime).slice(0, 5)}`
+    : null;
+  const coupons = p.couponCodes || [];
+  const used = Number(p.globalUsedCount || 0);
+  const limit = p.globalUsageLimit;
+  const subtotalRule = [
+    p.minSubtotal != null && p.minSubtotal !== "" ? `min ${money(p.minSubtotal)}` : null,
+    p.maxSubtotal != null && p.maxSubtotal !== "" ? `max ${money(p.maxSubtotal)}` : null,
+  ].filter(Boolean).join(" · ");
+  const periodLimits = [
+    p.perDayLimit ? `${p.perDayLimit} / day` : null,
+    p.perWeekLimit ? `${p.perWeekLimit} / week` : null,
+  ].filter(Boolean).join(" · ");
+
+  return (
+    <div className="space-y-5">
+      <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="m-0 text-xs font-semibold uppercase tracking-wide text-gray-500">{benefitLabel(p.benefitType)}</p>
+            <p className="m-0 mt-1 text-2xl font-bold text-gray-900 break-words">{valueLabel(p)}</p>
+            <p className="m-0 mt-1 text-sm text-gray-600">
+              {p.activationType === "coupon_required" ? "Needs a coupon code" : "Applies automatically"}
+              {" · "}
+              {p.zoneScopeMode === "all" ? "All zones" : `${labelOf(ZONE_SCOPES, p.zoneScopeMode)} (${zones.length})`}
+            </p>
+          </div>
+          <DirectoryDotPill tone={STATUS_TONES[p.status] || "neutral"}>{statusLabel(p.status)}</DirectoryDotPill>
+        </div>
+        <div className="grid grid-cols-3 gap-2 mt-4">
+          <ViewStat label="Used" value={limit ? `${used} / ${limit}` : used} hint={limit ? `${Math.max(0, limit - used)} left` : "No limit"} />
+          <ViewStat label="Per customer" value={p.perCustomerLimit ?? "∞"} hint="uses each" />
+          <ViewStat label="Coupons" value={coupons.length} hint={coupons.length ? null : "None"} />
+        </div>
+      </div>
+
+      {p.description ? <p className="m-0 text-sm text-gray-700">{p.description}</p> : null}
+
+      <ViewSection title="Who & where">
+        <DirectoryViewFields
+          fields={[
+            { label: "Activation", value: labelOf(ACTIVATION_TYPES, p.activationType) },
+            { label: "Visibility", value: labelOf(VISIBILITY_OPTIONS, p.visibility) },
+            { label: "Zones", value: p.zoneScopeMode === "all" ? "All zones" : `${labelOf(ZONE_SCOPES, p.zoneScopeMode)} · ${zones.length} zone${zones.length === 1 ? "" : "s"}` },
+            ITEM_SCOPE_TYPES.includes(p.benefitType) ? { label: "Applies to", value: labelOf(ITEM_TARGET_TYPES, p.targetType) } : null,
+          ]}
+        />
+      </ViewSection>
+
+      <ViewSection title="Rules">
+        <DirectoryViewFields
+          fields={[
+            subtotalRule ? { label: "Basket subtotal", value: subtotalRule } : null,
+            p.minQuantity ? { label: "Min items", value: p.minQuantity } : null,
+            periodLimits ? { label: "Limits", value: periodLimits } : null,
+            { label: "Priority", value: `${p.priority ?? 50} (higher wins)` },
+            { label: "Stackable", value: p.stackable ? `Yes${p.stackGroup ? ` · group ${p.stackGroup}` : ""}` : "No — best single offer" },
+            { label: "Repricing", value: labelOf(REPRICING_POLICIES, p.repricingPolicy) },
+          ]}
+        />
+      </ViewSection>
+
+      <ViewSection title="When">
+        <DirectoryViewFields
+          fields={[
+            { label: "Starts", value: fmtDate(p.startDate) || "When published" },
+            { label: "Ends", value: fmtDate(p.endDate) || "No end date" },
+            dayText || windowText ? { label: "Only on", value: [dayText, windowText].filter(Boolean).join(" · ") } : null,
+          ]}
+        />
+      </ViewSection>
+
+      {coupons.length > 0 && (
+        <ViewSection title="Coupon codes">
+          <div className="flex flex-wrap gap-2">
+            {coupons.map((c) => (
+              <span
+                key={c.id || c.code}
+                className={`font-mono text-xs px-2 py-1 rounded-md border ${c.isActive === false ? "border-gray-200 text-gray-400 line-through" : "border-gray-300 text-gray-800 bg-white"}`}
+                title={c.isActive === false ? "Deactivated" : undefined}
+              >
+                {c.code}
+                {c.usedCount ? <span className="text-gray-500"> · {c.usedCount} used</span> : null}
+              </span>
+            ))}
+          </div>
+        </ViewSection>
+      )}
+    </div>
+  );
+}
+
 export default function PromotionsPage() {
   const toast = useToaster();
   const [page, setPage] = useState(1);
@@ -1128,31 +1250,8 @@ export default function PromotionsPage() {
       </Modal>
 
       {/* ─── View Modal ───────────────────────────────────────── */}
-      <DirectoryViewModal open={!!viewRow} onClose={() => setViewRow(null)} title={viewRow?.name || "Promotion"}>
-        {viewRow && (
-          <div className="space-y-4">
-            <DirectoryMetrics
-              items={[
-                { label: "Status", value: statusLabel(viewRow.status) },
-                { label: "Value", value: valueLabel(viewRow) },
-                { label: "Used", value: viewRow.globalUsedCount || 0, hint: `Limit ${viewRow.globalUsageLimit || "∞"}` },
-                { label: "Coupons", value: viewRow.couponCodes?.length || 0 },
-              ]}
-            />
-            <DirectoryViewFields
-              fields={[
-                { label: "Benefit", value: benefitLabel(viewRow.benefitType) },
-                { label: "Zone scope", value: viewRow.zoneScopeMode === "all" ? "All zones" : `${viewRow.zoneScopeMode} · ${(parseJson(viewRow.zoneIds, []) || []).length} zones` },
-                { label: "Activation", value: viewRow.activationType === "coupon_required" ? "Coupon" : "Auto" },
-                { label: "Priority", value: viewRow.priority },
-                { label: "Stackable", value: viewRow.stackable ? `Yes${viewRow.stackGroup ? ` (${viewRow.stackGroup})` : ""}` : "No" },
-                { label: "Per customer", value: viewRow.perCustomerLimit ?? "∞" },
-                { label: "Start", value: viewRow.startDate ? dayjs(viewRow.startDate).format("DD MMM YYYY HH:mm") : "—" },
-                { label: "End", value: viewRow.endDate ? dayjs(viewRow.endDate).format("DD MMM YYYY HH:mm") : "—" },
-              ]}
-            />
-          </div>
-        )}
+      <DirectoryViewModal open={!!viewRow} onClose={() => setViewRow(null)} title={viewRow?.name || "Promotion"} size="md">
+        {viewRow && <PromotionViewBody promotion={viewRow} />}
       </DirectoryViewModal>
 
       {/* ─── Publish Confirm ──────────────────────────────────── */}
