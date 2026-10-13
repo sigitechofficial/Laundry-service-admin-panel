@@ -164,8 +164,16 @@ function ValueEditor({ condition, onChange, zones, catalogOptions }) {
 
 /* ─── Builder ────────────────────────────────────────────────────────────── */
 
-export default function PromotionConditionBuilder({ conditions, onChange, zones = [], catalogOptions = {} }) {
-  const add = () => onChange([...conditions, newCondition()]);
+/**
+ * `hidden(conditionType)` → { reason, mustRemove } for a type that is not offered here
+ * (the promotion's type or another step already covers it), or null. A condition that
+ * already uses such a type stays visible with the reason, so nothing vanishes on edit.
+ */
+export default function PromotionConditionBuilder({ conditions, onChange, zones = [], catalogOptions = {}, hidden = () => null }) {
+  const offered = CONDITION_TYPE_OPTIONS.filter((o) => !hidden(o.value));
+  // Start a new row on a common rule that is offered here.
+  const firstType = ["FIRST_ORDER", "PAYMENT_METHOD"].find((t) => offered.some((o) => o.value === t)) || offered[0]?.value;
+  const add = () => onChange([...conditions, newCondition(firstType)]);
   const remove = (idx) => onChange(conditions.filter((_, i) => i !== idx));
   const patch = (idx, next) => onChange(conditions.map((c, i) => (i === idx ? { ...c, ...next } : c)));
 
@@ -189,6 +197,8 @@ export default function PromotionConditionBuilder({ conditions, onChange, zones 
       {conditions.map((c, i) => {
         const def = CONDITION_DEFS[c.conditionType];
         const error = conditionError(c);
+        const covered = hidden(c.conditionType);
+        const typeOptions = CONDITION_TYPE_OPTIONS.filter((o) => o.value === c.conditionType || !hidden(o.value));
         return (
           <div key={i} className="bg-gray-50 rounded-lg p-3 space-y-2">
             <div className="grid grid-cols-12 gap-2 items-center">
@@ -198,7 +208,7 @@ export default function PromotionConditionBuilder({ conditions, onChange, zones 
               <div className="col-span-5">
                 <Select
                   aria-label="Condition type"
-                  options={def ? CONDITION_TYPE_OPTIONS : [{ value: c.conditionType, label: c.conditionType }, ...CONDITION_TYPE_OPTIONS]}
+                  options={def ? typeOptions : [{ value: c.conditionType, label: c.conditionType }, ...typeOptions]}
                   value={c.conditionType}
                   onChange={(v) => changeType(i, v)}
                 />
@@ -226,12 +236,19 @@ export default function PromotionConditionBuilder({ conditions, onChange, zones 
               />
             )}
             {error && <p className="text-xs text-red-600">{error}</p>}
+            {covered && (
+              <p className={`text-xs rounded-md px-2 py-1.5 border ${covered.mustRemove ? "text-red-700 bg-red-50 border-red-200" : "text-amber-700 bg-amber-50 border-amber-200"}`}>
+                {covered.reason}
+              </p>
+            )}
           </div>
         );
       })}
-      <button type="button" onClick={add} className="text-blue-600 text-sm font-medium hover:text-blue-800">
-        + Add Condition
-      </button>
+      {offered.length > 0 && (
+        <button type="button" onClick={add} className="text-blue-600 text-sm font-medium hover:text-blue-800">
+          + Add Condition
+        </button>
+      )}
     </div>
   );
 }
