@@ -13,9 +13,10 @@ dist
 dist-ssr
 *.local
 
-# Environment variables
+# Environment variables — never commit real keys. Example templates are OK.
 .env
 .env.local
+!.env.example
 
 # Generated from .env via npm run sync:fcm-sw (contains Firebase web config)
 public/firebase-messaging-sw.js
