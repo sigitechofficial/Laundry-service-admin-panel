@@ -283,7 +283,10 @@ function buildPayload(form) {
     targetType,
     targetIds: itemScope && targetType !== "all" ? form.targetIds.map(Number) : null,
     zoneScopeMode: form.zoneScopeMode,
-    zoneIds: form.zoneScopeMode !== "all" ? form.zoneIds.map(Number) : null,
+    zoneIds:
+      form.zoneScopeMode !== "all"
+        ? form.zoneIds.map(Number).filter((n) => Number.isInteger(n) && n > 0)
+        : null,
     zoneOverrides: form.zoneOverrides
       .filter((zo) => overrideAllowed(form, zo.zoneId))
       .map((zo) => ({
@@ -723,6 +726,12 @@ export default function PromotionsPage() {
 
   const handlePublish = async () => {
     if (!publishTarget) return;
+    const scope = publishTarget.zoneScopeMode || "all";
+    const zones = parseJson(publishTarget.zoneIds, []) || [];
+    if (scope !== "all" && !zones.length) {
+      toast.error("This draft has no zones saved. Open Edit → Geography, select zones, then Save on Review before publishing.");
+      return;
+    }
     try {
       const res = await publishPromotion({ id: publishTarget.id }).unwrap();
       toast.success(res?.data?.status === "scheduled" ? "Promotion scheduled" : "Promotion published & active");
