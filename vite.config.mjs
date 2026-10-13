@@ -68,15 +68,16 @@ function amplifyApiDefault(branch) {
 
 const AMPLIFY_PRODUCTION_DEFAULTS = {
   VITE_API_BASE_URL: "https://prodlaundry.sigisolutions.net/",
-  VITE_GOOGLE_MAPS_KEY: "AIzaSyADTqd6DhbPp9HHY93FzP4ySblD4fx-bBE",
-  VITE_FIREBASE_API_KEY: "AIzaSyDdZLCsf0CQN_DIkE0mAOmRv9_pvlRq2qg",
-  VITE_FIREBASE_AUTH_DOMAIN: "laundry-app-bf43c.firebaseapp.com",
-  VITE_FIREBASE_PROJECT_ID: "laundry-app-bf43c",
-  VITE_FIREBASE_STORAGE_BUCKET: "laundry-app-bf43c.firebasestorage.app",
-  VITE_FIREBASE_MESSAGING_SENDER_ID: "880600214434",
-  VITE_FIREBASE_APP_ID: "1:880600214434:web:9f770646a7fcf4d95ee0fb",
+  // Prefer Amplify env VITE_GOOGLE_MAPS_KEY; fallback for prod builds without console env.
+  VITE_GOOGLE_MAPS_KEY: "AIzaSyB87Ri7PfcT3Lx3_Av7bfFBcivhEgqJhOk",
+  VITE_FIREBASE_API_KEY: "AIzaSyApYXQsPo4aMFo3tEsOg1enAo707Bxq5pQ",
+  VITE_FIREBASE_AUTH_DOMAIN: "justdrycleansltd.firebaseapp.com",
+  VITE_FIREBASE_PROJECT_ID: "justdrycleansltd",
+  VITE_FIREBASE_STORAGE_BUCKET: "justdrycleansltd.firebasestorage.app",
+  VITE_FIREBASE_MESSAGING_SENDER_ID: "475975874912",
+  VITE_FIREBASE_APP_ID: "1:475975874912:web:de3b0055f6467d0762c605",
   VITE_FIREBASE_VAPID_KEY:
-    "BHqdkpwqEH9B9Rnw_lsvJz9cfuNyo-c8wPXLLexm6X9E0gryGLxztXXvGfqazZL7frP2D6GL9B1MO9JObNiYrRE",
+    "BFohnl1Bjomlc23ckMV-X79dFQS-asckaSFyGFxPnGsTjzQeZXdgBAhiTZysp181XDGZ6vEnsNgbN7eVPoBXtYI",
 };
 
 function envValue(env, key) {

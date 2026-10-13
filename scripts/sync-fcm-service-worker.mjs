@@ -1,8 +1,8 @@
 /**
  * Writes public/firebase-messaging-sw.js from process.env, .env / .env.local.
  * Uses LAUNDRY_FIREBASE_* or VITE_FIREBASE_* (same as the main app).
- * Amplify has no .env file — fall back to the last working laundry-app-bf43c
- * web config so the production worker is not a no-op.
+ * Amplify has no .env file — fall back to justdrycleansltd web config
+ * so the production worker is not a no-op.
  */
 import fs from "fs";
 import path from "path";
@@ -12,12 +12,12 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(__dirname, "..");
 
 const DEFAULT_FIREBASE_WEB_CONFIG = {
-  apiKey: "AIzaSyDdZLCsf0CQN_DIkE0mAOmRv9_pvlRq2qg",
-  authDomain: "laundry-app-bf43c.firebaseapp.com",
-  projectId: "laundry-app-bf43c",
-  storageBucket: "laundry-app-bf43c.firebasestorage.app",
-  messagingSenderId: "880600214434",
-  appId: "1:880600214434:web:9f770646a7fcf4d95ee0fb",
+  apiKey: "AIzaSyApYXQsPo4aMFo3tEsOg1enAo707Bxq5pQ",
+  authDomain: "justdrycleansltd.firebaseapp.com",
+  projectId: "justdrycleansltd",
+  storageBucket: "justdrycleansltd.firebasestorage.app",
+  messagingSenderId: "475975874912",
+  appId: "1:475975874912:web:de3b0055f6467d0762c605",
 };
 
 function parseEnvFile(filePath) {
