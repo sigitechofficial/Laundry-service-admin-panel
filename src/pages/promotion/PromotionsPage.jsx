@@ -180,7 +180,7 @@ const INITIAL_FORM = () => ({
   recurringStartTime: "",
   recurringEndTime: "",
   activationType: "automatic",
-  visibility: "hidden",
+  visibility: "public",
   priority: "50",
   stackable: false,
   stackGroup: "",
@@ -1010,6 +1010,14 @@ export default function PromotionsPage() {
               <Field label="Customer Visibility">
                 <Select options={VISIBILITY_OPTIONS} value={form.visibility} onChange={(v) => setField("visibility", v)} />
               </Field>
+              {form.visibility === "hidden" && (
+                <p className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+                  Hidden never appears in customer/agent Offers. Automatic discounts can still apply at invoice, but the apps show “Special discount” only after a hold exists — use Public if you want customers to see the offer name.
+                </p>
+              )}
+              <p className="text-xs text-gray-500">
+                Money applies when the shop invoices laundry (not at booking create). Basket min/max and min items are checked on the invoice subtotal.
+              </p>
             </div>
           </div>
         );
