@@ -19,7 +19,7 @@ import {
 } from "../../store/services/api";
 import { TbPlus } from "../../shared/icons/index";
 import {
-  TbDiscount, TbTruck, TbShoppingCart, TbMapPin, TbUsers, TbCalendarEvent,
+  TbDiscount, TbShoppingCart, TbMapPin, TbUsers, TbCalendarEvent,
   TbPlayerPlay, TbPlayerPause, TbCopy, TbArchive, TbEye, TbFlask, TbTarget, TbChartBar,
 } from "react-icons/tb";
 import { PromotionReportModal } from "./PromotionReport";
@@ -29,6 +29,9 @@ import PromotionConditionBuilder, { DayPicker } from "./PromotionConditionBuilde
 import PromotionSimulateModal from "./PromotionSimulateModal";
 import { CONDITION_DEFS, WEEKDAYS, conditionError, serializeCondition } from "./promotionConditions";
 import { BENEFIT_TYPES, STATUS_OPTIONS, STATUS_TONES } from "./promotionLabels";
+import {
+  FIRST_ORDER_TYPES, conditionHidden, isTypeLocked, lockedPerCustomerLimit, showsPeriodLimits, visibilityOffered,
+} from "./promotionTypeRules";
 
 /* ─── Constants ──────────────────────────────────────────────────────────── */
 
@@ -80,12 +83,6 @@ const VISIBILITY_OPTIONS = [
   { value: "private_code", label: "Private — code only" },
   { value: "targeted", label: "Targeted — specific audience" },
   { value: "hidden", label: "Hidden — internal only" },
-];
-
-const REPRICING_POLICIES = [
-  { value: "recalculate", label: "Recalculate — reapply with final items" },
-  { value: "revalidate", label: "Revalidate — keep if still qualifies" },
-  { value: "lock", label: "Lock — preserve original benefit" },
 ];
 
 const statusLabel = (s) => STATUS_OPTIONS.find((o) => o.value === s)?.label || s;
@@ -140,6 +137,13 @@ function valueFieldLabel(form) {
   if (bt === "basket_discount") return "£ off basket *";
   return "Discount (£) *";
 }
+
+/** The UK calendar day a promotion starts / ends on (the server's startDay / endDay). */
+const promotionDay = (p, which) => {
+  const day = which === "start" ? p?.startDay : p?.endDay;
+  const stored = which === "start" ? p?.startDate : p?.endDate;
+  return day || (stored ? dayjs(stored).format("YYYY-MM-DD") : "");
+};
 
 const parseJson = (v, fallback) => {
   if (v == null) return fallback;
@@ -220,8 +224,8 @@ function formFromPromotion(p) {
       maxDiscountCap: numStr(zo.maxDiscountCap),
       minSubtotal: numStr(zo.minSubtotal),
     })),
-    startDate: p.startDate ? dayjs(p.startDate).format("YYYY-MM-DD") : "",
-    endDate: p.endDate ? dayjs(p.endDate).format("YYYY-MM-DD") : "",
+    startDate: promotionDay(p, "start"),
+    endDate: promotionDay(p, "end"),
     recurringDays: parseJson(p.recurringDays, []) || [],
     recurringStartTime: p.recurringStartTime ? String(p.recurringStartTime).slice(0, 5) : "",
     recurringEndTime: p.recurringEndTime ? String(p.recurringEndTime).slice(0, 5) : "",
@@ -295,9 +299,9 @@ function buildPayload(form) {
         maxDiscountCap: cap ? numOrNull(zo.maxDiscountCap) : null,
         minSubtotal: numOrNull(zo.minSubtotal),
       })),
-    startDate: form.startDate ? dayjs(form.startDate).startOf("day").toISOString() : null,
-    // End of the chosen day, so the promotion runs through the whole end date.
-    endDate: form.endDate ? dayjs(form.endDate).endOf("day").toISOString() : null,
+    // Sent as calendar days: the server turns them into the start / end of that day in UK time.
+    startDate: form.startDate || null,
+    endDate: form.endDate || null,
     recurringDays: form.recurringDays.length ? [...form.recurringDays].sort((a, b) => a - b) : null,
     recurringStartTime: hasTimes ? form.recurringStartTime : null,
     recurringEndTime: hasTimes ? form.recurringEndTime : null,
@@ -307,9 +311,9 @@ function buildPayload(form) {
     stackable: form.stackable,
     stackGroup: form.stackable && form.stackGroup.trim() ? form.stackGroup.trim() : null,
     globalUsageLimit: numOrNull(form.globalUsageLimit),
-    perCustomerLimit: numOrNull(form.perCustomerLimit),
-    perDayLimit: numOrNull(form.perDayLimit),
-    perWeekLimit: numOrNull(form.perWeekLimit),
+    perCustomerLimit: numOrNull(lockedPerCustomerLimit(form)?.value ?? form.perCustomerLimit),
+    perDayLimit: showsPeriodLimits(bt) ? numOrNull(form.perDayLimit) : null,
+    perWeekLimit: showsPeriodLimits(bt) ? numOrNull(form.perWeekLimit) : null,
     minSubtotal: numOrNull(form.minSubtotal),
     maxSubtotal: numOrNull(form.maxSubtotal),
     minQuantity: numOrNull(form.minQuantity),
@@ -322,6 +326,77 @@ function buildPayload(form) {
       ...(c.usageLimit != null ? { usageLimit: c.usageLimit } : {}),
     })),
   };
+}
+
+const shortDay = (day) => dayjs(day).format("D MMM YYYY");
+
+/**
+ * The promotion in plain words, rebuilt as the admin types: what it gives, how it is
+ * activated, where, when and how often. Shown on every wizard step.
+ */
+function promotionSummary(form, zoneName) {
+  const bt = form.benefitType;
+  const value = valueLabel(form);
+  const valueSet = !needsValue(bt) || Number(form.discountValue) > 0;
+  const targetWord = { subCategory: "item", addon: "add-on", category: "category", service: "service" }[form.targetType] || "item";
+  const targets = form.targetType === "all"
+    ? "all items"
+    : `${form.targetIds.length || "no"} selected ${targetWord}${form.targetIds.length === 1 ? "" : "s"}`.replace("categorys", "categories");
+
+  let what;
+  if (!valueSet) what = `${benefitLabel(bt)} — value not set yet`;
+  else if (bt === "first_order_discount") what = `New customers get ${value} off their first order`;
+  else if (bt === "first_x_orders_discount") what = `Customers get ${value} off each of their first ${isPosInt(form.firstOrders) ? form.firstOrders : "N"} orders`;
+  else if (bt === "free_delivery") what = "Free delivery";
+  else if (bt === "delivery_discount") what = `${value} off the delivery fee`;
+  else if (bt === "cashback") what = `${value} cashback, added to the customer's credit after delivery`;
+  else if (bt === "fixed_price") what = value;
+  else if (ITEM_SCOPE_TYPES.includes(bt)) what = `${value} on ${targets}`;
+  else what = `${value} off the order`;
+
+  const codes = form.couponCodes.map((c) => c.code);
+  const how = form.activationType === "automatic"
+    ? "Applied automatically"
+    : codes.length ? `With code ${codes.slice(0, 3).join(", ")}${codes.length > 3 ? ` +${codes.length - 3}` : ""}` : "Needs a coupon code (none added yet)";
+
+  const zoneCount = form.zoneIds.length;
+  const zoneNames = zoneCount && zoneCount <= 2 ? form.zoneIds.map(zoneName).join(", ") : `${zoneCount} zones`;
+  const where = form.zoneScopeMode === "all" ? "All zones"
+    : !zoneCount ? "No zones selected yet"
+    : form.zoneScopeMode === "excluded" ? `All zones except ${zoneNames}` : zoneNames;
+
+  const spend = [
+    form.minSubtotal !== "" && Number(form.minSubtotal) > 0 ? `orders of ${money(form.minSubtotal)} or more` : null,
+    form.maxSubtotal !== "" && Number(form.maxSubtotal) > 0 ? `up to ${money(form.maxSubtotal)}` : null,
+  ].filter(Boolean).join(", ");
+
+  const dates = form.startDate && form.endDate ? `${shortDay(form.startDate)} – ${shortDay(form.endDate)}`
+    : form.startDate ? `From ${shortDay(form.startDate)}`
+    : form.endDate ? `Until ${shortDay(form.endDate)}` : "From publish, no end date";
+  const days = WEEKDAYS.filter((d) => form.recurringDays.includes(d.value)).map((d) => d.label).join(", ");
+  const window = form.recurringStartTime && form.recurringEndTime ? `${form.recurringStartTime}–${form.recurringEndTime}` : "";
+  const timed = form.startDate || form.endDate || days || window;
+  const when = `${[dates, days, window].filter(Boolean).join(" · ")}${timed ? " (UK time)" : ""}`;
+
+  const perCustomer = lockedPerCustomerLimit(form)?.value ?? form.perCustomerLimit;
+  const often = [
+    !isPosInt(perCustomer) ? "No per-customer limit" : Number(perCustomer) === 1 ? "Once per customer" : `${perCustomer} times per customer`,
+    isPosInt(form.globalUsageLimit) ? `first ${form.globalUsageLimit} uses in total` : null,
+  ].filter(Boolean).join(", ");
+
+  return [what, how, where, spend ? `On ${spend}` : null, when, often].filter(Boolean);
+}
+
+function PromotionSummaryBar({ parts }) {
+  return (
+    <div className="mb-4 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2" aria-label="Promotion summary">
+      <div className="text-[11px] font-semibold uppercase tracking-wide text-blue-700">In plain words</div>
+      <div className="text-sm text-gray-900">
+        <strong>{parts[0]}</strong>
+        {parts.slice(1).map((part) => <span key={part}> · {part}</span>)}
+      </div>
+    </div>
+  );
 }
 
 /** Returns the first validation error for a wizard step, or null. */
@@ -361,13 +436,16 @@ function validateStep(step, form) {
       for (const c of form.conditions) {
         const err = conditionError(c);
         if (err) return err;
+        const covered = conditionHidden(c.conditionType, bt);
+        if (covered?.mustRemove) return `Remove the "${CONDITION_DEFS[c.conditionType]?.label || c.conditionType}" condition: ${covered.reason}`;
       }
       return null;
     }
     case 3: {
       const ints = [
-        ["globalUsageLimit", "Global usage limit"], ["perCustomerLimit", "Per customer limit"],
-        ["perDayLimit", "Per-day limit"], ["perWeekLimit", "Per-week limit"], ["minQuantity", "Minimum quantity"],
+        ["globalUsageLimit", "Total uses"], ["minQuantity", "Minimum quantity"],
+        ...(lockedPerCustomerLimit(form) ? [] : [["perCustomerLimit", "Uses per customer"]]),
+        ...(showsPeriodLimits(bt) ? [["perDayLimit", "Per-customer daily limit"], ["perWeekLimit", "Per-customer weekly limit"]] : []),
       ];
       for (const [k, label] of ints) {
         if (form[k] !== "" && !isPosInt(form[k])) return `${label} must be a whole number of 1 or more (blank = unlimited)`;
@@ -467,7 +545,7 @@ function CouponCodesBuilder({ codes, onChange, onDuplicate }) {
 /* ─── Main Component ─────────────────────────────────────────────────────── */
 
 const labelOf = (options, value) => options.find((o) => o.value === value)?.label || value || "—";
-const fmtDate = (v) => (v ? dayjs(v).format("DD MMM YYYY, HH:mm") : null);
+const fmtDay = (day, time) => (day ? `${dayjs(day).format("DD MMM YYYY")}, ${time} UK time` : null);
 
 function ViewStat({ label, value, hint }) {
   return (
@@ -506,8 +584,8 @@ function PromotionViewBody({ promotion: p }) {
     p.maxSubtotal != null && p.maxSubtotal !== "" ? `max ${money(p.maxSubtotal)}` : null,
   ].filter(Boolean).join(" · ");
   const periodLimits = [
-    p.perDayLimit ? `${p.perDayLimit} / day` : null,
-    p.perWeekLimit ? `${p.perWeekLimit} / week` : null,
+    p.perDayLimit ? `${p.perDayLimit} / day per customer` : null,
+    p.perWeekLimit ? `${p.perWeekLimit} / week per customer` : null,
   ].filter(Boolean).join(" · ");
 
   return (
@@ -553,7 +631,6 @@ function PromotionViewBody({ promotion: p }) {
             periodLimits ? { label: "Limits", value: periodLimits } : null,
             { label: "Priority", value: `${p.priority ?? 50} (higher wins)` },
             { label: "Stackable", value: p.stackable ? `Yes${p.stackGroup ? ` · group ${p.stackGroup}` : ""}` : "No — best single offer" },
-            { label: "Repricing", value: labelOf(REPRICING_POLICIES, p.repricingPolicy) },
           ]}
         />
       </ViewSection>
@@ -561,8 +638,8 @@ function PromotionViewBody({ promotion: p }) {
       <ViewSection title="When">
         <DirectoryViewFields
           fields={[
-            { label: "Starts", value: fmtDate(p.startDate) || "When published" },
-            { label: "Ends", value: fmtDate(p.endDate) || "No end date" },
+            { label: "Starts", value: fmtDay(promotionDay(p, "start"), "00:00") || "When published" },
+            { label: "Ends", value: fmtDay(promotionDay(p, "end"), "23:59") || "No end date" },
             dayText || windowText ? { label: "Only on", value: [dayText, windowText].filter(Boolean).join(" · ") } : null,
           ]}
         />
@@ -596,6 +673,7 @@ export default function PromotionsPage() {
   const [wizardStep, setWizardStep] = useState(0);
   const [form, setForm] = useState(INITIAL_FORM());
   const [editId, setEditId] = useState(null);
+  const [typeLocked, setTypeLocked] = useState(false);
   const [editLoadingId, setEditLoadingId] = useState(null);
   const [viewRow, setViewRow] = useState(null);
   const [archiveTarget, setArchiveTarget] = useState(null);
@@ -665,9 +743,17 @@ export default function PromotionsPage() {
     discountMode: MODE_CHOICE_TYPES.includes(bt) ? prev.discountMode || "percent" : FORCED_MODE[bt] || "percent",
     targetType: defaultTargetType(bt),
     targetIds: [],
+    visibility: visibilityOffered(prev.visibility, { ...prev, benefitType: bt }) ? prev.visibility : "public",
   }));
 
-  const openCreate = () => { setForm(INITIAL_FORM()); setEditId(null); setWizardStep(0); setShowForm(true); };
+  // "Private — code only" has no meaning without a code.
+  const setActivationType = (activationType) => setForm((prev) => ({
+    ...prev,
+    activationType,
+    visibility: visibilityOffered(prev.visibility, { ...prev, activationType }) ? prev.visibility : "public",
+  }));
+
+  const openCreate = () => { setForm(INITIAL_FORM()); setEditId(null); setTypeLocked(false); setWizardStep(0); setShowForm(true); };
 
   // Edit loads the full detail — list rows carry no conditions / overrides.
   const openEdit = async (row) => {
@@ -677,6 +763,7 @@ export default function PromotionsPage() {
       const promo = res?.data ?? res;
       setForm(formFromPromotion(promo));
       setEditId(row.id);
+      setTypeLocked(isTypeLocked(promo));
       setWizardStep(0);
       setShowForm(true);
     } catch (err) {
@@ -826,6 +913,7 @@ export default function PromotionsPage() {
   const mode = effectiveMode(form);
   const itemScope = ITEM_SCOPE_TYPES.includes(form.benefitType);
   const capVisible = showsCap(form);
+  const perCustomerLock = lockedPerCustomerLimit(form);
   const overrideZones = zones.filter((z) => overrideAllowed(form, String(z.id ?? z._id)));
 
   const setOverrideZones = (ids) => setField(
@@ -875,23 +963,26 @@ export default function PromotionsPage() {
               <div className="flex items-center gap-2 text-gray-900 font-semibold text-sm">
                 <TbDiscount className="text-blue-600" size={18} /> Promotion Benefit
               </div>
-              <Field label="Promotion Name *">
+              <Field label="Promotion Name *" hint="Customers see this name on their offers and order">
                 <Input value={form.name} onChange={(e) => setField("name", e.target.value)} placeholder="e.g. First Order 20% Off" />
               </Field>
-              <Field label="Description">
+              <Field label="Description" hint="Optional. A short note on what the offer is for">
                 <Textarea value={form.description} onChange={(e) => setField("description", e.target.value)} rows={2} />
               </Field>
               <div className="grid grid-cols-2 gap-4">
-                <Field label="Campaign">
+                <Field label="Campaign" hint="Optional. Groups promotions under one budget and one report">
                   <Select options={campaignOptions} value={form.campaignId} onChange={(v) => setField("campaignId", v)} />
                 </Field>
-                <Field label="Activation">
-                  <Select options={ACTIVATION_TYPES} value={form.activationType} onChange={(v) => setField("activationType", v)} />
+                <Field label="Activation" hint="Automatic: applies by itself. Coupon: the customer must enter a code when booking">
+                  <Select options={ACTIVATION_TYPES} value={form.activationType} onChange={setActivationType} />
                 </Field>
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <Field label="Benefit Type *">
-                  <Select options={benefitTypeOptions(form.benefitType)} value={form.benefitType} onChange={setBenefitType} />
+                <Field
+                  label="Benefit Type *"
+                  hint={typeLocked ? "Fixed once published, because orders may already hold this offer. Create a new promotion for a different type." : "Decides which settings the next steps ask for"}
+                >
+                  <Select options={benefitTypeOptions(form.benefitType)} value={form.benefitType} onChange={setBenefitType} disabled={typeLocked} />
                 </Field>
                 {MODE_CHOICE_TYPES.includes(form.benefitType) && (
                   <Field label="Discount Mode *">
@@ -936,7 +1027,7 @@ export default function PromotionsPage() {
                 </div>
               )}
               {form.benefitType === "first_x_orders_discount" && (
-                <Field label="First N orders *" hint="Applies to each customer's first N orders">
+                <Field label="First N orders *" hint="Applies to each customer's first N orders. Also sets how many times a customer can use it.">
                   <Input type="number" min="1" step="1" value={form.firstOrders} onChange={(e) => setField("firstOrders", e.target.value)} placeholder="e.g. 3" />
                 </Field>
               )}
@@ -959,7 +1050,7 @@ export default function PromotionsPage() {
               <div className="flex items-center gap-2 text-gray-900 font-semibold text-sm">
                 <TbMapPin className="text-green-600" size={18} /> Zone Targeting
               </div>
-              <Field label="Zone Scope">
+              <Field label="Zone Scope" hint="Decided by the zone of the customer's collection address">
                 <Select options={ZONE_SCOPES} value={form.zoneScopeMode} onChange={(v) => setField("zoneScopeMode", v)} />
               </Field>
               {form.zoneScopeMode !== "all" && (
@@ -1007,8 +1098,12 @@ export default function PromotionsPage() {
               <div className="flex items-center gap-2 text-gray-900 font-semibold text-sm">
                 <TbEye className="text-purple-600" size={18} /> Visibility
               </div>
-              <Field label="Customer Visibility">
-                <Select options={VISIBILITY_OPTIONS} value={form.visibility} onChange={(v) => setField("visibility", v)} />
+              <Field label="Customer Visibility" hint="Whether customers see the offer listed in the app before they order">
+                <Select
+                  options={VISIBILITY_OPTIONS.filter((o) => o.value === form.visibility || visibilityOffered(o.value, form))}
+                  value={form.visibility}
+                  onChange={(v) => setField("visibility", v)}
+                />
               </Field>
               {form.visibility === "hidden" && (
                 <p className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
@@ -1029,12 +1124,23 @@ export default function PromotionsPage() {
               <div className="flex items-center gap-2 text-gray-900 font-semibold text-sm">
                 <TbUsers className="text-orange-600" size={18} /> Eligibility Conditions
               </div>
+              {FIRST_ORDER_TYPES.includes(form.benefitType) ? (
+                <p className="text-xs text-blue-800 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+                  {form.benefitType === "first_order_discount"
+                    ? "This type already goes only to customers placing their first order, so no customer rule is needed here."
+                    : `This type already goes only to a customer's first ${isPosInt(form.firstOrders) ? form.firstOrders : "N"} orders, so no customer rule is needed here.`}{" "}
+                  Add a condition only to narrow it further (payment method, collection day, what is in the basket).
+                </p>
+              ) : (
+                <p className="text-xs text-gray-500">Optional. Zones, basket minimums, days and times, and coupon codes each have their own step, so they are not repeated here.</p>
+              )}
               <p className="text-xs text-gray-500">&quot;Must match&quot; conditions all apply (AND); at least one &quot;Any of&quot; condition must match (OR).</p>
               <PromotionConditionBuilder
                 conditions={form.conditions}
                 onChange={(v) => setField("conditions", v)}
                 zones={zones}
                 catalogOptions={catalogOptions}
+                hidden={(type) => conditionHidden(type, form.benefitType)}
               />
             </div>
             {form.activationType === "coupon_required" && (
@@ -1060,18 +1166,28 @@ export default function PromotionsPage() {
                 <TbShoppingCart className="text-red-600" size={18} /> Usage Limits
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <Field label="Global Usage Limit">
+                <Field label="Total Uses (all customers)" hint="The promotion stops after this many uses. Blank = unlimited">
                   <Input type="number" min="1" value={form.globalUsageLimit} onChange={(e) => setField("globalUsageLimit", e.target.value)} placeholder="Unlimited" />
                 </Field>
-                <Field label="Per Customer Limit">
-                  <Input type="number" min="1" value={form.perCustomerLimit} onChange={(e) => setField("perCustomerLimit", e.target.value)} placeholder="Unlimited" />
-                </Field>
-                <Field label="Per-day Limit">
-                  <Input type="number" min="1" value={form.perDayLimit} onChange={(e) => setField("perDayLimit", e.target.value)} placeholder="Unlimited" />
-                </Field>
-                <Field label="Per-week Limit">
-                  <Input type="number" min="1" value={form.perWeekLimit} onChange={(e) => setField("perWeekLimit", e.target.value)} placeholder="Unlimited" />
-                </Field>
+                {perCustomerLock ? (
+                  <Field label="Uses per Customer" hint={perCustomerLock.reason}>
+                    <Input type="text" value={perCustomerLock.value || "—"} readOnly disabled aria-readonly="true" />
+                  </Field>
+                ) : (
+                  <Field label="Uses per Customer" hint="How many orders one customer can use it on. Blank = unlimited">
+                    <Input type="number" min="1" value={form.perCustomerLimit} onChange={(e) => setField("perCustomerLimit", e.target.value)} placeholder="Unlimited" />
+                  </Field>
+                )}
+                {showsPeriodLimits(form.benefitType) && (
+                  <>
+                    <Field label="Per Customer, per Day" hint="Most uses by one customer in 24 hours">
+                      <Input type="number" min="1" value={form.perDayLimit} onChange={(e) => setField("perDayLimit", e.target.value)} placeholder="Unlimited" />
+                    </Field>
+                    <Field label="Per Customer, per Week" hint="Most uses by one customer in 7 days">
+                      <Input type="number" min="1" value={form.perWeekLimit} onChange={(e) => setField("perWeekLimit", e.target.value)} placeholder="Unlimited" />
+                    </Field>
+                  </>
+                )}
               </div>
             </div>
             <div className="bg-white border border-gray-200 rounded-xl p-5 space-y-4">
@@ -1079,13 +1195,13 @@ export default function PromotionsPage() {
                 <TbShoppingCart className="text-blue-600" size={18} /> Basket Requirements
               </div>
               <div className="grid grid-cols-3 gap-4">
-                <Field label="Minimum Subtotal (£)">
+                <Field label="Minimum Subtotal (£)" hint="The laundry total on the final invoice must reach this. Blank = no minimum">
                   <Input type="number" min="0" step="0.01" value={form.minSubtotal} onChange={(e) => setField("minSubtotal", e.target.value)} placeholder="No minimum" />
                 </Field>
-                <Field label="Maximum Subtotal (£)">
+                <Field label="Maximum Subtotal (£)" hint="No offer when the laundry total is above this. Blank = no maximum">
                   <Input type="number" min="0" step="0.01" value={form.maxSubtotal} onChange={(e) => setField("maxSubtotal", e.target.value)} placeholder="No maximum" />
                 </Field>
-                <Field label="Minimum Quantity">
+                <Field label="Minimum Quantity" hint="Fewest items on the invoice, add-ons included. Blank = no minimum">
                   <Input type="number" min="1" value={form.minQuantity} onChange={(e) => setField("minQuantity", e.target.value)} placeholder="No minimum" />
                 </Field>
               </div>
@@ -1095,10 +1211,10 @@ export default function PromotionsPage() {
                 <TbDiscount className="text-indigo-600" size={18} /> Priority & Stacking
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <Field label="Priority (higher wins)">
+                <Field label="Priority (higher wins)" hint="0 – 1000. When two offers cannot be combined, the higher number is used. Same number: the older promotion wins">
                   <Input type="number" step="1" value={form.priority} onChange={(e) => setField("priority", e.target.value)} placeholder="50" />
                 </Field>
-                <Field label="Stackable">
+                <Field label="Stackable" hint="Off: if another order discount also qualifies, only the higher-priority one applies. On: it is added to other discounts that also allow combining">
                   <div className="pt-2">
                     <Toggle checked={form.stackable} onChange={(e) => setField("stackable", e.target.checked)} label="Can combine with other promotions" />
                   </div>
@@ -1110,13 +1226,9 @@ export default function PromotionsPage() {
                 </Field>
               )}
             </div>
-            <div className="bg-white border border-gray-200 rounded-xl p-5 space-y-4">
-              <div className="flex items-center gap-2 text-gray-900 font-semibold text-sm">
-                <TbTruck className="text-teal-600" size={18} /> Repricing Policy
-              </div>
-              <p className="text-xs text-gray-500">What happens when laundry items change after pickup?</p>
-              <Select options={REPRICING_POLICIES} value={form.repricingPolicy} onChange={(v) => setField("repricingPolicy", v)} />
-            </div>
+            <p className="text-xs text-gray-500">
+              The discount is always worked out again on the shop&apos;s final invoice, until that invoice is paid.
+            </p>
           </div>
         );
 
@@ -1128,10 +1240,10 @@ export default function PromotionsPage() {
                 <TbCalendarEvent className="text-indigo-600" size={18} /> Schedule
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <Field label="Start Date" hint="Blank = starts when published">
+                <Field label="Start Date" hint="UK time. Blank = starts when published">
                   <Input type="date" value={form.startDate} onChange={(e) => setField("startDate", e.target.value)} />
                 </Field>
-                <Field label="End Date" hint="Runs to the end of this day. Blank = no end">
+                <Field label="End Date" hint="Runs to the end of this day, UK time. Blank = no end">
                   <Input type="date" value={form.endDate} min={form.startDate || undefined} onChange={(e) => setField("endDate", e.target.value)} />
                 </Field>
               </div>
@@ -1140,15 +1252,15 @@ export default function PromotionsPage() {
               <div className="flex items-center gap-2 text-gray-900 font-semibold text-sm">
                 <TbCalendarEvent className="text-teal-600" size={18} /> Recurring Window
               </div>
-              <p className="text-xs text-gray-500">Optional — only active on these days / times (zone local time). Overnight windows like 22:00 → 02:00 are allowed.</p>
-              <Field label="Days">
+              <p className="text-xs text-gray-500">Optional — only active on these days / times (UK time). Overnight windows like 22:00 → 02:00 are allowed.</p>
+              <Field label="Days" hint="The day the booking is placed, not the collection day. None selected = every day">
                 <DayPicker value={form.recurringDays} onChange={(v) => setField("recurringDays", v)} />
               </Field>
               <div className="grid grid-cols-2 gap-4">
-                <Field label="From">
+                <Field label="From" hint="Time the booking is placed. Blank = all day">
                   <Input type="time" value={form.recurringStartTime} onChange={(e) => setField("recurringStartTime", e.target.value)} />
                 </Field>
-                <Field label="To">
+                <Field label="To" hint="Set both From and To, or leave both blank">
                   <Input type="time" value={form.recurringEndTime} onChange={(e) => setField("recurringEndTime", e.target.value)} />
                 </Field>
               </div>
@@ -1184,7 +1296,7 @@ export default function PromotionsPage() {
                 <div><span className="text-gray-500">Coupons:</span> <strong>{form.couponCodes.length} codes</strong></div>
                 <div><span className="text-gray-500">Conditions:</span> <strong>{form.conditions.length} rules</strong></div>
                 <div><span className="text-gray-500">Global Limit:</span> <strong>{form.globalUsageLimit || "∞"}</strong></div>
-                <div><span className="text-gray-500">Per Customer:</span> <strong>{form.perCustomerLimit || "∞"}</strong></div>
+                <div><span className="text-gray-500">Per Customer:</span> <strong>{(perCustomerLock?.value ?? form.perCustomerLimit) || "∞"}{perCustomerLock ? " (set by type)" : ""}</strong></div>
                 <div><span className="text-gray-500">Subtotal:</span> <strong>{form.minSubtotal ? `£${form.minSubtotal}` : "£0"} – {form.maxSubtotal ? `£${form.maxSubtotal}` : "∞"}</strong></div>
                 <div><span className="text-gray-500">Priority:</span> <strong>{form.priority === "" ? 50 : form.priority}{form.stackable ? " · stackable" : ""}</strong></div>
                 <div><span className="text-gray-500">Dates:</span> <strong>{form.startDate || "∞"} — {form.endDate || "∞"}</strong></div>
@@ -1248,6 +1360,7 @@ export default function PromotionsPage() {
       <Modal open={showForm} onClose={() => setShowForm(false)} title={editId ? "Edit Promotion" : "New Promotion"} size="xl" hideFooter closeOnBackdrop={false}>
         <div className="p-4">
           <StepIndicator step={wizardStep} onSelect={(i) => (i <= wizardStep ? setWizardStep(i) : goToStep(i))} />
+          <PromotionSummaryBar parts={promotionSummary(form, zoneName)} />
           {renderStep()}
           <div className="flex justify-between mt-6">
             <Button variant="secondary" onClick={() => (wizardStep > 0 ? setWizardStep(wizardStep - 1) : setShowForm(false))}>
@@ -1283,7 +1396,7 @@ export default function PromotionsPage() {
         <p style={{ fontSize: 14, color: "#374151" }}>
           <strong>&ldquo;{publishTarget?.name}&rdquo;</strong> ({publishTarget && valueLabel(publishTarget)}){" "}
           {publishTarget?.startDate && dayjs(publishTarget.startDate).isAfter(dayjs())
-            ? `will start applying to new orders on ${dayjs(String(publishTarget.startDate).slice(0, 10)).format("DD MMM YYYY")}.`
+            ? `will start applying to new orders on ${dayjs(promotionDay(publishTarget, "start")).format("DD MMM YYYY")} (UK time).`
             : "will go live now and start applying to new orders."}
         </p>
       </Modal>
