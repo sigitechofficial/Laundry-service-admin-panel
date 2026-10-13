@@ -129,8 +129,9 @@ export default function CampaignsPage() {
         objective: form.objective || null,
         channel: form.channel || null,
         budgetMinor: budget == null ? null : Math.round(budget * 100),
-        startDate: form.startDate ? dayjs(form.startDate).startOf("day").toISOString() : null,
-        endDate: form.endDate ? dayjs(form.endDate).endOf("day").toISOString() : null,
+        // Campaign dates are calendar days: send the day itself, not a moment in this browser's timezone.
+        startDate: form.startDate || null,
+        endDate: form.endDate || null,
       };
       if (editId) {
         await updateCampaign({ id: editId, ...payload }).unwrap();
