@@ -60,6 +60,22 @@ function formatSlotDay(day) {
 /** Slot capacity: per-slot limit and how full the shop's upcoming slots are. */
 function SlotCapacityUsage({ capacity }) {
   const slot = capacity?.slotCapacity;
+  if (!slot && capacity?.slotCapacityEnabled === false) {
+    return (
+      <div style={USAGE_BOX}>
+        <strong style={{ fontSize: 13 }}>Slot capacity</strong>
+        <p style={{ margin: "6px 0 0", fontSize: 14, lineHeight: 1.45 }}>
+          <strong>No limit</strong> per slot (slot capacity is off for all shops)
+          {capacity.ownSettingIgnored ? (
+            <span style={{ display: "block", marginTop: 4, fontSize: 13, color: "#9a3412" }}>
+              This shop&apos;s own limit is saved but not used until slot capacity is turned on in
+              Policies → Runtime checks.
+            </span>
+          ) : null}
+        </p>
+      </div>
+    );
+  }
   if (!slot) {
     return (
       <div style={USAGE_BOX}>
@@ -82,10 +98,6 @@ function SlotCapacityUsage({ capacity }) {
       <p style={{ margin: "6px 0 0", fontSize: 14, lineHeight: 1.45 }}>
         {slot.limit === 0 ? (
           <strong>0 — no marketplace orders (admin can still assign)</strong>
-        ) : slot.mode === "single" ? (
-          <>
-            <strong>1 order</strong> per pickup / delivery slot (capacity off)
-          </>
         ) : (
           <>
             Up to <strong>{slot.limit}</strong> pickups + deliveries per slot
@@ -267,8 +279,15 @@ export default function ShopRoutingPolicyCard({ shopUserId }) {
               Override the all-shops setting (Policies → Runtime checks) for
               this shop only. Example: 6 for a big shop, 2 for a small one, or 0
               (this shop skipped; others still get the offer). Leave off to
-              inherit the all-shops setting.
+              inherit the all-shops setting. Used only while slot capacity is on
+              for all shops; when it is off, there is no limit per slot.
             </p>
+            {acceptCapOverride && acceptCapacity?.slotCapacityEnabled === false ? (
+              <p style={{ ...HINT, color: "#9a3412", marginTop: 8 }}>
+                Slot capacity is off for all shops right now, so this number is
+                kept but not used. Turn it on in Policies → Runtime checks to use it.
+              </p>
+            ) : null}
             {acceptCapOverride ? (
               <div
                 style={{

@@ -2319,7 +2319,16 @@ export const api = createApi({
         method: "PUT",
         body,
       }),
-      invalidatesTags: ["RuntimeSettings"],
+      invalidatesTags: ["RuntimeSettings", "ShopAssignmentPolicy"],
+    }),
+
+    /** Shops with their own slot capacity switched on (Runtime checks list). */
+    getShopCapacityOverrides: builder.query({
+      query: () => ({
+        url: "admin/runtimeSettings/shopCapacityOverrides",
+        method: "GET",
+      }),
+      providesTags: ["RuntimeSettings", "ShopAssignmentPolicy"],
     }),
 
     getFailAttemptInstructionSets: builder.query({
@@ -2932,6 +2941,7 @@ export const {
   useGetPlatformOperationalHoursQuery,
   useUpdatePlatformOperationalHoursMutation,
   useGetRuntimeSettingsQuery,
+  useGetShopCapacityOverridesQuery,
   useUpdateRuntimeSettingsMutation,
   useGetFailAttemptInstructionSetsQuery,
   useCreateFailAttemptInstructionMutation,
