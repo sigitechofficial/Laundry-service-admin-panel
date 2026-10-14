@@ -1,12 +1,75 @@
 import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { Button, Field, Input, PageHeader } from "../../design-system";
 import { Notice, Toggle } from "../misc-kit";
 import { DirectoryError, DirectoryFormCard, PageLoading } from "../directory-table/directoryTable";
 import useToaster from "../../components/ui/Toaster";
 import {
   useGetRuntimeSettingsQuery,
+  useGetShopCapacityOverridesQuery,
   useUpdateRuntimeSettingsMutation,
 } from "../../store/services/api";
+
+/**
+ * Shops that set their own slot capacity (Shop → Order routing). Shown whether the
+ * all-shops switch is on or off: while it is off their numbers are kept but not used.
+ */
+function ShopCapacityOverrides({ allShopsOn }) {
+  const { data, isLoading, isError } = useGetShopCapacityOverridesQuery();
+  const shops = data?.data?.shops ?? data?.shops ?? [];
+  const box = { marginTop: 16, paddingTop: 12, borderTop: "1px solid var(--line, #e6e9f0)" };
+  const muted = { fontSize: 13, color: "var(--muted, #6b7280)", margin: "4px 0 0" };
+  if (isLoading) return <div style={box}><p style={muted}>Loading shops with their own capacity…</p></div>;
+  if (isError) return <div style={box}><p style={muted}>Could not load the shops with their own capacity.</p></div>;
+  return (
+    <div style={box}>
+      <div style={{ fontWeight: 600, fontSize: 14 }}>
+        Shops with their own capacity ({shops.length})
+      </div>
+      <p style={muted}>
+        {shops.length === 0
+          ? "No shop has its own slot capacity. Every shop follows this setting."
+          : allShopsOn
+            ? "These shops use their own number instead of the one above."
+            : "Not used while this setting is off: there is no limit per slot for any shop, these included. Their numbers are kept and used again when you turn it on."}
+      </p>
+      {shops.length > 0 && (
+        <div style={{ overflowX: "auto", marginTop: 8 }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+            <thead>
+              <tr style={{ textAlign: "left", color: "var(--muted, #6b7280)" }}>
+                <th style={{ padding: "6px 8px" }}>Shop</th>
+                <th style={{ padding: "6px 8px" }}>Zone</th>
+                <th style={{ padding: "6px 8px" }}>Own limit per slot</th>
+                <th style={{ padding: "6px 8px" }}>Now</th>
+              </tr>
+            </thead>
+            <tbody>
+              {shops.map((s) => (
+                <tr key={s.shopUserId} style={{ borderTop: "1px solid var(--line, #e6e9f0)" }}>
+                  <td style={{ padding: "6px 8px" }}>
+                    <Link to={`/shop-management/details/${s.businessId ?? s.shopUserId}`}>{s.shopName}</Link>
+                    {s.email ? <div style={{ color: "var(--muted, #6b7280)" }}>{s.email}</div> : null}
+                  </td>
+                  <td style={{ padding: "6px 8px" }}>{s.zoneName || "—"}</td>
+                  <td style={{ padding: "6px 8px" }}>{s.maxOrdersPerSlot ?? "—"}</td>
+                  <td style={{ padding: "6px 8px" }}>
+                    {s.inUse
+                      ? (s.maxOrdersPerSlot === 0 ? "In use: no marketplace orders" : `In use: ${s.maxOrdersPerSlot} per slot`)
+                      : "Not used (no limit)"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Max orders per slot when the field is left blank. */
+const DEFAULT_SLOT_MAX = 4;
 
 const msToMinutes = (ms) => {
   const n = Number(ms);
@@ -160,7 +223,8 @@ export default function RuntimeChecks() {
     }
 
     const acceptWindowMins = Number(shopAcceptWindowMinutes);
-    const acceptMax = Number(shopAcceptMaxOrders);
+    // Optional field: blank means the default, never 0 (0 stops all marketplace orders).
+    const acceptMax = String(shopAcceptMaxOrders).trim() === "" ? DEFAULT_SLOT_MAX : Number(shopAcceptMaxOrders);
     if (shopAcceptCapEnabled) {
       if (!Number.isInteger(acceptMax) || acceptMax < 0 || acceptMax > 500) {
         showError("Max orders per slot must be between 0 and 500");
@@ -215,7 +279,7 @@ export default function RuntimeChecks() {
         shopAcceptWindowMinutes: Number.isInteger(acceptWindowMins)
           ? acceptWindowMins
           : 60,
-        shopAcceptMaxOrders: Number.isInteger(acceptMax) ? acceptMax : 4,
+        shopAcceptMaxOrders: Number.isInteger(acceptMax) ? acceptMax : DEFAULT_SLOT_MAX,
         zoneCatalogOverridesEnabled: zoneCatalogOverlaysEnabled,
         recurringAutoCreateEnabled: recurringAutoCreate,
         recurringMaxFailuresBeforePause: recurringFailures,
@@ -365,7 +429,7 @@ export default function RuntimeChecks() {
 
           <DirectoryFormCard
             title="Shop slot capacity (all shops)"
-            hint="How many pickups + deliveries one shop can have in one booking slot (e.g. 11:00–12:00). A new order needs room in its pickup slot and its delivery slot; other slots, days and future dates have their own room. Shops with a full slot are skipped so the order goes to others; if every shop is full, admins are alerted and the order is offered again when a slot frees. When off, each shop takes 1 order per pickup / delivery slot. Override per shop on Shop → Order routing. Admin assign always works."
+            hint="How many pickups + deliveries one shop can have in one booking slot (e.g. 11:00–12:00). A new order needs room in its pickup slot and its delivery slot; other slots, days and future dates have their own room. Shops with a full slot are skipped so the order goes to others; if every shop is full, admins are alerted and the order is offered again when a slot frees. When off, there is no limit: a shop can take as many orders in a slot as it likes, including shops with their own capacity (Shop → Order routing); their numbers are kept for when this is on again. Admin assign always works."
           >
             <Toggle
               checked={shopAcceptCapEnabled}
@@ -382,21 +446,23 @@ export default function RuntimeChecks() {
                 }}
               >
                 <Field
-                  label="Max orders per slot"
+                  label="Max orders per slot (optional)"
                   htmlFor="rc-accept-max"
-                  hint="Pickups + deliveries per slot, e.g. 4. 0 = nobody can accept via marketplace."
+                  hint={`Pickups + deliveries every shop can have in one slot, e.g. 5 or 6. Blank = ${DEFAULT_SLOT_MAX} (default). 0 = nobody can accept via marketplace.`}
                 >
                   <Input
                     id="rc-accept-max"
                     type="number"
                     min={0}
                     max={500}
+                    placeholder={`${DEFAULT_SLOT_MAX} (default)`}
                     value={shopAcceptMaxOrders}
                     onChange={(e) => setShopAcceptMaxOrders(e.target.value)}
                   />
                 </Field>
               </div>
             )}
+            <ShopCapacityOverrides allShopsOn={Boolean(settings?.shopAcceptCapEnabled?.value)} />
           </DirectoryFormCard>
 
           <DirectoryFormCard
