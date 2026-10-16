@@ -30,7 +30,8 @@ import PromotionSimulateModal from "./PromotionSimulateModal";
 import { CONDITION_DEFS, WEEKDAYS, conditionError, serializeCondition } from "./promotionConditions";
 import { BENEFIT_TYPES, STATUS_OPTIONS, STATUS_TONES } from "./promotionLabels";
 import {
-  FIRST_ORDER_TYPES, conditionHidden, isTypeLocked, lockedPerCustomerLimit, showsPeriodLimits, visibilityOffered,
+  FIRST_ORDER_TYPES, basketScopeWarning, conditionHidden, isTypeLocked, lockedPerCustomerLimit, showsPeriodLimits,
+  visibilityOffered,
 } from "./promotionTypeRules";
 
 /* ─── Constants ──────────────────────────────────────────────────────────── */
@@ -914,6 +915,7 @@ export default function PromotionsPage() {
   const itemScope = ITEM_SCOPE_TYPES.includes(form.benefitType);
   const capVisible = showsCap(form);
   const perCustomerLock = lockedPerCustomerLimit(form);
+  const mainValueText = form.discountValue === "" ? "" : mode === "percent" ? `${form.discountValue}%` : money(form.discountValue);
   const overrideZones = zones.filter((z) => overrideAllowed(form, String(z.id ?? z._id)));
 
   const setOverrideZones = (ids) => setField(
@@ -1067,7 +1069,10 @@ export default function PromotionsPage() {
               <div className="flex items-center gap-2 text-gray-900 font-semibold text-sm">
                 <TbMapPin className="text-teal-600" size={18} /> Zone Overrides
               </div>
-              <p className="text-xs text-gray-500">Optional per-zone value, cap or minimum subtotal. Blank fields use the main settings.</p>
+              <p className="text-xs text-gray-500">
+                Optional. Pick a zone only if it needs different numbers from the main settings; every other zone uses
+                the main settings. The zone is the one of the customer&apos;s collection address. Blank fields use the main settings.
+              </p>
               <ZoneMultiSelect
                 zones={overrideZones}
                 selectedIds={form.zoneOverrides.map((o) => o.zoneId).filter((id) => overrideAllowed(form, id))}
@@ -1078,16 +1083,19 @@ export default function PromotionsPage() {
                   <div className="text-sm font-medium text-gray-900">{zoneName(o.zoneId)}</div>
                   <div className="grid grid-cols-3 gap-3">
                     {needsValue(form.benefitType) && (
-                      <Field label={form.benefitType === "fixed_price" ? "Basket price (£)" : mode === "percent" ? "Value (%)" : "Value (£)"}>
+                      <Field
+                        label={form.benefitType === "fixed_price" ? "Basket price (£)" : mode === "percent" ? "Value (%)" : "Value (£)"}
+                        hint={`${form.benefitType === "fixed_price" ? "Basket price" : "Discount"} for orders in this zone. Blank = main value${mainValueText ? ` (${mainValueText})` : ""}`}
+                      >
                         <Input type="number" min="0" step="0.01" value={o.discountValue} onChange={(e) => patchOverride(o.zoneId, "discountValue", e.target.value)} placeholder={form.discountValue || "Default"} />
                       </Field>
                     )}
                     {capVisible && (
-                      <Field label="Cap (£)">
+                      <Field label="Cap (£)" hint={`Most this promotion can save on one order in this zone. Blank = main cap (${form.maxDiscountCap ? money(form.maxDiscountCap) : "no cap"})`}>
                         <Input type="number" min="0" step="0.01" value={o.maxDiscountCap} onChange={(e) => patchOverride(o.zoneId, "maxDiscountCap", e.target.value)} placeholder={form.maxDiscountCap || "Default"} />
                       </Field>
                     )}
-                    <Field label="Min subtotal (£)">
+                    <Field label="Min subtotal (£)" hint={`Laundry total the invoice must reach in this zone. Blank = main minimum (${form.minSubtotal ? money(form.minSubtotal) : "none"})`}>
                       <Input type="number" min="0" step="0.01" value={o.minSubtotal} onChange={(e) => patchOverride(o.zoneId, "minSubtotal", e.target.value)} placeholder={form.minSubtotal || "Default"} />
                     </Field>
                   </div>
@@ -1142,6 +1150,11 @@ export default function PromotionsPage() {
                 catalogOptions={catalogOptions}
                 hidden={(type) => conditionHidden(type, form.benefitType)}
               />
+              {basketScopeWarning(form.benefitType, form.conditions) ? (
+                <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                  {basketScopeWarning(form.benefitType, form.conditions)}
+                </p>
+              ) : null}
             </div>
             {form.activationType === "coupon_required" && (
               <div className="bg-white border border-gray-200 rounded-xl p-5 space-y-4">

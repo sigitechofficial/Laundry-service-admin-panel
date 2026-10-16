@@ -14,6 +14,7 @@
     "preview": "vite preview --port 2424",
     "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/sessionAndApiErrors.test.mjs tests/adminAssignGate.test.mjs tests/invoiceLifecycle.test.mjs tests/csvExport.test.mjs tests/promotionTypeRules.test.mjs",
     "lint": "eslint src",
+    "handbook:sync": "cp ../BUSINESS_DOCUMENTATION.html src/pages/business-handbook/businessHandbook.html",
     "tunnel": "npx ngrok http 5174",
     "tunnel:localtunnel": "npx localtunnel --port 2424",
     "tunnel:cloudflare": "npx cloudflared tunnel --url http://localhost:2424",

@@ -246,4 +246,7 @@ export const PromotionsPage = lazy(() =>
 export const LoginPage = lazy(() => import("../pages/auth/LoginPage"));
 
 export const PrivacyPolicy = lazy(() => import("./PrivacyPolicy"));
+export const BusinessHandbookPage = lazy(() =>
+  import("../pages/business-handbook/BusinessHandbookPage")
+);
 export const NotFound = lazy(() => import("./NotFound"));
