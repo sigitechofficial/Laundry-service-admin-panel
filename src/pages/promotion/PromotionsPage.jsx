@@ -30,8 +30,8 @@ import PromotionSimulateModal from "./PromotionSimulateModal";
 import { CONDITION_DEFS, WEEKDAYS, conditionError, serializeCondition } from "./promotionConditions";
 import { BENEFIT_TYPES, STATUS_OPTIONS, STATUS_TONES } from "./promotionLabels";
 import {
-  FIRST_ORDER_TYPES, basketScopeWarning, conditionHidden, firstOrderLimitNote, firstOrderRule, isTypeLocked,
-  lockedPerCustomerLimit, showsPeriodLimits, visibilityOffered,
+  FIRST_ORDER_TYPES, basketScopeWarning, bulkPriceSummary, bundleSize, conditionHidden, firstOrderLimitNote,
+  firstOrderRule, isTypeLocked, lockedPerCustomerLimit, showsPeriodLimits, visibilityOffered,
 } from "./promotionTypeRules";
 
 /* ─── Constants ──────────────────────────────────────────────────────────── */
@@ -50,9 +50,12 @@ const FORCED_MODE = {
   first_x_orders_discount: "percent",
   fixed_amount_discount: "amount",
   delivery_discount: "amount",
+  bundle: "amount",
 };
 const MODE_CHOICE_TYPES = ["basket_discount", "item_discount", "category_discount", "service_discount", "cashback"];
-const ITEM_SCOPE_TYPES = ["item_discount", "category_discount", "service_discount"];
+const ITEM_SCOPE_TYPES = ["item_discount", "category_discount", "service_discount", "bundle"];
+// Types where the admin picks what the targets are (items, add-ons, categories, services or all).
+const TARGET_TYPE_CHOICE = ["item_discount", "bundle"];
 const DELIVERY_TYPES = ["free_delivery", "delivery_discount"];
 
 const DISCOUNT_MODES = [
@@ -108,7 +111,7 @@ const needsValue = (bt) => bt !== "free_delivery";
 const showsCap = (p) =>
   effectiveMode(p) === "percent" || p.benefitType === "cashback" || ITEM_SCOPE_TYPES.includes(p.benefitType);
 const defaultTargetType = (bt) => {
-  if (bt === "item_discount") return "subCategory";
+  if (TARGET_TYPE_CHOICE.includes(bt)) return "subCategory";
   if (bt === "category_discount") return "category";
   if (bt === "service_discount") return "service";
   if (DELIVERY_TYPES.includes(bt)) return "delivery";
@@ -124,6 +127,7 @@ function valueLabel(p) {
   const n = Number(p.discountValue);
   if (p.benefitType === "fixed_price") return `Basket for ${money(n)}`;
   const cap = showsCap(p) && p.maxDiscountCap ? ` (max ${money(p.maxDiscountCap)})` : "";
+  if (p.benefitType === "bundle") return `${bundleSize(p) || "N"} for ${money(n)}${cap}`;
   if (effectiveMode(p) === "percent") return `${n}%${cap}`;
   if (ITEM_SCOPE_TYPES.includes(p.benefitType)) return `${money(n)} off each${cap}`;
   return `${money(n)}${cap}`;
@@ -133,6 +137,7 @@ function valueFieldLabel(form) {
   const mode = effectiveMode(form);
   const bt = form.benefitType;
   if (bt === "fixed_price") return "Sell basket for (£) *";
+  if (bt === "bundle") return "Price for these pieces (£) *";
   if (bt === "cashback") return mode === "percent" ? "Cashback (%) *" : "Cashback (£) *";
   if (mode === "percent") return "Discount (%) *";
   if (ITEM_SCOPE_TYPES.includes(bt)) return "£ off each item *";
@@ -176,6 +181,7 @@ const INITIAL_FORM = () => ({
   discountValue: "",
   maxDiscountCap: "",
   firstOrders: "3",
+  bundleQuantity: "10",
   targetType: "basket",
   targetIds: [],
   zoneScopeMode: "all",
@@ -217,6 +223,7 @@ function formFromPromotion(p) {
     discountValue: numStr(p.discountValue),
     maxDiscountCap: numStr(p.maxDiscountCap),
     firstOrders: config.firstOrders != null ? String(config.firstOrders) : "3",
+    bundleQuantity: config.bundleQuantity != null ? String(config.bundleQuantity) : "10",
     targetType: p.targetType || defaultTargetType(p.benefitType),
     targetIds: (parseJson(p.targetIds, []) || []).map(String),
     zoneScopeMode: p.zoneScopeMode || "all",
@@ -286,7 +293,9 @@ function buildPayload(form) {
     discountMode: mode,
     discountValue: needsValue(bt) ? numOrNull(form.discountValue) : null,
     maxDiscountCap: cap ? numOrNull(form.maxDiscountCap) : null,
-    benefitConfig: bt === "first_x_orders_discount" ? { firstOrders: Number(form.firstOrders) } : null,
+    benefitConfig: bt === "first_x_orders_discount" ? { firstOrders: Number(form.firstOrders) }
+      : bt === "bundle" ? { bundleQuantity: Number(form.bundleQuantity) }
+      : null,
     targetType,
     targetIds: itemScope && targetType !== "all" ? form.targetIds.map(Number) : null,
     zoneScopeMode: form.zoneScopeMode,
@@ -354,7 +363,9 @@ function promotionSummary(form, zoneName) {
   else if (bt === "delivery_discount") what = `${value} off the delivery fee`;
   else if (bt === "cashback") what = `${value} cashback, added to the customer's credit after delivery`;
   else if (bt === "fixed_price") what = value;
-  else if (ITEM_SCOPE_TYPES.includes(bt) && effectiveMode(form) === "amount") {
+  else if (bt === "bundle") {
+    what = bulkPriceSummary({ size: bundleSize(form), price: form.discountValue, cap: form.maxDiscountCap, targets });
+  } else if (ITEM_SCOPE_TYPES.includes(bt) && effectiveMode(form) === "amount") {
     const amount = money(form.discountValue);
     const total = Number(form.maxDiscountCap) > 0 ? `, at most ${money(form.maxDiscountCap)} in total` : ", with no limit on the total";
     what = `${amount} off every single item in ${targets} (an item never goes below £0)${total}`;
@@ -433,6 +444,7 @@ function validateStep(step, form) {
         if (mode === "percent" && v > 100) return "Percentage cannot exceed 100%";
       }
       if (bt === "first_x_orders_discount" && !isPosInt(form.firstOrders)) return "First N orders must be a whole number of 1 or more";
+      if (bt === "bundle" && !(bundleSize(form) && bundleSize(form) <= 1000)) return "Pieces in the deal must be a whole number from 2 to 1000";
       if (showsCap(form) && form.maxDiscountCap !== "" && !(Number(form.maxDiscountCap) > 0)) return "Max discount cap must be greater than 0";
       if (ITEM_SCOPE_TYPES.includes(bt) && form.targetType !== "all" && !form.targetIds.length) return "Select at least one target";
       return null;
@@ -953,8 +965,8 @@ export default function PromotionsPage() {
     const labels = { service: "service(s)", category: "categor(y/ies)", subCategory: "item(s)", addon: "add-on(s)" };
     return (
       <div className="space-y-4">
-        {form.benefitType === "item_discount" && (
-          <Field label="Apply to *">
+        {TARGET_TYPE_CHOICE.includes(form.benefitType) && (
+          <Field label="Apply to *" hint={form.benefitType === "bundle" ? "Pieces of everything you select here count together towards the deal" : undefined}>
             <Select
               options={ITEM_TARGET_TYPES}
               value={form.targetType}
@@ -1025,11 +1037,28 @@ export default function PromotionsPage() {
                   Campaign budget counts the cashback.
                 </p>
               )}
+              {form.benefitType === "bundle" && (
+                <p className="text-xs text-blue-800 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+                  Example: 10 shirts for £25 when one shirt is £2.90. Every full group of the chosen pieces costs the
+                  price below; pieces left over pay the normal price (12 shirts = £25 + 2 × £2.90). Pieces of all the
+                  chosen items count together, and if their prices differ the cheapest are grouped first. A group never
+                  costs more than its normal price. Worked out on the final invoice.
+                </p>
+              )}
+              {form.benefitType === "bundle" && (
+                <Field label="Pieces in the deal *" hint="How many pieces make one group, e.g. 10 for “10 shirts for £25”">
+                  <Input type="number" min="2" max="1000" step="1" value={form.bundleQuantity} onChange={(e) => setField("bundleQuantity", e.target.value)} placeholder="e.g. 10" />
+                </Field>
+              )}
               {needsValue(form.benefitType) && (
                 <div className="grid grid-cols-2 gap-4">
                   <Field
                     label={valueFieldLabel(form)}
-                    hint={form.benefitType === "fixed_price" ? "Qualifying basket is sold for this price" : mode === "percent" ? "1 – 100" : ITEM_SCOPE_TYPES.includes(form.benefitType) ? "Taken off every matching item (each piece), not off the order. For a set amount in total, also fill Max Discount Cap." : undefined}
+                    hint={form.benefitType === "fixed_price" ? "Qualifying basket is sold for this price"
+                      : form.benefitType === "bundle" ? `What ${bundleSize(form) || "these"} pieces cost together`
+                      : mode === "percent" ? "1 – 100"
+                      : ITEM_SCOPE_TYPES.includes(form.benefitType) ? "Taken off every matching item (each piece), not off the order. For a set amount in total, also fill Max Discount Cap."
+                      : undefined}
                   >
                     <Input
                       type="number"
@@ -1038,11 +1067,11 @@ export default function PromotionsPage() {
                       max={mode === "percent" ? "100" : undefined}
                       value={form.discountValue}
                       onChange={(e) => setField("discountValue", e.target.value)}
-                      placeholder={mode === "percent" ? "e.g. 20" : "e.g. 5.00"}
+                      placeholder={mode === "percent" ? "e.g. 20" : form.benefitType === "bundle" ? "e.g. 25.00" : "e.g. 5.00"}
                     />
                   </Field>
                   {capVisible && (
-                    <Field label={form.benefitType === "cashback" ? "Max Cashback (£)" : "Max Discount Cap (£)"} hint={form.benefitType === "cashback" ? "Most cashback one order can earn" : ITEM_SCOPE_TYPES.includes(form.benefitType) && mode === "amount" ? "Most this promotion takes off one order in total. Example: £30 here with £30 off each item gives £30 off these items altogether." : "Caps the whole promotion's saving"}>
+                    <Field label={form.benefitType === "cashback" ? "Max Cashback (£)" : "Max Discount Cap (£)"} hint={form.benefitType === "cashback" ? "Most cashback one order can earn" : form.benefitType === "bundle" ? "Optional. Most this deal takes off one order in total, however many groups it has" : ITEM_SCOPE_TYPES.includes(form.benefitType) && mode === "amount" ? "Most this promotion takes off one order in total. Example: £30 here with £30 off each item gives £30 off these items altogether." : "Caps the whole promotion's saving"}>
                       <Input type="number" min="0" step="0.01" value={form.maxDiscountCap} onChange={(e) => setField("maxDiscountCap", e.target.value)} placeholder="No cap" />
                     </Field>
                   )}
@@ -1104,8 +1133,8 @@ export default function PromotionsPage() {
                   <div className="grid grid-cols-3 gap-3">
                     {needsValue(form.benefitType) && (
                       <Field
-                        label={form.benefitType === "fixed_price" ? "Basket price (£)" : mode === "percent" ? "Value (%)" : "Value (£)"}
-                        hint={`${form.benefitType === "fixed_price" ? "Basket price" : "Discount"} for orders in this zone. Blank = main value${mainValueText ? ` (${mainValueText})` : ""}`}
+                        label={form.benefitType === "fixed_price" ? "Basket price (£)" : form.benefitType === "bundle" ? "Group price (£)" : mode === "percent" ? "Value (%)" : "Value (£)"}
+                        hint={`${form.benefitType === "fixed_price" ? "Basket price" : form.benefitType === "bundle" ? `Price of ${bundleSize(form) || "N"} pieces` : "Discount"} for orders in this zone. Blank = main value${mainValueText ? ` (${mainValueText})` : ""}`}
                       >
                         <Input type="number" min="0" step="0.01" value={o.discountValue} onChange={(e) => patchOverride(o.zoneId, "discountValue", e.target.value)} placeholder={form.discountValue || "Default"} />
                       </Field>
