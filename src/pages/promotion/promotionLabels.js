@@ -1,6 +1,6 @@
 /** Promotion labels shared by the Promotions page and the Promotions report. */
 
-// buy_x_get_y and bundle are rejected by the backend for now — not offered.
+// buy_x_get_y is rejected by the backend for now — not offered. "bundle" is Bulk Price (10 for £25).
 export const BENEFIT_TYPES = [
   { value: "percentage_discount", label: "Percentage Discount" },
   { value: "fixed_amount_discount", label: "Fixed Amount Discount" },
@@ -10,6 +10,7 @@ export const BENEFIT_TYPES = [
   { value: "item_discount", label: "Item Discount" },
   { value: "category_discount", label: "Category Discount" },
   { value: "service_discount", label: "Service Discount" },
+  { value: "bundle", label: "Bulk Price" },
   { value: "first_order_discount", label: "First Order Discount" },
   { value: "first_x_orders_discount", label: "First X Orders Discount" },
   { value: "cashback", label: "Cashback" },

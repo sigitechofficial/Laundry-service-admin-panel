@@ -555,7 +555,7 @@ mark { background: var(--tag); color: var(--ink); border-radius: .15rem; padding
 <p>Detail: <a href="#money">Money</a>.</p>
 
 <h3 id="rules-earnings">Who earns what</h3>
-<p><span class="chip warn">Pending</span> Order-based revenue split, bulk-quantity prices, itemization, on-hold changes and referral codes are planned, not built. See <a href="#pending-work">Pending work</a>.</p>
+<p><span class="chip warn">Pending</span> Order-based revenue split, itemization, on-hold changes and referral codes are planned, not built. See <a href="#pending-work">Pending work</a>.</p>
 <ul>
   <li><strong>Shop:</strong> the zone's share of the laundry (for example 70–80%) plus all tips. On a card order below the minimum, the share is on the laundry only; the platform keeps the top-up.</li>
   <li><strong>Platform:</strong> the rest of the laundry, the whole service fee, and all cancellation and no-show fees.</li>
@@ -1114,10 +1114,10 @@ mark { background: var(--tag); color: var(--ink); border-radius: .15rem; padding
 <div class="tbl"><table>
   <thead><tr><th>Step</th><th>What you set</th><th>Rules built in</th></tr></thead>
   <tbody>
-    <tr><td>Benefit</td><td>Name, description, campaign, Automatic or Coupon, type, % or £, value, cap</td><td>The type cannot be changed after the first publish (orders may already hold it); create a new promotion instead.</td></tr>
+    <tr><td>Benefit</td><td>Name, description, campaign, Automatic or Coupon, type, % or £, value, cap (Bulk Price: pieces in the deal and their price)</td><td>The type cannot be changed after the first publish (orders may already hold it); create a new promotion instead.</td></tr>
     <tr><td>Geography</td><td>All zones, selected zones or all except selected; per-zone value, cap or minimum; who can see it</td><td>"Private — code only" needs a coupon. Blank zone fields use the main settings.</td></tr>
     <tr><td>Audience</td><td>Extra conditions (payment method, collection or delivery day, what is in the basket, customer type…) and coupon codes</td><td>Zone, minimum spend, days and times and codes have their own step, so they are not offered here again. First-order types do not take order-history conditions. A warning appears when a basket-wide offer uses "Basket contains…".</td></tr>
-    <tr><td>Limits</td><td>Total uses, uses per customer, per day / week, minimum and maximum spend, minimum items, priority, stackable</td><td>First Order: 1 use per customer, fixed. First X Orders: uses follow N. Item, Category and Service Discounts measure spend and items on their own items only.</td></tr>
+    <tr><td>Limits</td><td>Total uses, uses per customer, per day / week, minimum and maximum spend, minimum items, priority, stackable</td><td>First Order: 1 use per customer, fixed. First X Orders: uses follow N. Item, Category, Service Discounts and Bulk Price measure spend and items on their own items only.</td></tr>
     <tr><td>Schedule</td><td>Start and end date, days and hours</td><td>UK time. End date runs to the end of that day.</td></tr>
     <tr><td>Review</td><td>Everything at a glance</td><td>Saved as a draft; Publish asks to confirm.</td></tr>
   </tbody>
@@ -1486,6 +1486,7 @@ mark { background: var(--tag); color: var(--ink); border-radius: .15rem; padding
   <tbody>
     <tr><td>Basket Discount</td><td>% or £ off the whole laundry</td><td>"10% off this week"</td></tr>
     <tr><td>Item / Category / Service Discount</td><td>% or £ off chosen items, categories or services only (£ is per item)</td><td>"Duvets 20% off", "10% off Dry Clean"</td></tr>
+    <tr><td>Bulk Price</td><td>A set price for a number of pieces of the chosen items. Every full group costs the deal price; extra pieces pay the normal price. Example with a £2.90 shirt and "10 for £25": 10 shirts = £25, 12 shirts = £25 + 2 × £2.90 = £30.80, 20 shirts = £50, 9 shirts = £26.10 (no deal).</td><td>"10 shirts for £25"</td></tr>
     <tr><td>First Order Discount</td><td>% off a customer's very first order (any earlier order that was not cancelled counts). Used once per customer.</td><td>Welcome offer</td></tr>
     <tr><td>First X Orders Discount</td><td>% off each of a customer's first N orders</td><td>Building a habit</td></tr>
     <tr><td>Fixed Price Offer</td><td>The qualifying basket for a set price</td><td>Bundles</td></tr>
@@ -1526,6 +1527,7 @@ mark { background: var(--tag); color: var(--ink); border-radius: .15rem; padding
     <tr><td>Card-only code on a cash booking</td><td>"This offer is only for card payments."</td></tr>
     <tr><td>Below minimum spend (on the invoice)</td><td>"Spend £3.00 more to use this offer" (item, category and service offers: "Spend £3.00 more on the items in this offer to use this offer")</td></tr>
     <tr><td>Above maximum spend</td><td>"Order above £100.00 is not eligible" (item, category and service offers: "Items in this offer above £100.00 are not eligible")</td></tr>
+    <tr><td>Bulk Price, not enough pieces (on the invoice)</td><td>"Add 3 more items from this offer to get 10 for £25.00"</td></tr>
   </tbody>
 </table></div>
 </section>
@@ -1578,7 +1580,7 @@ mark { background: var(--tag); color: var(--ink); border-radius: .15rem; padding
         <li>3rd order: 100% to Shop.</li>
         <li>4th order onwards: normal commission rates.</li>
       </ul></td><td>Every order uses the zone's normal shop share (see <a href="#money">Who earns what</a>).</td></tr>
-    <tr><td><span class="chip warn">Pending</span><br>2. Quantity-based pricing / bulk discount</td><td>A lower price when more of the same item is ordered. Example: 1 shirt = £2.90, 10 shirts = £25 instead of £29.</td><td>Each item has one price, multiplied by the quantity. The only way to discount is a promotion.</td></tr>
+    <tr><td><span class="chip ok">Built</span><br>2. Quantity-based pricing / bulk discount</td><td>A lower price when more of the same item is ordered. Example: 1 shirt = £2.90, 10 shirts = £25 instead of £29.</td><td>Built as the <strong>Bulk Price</strong> promotion type (Admin → Promotions). Catalogue prices stay per item; the deal comes off the invoice like any other promotion. See <a href="#promotions">Promotions</a>.</td></tr>
     <tr><td><span class="chip warn">Pending</span><br>3. Itemization</td><td>Listed as pending; scope to be confirmed.</td><td>The customer chooses services and the number of bags and items; the shop counts and prices each item on the invoice.</td></tr>
     <tr><td><span class="chip warn">Pending</span><br>4. On-hold functionality</td><td>Listed as pending; scope to be confirmed.</td><td>The current on-hold flow is described in <a href="#shop-hold">When an item has a problem</a> and in the customer app section.</td></tr>
     <tr><td><span class="chip warn">Pending</span><br>5. Referral code</td><td>Customers invite friends with a referral code.</td><td>"Invite Friends" in the customer app is a placeholder (fixed code, dollar wording, share button not finished).</td></tr>
@@ -1681,6 +1683,7 @@ mark { background: var(--tag); color: var(--ink); border-radius: .15rem; padding
 <details><summary>"I entered a coupon code but it was not applied."</summary><p>Most often the customer set or changed the driver tip after entering the code: changing the tip removes the code without a message. Check the order's Promotions card; if no code is there, it was not saved at booking.</p></details>
 <details><summary>"You promised 20% but I got £10 off."</summary><p>The offer had a cap and said so: "20% OFF (up to £10.00)". 20% of that basket was more than £10, so £10 was taken off.</p></details>
 <details><summary>Adding another service stopped a service offer with a £100 maximum.</summary><p>Service, Category and Item Discounts now measure their minimum and maximum spend on their own items only, so other services (Alteration, Wash) no longer push the order over the maximum. Basket-wide offers still use the whole laundry.</p></details>
+<details><summary>How do I set "10 shirts for £25"?</summary><p>Admin → Promotions → New Promotion → type <strong>Bulk Price</strong>. Pieces in the deal: 10. Price for these pieces: £25. Targets: the shirt item(s). Every full 10 costs £25 and extra shirts pay the normal price. Several chosen items count together (5 folded + 5 on hanger = one group); if their prices differ, the cheapest are grouped first. A group never costs more than its normal price. The customer sees "10 for £25.00 on selected items"; Simulate shows £0 because it has no items, the deal is worked out on the invoice.</p></details>
 <details><summary>"£30 off" on two services took off more than £30.</summary><p>The offer was "£ off each item", which is per piece: every cheap item became free, limited only by what was still to pay. For £30 in total, set Max Discount Cap to £30 (or use 100% with a £30 cap).</p></details>
 <details><summary>"£50 off each item" but the items do not show £0.</summary><p>Each item can only lose its own price, and the whole discount can only take off what was still to pay after "Pay now" (minimum order + service fee + tip). The allowed discount is shared across the items, so each shows a small remaining amount. Together those amounts equal what was paid at booking.</p></details>
 <details><summary>A first-order offer did not apply.</summary><p>The customer already had an earlier order that was not cancelled (any status counts), or the order was placed before the offer was published, or outside its zone, days or times.</p></details>

@@ -115,3 +115,29 @@ export function firstOrderLimitNote({ conditions = [], perCustomerLimit, perDayL
   return 'Audience has "First order only", so each customer can get this offer once, on their first order. ' +
     '"Uses per Customer", "per Day" and "per Week" above 1 have no effect. Remove that condition to let customers use it again.';
 }
+
+/** Pieces in one Bulk price deal ("10 for £25" → 10): the form field, else the stored benefitConfig. */
+export function bundleSize(p = {}) {
+  let raw = p.bundleQuantity;
+  if (raw == null || raw === "") {
+    let config = p.benefitConfig;
+    if (typeof config === "string") {
+      try { config = JSON.parse(config); } catch { config = null; }
+    }
+    raw = config?.bundleQuantity;
+  }
+  const n = Number(raw);
+  return Number.isInteger(n) && n >= 2 ? n : null;
+}
+
+const pounds = (n) => `£${Number(n).toFixed(2)}`;
+
+/**
+ * Bulk price in plain words, e.g. "Any 10 pieces from 2 selected items for £25.00 (normal price for
+ * extra pieces), at most £5.00 off in total".
+ */
+export function bulkPriceSummary({ size, price, cap, targets }) {
+  const n = size || "N";
+  const total = Number(cap) > 0 ? `, at most ${pounds(cap)} off in total` : "";
+  return `Any ${n} pieces from ${targets} for ${pounds(price)} (extra pieces pay the normal price)${total}`;
+}

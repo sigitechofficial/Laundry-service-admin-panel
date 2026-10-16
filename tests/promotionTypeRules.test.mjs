@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
-  basketScopeWarning, conditionHidden, firstOrderLimitNote, firstOrderRule, isTypeLocked, lockedPerCustomerLimit,
-  showsPeriodLimits, visibilityOffered,
+  basketScopeWarning, bulkPriceSummary, bundleSize, conditionHidden, firstOrderLimitNote, firstOrderRule, isTypeLocked,
+  lockedPerCustomerLimit, showsPeriodLimits, visibilityOffered,
 } from "../src/pages/promotion/promotionTypeRules.js";
 
 describe("what the promotion type already decides", () => {
@@ -100,5 +100,28 @@ describe('"First order" condition on other types', () => {
     assert.equal(firstOrderLimitNote({ conditions: first(true), perCustomerLimit: "1" }), null);
     assert.equal(firstOrderLimitNote({ conditions: first(false), perCustomerLimit: "4" }), null);
     assert.equal(firstOrderLimitNote({ conditions: [], perCustomerLimit: "4" }), null);
+  });
+});
+
+describe("Bulk price", () => {
+  it("reads the pieces in a deal from the form or the saved promotion", () => {
+    assert.equal(bundleSize({ bundleQuantity: "10" }), 10);
+    assert.equal(bundleSize({ benefitConfig: { bundleQuantity: 6 } }), 6);
+    assert.equal(bundleSize({ benefitConfig: '{"bundleQuantity":12}' }), 12, "JSON text from the live database");
+    assert.equal(bundleSize({ bundleQuantity: "1" }), null, "a deal needs at least 2 pieces");
+    assert.equal(bundleSize({ bundleQuantity: "2.5" }), null);
+    assert.equal(bundleSize({}), null);
+  });
+
+  it("says the deal in plain words", () => {
+    assert.equal(
+      bulkPriceSummary({ size: 10, price: "25", cap: "", targets: "1 selected item" }),
+      "Any 10 pieces from 1 selected item for £25.00 (extra pieces pay the normal price)"
+    );
+    assert.equal(
+      bulkPriceSummary({ size: 10, price: 25, cap: "5", targets: "2 selected items" }),
+      "Any 10 pieces from 2 selected items for £25.00 (extra pieces pay the normal price), at most £5.00 off in total"
+    );
+    assert.match(bulkPriceSummary({ size: null, price: 25, targets: "all items" }), /^Any N pieces from all items/);
   });
 });
