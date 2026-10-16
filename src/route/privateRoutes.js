@@ -55,6 +55,7 @@ import {
   SendNotificationsPage,
   AdminNotificationSettingsPage,
   PrivacyPolicy,
+  BusinessHandbookPage,
 } from "../routes/AsyncComponent";
 
 export const privateRoutes = [
@@ -333,6 +334,11 @@ export const privateRoutes = [
     path: "/privacy-policy",
     element: PrivacyPolicy,
     resourceKey: "privacy_policy_page",
+  },
+  {
+    path: "/business-handbook",
+    element: BusinessHandbookPage,
+    resourceKey: "business_handbook_page",
   },
 ];
 

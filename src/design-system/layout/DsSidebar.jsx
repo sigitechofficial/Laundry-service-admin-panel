@@ -77,7 +77,7 @@ export default function DsSidebar({ collapsed, onToggle, mobileOpen, searchRef }
     const q = query.trim().toLowerCase();
     return DS_NAV.map((sec) => {
       const items = sec.items
-        .filter((item) => !allowed || allowed.has(labelToFeatureKey(item.label)))
+        .filter((item) => !allowed || item.everyone || allowed.has(labelToFeatureKey(item.label)))
         .map((item) => {
           if (!q) return item;
           const self = item.label.toLowerCase().includes(q);

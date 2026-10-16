@@ -8,7 +8,11 @@
 export const DS_NAV = [
   {
     section: "Overview",
-    items: [{ label: "Dashboard", icon: "dashboard", path: "/" }],
+    items: [
+      { label: "Dashboard", icon: "dashboard", path: "/" },
+      // Reference for every admin user, so it skips the per-role screen permissions.
+      { label: "Business Handbook", icon: "book", path: "/business-handbook", everyone: true },
+    ],
   },
   {
     section: "Orders",
