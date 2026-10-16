@@ -5,6 +5,7 @@ import {
 } from "../../../utilities/formatters";
 import { formatUserPhone } from "../../../utilities/contactLinks";
 import {
+  invoiceTotals,
   resolveInvoiceSettlement,
   resolveOrderSubtotal,
   resolveServicesSubtotal,
@@ -142,7 +143,9 @@ export function buildInvoiceView(invoiceDetails, fallbackShopName = "") {
     prepaidDriverTip: invoiceDetails?.billingDetail?.prepaidDriverTip,
     discount,
   });
-  const grandTotal = settlement.totalOrderAmount;
+  const totals = invoiceTotals(settlement);
+  // Headline total is what the customer owes for the order after any discount.
+  const grandTotal = totals.after;
   return {
     settlement,
     amountDue: settlement.amountDueNow,
@@ -162,6 +165,7 @@ export function buildInvoiceView(invoiceDetails, fallbackShopName = "") {
     discount,
     couponCode,
     grandTotal,
+    totals,
     pickupWindow,
     deliveryWindow,
     bags: Number(invoiceDetails?.noOfBags || 0),
@@ -227,11 +231,14 @@ function settlementHtml(view, { rowClass = "row", grandClass = "row grand", head
   }
   rows.push(`<div class="${rowClass}"><span>Service fee</span><span>${m(s.serviceFee)}</span></div>`);
   if (Number(s.driverTip) > 0) rows.push(`<div class="${rowClass}"><span>Tip</span><span>${m(s.driverTip)}</span></div>`);
-  if (Number(s.discount) > 0)
+  const t = invoiceTotals(s);
+  if (t.hasDiscount) {
+    rows.push(`<div class="${headClass}"><span>Total before discount</span><span>${m(t.before)}</span></div>`);
     rows.push(
-      `<div class="${rowClass}"><span>Discount${view.couponCode ? ` (${view.couponCode})` : ""}</span><span>-${m(s.discount)}</span></div>`
+      `<div class="${rowClass}"><span>Discount${view.couponCode ? ` (${view.couponCode})` : ""}</span><span>-${m(t.discount)}</span></div>`
     );
-  rows.push(`<div class="${grandClass}"><span>Total order amount</span><span>${m(s.totalOrderAmount)}</span></div>`);
+  }
+  rows.push(`<div class="${grandClass}"><span>${t.hasDiscount ? "Total after discount" : "Total order amount"}</span><span>${m(t.after)}</span></div>`);
   if (Number(paid.totalPaid) > 0) {
     rows.push(`<div class="${lineClass}"></div>`);
     rows.push(`<div class="${headClass}"><span>Paid at booking</span><span></span></div>`);
@@ -245,7 +252,7 @@ function settlementHtml(view, { rowClass = "row", grandClass = "row grand", head
   rows.push(`<div class="${lineClass}"></div>`);
   rows.push(`<div class="${grandClass}"><span>Amount due now</span><span>${m(s.amountDueNow)}</span></div>`);
   if (Number(paid.totalPaid) > 0) {
-    rows.push(`<div class="${rowClass}" style="color:#6b7280;font-size:0.85em"><span>${m(s.totalOrderAmount)} total − ${m(paid.totalPaid)} already paid</span><span></span></div>`);
+    rows.push(`<div class="${rowClass}" style="color:#6b7280;font-size:0.85em"><span>${m(t.after)} total − ${m(paid.totalPaid)} already paid</span><span></span></div>`);
   } else if (s.isCash) {
     rows.push(`<div class="${rowClass}" style="color:#6b7280;font-size:0.85em"><span>Collected in cash at delivery</span><span></span></div>`);
   }

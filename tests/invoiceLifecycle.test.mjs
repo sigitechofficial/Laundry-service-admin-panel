@@ -23,3 +23,18 @@ describe("invoice lifecycle", () => {
     assert.equal(invoicePhaseLabel(INVOICE_PHASE.FINALIZED), "Finalized");
   });
 });
+
+import { invoiceTotals } from "../src/utilities/invoiceTotals.js";
+
+describe("printed invoice totals", () => {
+  it("shows before and after discount when there is one (order 1819-892557)", () => {
+    assert.deepEqual(invoiceTotals({ totalOrderAmount: 78.75, discount: 30 }), {
+      hasDiscount: true, before: 78.75, discount: 30, after: 48.75,
+    });
+  });
+  it("keeps one total without a discount, and never goes below zero", () => {
+    assert.equal(invoiceTotals({ totalOrderAmount: 50, discount: 0 }).hasDiscount, false);
+    assert.equal(invoiceTotals({ totalOrderAmount: 50, discount: 0 }).after, 50);
+    assert.equal(invoiceTotals({ totalOrderAmount: 20, discount: 35 }).after, 0);
+  });
+});
