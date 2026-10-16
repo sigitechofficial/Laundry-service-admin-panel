@@ -373,8 +373,12 @@ function promotionSummary(form, zoneName) {
     : form.zoneScopeMode === "excluded" ? `All zones except ${zoneNames}` : zoneNames;
 
   const spend = [
-    form.minSubtotal !== "" && Number(form.minSubtotal) > 0 ? `orders of ${money(form.minSubtotal)} or more` : null,
-    form.maxSubtotal !== "" && Number(form.maxSubtotal) > 0 ? `up to ${money(form.maxSubtotal)}` : null,
+    form.minSubtotal !== "" && Number(form.minSubtotal) > 0
+      ? `${ITEM_SCOPE_TYPES.includes(bt) ? "selected items of" : "orders of"} ${money(form.minSubtotal)} or more`
+      : null,
+    form.maxSubtotal !== "" && Number(form.maxSubtotal) > 0
+      ? `${ITEM_SCOPE_TYPES.includes(bt) && !(Number(form.minSubtotal) > 0) ? "selected items up to" : "up to"} ${money(form.maxSubtotal)}`
+      : null,
   ].filter(Boolean).join(", ");
 
   const dates = form.startDate && form.endDate ? `${shortDay(form.startDate)} – ${shortDay(form.endDate)}`
@@ -928,6 +932,8 @@ export default function PromotionsPage() {
   const mode = effectiveMode(form);
   const itemScope = ITEM_SCOPE_TYPES.includes(form.benefitType);
   const capVisible = showsCap(form);
+  // Item, category and service discounts measure spend / quantity on their own items only.
+  const offerItemsOnly = ITEM_SCOPE_TYPES.includes(form.benefitType);
   const perCustomerLock = lockedPerCustomerLimit(form);
   const mainValueText = form.discountValue === "" ? "" : mode === "percent" ? `${form.discountValue}%` : money(form.discountValue);
   const overrideZones = zones.filter((z) => overrideAllowed(form, String(z.id ?? z._id)));
@@ -1227,13 +1233,13 @@ export default function PromotionsPage() {
                 <TbShoppingCart className="text-blue-600" size={18} /> Basket Requirements
               </div>
               <div className="grid grid-cols-3 gap-4">
-                <Field label="Minimum Subtotal (£)" hint="The laundry total on the final invoice must reach this. Blank = no minimum">
+                <Field label="Minimum Subtotal (£)" hint={offerItemsOnly ? "The selected items on the final invoice must come to at least this; other services do not count. Blank = no minimum" : "The laundry total on the final invoice must reach this. Blank = no minimum"}>
                   <Input type="number" min="0" step="0.01" value={form.minSubtotal} onChange={(e) => setField("minSubtotal", e.target.value)} placeholder="No minimum" />
                 </Field>
-                <Field label="Maximum Subtotal (£)" hint="No offer when the laundry total is above this. Blank = no maximum">
+                <Field label="Maximum Subtotal (£)" hint={offerItemsOnly ? "No offer when the selected items come to more than this; other services do not count. Blank = no maximum" : "No offer when the laundry total is above this. Blank = no maximum"}>
                   <Input type="number" min="0" step="0.01" value={form.maxSubtotal} onChange={(e) => setField("maxSubtotal", e.target.value)} placeholder="No maximum" />
                 </Field>
-                <Field label="Minimum Quantity" hint="Fewest items on the invoice, add-ons included. Blank = no minimum">
+                <Field label="Minimum Quantity" hint={offerItemsOnly ? "Fewest selected items on the invoice; items from other services do not count. Blank = no minimum" : "Fewest items on the invoice, add-ons included. Blank = no minimum"}>
                   <Input type="number" min="1" value={form.minQuantity} onChange={(e) => setField("minQuantity", e.target.value)} placeholder="No minimum" />
                 </Field>
               </div>
