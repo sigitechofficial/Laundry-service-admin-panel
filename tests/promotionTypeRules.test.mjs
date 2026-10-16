@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
-  basketScopeWarning, conditionHidden, isTypeLocked, lockedPerCustomerLimit, showsPeriodLimits, visibilityOffered,
+  basketScopeWarning, conditionHidden, firstOrderLimitNote, firstOrderRule, isTypeLocked, lockedPerCustomerLimit,
+  showsPeriodLimits, visibilityOffered,
 } from "../src/pages/promotion/promotionTypeRules.js";
 
 describe("what the promotion type already decides", () => {
@@ -79,5 +80,25 @@ describe("basket-wide promotions with a \"Basket contains\" condition", () => {
     assert.equal(basketScopeWarning("service_discount", [{ conditionType: "SERVICE" }]), null);
     assert.equal(basketScopeWarning("basket_discount", [{ conditionType: "PAYMENT_METHOD" }]), null);
     assert.equal(basketScopeWarning("basket_discount", []), null);
+  });
+});
+
+describe('"First order" condition on other types', () => {
+  const first = (value, logicGroup = "ALL") => [{ conditionType: "FIRST_ORDER", operator: "equals", value, logicGroup }];
+
+  it("reads only / never, and ignores an Any-of rule", () => {
+    assert.equal(firstOrderRule(first(true)), "only");
+    assert.equal(firstOrderRule(first("true")), "only");
+    assert.equal(firstOrderRule(first(false)), "never");
+    assert.equal(firstOrderRule(first(true, "ANY")), null);
+    assert.equal(firstOrderRule([]), null);
+  });
+
+  it("warns when limits above 1 can never be reached", () => {
+    const note = firstOrderLimitNote({ conditions: first(true), perCustomerLimit: "4", perDayLimit: "4", perWeekLimit: "" });
+    assert.match(note, /once, on their first order/);
+    assert.equal(firstOrderLimitNote({ conditions: first(true), perCustomerLimit: "1" }), null);
+    assert.equal(firstOrderLimitNote({ conditions: first(false), perCustomerLimit: "4" }), null);
+    assert.equal(firstOrderLimitNote({ conditions: [], perCustomerLimit: "4" }), null);
   });
 });

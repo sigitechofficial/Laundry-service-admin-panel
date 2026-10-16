@@ -88,3 +88,30 @@ export function basketScopeWarning(benefitType, conditions = []) {
 
 /** The type is fixed once the promotion has been published (orders may hold it). */
 export const isTypeLocked = (promotion) => Boolean(promotion?.currentVersionId);
+
+const isTrue = (v) => v === true || v === "true";
+const isFalse = (v) => v === false || v === "false";
+
+/**
+ * A "Must match: First order" condition in Audience: "only" (first order only),
+ * "never" (not on a first order) or null when there is none.
+ */
+export function firstOrderRule(conditions = []) {
+  const rule = conditions.find((c) => c.conditionType === "FIRST_ORDER" && (c.logicGroup || "ALL") === "ALL");
+  if (!rule) return null;
+  if (isTrue(rule.value)) return "only";
+  if (isFalse(rule.value)) return "never";
+  return null;
+}
+
+/**
+ * With "First order only" a customer can get the offer once, so per-customer, per-day
+ * and per-week limits above 1 never come into play. Returns the note to show, or null.
+ */
+export function firstOrderLimitNote({ conditions = [], perCustomerLimit, perDayLimit, perWeekLimit }) {
+  if (firstOrderRule(conditions) !== "only") return null;
+  const above1 = [perCustomerLimit, perDayLimit, perWeekLimit].some((v) => Number(v) > 1);
+  if (!above1) return null;
+  return 'Audience has "First order only", so each customer can get this offer once, on their first order. ' +
+    '"Uses per Customer", "per Day" and "per Week" above 1 have no effect. Remove that condition to let customers use it again.';
+}

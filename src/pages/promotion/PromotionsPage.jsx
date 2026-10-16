@@ -30,8 +30,8 @@ import PromotionSimulateModal from "./PromotionSimulateModal";
 import { CONDITION_DEFS, WEEKDAYS, conditionError, serializeCondition } from "./promotionConditions";
 import { BENEFIT_TYPES, STATUS_OPTIONS, STATUS_TONES } from "./promotionLabels";
 import {
-  FIRST_ORDER_TYPES, basketScopeWarning, conditionHidden, isTypeLocked, lockedPerCustomerLimit, showsPeriodLimits,
-  visibilityOffered,
+  FIRST_ORDER_TYPES, basketScopeWarning, conditionHidden, firstOrderLimitNote, firstOrderRule, isTypeLocked,
+  lockedPerCustomerLimit, showsPeriodLimits, visibilityOffered,
 } from "./promotionTypeRules";
 
 /* ─── Constants ──────────────────────────────────────────────────────────── */
@@ -385,13 +385,21 @@ function promotionSummary(form, zoneName) {
   const timed = form.startDate || form.endDate || days || window;
   const when = `${[dates, days, window].filter(Boolean).join(" · ")}${timed ? " (UK time)" : ""}`;
 
+  const firstOrder = firstOrderRule(form.conditions);
+  const who = firstOrder === "only" ? "First order only"
+    : firstOrder === "never" ? "Not on a customer's first order" : null;
+  const otherRules = form.conditions.filter((c) => c.conditionType !== "FIRST_ORDER").length;
+  const audience = [who, otherRules ? `${otherRules} more audience rule${otherRules === 1 ? "" : "s"}` : null]
+    .filter(Boolean).join(", ");
+
   const perCustomer = lockedPerCustomerLimit(form)?.value ?? form.perCustomerLimit;
   const often = [
-    !isPosInt(perCustomer) ? "No per-customer limit" : Number(perCustomer) === 1 ? "Once per customer" : `${perCustomer} times per customer`,
+    firstOrder === "only" ? "Once per customer (their first order)"
+      : !isPosInt(perCustomer) ? "No per-customer limit" : Number(perCustomer) === 1 ? "Once per customer" : `${perCustomer} times per customer`,
     isPosInt(form.globalUsageLimit) ? `first ${form.globalUsageLimit} uses in total` : null,
   ].filter(Boolean).join(", ");
 
-  return [what, how, where, spend ? `On ${spend}` : null, when, often].filter(Boolean);
+  return [what, how, audience || null, where, spend ? `On ${spend}` : null, when, often].filter(Boolean);
 }
 
 function PromotionSummaryBar({ parts }) {
@@ -1208,6 +1216,11 @@ export default function PromotionsPage() {
                   </>
                 )}
               </div>
+              {firstOrderLimitNote(form) ? (
+                <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                  {firstOrderLimitNote(form)}
+                </p>
+              ) : null}
             </div>
             <div className="bg-white border border-gray-200 rounded-xl p-5 space-y-4">
               <div className="flex items-center gap-2 text-gray-900 font-semibold text-sm">
