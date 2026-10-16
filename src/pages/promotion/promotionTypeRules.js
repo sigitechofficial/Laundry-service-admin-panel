@@ -66,5 +66,25 @@ export function visibilityOffered(visibility, { activationType, benefitType }) {
   return true;
 }
 
+// Types whose saving is worked out on the whole basket (not on chosen items).
+const WHOLE_BASKET_TYPES = [
+  "basket_discount", "percentage_discount", "fixed_amount_discount", "fixed_price",
+  "first_order_discount", "first_x_orders_discount", "cashback",
+];
+const BASKET_CONTENT_CONDITIONS = ["SERVICE", "CATEGORY", "PRODUCT", "ADDON"];
+
+/**
+ * A whole-basket promotion with a "Basket contains …" condition: the condition only
+ * decides who gets the offer, the saving still covers every item. Returns the
+ * warning to show, or null.
+ */
+export function basketScopeWarning(benefitType, conditions = []) {
+  if (!WHOLE_BASKET_TYPES.includes(benefitType)) return null;
+  if (!conditions.some((c) => BASKET_CONTENT_CONDITIONS.includes(c.conditionType))) return null;
+  const saving = benefitType === "cashback" ? "cashback is still worked out on" : "discount still comes off";
+  return `"Basket contains …" only decides who gets this offer. The ${saving} the whole basket, other services included. ` +
+    "To discount only certain services, categories or items, create a Service, Category or Item Discount instead.";
+}
+
 /** The type is fixed once the promotion has been published (orders may hold it). */
 export const isTypeLocked = (promotion) => Boolean(promotion?.currentVersionId);

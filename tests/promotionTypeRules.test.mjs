@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
-  conditionHidden, isTypeLocked, lockedPerCustomerLimit, showsPeriodLimits, visibilityOffered,
+  basketScopeWarning, conditionHidden, isTypeLocked, lockedPerCustomerLimit, showsPeriodLimits, visibilityOffered,
 } from "../src/pages/promotion/promotionTypeRules.js";
 
 describe("what the promotion type already decides", () => {
@@ -64,5 +64,20 @@ describe("type lock", () => {
     assert.equal(isTypeLocked({ currentVersionId: 12 }), true);
     assert.equal(isTypeLocked({ currentVersionId: null }), false);
     assert.equal(isTypeLocked(null), false);
+  });
+});
+
+describe("basket-wide promotions with a \"Basket contains\" condition", () => {
+  it("warns that the discount still covers the whole basket", () => {
+    const w = basketScopeWarning("basket_discount", [{ conditionType: "SERVICE" }]);
+    assert.match(w, /whole basket/);
+    assert.match(w, /Service, Category or Item Discount/);
+    assert.match(basketScopeWarning("cashback", [{ conditionType: "CATEGORY" }]), /cashback is still worked out on the whole basket/);
+  });
+
+  it("stays quiet when the discount is already limited to items, or there is no such condition", () => {
+    assert.equal(basketScopeWarning("service_discount", [{ conditionType: "SERVICE" }]), null);
+    assert.equal(basketScopeWarning("basket_discount", [{ conditionType: "PAYMENT_METHOD" }]), null);
+    assert.equal(basketScopeWarning("basket_discount", []), null);
   });
 });

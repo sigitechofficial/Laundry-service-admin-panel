@@ -53,6 +53,7 @@ import { canAdminAssignOrReassignFromBooking } from "../../../shared/adminAssign
 import InvoiceDetailModal from "../invoice/InvoiceDetailModal";
 import IssueRefundModal from "./IssueRefundModal";
 import OrderPromotionsCard from "./OrderPromotionsCard";
+import CustomerBill from "./CustomerBill";
 import PrintTagsToShopButton from "./PrintTagsToShopButton";
 import ChangePaymentMethodModal from "./ChangePaymentMethodModal";
 import {
@@ -2661,6 +2662,7 @@ export default function OrderDetailsPage() {
                     : "TBD"}
                 </p>
               </div>
+              {invoiceGenerated ? <CustomerBill bill={paymentSummary?.bill} /> : null}
               <div className="flex items-center" style={{ gap: 8 }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <OdMetaRow label="Method" value={paymentMethodDisplay} />
