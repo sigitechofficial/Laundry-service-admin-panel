@@ -122,6 +122,18 @@ export function mergeInvoiceDetailsFromResponse(responseData) {
  * Prefers the server paymentSummary; falls back to the same formula the
  * backend uses (buildAdminInvoicePreview) when the summary is missing.
  */
+/**
+ * The totals a printed invoice shows. With a discount: total before discount, the
+ * discount, then total after discount; without one, a single total.
+ * settlement.totalOrderAmount is the server's total before any discount.
+ */
+export function invoiceTotals(settlement = {}) {
+  const before = roundInvoiceMoney(settlement.totalOrderAmount);
+  const discount = roundInvoiceMoney(settlement.discount);
+  const hasDiscount = discount > 0;
+  return { hasDiscount, before, discount, after: hasDiscount ? Math.max(0, roundInvoiceMoney(before - discount)) : before };
+}
+
 export function resolveInvoiceSettlement(source, fallback = {}) {
   const ps = source?.paymentSummary || null;
   const paymentType = String(

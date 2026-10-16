@@ -53,7 +53,7 @@ export default function InvoiceDocument({ view }) {
           </div>
         </div>
         <div className={styles.totalBlock}>
-          <p className={styles.totalLabel}>Total order amount</p>
+          <p className={styles.totalLabel}>{view.totals?.hasDiscount ? "Total after discount" : "Total order amount"}</p>
           <p className={styles.totalValue}>{money(view, view.grandTotal)}</p>
           <p className={styles.panelRow} style={{ marginTop: 4 }}>
             Amount due now <strong>{money(view, view.amountDue)}</strong>
@@ -195,6 +195,12 @@ export default function InvoiceDocument({ view }) {
               <strong>{money(view, settlement.driverTip)}</strong>
             </div>
           ) : null}
+          {view.totals?.hasDiscount ? (
+            <div className={styles.grandRow}>
+              <span>Total before discount</span>
+              <span>{money(view, view.totals.before)}</span>
+            </div>
+          ) : null}
           {settlement.discount > 0 ? (
             <div className={styles.breakRow}>
               <span>
@@ -211,8 +217,8 @@ export default function InvoiceDocument({ view }) {
             </div>
           ) : null}
           <div className={styles.grandRow}>
-            <span>Total order amount</span>
-            <span>{money(view, settlement.totalOrderAmount)}</span>
+            <span>{view.totals?.hasDiscount ? "Total after discount" : "Total order amount"}</span>
+            <span>{money(view, view.grandTotal)}</span>
           </div>
         </div>
 
@@ -259,7 +265,7 @@ export default function InvoiceDocument({ view }) {
           </div>
           <p className={styles.blockNote}>
             {paid.totalPaid > 0
-              ? `${money(view, settlement.totalOrderAmount)} actual total − ${money(view, paid.totalPaid)} already paid`
+              ? `${money(view, view.grandTotal)} total − ${money(view, paid.totalPaid)} already paid`
               : settlement.isCash
                 ? "Full bill is collected in cash at delivery."
                 : "Nothing was paid at booking; full total is due."}
