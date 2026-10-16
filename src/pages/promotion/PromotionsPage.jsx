@@ -104,7 +104,9 @@ function effectiveMode(p) {
 }
 
 const needsValue = (bt) => bt !== "free_delivery";
-const showsCap = (p) => effectiveMode(p) === "percent" || p.benefitType === "cashback";
+// Item-scope "£ off each" also takes a cap: it limits the total, e.g. £30 off each item but £30 at most.
+const showsCap = (p) =>
+  effectiveMode(p) === "percent" || p.benefitType === "cashback" || ITEM_SCOPE_TYPES.includes(p.benefitType);
 const defaultTargetType = (bt) => {
   if (bt === "item_discount") return "subCategory";
   if (bt === "category_discount") return "category";
@@ -123,7 +125,7 @@ function valueLabel(p) {
   if (p.benefitType === "fixed_price") return `Basket for ${money(n)}`;
   const cap = showsCap(p) && p.maxDiscountCap ? ` (max ${money(p.maxDiscountCap)})` : "";
   if (effectiveMode(p) === "percent") return `${n}%${cap}`;
-  if (ITEM_SCOPE_TYPES.includes(p.benefitType)) return `${money(n)} off each`;
+  if (ITEM_SCOPE_TYPES.includes(p.benefitType)) return `${money(n)} off each${cap}`;
   return `${money(n)}${cap}`;
 }
 
@@ -352,7 +354,11 @@ function promotionSummary(form, zoneName) {
   else if (bt === "delivery_discount") what = `${value} off the delivery fee`;
   else if (bt === "cashback") what = `${value} cashback, added to the customer's credit after delivery`;
   else if (bt === "fixed_price") what = value;
-  else if (ITEM_SCOPE_TYPES.includes(bt)) what = `${value} on ${targets}`;
+  else if (ITEM_SCOPE_TYPES.includes(bt) && effectiveMode(form) === "amount") {
+    const amount = money(form.discountValue);
+    const total = Number(form.maxDiscountCap) > 0 ? `, at most ${money(form.maxDiscountCap)} in total` : ", with no limit on the total";
+    what = `${amount} off every single item in ${targets} (an item never goes below £0)${total}`;
+  } else if (ITEM_SCOPE_TYPES.includes(bt)) what = `${value} on ${targets}`;
   else what = `${value} off the order`;
 
   const codes = form.couponCodes.map((c) => c.code);
@@ -1009,7 +1015,7 @@ export default function PromotionsPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <Field
                     label={valueFieldLabel(form)}
-                    hint={form.benefitType === "fixed_price" ? "Qualifying basket is sold for this price" : mode === "percent" ? "1 – 100" : undefined}
+                    hint={form.benefitType === "fixed_price" ? "Qualifying basket is sold for this price" : mode === "percent" ? "1 – 100" : ITEM_SCOPE_TYPES.includes(form.benefitType) ? "Taken off every matching item (each piece), not off the order. For a set amount in total, also fill Max Discount Cap." : undefined}
                   >
                     <Input
                       type="number"
@@ -1022,7 +1028,7 @@ export default function PromotionsPage() {
                     />
                   </Field>
                   {capVisible && (
-                    <Field label={form.benefitType === "cashback" ? "Max Cashback (£)" : "Max Discount Cap (£)"} hint={form.benefitType === "cashback" ? "Most cashback one order can earn" : "Caps the whole promotion's saving"}>
+                    <Field label={form.benefitType === "cashback" ? "Max Cashback (£)" : "Max Discount Cap (£)"} hint={form.benefitType === "cashback" ? "Most cashback one order can earn" : ITEM_SCOPE_TYPES.includes(form.benefitType) && mode === "amount" ? "Most this promotion takes off one order in total. Example: £30 here with £30 off each item gives £30 off these items altogether." : "Caps the whole promotion's saving"}>
                       <Input type="number" min="0" step="0.01" value={form.maxDiscountCap} onChange={(e) => setField("maxDiscountCap", e.target.value)} placeholder="No cap" />
                     </Field>
                   )}
