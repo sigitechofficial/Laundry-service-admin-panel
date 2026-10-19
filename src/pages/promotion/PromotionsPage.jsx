@@ -346,14 +346,18 @@ const shortDay = (day) => dayjs(day).format("D MMM YYYY");
  * The promotion in plain words, rebuilt as the admin types: what it gives, how it is
  * activated, where, when and how often. Shown on every wizard step.
  */
-function promotionSummary(form, zoneName) {
+function promotionSummary(form, zoneName, catalogOptions = {}) {
   const bt = form.benefitType;
   const value = valueLabel(form);
   const valueSet = !needsValue(bt) || Number(form.discountValue) > 0;
   const targetWord = { subCategory: "item", addon: "add-on", category: "category", service: "service" }[form.targetType] || "item";
+  const picked = (catalogOptions[form.targetType] || [])
+    .filter((o) => form.targetIds.map(String).includes(String(o.value)))
+    .map((o) => o.label);
+  const named = picked.length <= 3 ? picked.join(", ") : `${picked.slice(0, 3).join(", ")} +${picked.length - 3}`;
   const targets = form.targetType === "all"
     ? "all items"
-    : `${form.targetIds.length || "no"} selected ${targetWord}${form.targetIds.length === 1 ? "" : "s"}`.replace("categorys", "categories");
+    : named || `${form.targetIds.length || "no"} selected ${targetWord}${form.targetIds.length === 1 ? "" : "s"}`.replace("categorys", "categories");
 
   let what;
   if (!valueSet) what = `${benefitLabel(bt)} — value not set yet`;
@@ -1427,7 +1431,7 @@ export default function PromotionsPage() {
       <Modal open={showForm} onClose={() => setShowForm(false)} title={editId ? "Edit Promotion" : "New Promotion"} size="xl" hideFooter closeOnBackdrop={false}>
         <div className="p-4">
           <StepIndicator step={wizardStep} onSelect={(i) => (i <= wizardStep ? setWizardStep(i) : goToStep(i))} />
-          <PromotionSummaryBar parts={promotionSummary(form, zoneName)} />
+          <PromotionSummaryBar parts={promotionSummary(form, zoneName, catalogOptions)} />
           {renderStep()}
           <div className="flex justify-between mt-6">
             <Button variant="secondary" onClick={() => (wizardStep > 0 ? setWizardStep(wizardStep - 1) : setShowForm(false))}>
