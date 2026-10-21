@@ -55,7 +55,7 @@ export async function startAdminForegroundNotifications({ onNotify } = {}) {
       try {
         const n = new Notification(title, {
           body,
-          icon: "/images/logo.png",
+          icon: "/images/logo-mark.png",
           tag: payload.data?.alertType || payload.data?.type || `admin_${Date.now()}`,
           data: payload.data || {},
         });

@@ -149,7 +149,7 @@ export default function LoginPage() {
           <img
             className="jd-auth__logo"
             src="/images/logo1.png"
-            alt="Just Dry Cleaners"
+            alt="Just Dry Cleans Admin"
           />
         </div>
         <h1 className="jd-h1">Sign in</h1>

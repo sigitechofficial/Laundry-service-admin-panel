@@ -184,8 +184,8 @@ export default function DsSidebar({ collapsed, onToggle, mobileOpen, searchRef }
         <div className="jd-brand">
           <img
             className="jd-brand__logo"
-            src="/images/logo.png"
-            alt="Just Dry Cleaners"
+            src={collapsed ? "/images/logo-mark.png" : "/images/logo.png"}
+            alt="Just Dry Cleans Admin"
           />
           <button type="button" className="jd-col" aria-label="Collapse sidebar" onClick={onToggle}>
             <DsIcon name="chevLeft" size={16} />

@@ -314,9 +314,9 @@
   height: 42px;
   width: 42px;
   max-width: 42px;
-  object-fit: cover;
-  object-position: left center;
-  border-radius: 10px;
+  object-fit: contain;
+  object-position: center;
+  border-radius: 0;
 }
 
 .jd-ds.is-collapsed .jd-search,
