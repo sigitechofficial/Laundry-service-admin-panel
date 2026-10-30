@@ -594,6 +594,13 @@ export default function OrderDetailsPage() {
     return type === "delivery" || type === "dropoff";
   });
 
+  // "Collect from Outside" pickup location photos from the customer app (older apps send none).
+  const collectionImages = Array.isArray(orderData?.collectionImages)
+    ? orderData.collectionImages.filter((img) => img?.imageUrl)
+    : [];
+  const isCollectFromOutside =
+    String(orderData?.driverInstructionOptions || "").trim() === "Collect from Outside";
+
   const pickupItemsCount = pickupProofs.reduce(
     (sum, proof) => sum + Number(proof?.noOfItems || 0),
     0
@@ -730,6 +737,7 @@ export default function OrderDetailsPage() {
   const [customerCompareExpanded, setCustomerCompareExpanded] = useState(false);
   // null | "customer" | "shop" — which party's contact modal is open.
   const [contactModal, setContactModal] = useState(null);
+  const [collectionPhotoPreview, setCollectionPhotoPreview] = useState(null);
   const selectedItemsServiceIdResolved =
     selectedItemsServiceId || selectedServiceGroups?.[0]?.serviceId || "";
   const customerPhone = formatUserPhone(orderData?.customer);
@@ -3016,6 +3024,53 @@ export default function OrderDetailsPage() {
                   {orderData?.driverInstruction || "N/A"}
                 </p>
               </div>
+              <div className="flex justify-between gap-3">
+                <p style={{ margin: 0, color: "var(--muted)",  fontSize: 12, textTransform: "uppercase" }}>
+                  Collection method
+                </p>
+                <p style={{ margin: 0, textAlign: "right", fontSize: 12 }}>
+                  {orderData?.driverInstructionOptions || "N/A"}
+                </p>
+              </div>
+              {(collectionImages.length > 0 || isCollectFromOutside) && (
+                <div>
+                  <p style={{ margin: 0, color: "var(--muted)",  fontSize: 12, textTransform: "uppercase" }}>
+                    Pickup location photos
+                  </p>
+                  {collectionImages.length ? (
+                    <div className="grid grid-cols-3 gap-2 mt-2">
+                      {collectionImages.map((img, idx) => (
+                        <button
+                          key={img.id || idx}
+                          type="button"
+                          onClick={() => setCollectionPhotoPreview(joinMediaUrl(img.imageUrl))}
+                          className="aspect-square rounded-md overflow-hidden bg-[#F3F4F6]"
+                          style={{ padding: 0, border: "none", cursor: "zoom-in" }}
+                          aria-label={`Open pickup location photo ${idx + 1}`}
+                        >
+                          <img
+                            src={joinMediaUrl(img.imageUrl)}
+                            alt={`pickup-location-${idx}`}
+                            className="w-full h-full object-cover"
+                          />
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <div
+                      style={{ padding: 14,
+                        marginTop: 8,
+                        background: "var(--canvas)",
+                        border: "1px dashed var(--line)",
+                        borderRadius: "var(--r-lg)", }}
+                    >
+                      <p style={{ margin: 0, color: "var(--muted)",  fontSize: 11 }}>
+                        No photo (older app version)
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </CollapsibleCard>
 
@@ -3245,6 +3300,21 @@ export default function OrderDetailsPage() {
       onClose={() => setPaymentMethodModalOpen(false)}
       onSuccess={() => refetchOrder()}
     />
+    <Modal
+      open={Boolean(collectionPhotoPreview)}
+      title="Pickup location photo"
+      onClose={() => setCollectionPhotoPreview(null)}
+      hideFooter
+      size="lg"
+    >
+      {collectionPhotoPreview && (
+        <img
+          src={collectionPhotoPreview}
+          alt="Pickup location"
+          style={{ display: "block", width: "100%", maxHeight: "70vh", objectFit: "contain", borderRadius: 8 }}
+        />
+      )}
+    </Modal>
     <Modal
       open={Boolean(contactModal)}
       title={activeContact?.title || "Contact"}
