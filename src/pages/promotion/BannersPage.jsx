@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import dayjs from "dayjs";
 import {
   TbFileDescription,
@@ -9,6 +9,9 @@ import {
   TbCalendarEvent,
   TbUpload,
   TbX,
+  TbDeviceMobile,
+  TbWorld,
+  TbDevices,
 } from "react-icons/tb";
 import {
   Button,
@@ -66,10 +69,49 @@ const TARGET_TYPES = [
   { value: "sub_category", label: "Specific Sub-Category" },
 ];
 
+/** Where a banner shows. `bannerImage` is the mobile image, `webImage` the website one. */
+const PLACEMENTS = [
+  { value: "mobile", label: "Mobile app", icon: TbDeviceMobile },
+  { value: "web", label: "Website", icon: TbWorld },
+  { value: "both", label: "Both", icon: TbDevices },
+];
+
+/**
+ * Upload sizes. Mobile matches the app's home "Current offers" slide (full width × 152pt,
+ * about 2.25:1, title and badge drawn over the left side). Website is a wide strip under the hero.
+ */
+const IMAGE_SPECS = {
+  mobile: {
+    label: "Mobile app image",
+    size: "1080 × 480 px",
+    ratioLabel: "9:4 (2.25:1)",
+    aspect: 1080 / 480,
+    note: "Keep the left half calm: the app draws the title and badge there.",
+  },
+  web: {
+    label: "Website image",
+    size: "1920 × 640 px",
+    ratioLabel: "3:1",
+    aspect: 1920 / 640,
+    note: "Home page strip under the hero; the site draws the title and badge on the left. Phones show the same 3:1 shape.",
+  },
+};
+
+function placementLabel(value) {
+  return PLACEMENTS.find((p) => p.value === value)?.label ?? "Mobile app";
+}
+
+function placementHas(placement, platform) {
+  const p = placement || "mobile";
+  return p === "both" || p === platform;
+}
+
 const initialForm = () => ({
   title: "",
   description: "",
+  placement: "mobile",
   bannerImage: null,
+  webImage: null,
   offerType: "percentage",
   discountValue: "",
   maxDiscountCap: "",
@@ -175,6 +217,7 @@ function rowFromBanner(b, idx, zones = []) {
     offerDisplay: offerDisplay(b, zones),
     offerTypeLabel: offerTypeLabel(b.offerType),
     targetDisplay: targetLabel(b),
+    placementDisplay: placementLabel(b.placement),
     zonesDisplay: !zoneIds.length ? "All Zones" : `${zoneIds.length} zone(s)`,
     startDate: formatDate(b.startDate),
     endDate: formatDate(b.endDate),
@@ -184,18 +227,31 @@ function rowFromBanner(b, idx, zones = []) {
   };
 }
 
-function BannerImageField({ value, onChange, error }) {
+function BannerImageField({ spec, value, onChange, error }) {
   const { error: toastError } = useToaster();
-  const preview =
-    value instanceof File ? URL.createObjectURL(value) : typeof value === "string" ? value : null;
+  const preview = useMemo(
+    () => (value instanceof File ? URL.createObjectURL(value) : typeof value === "string" ? value : null),
+    [value]
+  );
+  useEffect(
+    () => () => {
+      if (value instanceof File && preview) URL.revokeObjectURL(preview);
+    },
+    [value, preview]
+  );
+  const [natural, setNatural] = useState(null);
+  useEffect(() => setNatural(null), [preview]);
   const fileName = value instanceof File ? value.name : null;
+  const ratioOff =
+    natural && Math.abs(natural.w / natural.h - spec.aspect) / spec.aspect > 0.05;
 
   return (
-    <Field
-      label="Banner image"
-      hint="JPEG, PNG, GIF, or WebP. Max 5MB. Recommended 1200×400. Leave empty to keep the current image."
-      error={error}
-    >
+    <Field label={spec.label} error={error}>
+      <p style={{ margin: "0 0 8px", fontSize: 12, color: "#4b5563" }}>
+        <strong style={{ color: "#111827" }}>{spec.size}</strong> · ratio {spec.ratioLabel}
+        <br />
+        <span style={{ color: "#6b7280" }}>{spec.note}</span>
+      </p>
       <div style={{ position: "relative" }}>
         <label
           style={{
@@ -219,13 +275,13 @@ function BannerImageField({ value, onChange, error }) {
           }}>
             <TbUpload size={18} />
           </span>
-          <span style={{ fontSize: 13, color: "#374151", minWidth: 0 }}>
+          <span style={{ fontSize: 13, color: "#374151", minWidth: 0, overflowWrap: "anywhere" }}>
             {fileName ? (
               <span style={{ fontWeight: 500, color: "#1d4ed8" }}>{fileName}</span>
             ) : preview ? (
               <span>Image selected — click to replace</span>
             ) : (
-              <span>Click to upload banner image</span>
+              <span>Click to upload</span>
             )}
             <br />
             <span style={{ fontSize: 11, color: "#9ca3af" }}>JPEG, PNG, GIF, WebP · max 5 MB</span>
@@ -257,19 +313,37 @@ function BannerImageField({ value, onChange, error }) {
           />
         </label>
       </div>
-      {preview ? (
-        <img
-          src={preview}
-          alt="Banner preview"
-          style={{
-            marginTop: 10,
-            maxWidth: "100%",
-            maxHeight: 120,
-            objectFit: "cover",
-            borderRadius: 8,
-            border: "1px solid var(--line)",
-          }}
-        />
+      {/* Preview in the real frame shape, cropped the way customers will see it. */}
+      <div
+        style={{
+          marginTop: 10,
+          width: "100%",
+          aspectRatio: String(spec.aspect),
+          borderRadius: 8,
+          overflow: "hidden",
+          border: "1px solid var(--line, #e5e7eb)",
+          background: "repeating-linear-gradient(45deg, #f9fafb 0 10px, #f3f4f6 10px 20px)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        {preview ? (
+          <img
+            src={preview}
+            alt={`${spec.label} preview`}
+            onLoad={(e) => setNatural({ w: e.currentTarget.naturalWidth, h: e.currentTarget.naturalHeight })}
+            style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+          />
+        ) : (
+          <span style={{ fontSize: 12, color: "#9ca3af" }}>{spec.ratioLabel} preview</span>
+        )}
+      </div>
+      {natural ? (
+        <p style={{ margin: "6px 0 0", fontSize: 11.5, color: ratioOff ? "#b45309" : "#6b7280" }}>
+          Uploaded {natural.w} × {natural.h} px
+          {ratioOff ? " — different shape, so the edges are cropped as shown." : ""}
+        </p>
       ) : null}
     </Field>
   );
@@ -374,19 +448,63 @@ function BannerForm({ form, errors, patch, services, categories, subCategories, 
         </div>
       </div>
 
-      {/* ── Banner image ── */}
+      {/* ── Placement & images ── */}
       <div style={sectionCard}>
         <div style={sectionHeader}>
           <span style={{ ...sectionIcon, background: "#faf5ff", color: "#7c3aed" }}>
             <TbPhoto size={15} />
           </span>
-          <p style={sectionTitle}>Banner Image</p>
+          <p style={sectionTitle}>Where it shows & images</p>
         </div>
-        <BannerImageField
-          value={form.bannerImage}
-          onChange={(file) => patch("bannerImage", file)}
-          error={errors.bannerImage}
-        />
+        <div role="radiogroup" aria-label="Where the banner shows" style={{ display: "flex", flexWrap: "wrap", gap: 10, marginBottom: 14 }}>
+          {PLACEMENTS.map(({ value, label, icon: Icon }) => {
+            const active = form.placement === value;
+            return (
+              <button
+                key={value}
+                type="button"
+                role="radio"
+                aria-checked={active}
+                onClick={() => patch("placement", value)}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "7px 18px",
+                  borderRadius: 20,
+                  border: active ? "2px solid #6d28d9" : "1.5px solid #ddd6fe",
+                  background: active ? "#6d28d9" : "#fff",
+                  color: active ? "#fff" : "#6d28d9",
+                  fontSize: 13,
+                  fontWeight: active ? 600 : 400,
+                  cursor: "pointer",
+                  transition: "all 0.15s",
+                }}
+              >
+                <Icon size={14} />
+                {label}
+              </button>
+            );
+          })}
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 16, alignItems: "start" }}>
+          {placementHas(form.placement, "mobile") ? (
+            <BannerImageField
+              spec={IMAGE_SPECS.mobile}
+              value={form.bannerImage}
+              onChange={(file) => patch("bannerImage", file)}
+              error={errors.bannerImage}
+            />
+          ) : null}
+          {placementHas(form.placement, "web") ? (
+            <BannerImageField
+              spec={IMAGE_SPECS.web}
+              value={form.webImage}
+              onChange={(file) => patch("webImage", file)}
+              error={errors.webImage}
+            />
+          ) : null}
+        </div>
       </div>
 
       {/* ── Offer details ── */}
@@ -711,7 +829,9 @@ export default function BannersPage() {
     setForm({
       title: b.title ?? "",
       description: b.description ?? "",
+      placement: b.placement || "mobile",
       bannerImage: resolveBannerImageUrl(b.bannerImage),
+      webImage: resolveBannerImageUrl(b.webImage),
       promotionId: b.promotionId ? String(b.promotionId) : "",
       offerType: b.offerType ?? "percentage",
       discountValue: String(b.discountValue ?? ""),
@@ -781,6 +901,10 @@ export default function BannersPage() {
       const imageCheck = validateImageFile(form.bannerImage);
       if (!imageCheck.ok) next.bannerImage = imageCheck.message;
     }
+    if (placementHas(form.placement, "web")) {
+      const webCheck = validateImageFile(form.webImage, { required: true, allowExistingUrl: true });
+      if (!webCheck.ok) next.webImage = form.webImage ? webCheck.message : "Upload the website image.";
+    }
 
     setErrors(next);
     return Object.keys(next).length === 0;
@@ -809,8 +933,12 @@ export default function BannersPage() {
     fd.append("displayOrder", String(parseInt(form.displayOrder, 10) || 1));
     fd.append("showOnHome", String(form.showOnHome));
     fd.append("isActive", String(form.isActive));
-    if (form.bannerImage instanceof File) {
+    fd.append("placement", form.placement);
+    if (form.bannerImage instanceof File && placementHas(form.placement, "mobile")) {
       fd.append("image", form.bannerImage);
+    }
+    if (form.webImage instanceof File && placementHas(form.placement, "web")) {
+      fd.append("webImage", form.webImage);
     }
     return fd;
   };
@@ -852,7 +980,7 @@ export default function BannersPage() {
       key: "title",
       header: "Banner",
       render: (row) => (
-        <DirectoryIdentity name={row.title} meta={joinMeta(row.offerDisplay, row.targetDisplay)} />
+        <DirectoryIdentity name={row.title} meta={joinMeta(row.offerDisplay, row.targetDisplay, row.placementDisplay)} />
       ),
     },
     {
@@ -888,7 +1016,7 @@ export default function BannersPage() {
     <div style={{ display: "grid", gap: 20 }}>
       <PageHeader
         title="Banners & Offers"
-        description="Promotional banners shown in the customer app."
+        description="Promotional banners shown in the customer app and on the website."
         actions={<Button onClick={openCreate}>Create Banner</Button>}
       />
 
@@ -937,6 +1065,7 @@ export default function BannersPage() {
           { label: "Offer", value: viewRow?.offerDisplay },
           { label: "Type", value: viewRow?.offerTypeLabel },
           { label: "Target", value: viewRow?.targetDisplay },
+          { label: "Shows on", value: viewRow?.placementDisplay },
           { label: "Zones", value: viewRow?.zonesDisplay },
           { label: "Start", value: viewRow?.startDate },
           { label: "End", value: viewRow?.endDate },
