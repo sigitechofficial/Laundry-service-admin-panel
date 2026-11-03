@@ -95,3 +95,64 @@ export function openZoiper(raw) {
   window.location.href = href;
   return true;
 }
+
+export const LINPHONE_DOWNLOAD_URL = "https://www.linphone.org/en/download/";
+
+/**
+ * Linphone desktop (macOS / Windows) registers `sip-linphone:` for itself, so
+ * the number opens in Linphone even when another app owns `sip:` / `tel:`.
+ */
+export function linphoneHref(raw) {
+  const tel = normalizeTel(raw);
+  return tel ? `sip-linphone:${tel}` : null;
+}
+
+/**
+ * Hands the number to Linphone and reports whether the OS picked it up.
+ * Browsers cannot ask whether a protocol is registered, so we watch for the
+ * page losing focus (the "Open Linphone?" prompt or the app coming forward).
+ * No focus change within `timeoutMs` → `onMissing` (app not installed).
+ */
+export function openLinphone(raw, { onLaunched, onMissing, timeoutMs = 2000 } = {}) {
+  const href = linphoneHref(raw);
+  if (!href) return false;
+
+  let settled = false;
+  let timer;
+  const cleanup = () => {
+    clearTimeout(timer);
+    window.removeEventListener("blur", handleLaunched);
+    document.removeEventListener("visibilitychange", handleVisibility);
+  };
+  function handleLaunched() {
+    if (settled) return;
+    settled = true;
+    cleanup();
+    onLaunched?.();
+  }
+  function handleVisibility() {
+    if (document.hidden) handleLaunched();
+  }
+
+  window.addEventListener("blur", handleLaunched);
+  document.addEventListener("visibilitychange", handleVisibility);
+  timer = setTimeout(() => {
+    if (settled) return;
+    settled = true;
+    cleanup();
+    onMissing?.();
+  }, timeoutMs);
+
+  // Firefox replaces the page with an error for unknown schemes, so it gets a
+  // throwaway iframe; Chromium and Safari stay put on a plain navigation.
+  if (/firefox/i.test(navigator.userAgent)) {
+    const frame = document.createElement("iframe");
+    frame.style.display = "none";
+    frame.src = href;
+    document.body.appendChild(frame);
+    setTimeout(() => frame.remove(), timeoutMs + 500);
+  } else {
+    window.location.href = href;
+  }
+  return true;
+}

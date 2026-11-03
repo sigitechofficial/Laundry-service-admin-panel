@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import ZoiperCallButton from "../../components/shared/ZoiperCallButton";
+import LinphoneCallButton from "../../components/shared/LinphoneCallButton";
 import { Button, Modal } from "../../design-system";
 import {
   normalizeTel,
@@ -231,6 +232,10 @@ export function CustomerNamePhone({ name, phone, title, nameTo }) {
               WhatsApp
             </Button>
             <ZoiperCallButton
+              phone={telPhone || whatsappPhone}
+              onAfterClick={() => setContactOpen(false)}
+            />
+            <LinphoneCallButton
               phone={telPhone || whatsappPhone}
               onAfterClick={() => setContactOpen(false)}
             />
