@@ -3,7 +3,6 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { Badge, Button, Modal, PageHeader, Select } from "../../../design-system";
 import dayjs from "dayjs";
 import { Delay } from "../../../components/shared/Loaders";
-import ZoiperCallButton from "../../../components/shared/ZoiperCallButton";
 import LinphoneCallButton from "../../../components/shared/LinphoneCallButton";
 import {
   formatUserPhone,
@@ -3281,10 +3280,6 @@ export default function OrderDetailsPage() {
           >
             WhatsApp
           </Button>
-          <ZoiperCallButton
-            phone={activeContact?.tel || activeContact?.whatsapp}
-            onAfterClick={() => setContactModal(null)}
-          />
           <LinphoneCallButton
             phone={activeContact?.tel || activeContact?.whatsapp}
             onAfterClick={() => setContactModal(null)}
