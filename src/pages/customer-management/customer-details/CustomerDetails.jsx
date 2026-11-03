@@ -15,6 +15,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useEditCustomerMutation, useGetCustomerByIdQuery, useExcludeCustomerFromShopMutation, useIncludeCustomerForShopMutation, useGetCustomerRecurringPlansQuery, useUpdateCustomerRecurringPlanMutation, useGetCustomerRoutingEventsQuery, useAssignCustomerToShopMutation } from "../../../store/services/api";
 import { Delay } from "../../../components/shared/Loaders";
 import ZoiperCallButton from "../../../components/shared/ZoiperCallButton";
+import LinphoneCallButton from "../../../components/shared/LinphoneCallButton";
 import useToaster from "../../../components/ui/Toaster";
 import { openOrdersNotice } from "../openOrdersNotice";
 import { getApiErrorMessage } from "../../../store/services/apiErrors";
@@ -1150,6 +1151,10 @@ export default function CustomerDetails() {
               WhatsApp
             </Button>
             <ZoiperCallButton
+              phone={normalizedTel || normalizedWhatsApp}
+              onAfterClick={() => setContactModal(false)}
+            />
+            <LinphoneCallButton
               phone={normalizedTel || normalizedWhatsApp}
               onAfterClick={() => setContactModal(false)}
             />

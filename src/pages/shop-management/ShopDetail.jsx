@@ -26,6 +26,7 @@ import {
 } from "../../store/services/api";
 import { Delay } from "../../components/shared/Loaders";
 import ZoiperCallButton from "../../components/shared/ZoiperCallButton";
+import LinphoneCallButton from "../../components/shared/LinphoneCallButton";
 import useToaster from "../../components/ui/Toaster";
 import DeleteShopModal from "./DeleteShopModal";
 import dayjs from "dayjs";
@@ -874,6 +875,10 @@ export default function ShopDetails() {
               WhatsApp
             </Button>
             <ZoiperCallButton
+              phone={shopTel || shopWhatsApp}
+              onAfterClick={() => setContactModalOpen(false)}
+            />
+            <LinphoneCallButton
               phone={shopTel || shopWhatsApp}
               onAfterClick={() => setContactModalOpen(false)}
             />
