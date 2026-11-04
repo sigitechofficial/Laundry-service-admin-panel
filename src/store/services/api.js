@@ -6,7 +6,7 @@ export const api = createApi({
   baseQuery: baseQueryWithReauth,
   // setupListeners(store.dispatch) + window "online" → refetch subscribed queries.
   refetchOnReconnect: true,
-  tagTypes: ["ServiceConfig", "SupportContact", "PlatformOperationalHours", "RuntimeSettings", "Orders", "Coupons", "Banners", "AccountDeletionReasons", "ReviewReasonCodes", "ShopReviews", "ShopRatingsReport", "PendingAgents", "RejectedAgents", "AgentSettlement", "NotifyLogs", "PaymentFailures", "AdminNotificationPreferences", "ActionRequiredOrders", "RepairGarments", "RepairOptions", "Zones", "ZoneCatalog", "FailAttemptInstructions", "FailAttemptReasons", "Shops", "ShopAssignmentPolicy", "ShopPrinter", "ComplianceReport", "ComplianceEvents", "Customers", "ServiceDiscounts", "Campaigns", "Promotions", "CustomerCredit"],
+  tagTypes: ["ServiceConfig", "SupportContact", "PlatformOperationalHours", "RuntimeSettings", "RevenueRampPolicy", "Orders", "Coupons", "Banners", "AccountDeletionReasons", "ReviewReasonCodes", "ShopReviews", "ShopRatingsReport", "PendingAgents", "RejectedAgents", "AgentSettlement", "NotifyLogs", "PaymentFailures", "AdminNotificationPreferences", "ActionRequiredOrders", "RepairGarments", "RepairOptions", "Zones", "ZoneCatalog", "FailAttemptInstructions", "FailAttemptReasons", "Shops", "ShopAssignmentPolicy", "ShopPrinter", "ComplianceReport", "ComplianceEvents", "Customers", "ServiceDiscounts", "Campaigns", "Promotions", "CustomerCredit"],
 
   endpoints: (builder) => {
     const reportQueryString = (params = {}) => {
@@ -2322,6 +2322,23 @@ export const api = createApi({
       invalidatesTags: ["RuntimeSettings", "ShopAssignmentPolicy"],
     }),
 
+    getRevenueRampPolicy: builder.query({
+      query: () => ({
+        url: "admin/revenueRampPolicy",
+        method: "GET",
+      }),
+      providesTags: ["RevenueRampPolicy"],
+    }),
+
+    updateRevenueRampPolicy: builder.mutation({
+      query: (body) => ({
+        url: "admin/revenueRampPolicy",
+        method: "PUT",
+        body,
+      }),
+      invalidatesTags: ["RevenueRampPolicy"],
+    }),
+
     /** Shops with their own slot capacity switched on (Runtime checks list). */
     getShopCapacityOverrides: builder.query({
       query: () => ({
@@ -2943,6 +2960,8 @@ export const {
   useGetRuntimeSettingsQuery,
   useGetShopCapacityOverridesQuery,
   useUpdateRuntimeSettingsMutation,
+  useGetRevenueRampPolicyQuery,
+  useUpdateRevenueRampPolicyMutation,
   useGetFailAttemptInstructionSetsQuery,
   useCreateFailAttemptInstructionMutation,
   useUpdateFailAttemptInstructionMutation,

@@ -5,8 +5,11 @@ import { Notice, Toggle } from "../misc-kit";
 import { DirectoryError, DirectoryFormCard, PageLoading } from "../directory-table/directoryTable";
 import useToaster from "../../components/ui/Toaster";
 import {
+  useGetAllZonesQuery,
+  useGetRevenueRampPolicyQuery,
   useGetRuntimeSettingsQuery,
   useGetShopCapacityOverridesQuery,
+  useUpdateRevenueRampPolicyMutation,
   useUpdateRuntimeSettingsMutation,
 } from "../../store/services/api";
 
@@ -94,6 +97,136 @@ const secondsToMs = (value) => {
   if (!Number.isFinite(n) || n < 0) return null;
   return Math.round(n * 1000);
 };
+
+function zoneList(data) {
+  const raw = Array.isArray(data) ? data : data?.zones ?? data?.data ?? [];
+  return Array.isArray(raw) ? raw : [];
+}
+
+function RevenueRampCard() {
+  const { success, error: showError } = useToaster();
+  const { data, isLoading, isError } = useGetRevenueRampPolicyQuery();
+  const { data: zonesRes } = useGetAllZonesQuery();
+  const [savePolicy, { isLoading: saving }] = useUpdateRevenueRampPolicyMutation();
+  const policy = data?.data;
+  const [enabled, setEnabled] = useState(false);
+  const [allZones, setAllZones] = useState(true);
+  const [zoneIds, setZoneIds] = useState([]);
+
+  useEffect(() => {
+    if (!policy) return;
+    setEnabled(Boolean(policy.enabled));
+    setAllZones(policy.applyToAllZones !== false);
+    setZoneIds(
+      Array.isArray(policy.zoneIds) ? policy.zoneIds.map((id) => Number(id)) : []
+    );
+  }, [policy]);
+
+  const zones = useMemo(() => zoneList(zonesRes?.data), [zonesRes?.data]);
+
+  const toggleZone = (id) => {
+    const zoneId = Number(id);
+    setZoneIds((prev) =>
+      prev.includes(zoneId) ? prev.filter((item) => item !== zoneId) : [...prev, zoneId]
+    );
+  };
+
+  const handleSave = async () => {
+    if (enabled && !allZones && zoneIds.length === 0) {
+      showError("Select at least one zone, or apply the ramp to all zones.");
+      return;
+    }
+    try {
+      await savePolicy({
+        enabled,
+        applyToAllZones: allZones,
+        zoneIds,
+      }).unwrap();
+      success("New-shop revenue ramp saved. It applies without a server restart.");
+    } catch (err) {
+      showError(err?.data?.message || "Could not save the revenue ramp.");
+    }
+  };
+
+  return (
+    <DirectoryFormCard
+      title="New-shop order revenue"
+      hint="Only shops created while this is on, and only in the zones below. A shop that already exists stays on normal commission. The split is laundry after discount. The driver tip still goes to the shop, and the service fee still stays with admin."
+    >
+      {isLoading ? (
+        <p className="jd-field__hint" style={{ margin: 0 }}>
+          Loading revenue ramp…
+        </p>
+      ) : isError ? (
+        <DirectoryError>Could not load the revenue ramp.</DirectoryError>
+      ) : (
+        <>
+          <Notice tone={enabled ? "warning" : "info"}>
+            {enabled
+              ? "On. A new shop’s 1st order is 100% admin, the 2nd is 50/50, the 3rd is 100% shop, and the 4th onward uses the zone commission."
+              : "Off. Every shop, including new ones, uses the normal zone commission."}
+          </Notice>
+          <div style={{ marginTop: 12 }}>
+            <Toggle
+              checked={enabled}
+              onChange={(e) => setEnabled(e.target.checked)}
+              label="Use the new-shop revenue ramp"
+            />
+          </div>
+          <div style={{ marginTop: 12 }}>
+            <Toggle
+              checked={allZones}
+              onChange={(e) => setAllZones(e.target.checked)}
+              label="Apply in all zones"
+            />
+          </div>
+          {!allZones && (
+            <div style={{ marginTop: 12 }}>
+              <div style={{ fontWeight: 600, fontSize: 14 }}>Zones</div>
+              <div
+                style={{
+                  marginTop: 8,
+                  maxHeight: 220,
+                  overflow: "auto",
+                  display: "grid",
+                  gap: 8,
+                }}
+              >
+                {zones.length === 0 ? (
+                  <p className="jd-field__hint" style={{ margin: 0 }}>
+                    No zones found.
+                  </p>
+                ) : (
+                  zones.map((zone) => {
+                    const id = Number(zone.id);
+                    return (
+                      <label
+                        key={id}
+                        style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 14 }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={zoneIds.includes(id)}
+                          onChange={() => toggleZone(id)}
+                        />
+                        {zone.name || `Zone ${id}`}
+                      </label>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          )}
+          <div style={{ marginTop: 16 }}>
+            <Button onClick={handleSave} disabled={saving}>
+              {saving ? "Saving…" : "Save new-shop ramp"}
+            </Button>
+          </div>
+        </>
+      )}
+    </DirectoryFormCard>
+  );
+}
 
 export default function RuntimeChecks() {
   const { success, error: showError } = useToaster();
@@ -307,6 +440,8 @@ export default function RuntimeChecks() {
         title="Runtime checks"
         description="Geofence bypass and invoice auto-charge used to live only in server .env. These values are stored in the database and take effect immediately."
       />
+
+      <RevenueRampCard />
 
       {isLoading ? (
         <PageLoading label="Loading runtime settings…" />

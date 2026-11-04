@@ -2739,6 +2739,18 @@ export default function OrderDetailsPage() {
                 / platform {Number(commercialTerms?.platformCommissionPercent || 20)}%
                 is calculated from this.
               </p>
+              {Number(commercialTerms?.revenueRampStep) >= 1 &&
+              Number(commercialTerms?.revenueRampStep) <= 3 ? (
+                <p style={{ margin: 0, fontSize: 11, color: "#64748B" }}>
+                  New-shop ramp, order {Number(commercialTerms.revenueRampStep)} of this shop.
+                  {Number(commercialTerms.revenueRampStep) === 1
+                    ? " 100% of laundry after discount goes to admin."
+                    : Number(commercialTerms.revenueRampStep) === 2
+                      ? " 50% admin and 50% shop, after discount."
+                      : " 100% of laundry after discount goes to the shop."}{" "}
+                  The 4th order onward uses normal zone commission.
+                </p>
+              ) : null}
               {commercialTerms ? (
                 <>
                   <OdMetaRow label="Applied rates" value={appliedRatesLabel} />
