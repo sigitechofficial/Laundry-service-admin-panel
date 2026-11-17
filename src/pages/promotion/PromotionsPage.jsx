@@ -703,7 +703,7 @@ function PromotionViewBody({ promotion: p }) {
 export default function PromotionsPage() {
   const toast = useToaster();
   const [page, setPage] = useState(1);
-  const [statusFilter, setStatusFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("active");
   const [showForm, setShowForm] = useState(false);
   const [wizardStep, setWizardStep] = useState(0);
   const [form, setForm] = useState(INITIAL_FORM());
