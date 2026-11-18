@@ -863,7 +863,7 @@ export default function PromotionsPage() {
   const handlePause = async (id) => {
     try {
       await pausePromotion({ id }).unwrap();
-      toast.success("Promotion paused");
+      toast.success("Promotion paused — orders that already have it keep the discount");
     } catch (err) { toast.error(err?.data?.message || "Pause failed"); }
   };
   const handleArchive = async () => {
@@ -926,7 +926,7 @@ export default function PromotionsPage() {
             </DirectoryActionIcon>
           )}
           {canPause(row.status) && (
-            <DirectoryActionIcon title="Pause" onClick={() => handlePause(row.id)}>
+            <DirectoryActionIcon title="Pause (stops new orders only)" onClick={() => handlePause(row.id)}>
               <TbPlayerPause size={16} className="text-yellow-600" />
             </DirectoryActionIcon>
           )}
@@ -1483,7 +1483,7 @@ export default function PromotionsPage() {
         danger
       >
         <p style={{ fontSize: 14, color: "#374151" }}>
-          <strong>&ldquo;{archiveTarget?.name}&rdquo;</strong> will stop applying to new orders. This cannot be undone — clone it to run it again.
+          <strong>&ldquo;{archiveTarget?.name}&rdquo;</strong> will stop applying to new orders. Orders that already have it keep the discount. This cannot be undone — clone it to run it again.
         </p>
       </Modal>
 
