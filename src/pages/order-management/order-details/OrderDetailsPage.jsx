@@ -1434,6 +1434,26 @@ export default function OrderDetailsPage() {
             </div>
           </OdCard>
 
+          {/* Cancellation fee and whether it was collected. "Owed" = it could not be taken
+              (card declined, no saved card, cash order) and still has to be collected. */}
+          {orderData?.cancellationFee && Number(orderData.cancellationFee.feeAmount) > 0 ? (
+            <OdCard>
+              <div style={{ padding: 16 }}>
+                <p style={{ margin: 0, fontWeight: 700, color: orderData.cancellationFee.feeStatus === "owed" ? "#B45309" : "#0F172A" }}>
+                  Cancellation fee {formatMoney(orderData.cancellationFee.feeAmount, paymentCurrencySymbol)}
+                  {orderData.cancellationFee.feeStatus === "owed" ? " — not collected" : ""}
+                </p>
+                <p style={{ margin: "6px 0 0", color: "var(--muted)", fontSize: 14 }}>
+                  {{
+                    charged: "Charged to the customer's card.",
+                    retained: "Kept from what the customer paid at booking.",
+                    owed: `${formatMoney(orderData.cancellationFee.feeOwed, paymentCurrencySymbol)} is still owed by the customer${orderData.cancellationFee.feeError ? ` (${orderData.cancellationFee.feeError})` : ""}.`,
+                  }[orderData.cancellationFee.feeStatus] || ""}
+                </p>
+              </div>
+            </OdCard>
+          ) : null}
+
           {hasRefund ? (
             <OdCard>
               <div style={{ padding: 16 }}>

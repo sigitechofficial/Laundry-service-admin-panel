@@ -58,6 +58,12 @@ import {
 import { Delay } from "../../components/shared/Loaders";
 import dayjs from "dayjs";
 import { useSelector } from "react-redux";
+/**
+ * Settings the backend does not use yet are hidden (not deleted) so admins aren't misled into
+ * thinking they work. Set to true once the backend applies them.
+ */
+const SHOW_INACTIVE_SETTINGS = false;
+
 
 /** RTK unwrap shape is usually { data: { policies, pagination } } */
 function parseCancellationPoliciesPayload(response) {
@@ -1349,6 +1355,7 @@ export default function CancellationPolicy() {
                       />
                     </div>
 
+                    {SHOW_INACTIVE_SETTINGS && (
                     <Controller
                       name="unprocessedAfterPickupMinutes"
                       control={control}
@@ -1358,6 +1365,7 @@ export default function CancellationPolicy() {
                     </Field>
                       )}
                     />
+                    )}
 
                     <Controller
                       name="allowCancelUnprocessed"

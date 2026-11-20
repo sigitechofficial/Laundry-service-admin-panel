@@ -52,7 +52,7 @@ const OVERALL_POLICY_CSV_COLUMNS = [
     header: "Status",
     value: (r) => (r.statusKnown ? csvFormat.bool(r.isActive, "Active", "Inactive") : ""),
   },
-  { header: "Delivery fee", value: (r) => csvFormat.money(r.deliveryFee) },
+  { header: "Service fee", value: (r) => csvFormat.money(r.deliveryFee) },
   { header: "Currency", key: "currencyCode" },
   { header: "Updated", value: (r) => csvFormat.date(r.updatedAt) },
 ];
@@ -240,7 +240,7 @@ export default function OverallPolicies() {
       <PageHeader title="Overall Policies" description="Zone-level fee snapshot from live zone records." />
       <DirectoryMetrics
         items={[
-          { label: "Average delivery fee", value: averageDeliveryFee, tone: "brand" },
+          { label: "Average service fee", value: averageDeliveryFee, tone: "brand" },
           { label: "Zones", value: policiesData.length, tone: "navy" },
         ]}
       />
@@ -330,7 +330,7 @@ export default function OverallPolicies() {
             </PolicyDetailSection>
             <PolicyDetailSection title="Fees & currency">
               <PolicyDetailRow
-                label="Delivery fee"
+                label="Service fee"
                 value={formatPolicyMoney(viewing.serviceCharge, viewingSymbol, viewingCode)}
               />
               <PolicyDetailRow label="Currency" value={viewingSymbol ? `${viewingCode || ""} (${viewingSymbol})`.trim() : viewingCode || "—"} />

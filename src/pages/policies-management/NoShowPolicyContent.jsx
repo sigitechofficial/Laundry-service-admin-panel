@@ -55,6 +55,12 @@ import { Delay } from "../../components/shared/Loaders";
 import dayjs from "dayjs";
 import { useSelector } from "react-redux";
 
+/**
+ * Settings the backend does not use yet are hidden (not deleted) so admins aren't misled into
+ * thinking they work: storage fee, call/SMS minutes, waivers. Set to true once they are applied.
+ */
+const SHOW_INACTIVE_SETTINGS = false;
+
 const SEARCH_DEBOUNCE_MS = 400;
 
 /** CSV columns operate on the raw API policy row plus a resolved `zoneName`. */
@@ -1075,6 +1081,7 @@ export default function NoShowPolicyContent({
                   )}
                 />
               )}
+              {SHOW_INACTIVE_SETTINGS && (
               <Controller
                 name="storageFeePerDay"
                 control={control}
@@ -1084,6 +1091,7 @@ export default function NoShowPolicyContent({
                     </Field>
                 )}
               />
+              )}
               {feeType === "percentage" && (
                 <Controller
                   name="percentageFee"
@@ -1137,6 +1145,7 @@ export default function NoShowPolicyContent({
                   </div>
                 )}
               />
+              {SHOW_INACTIVE_SETTINGS && (
               <Controller
                 name="callsMinutes"
                 control={control}
@@ -1146,6 +1155,8 @@ export default function NoShowPolicyContent({
                     </Field>
                 )}
               />
+              )}
+              {SHOW_INACTIVE_SETTINGS && (
               <Controller
                 name="smsMinutes"
                 control={control}
@@ -1155,11 +1166,13 @@ export default function NoShowPolicyContent({
                     </Field>
                 )}
               />
+              )}
             </div>
           </div>
 
           <hr style={{ border: 0, borderTop: "1px solid var(--line)", margin: "16px 0" }} />
 
+          {SHOW_INACTIVE_SETTINGS && (<>
           {/* Waiver Settings */}
           <div>
             <h3 style={{ margin: 0 }}>
@@ -1207,6 +1220,7 @@ export default function NoShowPolicyContent({
           </div>
 
           <hr style={{ border: 0, borderTop: "1px solid var(--line)", margin: "16px 0" }} />
+          </>)}
 
           {/* Auto Forgive Settings */}
           <div>
