@@ -12,6 +12,7 @@ export default function CatalogMultiSelect({
   error,
   placeholder = "Select…",
   searchThreshold = 5,
+  emptyText = "No options loaded.",
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -176,7 +177,7 @@ export default function CatalogMultiSelect({
           <div style={{ overflowY: "auto", maxHeight: 220 }}>
             {filtered.length === 0 ? (
               <p style={{ margin: 0, padding: "12px", fontSize: 12, color: "#94a3b8" }}>
-                {options.length ? "No matches." : "No options loaded."}
+                {options.length ? "No matches." : emptyText}
               </p>
             ) : (
               filtered.map((o) => {

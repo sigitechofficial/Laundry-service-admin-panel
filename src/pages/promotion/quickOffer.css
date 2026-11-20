@@ -39,6 +39,6 @@
 .jd-ds .qo-deal__rm { border: 0; background: none; color: var(--danger); font-size: 13px; font-weight: 600; cursor: pointer; padding: 4px 6px; border-radius: 6px; }
 .jd-ds .qo-deal__rm:hover { background: var(--danger-bg); }
 .jd-ds .qo-deal__row { display: grid; gap: 10px; align-items: start; }
-.jd-ds .qo-deal__row--what { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); }
+.jd-ds .qo-deal__row--what { grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); }
 .jd-ds .qo-deal__row--price { grid-template-columns: repeat(2, minmax(0, 160px)); }
 @media (max-width: 640px) { .jd-ds .qo-deal__row--what { grid-template-columns: 1fr; } .jd-ds .qo-deal__row--price { grid-template-columns: 1fr 1fr; } }

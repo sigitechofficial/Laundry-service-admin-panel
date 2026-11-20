@@ -4,6 +4,7 @@ import { Button, Field, Input, Modal } from "../../design-system";
 import useToaster from "../../components/ui/Toaster";
 import {
   useCreatePromotionMutation, usePublishPromotionMutation, useGetAllServicesQuery, useGetSubCategoriesQuery,
+  useGetCategoriesQuery,
 } from "../../store/services/api";
 import CatalogMultiSelect from "./CatalogMultiSelect";
 import "./quickOffer.css";
@@ -143,6 +144,7 @@ function validate(f) {
   if (f.what === "bulk") {
     for (const [i, d] of f.deals.entries()) {
       const n = f.deals.length > 1 ? `Deal ${i + 1}: ` : "";
+      if (!d.serviceIds.length) return `${n}choose a service`;
       if (!d.itemIds.length) return `${n}choose at least one item`;
       const q = num(d.qty);
       if (!Number.isInteger(q) || q < 2 || q > 1000) return `${n}pieces must be a whole number from 2 to 1000`;
@@ -240,17 +242,43 @@ export default function QuickOfferForm({ open, onClose, onSaved, onMoreOptions }
   const set = (k) => (e) => setF((prev) => ({ ...prev, [k]: e?.target ? e.target.value : e }));
   const { data: servicesResp } = useGetAllServicesQuery(undefined, { skip: !open || (f.on !== "service" && f.what !== "bulk") });
   const { data: itemsResp } = useGetSubCategoriesQuery(undefined, { skip: !open || f.on !== "item" });
+  // Every item belongs to one service through its category.
+  const { data: categoriesResp } = useGetCategoriesQuery(undefined, { skip: !open || f.what !== "bulk" });
   const catalog = useMemo(() => {
     const opt = (list) => list.map((x) => ({
       value: String(x.id ?? x._id),
       label: x.name ?? x.serviceName ?? x.subCategoryName ?? x.title ?? `#${x.id}`,
       price: x.price,
+      categoryId: x.categoryId ?? x.category?.id ?? null,
     }));
-    return {
-      service: opt(listOf(servicesResp, "services", "data")),
-      item: opt(listOf(itemsResp, "subCategories", "subCat", "data")),
-    };
-  }, [servicesResp, itemsResp]);
+    const serviceOfCategory = new Map(
+      listOf(categoriesResp, "categories", "data").map((c) => [String(c.id), String(c.serviceId ?? c.service?.id ?? "")])
+    );
+    const service = opt(listOf(servicesResp, "services", "data"));
+    const serviceName = new Map(service.map((s) => [s.value, s.label]));
+    const item = opt(listOf(itemsResp, "subCategories", "subCat", "data")).map((o) => {
+      const serviceId = serviceOfCategory.get(String(o.categoryId)) || null;
+      return { ...o, serviceId, serviceLabel: serviceId ? serviceName.get(serviceId) : null };
+    });
+    return { service, item };
+  }, [servicesResp, itemsResp, categoriesResp]);
+  /** Items cleaned in these services, named with their service when several are chosen. */
+  const itemsInServices = useCallback((serviceIds) => {
+    const ids = new Set(serviceIds.map(String));
+    return catalog.item
+      .filter((o) => o.serviceId && ids.has(o.serviceId))
+      .map((o) => (ids.size > 1 && o.serviceLabel ? { ...o, label: `${o.label} · ${o.serviceLabel}` } : o));
+  }, [catalog]);
+  // Changing a deal's services drops items that aren't in them any more.
+  const setDealServices = (i, serviceIds) => setF((prev) => ({
+    ...prev,
+    deals: prev.deals.map((d, j) => {
+      if (j !== i) return d;
+      const ids = new Set(serviceIds.map(String));
+      const keep = d.itemIds.filter((id) => ids.has(catalog.item.find((o) => o.value === String(id))?.serviceId));
+      return { ...d, serviceIds, itemIds: keep };
+    }),
+  }));
   const targetNames = useMemo(() => {
     const opts = catalog[f.on] || [];
     return f.targetIds.map((id) => opts.find((o) => o.value === String(id))?.label).filter(Boolean);
@@ -363,21 +391,27 @@ export default function QuickOfferForm({ open, onClose, onSaved, onMoreOptions }
                       ) : null}
                     </div>
                     <div className="qo-deal__row qo-deal__row--what">
-                      <Field label="Items">
-                        <CatalogMultiSelect
-                          options={catalog.item.filter((o) => !taken.has(o.value))}
-                          selectedIds={d.itemIds}
-                          onChange={(ids) => setDeal(i, { itemIds: ids })}
-                          placeholder="Search items, e.g. T-Shirt…"
-                        />
-                      </Field>
-                      <Field label="Services" hint="Empty = any service">
+                      {/* Service first: the items list then shows only that service's items. */}
+                      <Field label="Services">
                         <CatalogMultiSelect
                           options={catalog.service}
                           selectedIds={d.serviceIds}
-                          onChange={(ids) => setDeal(i, { serviceIds: ids })}
-                          placeholder="Any service"
+                          onChange={(ids) => setDealServices(i, ids)}
+                          placeholder="Choose services…"
                         />
+                      </Field>
+                      <Field label="Items" hint={d.serviceIds.length ? undefined : "Choose a service first"}>
+                        {d.serviceIds.length ? (
+                          <CatalogMultiSelect
+                            options={itemsInServices(d.serviceIds).filter((o) => !taken.has(o.value))}
+                            selectedIds={d.itemIds}
+                            onChange={(ids) => setDeal(i, { itemIds: ids })}
+                            placeholder="Search items, e.g. T-Shirt…"
+                            emptyText="No items in these services yet. Add them in Service Management."
+                          />
+                        ) : (
+                          <Input disabled placeholder="Choose a service first" aria-label="Items" />
+                        )}
                       </Field>
                     </div>
                     <div className="qo-deal__row qo-deal__row--price">
