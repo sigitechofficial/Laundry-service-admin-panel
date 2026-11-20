@@ -1173,7 +1173,7 @@ export default function PromotionsPage() {
               ) : (
                 <p className="text-xs text-gray-500">Optional. Set elsewhere, so not repeated here: zones (Geography), basket minimums (Limits), days and times (Schedule).</p>
               )}
-              <p className="text-xs text-gray-500">&quot;Must match&quot; rules all have to be true. If you add &quot;One of these&quot; rules, at least one of them has to be true.</p>
+              <p className="text-xs text-gray-500">&quot;Must match&quot; conditions all apply (AND); at least one &quot;Any of&quot; condition must match (OR).</p>
               <PromotionConditionBuilder
                 conditions={form.conditions}
                 onChange={(v) => setField("conditions", v)}
