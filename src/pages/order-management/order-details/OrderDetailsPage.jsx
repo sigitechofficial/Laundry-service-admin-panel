@@ -717,12 +717,17 @@ export default function OrderDetailsPage() {
       tip: tipAmount,
     })
   );
-  const totalAmount = toNumber(
-    orderData?.paymentSummary?.orderSummary?.totalOrderAmount ??
+  // What the order costs after its promotion discount. The payment summary's totalOrderAmount is
+  // before the discount (the discount is listed on its own), so it is taken off here; the stored
+  // invoice total is already after it.
+  const summaryOrder = orderData?.paymentSummary?.orderSummary;
+  const totalAmount = summaryOrder?.totalOrderAmount != null
+    ? Math.max(0, toNumber(summaryOrder.totalOrderAmount) - toNumber(summaryOrder.discount))
+    : toNumber(
       orderData?.billingDetail?.total ??
-      orderData?.orderAmount ??
-      orderSubtotalAmount
-  );
+        orderData?.orderAmount ??
+        orderSubtotalAmount
+    );
   const [selectedItemsServiceId, setSelectedItemsServiceId] = useState("");
   const [selectedItemsCategoryKey, setSelectedItemsCategoryKey] = useState("all");
   const [invoiceModal, setInvoiceModal] = useState({

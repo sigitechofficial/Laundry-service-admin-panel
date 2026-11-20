@@ -1467,7 +1467,10 @@ export default function PromotionsPage() {
           columns={columns}
           rows={promotions}
           rowKey={(row) => row.id}
-          empty={isLoading ? "Loading…" : "No promotions yet — create your first!"}
+          empty={isLoading ? "Loading…"
+            : statusFilter || campaignFilter
+              ? `No ${statusFilter ? statusLabel(statusFilter).toLowerCase() : ""} promotions${campaignFilter ? " in this campaign" : ""}. Change the filters above to see others.`.replace("No  ", "No ")
+              : "No promotions yet — create your first!"}
         />
       </DirectoryTableWrap>
 
