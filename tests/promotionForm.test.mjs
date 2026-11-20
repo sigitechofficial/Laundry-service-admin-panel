@@ -183,7 +183,7 @@ describe("Every type saves the right fields", () => {
     assert.equal(p.targetType, "basket");
   });
   it("fixed price needs its ceiling", () => {
-    assert.match(firstError(form({ benefitType: "fixed_price", discountValue: "20" })), /laundry totals up to/);
+    assert.match(firstError(form({ benefitType: "fixed_price", discountValue: "20" })), /baskets up to/);
     const f = form({ benefitType: "fixed_price", discountValue: "20", maxSubtotal: "40" });
     assert.equal(firstError(f), null);
     const p = buildPayload(f);
@@ -242,7 +242,7 @@ describe("The form stops what would go wrong", () => {
     assert.match(firstError(form({ discountValue: "10", recurringStartTime: "09:00", recurringEndTime: "09:00" })), /same time/);
   });
   it("laundry total up to below over", () => {
-    assert.match(firstError(form({ discountValue: "10", minSubtotal: "50", maxSubtotal: "20" })), /Laundry total up to/);
+    assert.match(firstError(form({ discountValue: "10", minSubtotal: "50", maxSubtotal: "20" })), /Maximum subtotal/);
   });
   it("Create promotion: bulk deal dearer than normal", () => {
     const err = validate({ ...INITIAL(), name: "X", on: "item", what: "bulk", deals: [{ serviceIds: ["3"], itemIds: ["118"], qty: "10", price: "50" }] }, priceOf);

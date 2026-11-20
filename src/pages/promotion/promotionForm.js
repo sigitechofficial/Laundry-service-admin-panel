@@ -270,9 +270,9 @@ export function validateStep(step, form, priceOf) {
       if (bt === "fixed_price") {
         const max = Number(form.maxSubtotal);
         if (form.maxSubtotal === "" || !Number.isFinite(max) || max <= 0) {
-          return "Fixed price needs “Only for laundry totals up to”, so a large order cannot be sold at this price";
+          return "Fixed price needs “Only for baskets up to”, so a large basket cannot be sold at this price";
         }
-        if (max <= Number(form.discountValue)) return "“Only for laundry totals up to” must be more than the fixed price";
+        if (max <= Number(form.discountValue)) return "“Only for baskets up to” must be more than the fixed price";
       }
       if (bt === "first_x_orders_discount" && !isPosInt(form.firstOrders)) return "First N orders must be a whole number of 1 or more";
       if (showsCap(form) && form.maxDiscountCap !== "" && !(Number(form.maxDiscountCap) > 0)) return "Max discount cap must be greater than 0";
@@ -305,7 +305,7 @@ export function validateStep(step, form, priceOf) {
     }
     case 3: {
       const ints = [
-        ["globalUsageLimit", "Total orders"], ["minQuantity", "Minimum quantity"],
+        ["globalUsageLimit", "Total Uses"], ["minQuantity", "Minimum quantity"],
         ...(lockedPerCustomerLimit(form) ? [] : [["perCustomerLimit", "Uses per customer"]]),
         ...(showsPeriodLimits(bt) ? [["perDayLimit", "Per-customer daily limit"], ["perWeekLimit", "Per-customer weekly limit"]] : []),
       ];
@@ -314,9 +314,9 @@ export function validateStep(step, form, priceOf) {
       }
       if (!form.campaignId && form.budget !== "" && !(Number(form.budget) > 0)) return "Budget must be more than £0 (blank = no limit)";
       if (form.minSubtotal !== "" && !(Number(form.minSubtotal) >= 0)) return "Minimum subtotal cannot be negative";
-      if (form.maxSubtotal !== "" && !(Number(form.maxSubtotal) > 0)) return "\"Laundry total up to\" must be more than £0";
+      if (form.maxSubtotal !== "" && !(Number(form.maxSubtotal) > 0)) return "Maximum subtotal must be greater than 0";
       if (form.minSubtotal !== "" && form.maxSubtotal !== "" && Number(form.maxSubtotal) < Number(form.minSubtotal)) {
-        return "\"Laundry total up to\" must be at least \"Laundry total over\"";
+        return "Maximum subtotal must be at least the minimum subtotal";
       }
       if (form.priority !== "" && !Number.isInteger(Number(form.priority))) return "Priority must be a whole number";
       return null;
@@ -335,4 +335,4 @@ export function validateStep(step, form, priceOf) {
   }
 }
 
-export const STEPS = ["What", "Where", "Who", "Limits", "When", "Review"];
+export const STEPS = ["Benefit", "Geography", "Audience", "Limits", "Schedule", "Review"];

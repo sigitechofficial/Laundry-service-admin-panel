@@ -249,7 +249,7 @@ export default function PromotionConditionBuilder({ conditions, onChange, zones 
       })}
       {offered.length > 0 && (
         <button type="button" onClick={add} className="text-blue-600 text-sm font-medium hover:text-blue-800">
-          + Add rule
+          + Add Condition
         </button>
       )}
     </div>

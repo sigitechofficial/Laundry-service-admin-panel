@@ -62,7 +62,7 @@ const benefitTypeOptions = (current) => {
   const delivery = (b) => ["free_delivery", "delivery_discount"].includes(b.value);
   return [
     ...offered.filter((b) => !delivery(b)),
-    ...offered.filter(delivery).map((b) => ({ ...b, label: `${b.label} (saves £0: no delivery fee today)` })),
+    ...offered.filter(delivery).map((b) => ({ ...b, label: b.label })),
   ];
 };
 
@@ -556,7 +556,7 @@ export default function PromotionsPage() {
   );
 
   const campaignOptions = useMemo(() => [
-    { value: "", label: "None — this promotion's own limits" },
+    { value: "", label: "None (own limits)" },
     ...(campaignsData?.rows || [])
       .filter((c) => !CLOSED_CAMPAIGN_STATUSES.includes(c.status) || String(c.id) === String(form.campaignId))
       .map((c) => ({ value: String(c.id), label: c.status === "active" ? c.name : `${c.name} (${campaignStatusLabel(c.status)})` })),
@@ -765,7 +765,7 @@ export default function PromotionsPage() {
     const scope = publishTarget.zoneScopeMode || "all";
     const zones = parseJson(publishTarget.zoneIds, []) || [];
     if (scope !== "all" && !zones.length) {
-      toast.error("This draft has no zones saved. Open Edit → Where, choose zones, then save on Review before going live.");
+      toast.error("This draft has no zones saved. Open Edit → Geography, select zones, then Save on Review before publishing.");
       return;
     }
     try {
@@ -942,9 +942,9 @@ export default function PromotionsPage() {
           <div className="space-y-4">
             <div className="bg-white border border-gray-200 rounded-xl p-5 space-y-4">
               <div className="flex items-center gap-2 text-gray-900 font-semibold text-sm">
-                <TbDiscount className="text-blue-600" size={18} /> What customers get
+                <TbDiscount className="text-blue-600" size={18} /> Promotion Benefit
               </div>
-              <Field label="Promotion name *" hint="Customers see this name on their order">
+              <Field label="Promotion Name *" hint="Customers see this name on their order">
                 <Input value={form.name} onChange={(e) => setField("name", e.target.value)} placeholder="e.g. First Order 20% Off" />
               </Field>
               <Field label="Description" hint="Optional. A short note on what the promotion is for">
@@ -957,7 +957,7 @@ export default function PromotionsPage() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <Field
-                  label="Type *"
+                  label="Benefit Type *"
                   hint={typeLocked
                     ? "Fixed once published, because orders may already hold this offer. Create a new promotion for a different type."
                     : BENEFIT_HELP[form.benefitType] || "Decides which settings the next steps ask for"}
@@ -965,7 +965,7 @@ export default function PromotionsPage() {
                   <Select options={benefitTypeOptions(form.benefitType)} value={form.benefitType} onChange={setBenefitType} disabled={typeLocked} />
                 </Field>
                 {MODE_CHOICE_TYPES.includes(form.benefitType) && (
-                  <Field label="% or £ *">
+                  <Field label="Discount Mode *">
                     <Select options={DISCOUNT_MODES} value={form.discountMode} onChange={(v) => setField("discountMode", v)} />
                   </Field>
                 )}
@@ -1027,11 +1027,11 @@ export default function PromotionsPage() {
                   </Field>
                   {form.benefitType === "fixed_price" && (
                     <Field
-                      label="Only for laundry totals up to (£) *"
+                      label="Only for baskets up to (£) *"
                       hint={
                         Number(form.maxSubtotal) > Number(form.discountValue) && Number(form.discountValue) > 0
                           ? `Biggest saving on one order: ${money(Number(form.maxSubtotal) - Number(form.discountValue))}. Larger orders get no promotion.`
-                          : "Larger orders get no promotion. Same as “Laundry total up to” on the Limits step."
+                          : "Larger orders get no promotion. Same as Maximum Subtotal on the Limits step."
                       }
                     >
                       <Input type="number" min="0" step="0.01" value={form.maxSubtotal} onChange={(e) => setField("maxSubtotal", e.target.value)} placeholder="e.g. 40.00" />
@@ -1066,9 +1066,9 @@ export default function PromotionsPage() {
           <div className="space-y-4">
             <div className="bg-white border border-gray-200 rounded-xl p-5 space-y-4">
               <div className="flex items-center gap-2 text-gray-900 font-semibold text-sm">
-                <TbMapPin className="text-green-600" size={18} /> Where
+                <TbMapPin className="text-green-600" size={18} /> Zone Targeting
               </div>
-              <Field label="Zones" hint="The zone of the customer's collection address">
+              <Field label="Zone Scope" hint="Decided by the zone of the customer's collection address">
                 <Select options={ZONE_SCOPES} value={form.zoneScopeMode} onChange={(v) => setField("zoneScopeMode", v)} />
               </Field>
               {form.zoneScopeMode !== "all" && (
@@ -1083,7 +1083,7 @@ export default function PromotionsPage() {
             </div>
             <div className="bg-white border border-gray-200 rounded-xl p-5 space-y-4">
               <div className="flex items-center gap-2 text-gray-900 font-semibold text-sm">
-                <TbMapPin className="text-teal-600" size={18} /> Different numbers in some zones (optional)
+                <TbMapPin className="text-teal-600" size={18} /> Zone Overrides
               </div>
               <p className="text-xs text-gray-500">
                 Optional. Pick a zone only if it needs different numbers from the main settings; every other zone uses
@@ -1126,13 +1126,13 @@ export default function PromotionsPage() {
           <div className="space-y-4">
             <div className="bg-white border border-gray-200 rounded-xl p-5 space-y-4">
               <div className="flex items-center gap-2 text-gray-900 font-semibold text-sm">
-                <TbUsers className="text-orange-600" size={18} /> How customers get it
+                <TbUsers className="text-orange-600" size={18} /> Activation & Visibility
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <Field label="Code needed?" hint="Automatic: given by itself. With a code: the customer types a code when booking">
+                <Field label="Activation" hint="Automatic: applies by itself. Coupon: the customer must enter a code when booking">
                   <Select options={ACTIVATION_TYPES} value={form.activationType} onChange={setActivationType} />
                 </Field>
-                <Field label="Shown to customers?" hint="Whether customers see it listed in the app before they order">
+                <Field label="Customer Visibility" hint="Whether customers see the offer listed in the app before they order">
                   <Select
                     options={VISIBILITY_OPTIONS.filter((o) => o.value === form.visibility || visibilityOffered(o.value, form))}
                     value={form.visibility}
@@ -1143,7 +1143,7 @@ export default function PromotionsPage() {
               {/* The codes sit right under the choice that needs them. */}
               {form.activationType === "coupon_required" && (
                 <div className="rounded-xl border border-gray-200 p-4 space-y-3">
-                  <div className="text-gray-900 font-semibold text-sm">Codes *</div>
+                  <div className="text-gray-900 font-semibold text-sm">Coupon Codes *</div>
                   <p className="text-xs text-gray-500">Customers type one of these when booking. Letters are saved in capitals.</p>
                   <CouponCodesBuilder
                     codes={form.couponCodes}
@@ -1161,7 +1161,7 @@ export default function PromotionsPage() {
             </div>
             <div className="bg-white border border-gray-200 rounded-xl p-5 space-y-4">
               <div className="flex items-center gap-2 text-gray-900 font-semibold text-sm">
-                <TbUsers className="text-orange-600" size={18} /> Extra rules (optional)
+                <TbUsers className="text-orange-600" size={18} /> Eligibility Conditions
               </div>
               {FIRST_ORDER_TYPES.includes(form.benefitType) ? (
                 <p className="text-xs text-blue-800 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
@@ -1171,7 +1171,7 @@ export default function PromotionsPage() {
                   Add a rule only to narrow it further (payment method, collection day, what the order includes).
                 </p>
               ) : (
-                <p className="text-xs text-gray-500">Only if you need more, e.g. first order, payment method, collection day, or what the order includes. Zones are on Where, laundry totals on Limits, days and times on When.</p>
+                <p className="text-xs text-gray-500">Optional. Set elsewhere, so not repeated here: zones (Geography), basket minimums (Limits), days and times (Schedule).</p>
               )}
               <p className="text-xs text-gray-500">&quot;Must match&quot; rules all have to be true. If you add &quot;One of these&quot; rules, at least one of them has to be true.</p>
               <PromotionConditionBuilder
@@ -1195,35 +1195,35 @@ export default function PromotionsPage() {
           <div className="space-y-4">
             <div className="bg-white border border-gray-200 rounded-xl p-5 space-y-4">
               <div className="flex items-center gap-2 text-gray-900 font-semibold text-sm">
-                <TbShoppingCart className="text-red-600" size={18} /> How many times
+                <TbShoppingCart className="text-red-600" size={18} /> Usage Limits
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <Field label="Total orders" hint="Stops after this many orders, all customers together. Blank = no limit">
+                <Field label="Total Uses (all customers)" hint="Stops after this many orders, all customers together. Blank = no limit">
                   <Input type="number" min="1" value={form.globalUsageLimit} onChange={(e) => setField("globalUsageLimit", e.target.value)} placeholder="No limit" />
                 </Field>
                 <Field
                   label="Budget (£)"
                   hint={form.campaignId
-                    ? "This promotion uses its campaign's budget (chosen on What)"
+                    ? "This promotion uses its campaign budget (Benefit step)"
                     : "Stops new orders when this much has been given away. Orders already booked keep the full discount. Blank = no limit"}
                 >
                   <Input type="number" min="1" value={form.campaignId ? "" : form.budget} onChange={(e) => setField("budget", e.target.value)} placeholder={form.campaignId ? "Campaign budget" : "No limit"} disabled={Boolean(form.campaignId)} />
                 </Field>
                 {perCustomerLock ? (
-                  <Field label="Uses per customer" hint={perCustomerLock.reason}>
+                  <Field label="Uses per Customer" hint={perCustomerLock.reason}>
                     <Input type="text" value={perCustomerLock.value || "—"} readOnly disabled aria-readonly="true" />
                   </Field>
                 ) : (
-                  <Field label="Uses per customer" hint="How many orders one customer can use it on. Empty = no limit">
+                  <Field label="Uses per Customer" hint="How many orders one customer can use it on. Empty = no limit">
                     <Input type="number" min="1" value={form.perCustomerLimit} onChange={(e) => setField("perCustomerLimit", e.target.value)} placeholder="No limit" />
                   </Field>
                 )}
                 {showsPeriodLimits(form.benefitType) && (
                   <>
-                    <Field label="Per customer, each day" hint="Most uses by one customer in 24 hours">
+                    <Field label="Per Customer, per Day" hint="Most uses by one customer in 24 hours">
                       <Input type="number" min="1" value={form.perDayLimit} onChange={(e) => setField("perDayLimit", e.target.value)} placeholder="No limit" />
                     </Field>
-                    <Field label="Per customer, each week" hint="Most uses by one customer in 7 days">
+                    <Field label="Per Customer, per Week" hint="Most uses by one customer in 7 days">
                       <Input type="number" min="1" value={form.perWeekLimit} onChange={(e) => setField("perWeekLimit", e.target.value)} placeholder="No limit" />
                     </Field>
                   </>
@@ -1237,26 +1237,26 @@ export default function PromotionsPage() {
             </div>
             <div className="bg-white border border-gray-200 rounded-xl p-5 space-y-4">
               <div className="flex items-center gap-2 text-gray-900 font-semibold text-sm">
-                <TbShoppingCart className="text-blue-600" size={18} /> Order size
+                <TbShoppingCart className="text-blue-600" size={18} /> Basket Requirements
               </div>
               <div className="grid grid-cols-3 gap-4">
                 <Field label={offerItemsOnly ? "Selected items total over (£)" : "Laundry total over (£)"} hint={offerItemsOnly ? "The selected items on the final invoice must come to at least this; other services do not count. Service fee not included. Blank = no minimum" : "The laundry total on the final invoice must reach this. Service fee not included. Blank = no minimum"}>
                   <Input type="number" min="0" step="0.01" value={form.minSubtotal} onChange={(e) => setField("minSubtotal", e.target.value)} placeholder="No minimum" />
                 </Field>
-                <Field label={offerItemsOnly ? "Selected items total up to (£)" : "Laundry total up to (£)"} hint={offerItemsOnly ? "No offer when the selected items come to more than this; other services do not count. Blank = no maximum" : "No offer when the laundry total is above this. Blank = no maximum"}>
+                <Field label="Maximum Subtotal (£)" hint={offerItemsOnly ? "No offer when the selected items come to more than this; other services do not count. Blank = no maximum" : "No offer when the laundry total is above this. Blank = no maximum"}>
                   <Input type="number" min="0" step="0.01" value={form.maxSubtotal} onChange={(e) => setField("maxSubtotal", e.target.value)} placeholder="No maximum" />
                 </Field>
-                <Field label="At least this many items" hint={offerItemsOnly ? "Fewest selected items on the invoice; items from other services do not count. Blank = no minimum" : "Fewest items on the invoice, add-ons included. Blank = no minimum"}>
+                <Field label="Minimum Quantity" hint={offerItemsOnly ? "Fewest selected items on the invoice; items from other services do not count. Blank = no minimum" : "Fewest items on the invoice, add-ons included. Blank = no minimum"}>
                   <Input type="number" min="1" value={form.minQuantity} onChange={(e) => setField("minQuantity", e.target.value)} placeholder="No minimum" />
                 </Field>
               </div>
             </div>
             <div className="bg-white border border-gray-200 rounded-xl p-5 space-y-4">
               <div className="flex items-center gap-2 text-gray-900 font-semibold text-sm">
-                <TbDiscount className="text-indigo-600" size={18} /> When several promotions apply
+                <TbDiscount className="text-indigo-600" size={18} /> Priority & Stacking
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <Field label="Priority" hint="0 – 1000. When promotions can't be combined, the customer gets the one that saves the most. Priority only breaks a tie (higher wins)">
+                <Field label="Priority (higher wins)" hint="0 – 1000. When promotions can't be combined, the customer gets the one that saves the most. Priority only breaks a tie (higher wins)">
                   <Input type="number" step="1" value={form.priority} onChange={(e) => setField("priority", e.target.value)} placeholder="50" />
                 </Field>
                 <Field label="Stackable" hint="Off: if another promotion also applies, the customer gets whichever saves more. On: it is added to other promotions that can also combine">
@@ -1266,7 +1266,7 @@ export default function PromotionsPage() {
                 </Field>
               </div>
               {form.stackable && (
-                <Field label="Group (optional)" hint="Promotions in the same group never combine with each other, even if both can combine">
+                <Field label="Stack Group" hint="Promotions in the same group never combine with each other, even if both can combine">
                   <Input value={form.stackGroup} onChange={(e) => setField("stackGroup", e.target.value)} placeholder="e.g. delivery" maxLength={50} />
                 </Field>
               )}
@@ -1282,16 +1282,16 @@ export default function PromotionsPage() {
           <div className="space-y-4">
             <div className="bg-white border border-gray-200 rounded-xl p-5 space-y-4">
               <div className="flex items-center gap-2 text-gray-900 font-semibold text-sm">
-                <TbCalendarEvent className="text-indigo-600" size={18} /> Dates
+                <TbCalendarEvent className="text-indigo-600" size={18} /> Schedule
               </div>
               <div className="grid grid-cols-4 gap-4">
-                <Field label="Start date" hint="UK time. Empty = starts when it goes live">
+                <Field label="Start Date" hint="UK time. Empty = starts when it goes live">
                   <Input type="date" value={form.startDate} onChange={(e) => setField("startDate", e.target.value)} />
                 </Field>
                 <Field label="Start time" hint="24-hour. Empty = 00:00">
                   <TimeInput24 value={form.startTime} onChange={(v) => setField("startTime", v)} aria-label="Start time" disabled={!form.startDate} />
                 </Field>
-                <Field label="End date" hint="UK time. Empty = no end">
+                <Field label="End Date" hint="UK time. Empty = no end">
                   <Input type="date" value={form.endDate} min={form.startDate || undefined} onChange={(e) => setField("endDate", e.target.value)} />
                 </Field>
                 <Field label="End time" hint="24-hour. Empty = 23:59">
@@ -1301,7 +1301,7 @@ export default function PromotionsPage() {
             </div>
             <div className="bg-white border border-gray-200 rounded-xl p-5 space-y-4">
               <div className="flex items-center gap-2 text-gray-900 font-semibold text-sm">
-                <TbCalendarEvent className="text-teal-600" size={18} /> Repeat on days / times
+                <TbCalendarEvent className="text-teal-600" size={18} /> Recurring Window
               </div>
               <p className="text-xs text-gray-500">Optional. Only works on these days and times (UK time), e.g. every Tuesday 09:00–12:00. Overnight like 22:00 → 02:00 is fine.</p>
               <Field label="Days" hint="The day the booking is placed, not the collection day. None selected = every day">
@@ -1330,7 +1330,7 @@ export default function PromotionsPage() {
         return (
           <div className="space-y-4">
             <div className="bg-white border border-gray-200 rounded-xl p-5 space-y-3">
-              <h3 className="font-semibold text-gray-900">Check before saving</h3>
+              <h3 className="font-semibold text-gray-900">Review Promotion</h3>
               <div className="grid grid-cols-2 gap-3 text-sm">
                 <div><span className="text-gray-500">Name:</span> <strong>{form.name || "—"}</strong></div>
                 <div><span className="text-gray-500">Type:</span> <strong>{benefitLabel(form.benefitType)}</strong></div>
@@ -1339,30 +1339,30 @@ export default function PromotionsPage() {
                   <div><span className="text-gray-500">Orders:</span> <strong>First {form.firstOrders}</strong></div>
                 )}
                 {itemScope && form.benefitType !== "bundle" && (
-                  <div><span className="text-gray-500">On:</span> <strong>{form.targetType === "all" ? "All items" : (catalogOptions[form.targetType] || []).filter((o) => form.targetIds.map(String).includes(o.value)).map((o) => o.label).join(", ") || `${form.targetIds.length} selected`}</strong></div>
+                  <div><span className="text-gray-500">Targets:</span> <strong>{form.targetType === "all" ? "All items" : (catalogOptions[form.targetType] || []).filter((o) => form.targetIds.map(String).includes(o.value)).map((o) => o.label).join(", ") || `${form.targetIds.length} selected`}</strong></div>
                 )}
                 {form.benefitType === "bundle" && (
                   <div className="col-span-2"><span className="text-gray-500">Deals:</span> <strong>{dealsSummary(form.deals, dealsApi) || "—"}</strong></div>
                 )}
-                <div><span className="text-gray-500">Zones:</span> <strong>{form.zoneScopeMode === "all" ? "All zones" : `${form.zoneScopeMode === "excluded" ? "All except " : ""}${form.zoneIds.length} zones`}</strong></div>
-                <div><span className="text-gray-500">Different numbers in zones:</span> <strong>{form.zoneOverrides.filter((o) => overrideAllowed(form, o.zoneId)).length || "None"}</strong></div>
-                <div><span className="text-gray-500">Code needed:</span> <strong>{form.activationType === "automatic" ? "No, automatic" : "Yes"}</strong></div>
-                <div><span className="text-gray-500">Codes:</span> <strong>{form.couponCodes.map((c) => c.code).join(", ") || "None"}</strong></div>
-                <div><span className="text-gray-500">Extra rules:</span> <strong>{form.conditions.filter((c) => c.conditionType).length || "None"}</strong></div>
-                <div><span className="text-gray-500">Total orders:</span> <strong>{form.globalUsageLimit || "No limit"}</strong></div>
+                <div><span className="text-gray-500">Zone:</span> <strong>{form.zoneScopeMode === "all" ? "All Zones" : `${form.zoneScopeMode === "excluded" ? "All except " : ""}${form.zoneIds.length} zones`}</strong></div>
+                <div><span className="text-gray-500">Zone overrides:</span> <strong>{form.zoneOverrides.filter((o) => overrideAllowed(form, o.zoneId)).length || "None"}</strong></div>
+                <div><span className="text-gray-500">Activation:</span> <strong>{form.activationType === "automatic" ? "Auto" : "Coupon"}</strong></div>
+                <div><span className="text-gray-500">Coupons:</span> <strong>{form.couponCodes.map((c) => c.code).join(", ") || "None"}</strong></div>
+                <div><span className="text-gray-500">Conditions:</span> <strong>{form.conditions.filter((c) => c.conditionType).length || "None"}</strong></div>
+                <div><span className="text-gray-500">Global Limit:</span> <strong>{form.globalUsageLimit || "No limit"}</strong></div>
                 <div><span className="text-gray-500">Budget:</span> <strong>{form.campaignId ? "Campaign budget" : form.budget ? `£${form.budget}` : "No limit"}</strong></div>
-                <div><span className="text-gray-500">Per customer:</span> <strong>{(perCustomerLock?.value ?? form.perCustomerLimit) || "No limit"}{perCustomerLock ? " (set by type)" : ""}</strong></div>
-                <div><span className="text-gray-500">Laundry total:</span> <strong>{[form.minSubtotal ? `over £${form.minSubtotal}` : "", form.maxSubtotal ? `up to £${form.maxSubtotal}` : ""].filter(Boolean).join(", ") || "Any"}</strong></div>
+                <div><span className="text-gray-500">Per Customer:</span> <strong>{(perCustomerLock?.value ?? form.perCustomerLimit) || "No limit"}{perCustomerLock ? " (set by type)" : ""}</strong></div>
+                <div><span className="text-gray-500">Subtotal:</span> <strong>{[form.minSubtotal ? `over £${form.minSubtotal}` : "", form.maxSubtotal ? `up to £${form.maxSubtotal}` : ""].filter(Boolean).join(", ") || "Any"}</strong></div>
                 {showsPeriodLimits(form.benefitType) && (
-                  <div><span className="text-gray-500">Per customer, per day / week:</span> <strong>{form.perDayLimit || "No limit"} / {form.perWeekLimit || "No limit"}</strong></div>
+                  <div><span className="text-gray-500">Per Customer per Day / Week:</span> <strong>{form.perDayLimit || "No limit"} / {form.perWeekLimit || "No limit"}</strong></div>
                 )}
-                <div><span className="text-gray-500">At least this many items:</span> <strong>{form.minQuantity || "None"}</strong></div>
+                <div><span className="text-gray-500">Minimum items:</span> <strong>{form.minQuantity || "None"}</strong></div>
                 <div><span className="text-gray-500">Priority:</span> <strong>{form.priority === "" ? 50 : form.priority}</strong></div>
-                <div><span className="text-gray-500">Combines with other promotions:</span> <strong>{form.stackable ? "Yes" : "No, the best saving is used"}</strong></div>
-                <div><span className="text-gray-500">Shown to customers:</span> <strong>{labelOf(VISIBILITY_OPTIONS, form.visibility)}</strong></div>
+                <div><span className="text-gray-500">Combines with other offers:</span> <strong>{form.stackable ? "Yes" : "No, the best saving is used"}</strong></div>
+                <div><span className="text-gray-500">Visibility:</span> <strong>{labelOf(VISIBILITY_OPTIONS, form.visibility)}</strong></div>
                 <div><span className="text-gray-500">Campaign:</span> <strong>{form.campaignId ? campaignOptions.find((c) => c.value === String(form.campaignId))?.label || "Selected" : "None"}</strong></div>
                 <div><span className="text-gray-500">Dates (UK):</span> <strong>{form.startDate ? `${shortDay(form.startDate)} ${form.startTime || "00:00"}` : "When published"} — {form.endDate ? `${shortDay(form.endDate)} ${form.endTime || "23:59"}` : "No end"}</strong></div>
-                <div><span className="text-gray-500">Repeat:</span> <strong>{[days, timeWindow].filter(Boolean).join(" ") || "Every day, all day"}</strong></div>
+                <div><span className="text-gray-500">Recurring:</span> <strong>{[days, timeWindow].filter(Boolean).join(" ") || "Every day, all day"}</strong></div>
                 {form.description?.trim() ? (
                   <div className="col-span-2"><span className="text-gray-500">Description:</span> <strong>{form.description.trim()}</strong></div>
                 ) : null}
