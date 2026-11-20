@@ -7,13 +7,13 @@ export const FIRST_ORDER_TYPES = ["first_order_discount", "first_x_orders_discou
 
 /** Conditions that repeat a setting with its own place in the wizard: type → where it lives. */
 export const CONDITION_HOMES = {
-  ZONE: "Geography → Zone Scope",
-  MINIMUM_SUBTOTAL: "Limits → Minimum Subtotal",
-  MAXIMUM_SUBTOTAL: "Limits → Maximum Subtotal",
-  MINIMUM_QUANTITY: "Limits → Minimum Quantity",
-  SCHEDULE: "Schedule → Recurring Window",
-  BOOKING_TIME: "Schedule → Recurring Window",
-  COUPON: "Benefit → Activation and the coupon codes below",
+  ZONE: "Where → Zones",
+  MINIMUM_SUBTOTAL: "Limits → Laundry total over",
+  MAXIMUM_SUBTOTAL: "Limits → Laundry total up to",
+  MINIMUM_QUANTITY: "Limits → At least this many items",
+  SCHEDULE: "When → Repeat on days / times",
+  BOOKING_TIME: "When → Repeat on days / times",
+  COUPON: "Who → Code needed? and the codes",
 };
 
 const ORDER_HISTORY_CONDITIONS = ["FIRST_ORDER", "CUSTOMER_TYPE", "ORDER_COUNT"];
@@ -82,7 +82,7 @@ export function basketScopeWarning(benefitType, conditions = []) {
   if (!WHOLE_BASKET_TYPES.includes(benefitType)) return null;
   if (!conditions.some((c) => BASKET_CONTENT_CONDITIONS.includes(c.conditionType))) return null;
   const saving = benefitType === "cashback" ? "cashback is still worked out on" : "discount still comes off";
-  return `"Basket contains …" only decides who gets this offer. The ${saving} the whole basket, other services included. ` +
+  return `"Order includes …" only decides who gets this promotion. The ${saving} the whole basket, other services included. ` +
     "To discount only certain services, categories or items, create a Service, Category or Item Discount instead.";
 }
 
@@ -112,8 +112,8 @@ export function firstOrderLimitNote({ conditions = [], perCustomerLimit, perDayL
   if (firstOrderRule(conditions) !== "only") return null;
   const above1 = [perCustomerLimit, perDayLimit, perWeekLimit].some((v) => Number(v) > 1);
   if (!above1) return null;
-  return 'Audience has "First order only", so each customer can get this offer once, on their first order. ' +
-    '"Uses per Customer", "per Day" and "per Week" above 1 have no effect. Remove that condition to let customers use it again.';
+  return 'Who has "First order", so each customer can get this promotion once, on their first order. ' +
+    '"Uses per customer", "each day" and "each week" above 1 have no effect. Remove that rule to let customers use it again.';
 }
 
 /** Pieces in one Bulk price deal ("10 for £25" → 10): the form field, else the stored benefitConfig. */

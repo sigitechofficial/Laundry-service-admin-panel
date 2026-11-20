@@ -412,6 +412,11 @@
   transition: opacity 180ms var(--ease), transform 180ms var(--ease);
 }
 
+/* Wizards: one height for every step (the body scrolls), so the step tabs stay put. */
+.jd-ds .jd-modal--fixed {
+  height: min(92vh, calc(100vh - 40px));
+}
+
 /* Content dialogs that should hug short content and hard-cap at 80vh. */
 .jd-ds .jd-modal--mh-80 {
   max-height: min(80vh, calc(100vh - 40px));

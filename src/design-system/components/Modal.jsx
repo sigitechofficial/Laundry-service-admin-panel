@@ -6,6 +6,8 @@ import Button from "./Button";
 
 const SIZES = ["sm", "md", "lg", "xl"];
 const MAX_HEIGHTS = {
+  // Same height on every step of a wizard, so its step tabs never move.
+  fixed: "jd-modal--fixed",
   "80vh": "jd-modal--mh-80",
 };
 const EXIT_MS = 200;

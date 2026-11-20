@@ -225,7 +225,7 @@ describe("Every type saves the right fields", () => {
 describe("The form stops what would go wrong", () => {
   it("no name", () => assert.match(firstError(form({ name: "", discountValue: "10" })), /name/));
   it("more than 100%", () => assert.match(firstError(form({ discountValue: "120" })), /100%/));
-  it("a code is needed", () => assert.match(firstError(form({ discountValue: "5", activationType: "coupon_required" })), /coupon code/));
+  it("a code is needed", () => assert.match(firstError(form({ discountValue: "5", activationType: "coupon_required" })), /at least one code/));
   it("bulk deal with no service", () => {
     assert.match(firstError(form({ benefitType: "bundle", deals: [{ serviceIds: [], itemIds: ["118"], qty: "10", price: "30" }] })), /service/);
   });

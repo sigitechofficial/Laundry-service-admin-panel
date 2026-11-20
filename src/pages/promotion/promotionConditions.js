@@ -26,7 +26,7 @@ export const OPERATOR_LABELS = {
 
 export const LOGIC_GROUPS = [
   { value: "ALL", label: "Must match" },
-  { value: "ANY", label: "Any of (OR)" },
+  { value: "ANY", label: "One of these" },
 ];
 
 export const CUSTOMER_TYPES = [
@@ -48,20 +48,20 @@ export const PAYMENT_METHODS = [
 export const CONDITION_DEFS = {
   FIRST_ORDER: { label: "First order", operators: ["equals"], kind: "boolean", initial: () => true },
   CUSTOMER_TYPE: { label: "Customer type", operators: ["in", "not_in"], kind: "customerType", initial: () => ["new"] },
-  ORDER_COUNT: { label: "Previous order count", operators: ["gte", "lte", "equals", "between"], kind: "integer", initial: () => 1 },
-  MINIMUM_SUBTOTAL: { label: "Basket subtotal (min)", operators: ["gte", "lte"], kind: "money", initial: () => 20 },
-  MAXIMUM_SUBTOTAL: { label: "Basket subtotal (max)", operators: ["lte", "gte"], kind: "money", initial: () => 100 },
-  MINIMUM_QUANTITY: { label: "Item quantity (min)", operators: ["gte", "lte"], kind: "integer", initial: () => 2 },
-  MAXIMUM_QUANTITY: { label: "Item quantity (max)", operators: ["lte", "gte"], kind: "integer", initial: () => 10 },
+  ORDER_COUNT: { label: "Orders placed before", operators: ["gte", "lte", "equals", "between"], kind: "integer", initial: () => 1 },
+  MINIMUM_SUBTOTAL: { label: "Laundry total (min)", operators: ["gte", "lte"], kind: "money", initial: () => 20 },
+  MAXIMUM_SUBTOTAL: { label: "Laundry total (max)", operators: ["lte", "gte"], kind: "money", initial: () => 100 },
+  MINIMUM_QUANTITY: { label: "Number of items (min)", operators: ["gte", "lte"], kind: "integer", initial: () => 2 },
+  MAXIMUM_QUANTITY: { label: "Number of items (max)", operators: ["lte", "gte"], kind: "integer", initial: () => 10 },
   ZONE: { label: "Zone", operators: ["in", "not_in"], kind: "zones", initial: () => [] },
-  SERVICE: { label: "Basket contains service", operators: ["in"], kind: "catalog", catalog: "service", initial: () => [] },
-  CATEGORY: { label: "Basket contains category", operators: ["in"], kind: "catalog", catalog: "category", initial: () => [] },
-  PRODUCT: { label: "Basket contains item", operators: ["in"], kind: "catalog", catalog: "subCategory", initial: () => [] },
-  ADDON: { label: "Basket contains add-on", operators: ["in"], kind: "catalog", catalog: "addon", initial: () => [] },
+  SERVICE: { label: "Order includes a service", operators: ["in"], kind: "catalog", catalog: "service", initial: () => [] },
+  CATEGORY: { label: "Order includes a category", operators: ["in"], kind: "catalog", catalog: "category", initial: () => [] },
+  PRODUCT: { label: "Order includes an item", operators: ["in"], kind: "catalog", catalog: "subCategory", initial: () => [] },
+  ADDON: { label: "Order includes an add-on", operators: ["in"], kind: "catalog", catalog: "addon", initial: () => [] },
   COLLECTION_DAY: { label: "Collection day", operators: ["in", "not_in"], kind: "days", initial: () => [] },
   DELIVERY_DAY: { label: "Delivery day", operators: ["in", "not_in"], kind: "days", initial: () => [] },
   BOOKING_TIME: { label: "Booking time", operators: ["between"], kind: "timeRange", initial: () => ({ start: "09:00", end: "17:00" }) },
-  SCHEDULE: { label: "Schedule window", operators: ["between"], kind: "schedule", initial: () => ({ days: [], startTime: "", endTime: "" }) },
+  SCHEDULE: { label: "Days and times", operators: ["between"], kind: "schedule", initial: () => ({ days: [], startTime: "", endTime: "" }) },
   PAYMENT_METHOD: { label: "Payment method", operators: ["in"], kind: "payment", initial: () => ["card"] },
   COUPON: { label: "Coupon code entered", operators: ["in"], kind: "codes", initial: () => [] },
 };
@@ -84,7 +84,7 @@ const isTime = (v) => /^\d{2}:\d{2}$/.test(String(v || ""));
 
 /** Returns an error string for an invalid condition, or null. */
 export function conditionError(c) {
-  if (!c.conditionType) return "Choose what this condition checks, or remove it";
+  if (!c.conditionType) return "Choose what this rule checks, or remove it";
   const def = CONDITION_DEFS[c.conditionType];
   if (!def) return `"${c.conditionType}" is not supported in this editor — remove it`;
   const v = c.value;

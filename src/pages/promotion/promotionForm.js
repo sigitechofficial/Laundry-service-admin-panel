@@ -256,7 +256,6 @@ export function validateStep(step, form, priceOf) {
   switch (step) {
     case 0: {
       if (!form.name.trim()) return "Promotion name is required";
-      if (form.activationType === "coupon_required" && !form.couponCodes.length) return "Add at least one coupon code";
       if (bt === "bundle") {
         const err = validateDeals(form.deals, priceOf);
         if (err) return err;
@@ -294,6 +293,8 @@ export function validateStep(step, form, priceOf) {
       return null;
     }
     case 2: {
+      // Who: a promotion that needs a code must have one.
+      if (form.activationType === "coupon_required" && !form.couponCodes.length) return "Add at least one code, or choose Automatic";
       for (const c of form.conditions) {
         const err = conditionError(c);
         if (err) return err;
@@ -334,4 +335,4 @@ export function validateStep(step, form, priceOf) {
   }
 }
 
-export const STEPS = ["Benefit", "Geography", "Audience", "Limits", "Schedule", "Review"];
+export const STEPS = ["What", "Where", "Who", "Limits", "When", "Review"];
