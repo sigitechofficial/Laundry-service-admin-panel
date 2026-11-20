@@ -121,8 +121,8 @@ export const DS_NAV = [
         icon: "megaphone",
         path: "/promotion",
         children: [
-          { label: "Campaigns", path: "/promotion/campaigns" },
-          { label: "Promotions", path: "/promotion/promotions" },
+          { label: "Offers", path: "/promotion/promotions" },
+          { label: "Shared budgets", path: "/promotion/campaigns" },
           { label: "Banners & Offers", path: "/promotion/banners" },
         ],
       },

@@ -28,10 +28,12 @@ import ZoneMultiSelect from "./ZoneMultiSelect";
 import CatalogMultiSelect from "./CatalogMultiSelect";
 import PromotionConditionBuilder, { DayPicker } from "./PromotionConditionBuilder";
 import PromotionSimulateModal from "./PromotionSimulateModal";
+import QuickOfferForm from "./QuickOfferForm";
 import { CONDITION_DEFS, WEEKDAYS, conditionError, serializeCondition } from "./promotionConditions";
 import { BENEFIT_HELP, BENEFIT_TYPES, STATUS_OPTIONS, STATUS_TONES } from "./promotionLabels";
 import {
   CLOSED_CAMPAIGN_STATUSES, LIVE_PROMOTION_STATUSES, campaignStatusLabel, campaignStopReason, stopReasonText,
+  isOwnBudget, budgetTakenMinor,
 } from "./campaignState";
 import {
   FIRST_ORDER_TYPES, basketScopeWarning, bulkPriceSummary, bundleSize, conditionHidden, firstOrderLimitNote,
@@ -124,6 +126,15 @@ const defaultTargetType = (bt) => {
 
 const money = (n) => `£${Number(n).toFixed(2)}`;
 
+/** Who gets the offer, in a few words, for the list. */
+function whoLabel(p) {
+  const conds = Array.isArray(p.conditions) ? p.conditions : [];
+  const firstOrder = FIRST_ORDER_TYPES.includes(p.benefitType) || conds.some((c) => c.conditionType === "FIRST_ORDER");
+  const codes = (p.couponCodes || []).filter((c) => c.isActive !== false).map((c) => c.code);
+  if (p.activationType === "coupon_required") return codes.length === 1 ? `Code ${codes[0]}` : `${codes.length} codes`;
+  return firstOrder ? "First order" : "Everyone";
+}
+
 /** Human value for table / review / view — % vs £ per discountMode. */
 function valueLabel(p) {
   if (p.benefitType === "free_delivery") return "Free delivery";
@@ -202,6 +213,7 @@ const INITIAL_FORM = () => ({
   stackable: false,
   stackGroup: "",
   globalUsageLimit: "",
+  budget: "",
   perCustomerLimit: "1",
   perDayLimit: "",
   perWeekLimit: "",
@@ -213,6 +225,9 @@ const INITIAL_FORM = () => ({
   couponCodes: [],
 });
 
+/** The offer has its own budget (not a shared one). */
+const ownsBudget = (p) => Boolean(p?.campaign && Number(p.campaign.ownerPromotionId) === Number(p.id));
+
 /** GET /promotions/:id detail → form state. */
 function formFromPromotion(p) {
   const config = parseJson(p.benefitConfig, {}) || {};
@@ -221,7 +236,9 @@ function formFromPromotion(p) {
     name: p.name || "",
     description: p.description || "",
     internalNotes: p.internalNotes || "",
-    campaignId: p.campaignId ? String(p.campaignId) : "",
+    // An own budget (a pool owned by this offer) shows as the Budget field, not a shared budget.
+    campaignId: p.campaignId && !ownsBudget(p) ? String(p.campaignId) : "",
+    budget: ownsBudget(p) && p.campaign.budgetMinor != null ? String(p.campaign.budgetMinor / 100) : "",
     benefitType: p.benefitType || "percentage_discount",
     discountMode: p.discountMode || "percent",
     discountValue: numStr(p.discountValue),
@@ -327,6 +344,8 @@ function buildPayload(form) {
     stackable: form.stackable,
     stackGroup: form.stackable && form.stackGroup.trim() ? form.stackGroup.trim() : null,
     globalUsageLimit: numOrNull(form.globalUsageLimit),
+    // Own budget only when the offer is not in a shared budget.
+    budget: form.campaignId ? null : numOrNull(form.budget),
     perCustomerLimit: numOrNull(lockedPerCustomerLimit(form)?.value ?? form.perCustomerLimit),
     perDayLimit: showsPeriodLimits(bt) ? numOrNull(form.perDayLimit) : null,
     perWeekLimit: showsPeriodLimits(bt) ? numOrNull(form.perWeekLimit) : null,
@@ -498,6 +517,7 @@ function validateStep(step, form) {
       for (const [k, label] of ints) {
         if (form[k] !== "" && !isPosInt(form[k])) return `${label} must be a whole number of 1 or more (blank = unlimited)`;
       }
+      if (!form.campaignId && form.budget !== "" && !(Number(form.budget) > 0)) return "Budget must be more than £0 (blank = no limit)";
       if (form.minSubtotal !== "" && !(Number(form.minSubtotal) >= 0)) return "Minimum subtotal cannot be negative";
       if (form.maxSubtotal !== "" && !(Number(form.maxSubtotal) > 0)) return "Maximum subtotal must be greater than 0";
       if (form.minSubtotal !== "" && form.maxSubtotal !== "" && Number(form.maxSubtotal) < Number(form.minSubtotal)) {
@@ -736,6 +756,7 @@ export default function PromotionsPage() {
   const [publishTarget, setPublishTarget] = useState(null);
   const [reportRow, setReportRow] = useState(null);
   const [showSimulate, setShowSimulate] = useState(false);
+  const [showQuick, setShowQuick] = useState(false);
 
   const { data, isLoading } = useGetPromotionsQuery({
     page, limit: 20, status: statusFilter || undefined, campaignId: campaignFilter || undefined,
@@ -789,7 +810,7 @@ export default function PromotionsPage() {
   );
 
   const campaignOptions = useMemo(() => [
-    { value: "", label: "No Campaign" },
+    { value: "", label: "None (own limits)" },
     ...(campaignsData?.rows || [])
       .filter((c) => !CLOSED_CAMPAIGN_STATUSES.includes(c.status) || String(c.id) === String(form.campaignId))
       .map((c) => ({ value: String(c.id), label: c.status === "active" ? c.name : `${c.name} (${campaignStatusLabel(c.status)})` })),
@@ -998,49 +1019,41 @@ export default function PromotionsPage() {
   const columns = [
     {
       key: "promotion",
-      header: "Promotion",
-      render: (row) => <DirectoryIdentity name={row.name} meta={benefitLabel(row.benefitType)} />,
+      header: "Offer",
+      render: (row) => <DirectoryIdentity name={row.name} meta={`${valueLabel(row)} · ${whoLabel(row)}`} />,
     },
     {
       key: "status",
       header: "Status",
       render: (row) => {
+        // One status: a live offer its budget stops shows why, instead of "Live".
         const stop = campaignStop(row);
-        return (
-          <div className="flex flex-col items-start gap-1">
-            <DirectoryDotPill tone={STATUS_TONES[row.status] || "neutral"}>{statusLabel(row.status)}</DirectoryDotPill>
-            {stop ? (
-              <span className="text-xs font-medium text-amber-700" title="New orders cannot use it until the campaign runs again">
-                Not running · {stopReasonText(stop, campaignOf(row))}
-              </span>
-            ) : null}
-          </div>
+        return stop ? (
+          <span title="New orders can't use it. Orders already booked keep the full discount.">
+            <DirectoryDotPill tone="warning">{stopReasonText(stop, campaignOf(row))}</DirectoryDotPill>
+          </span>
+        ) : (
+          <DirectoryDotPill tone={STATUS_TONES[row.status] || "neutral"}>{statusLabel(row.status)}</DirectoryDotPill>
         );
       },
     },
     {
-      key: "campaign",
-      header: "Campaign",
+      key: "budget",
+      header: "Budget",
       render: (row) => {
         const c = campaignOf(row);
-        if (!row.campaignId) return <span className="text-gray-400">—</span>;
-        return c ? c.name : `#${row.campaignId}`;
+        if (!c) return <span className="text-gray-400">No limit</span>;
+        if (!isOwnBudget(c)) return <span title="Shared with other offers">Shared · {c.name}</span>;
+        return c.budgetMinor == null ? "No limit" : `£${(budgetTakenMinor(c) / 100).toFixed(2)} of £${(c.budgetMinor / 100).toFixed(2)}`;
       },
-    },
-    { key: "discount", header: "Discount", render: (row) => valueLabel(row) },
-    {
-      key: "activation",
-      header: "Activation",
-      render: (row) => (row.activationType === "coupon_required" ? "Coupon" : "Auto"),
     },
     {
       key: "usage",
-      header: "Usage",
+      header: "Orders",
       render: (row) => (row.globalUsageLimit
-        ? `${row.globalUsedCount || 0} / ${row.globalUsageLimit}`
-        : `${row.globalUsedCount || 0} used`),
+        ? `${row.globalUsedCount || 0} of ${row.globalUsageLimit}`
+        : `${row.globalUsedCount || 0}`),
     },
-    { key: "coupons", header: "Coupons", render: (row) => row.couponCodes?.length || 0 },
     {
       key: "actions",
       header: "Actions",
@@ -1141,7 +1154,7 @@ export default function PromotionsPage() {
                 <Textarea value={form.description} onChange={(e) => setField("description", e.target.value)} rows={2} />
               </Field>
               <div className="grid grid-cols-2 gap-4">
-                <Field label="Campaign" hint="Optional. Groups promotions under one budget, one set of dates and one on/off switch">
+                <Field label="Shared budget" hint="Optional. Only when several offers share one budget, dates and on/off switch. For one offer, use Budget on the Limits step">
                   <Select options={campaignOptions} value={form.campaignId} onChange={(v) => setField("campaignId", v ?? "")} />
                 </Field>
                 <Field label="Activation" hint="Automatic: applies by itself. Coupon: the customer must enter a code when booking">
@@ -1391,6 +1404,14 @@ export default function PromotionsPage() {
                 <Field label="Total Uses (all customers)" hint="The promotion stops after this many uses. Blank = unlimited">
                   <Input type="number" min="1" value={form.globalUsageLimit} onChange={(e) => setField("globalUsageLimit", e.target.value)} placeholder="Unlimited" />
                 </Field>
+                <Field
+                  label="Budget (£)"
+                  hint={form.campaignId
+                    ? "This offer uses its shared budget (step 1)"
+                    : "Stops new orders when this much has been given away. Orders already booked keep the full discount. Blank = no limit"}
+                >
+                  <Input type="number" min="1" value={form.campaignId ? "" : form.budget} onChange={(e) => setField("budget", e.target.value)} placeholder={form.campaignId ? "Shared" : "No limit"} disabled={Boolean(form.campaignId)} />
+                </Field>
                 {perCustomerLock ? (
                   <Field label="Uses per Customer" hint={perCustomerLock.reason}>
                     <Input type="text" value={perCustomerLock.value || "—"} readOnly disabled aria-readonly="true" />
@@ -1523,6 +1544,7 @@ export default function PromotionsPage() {
                 <div><span className="text-gray-500">Coupons:</span> <strong>{form.couponCodes.length} {form.couponCodes.length === 1 ? "code" : "codes"}</strong></div>
                 <div><span className="text-gray-500">Conditions:</span> <strong>{form.conditions.length} rules</strong></div>
                 <div><span className="text-gray-500">Global Limit:</span> <strong>{form.globalUsageLimit || "∞"}</strong></div>
+                <div><span className="text-gray-500">Budget:</span> <strong>{form.campaignId ? "Shared budget" : form.budget ? `£${form.budget}` : "No limit"}</strong></div>
                 <div><span className="text-gray-500">Per Customer:</span> <strong>{(perCustomerLock?.value ?? form.perCustomerLimit) || "∞"}{perCustomerLock ? " (set by type)" : ""}</strong></div>
                 <div><span className="text-gray-500">Subtotal:</span> <strong>{form.minSubtotal ? `£${form.minSubtotal}` : "£0"} – {form.maxSubtotal ? `£${form.maxSubtotal}` : "∞"}</strong></div>
                 {showsPeriodLimits(form.benefitType) && (
@@ -1551,18 +1573,36 @@ export default function PromotionsPage() {
   return (
     <>
       <PageHeader
-        title="Promotions"
-        description="Enterprise promotion engine — create, publish, pause, simulate"
+        title="Offers"
+        description="Discounts customers get on their orders"
         actions={
           <>
             <Button variant="secondary" onClick={() => setShowSimulate(true)}>
               <TbFlask size={18} /> Simulate
             </Button>
-            <Button onClick={() => openCreate(campaignFilter ? { campaignId: campaignFilter } : {})}>
-              <TbPlus size={18} /> New Promotion
+            {campaignFilter ? (
+              <Button variant="secondary" onClick={() => openCreate({ campaignId: campaignFilter })}>
+                <TbPlus size={18} /> Add to this shared budget
+              </Button>
+            ) : null}
+            <Button onClick={() => setShowQuick(true)}>
+              <TbPlus size={18} /> Create offer
             </Button>
           </>
         }
+      />
+      <QuickOfferForm
+        open={showQuick}
+        onClose={() => setShowQuick(false)}
+        onSaved={(status) => {
+          setShowQuick(false);
+          setStatusFilter(status === "draft" ? "draft" : status);
+          setPage(1);
+        }}
+        onMoreOptions={(preset) => {
+          setShowQuick(false);
+          openCreate(preset);
+        }}
       />
 
       <DirectoryToolbar>

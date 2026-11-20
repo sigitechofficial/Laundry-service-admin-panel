@@ -40,9 +40,9 @@ export const STATUS_OPTIONS = [
   { value: "pending_approval", label: "Pending approval" },
   { value: "approved", label: "Approved" },
   { value: "scheduled", label: "Scheduled" },
-  { value: "active", label: "Active" },
+  { value: "active", label: "Live" },
   { value: "paused", label: "Paused" },
-  { value: "expired", label: "Expired" },
+  { value: "expired", label: "Ended" },
   { value: "archived", label: "Archived" },
 ];
 
