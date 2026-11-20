@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Field, Input, Modal } from "../../design-system";
 import useToaster from "../../components/ui/Toaster";
 import { useUpdatePromotionMutation } from "../../store/services/api";
+import TimeInput24, { TIME_24, dateWithTime } from "./TimeInput24";
 import "./quickOffer.css";
 
 /**
@@ -23,6 +24,7 @@ export default function LiveOfferEditModal({ offer, onClose }) {
       setF({
         name: offer.name || "",
         endDate: offer.endDate || "",
+        endTime: offer.endTime || "",
         globalUsageLimit: offer.globalUsageLimit ?? "",
         perCustomerLimit: offer.perCustomerLimit ?? "",
         budget: offer.budget ?? "",
@@ -37,11 +39,12 @@ export default function LiveOfferEditModal({ offer, onClose }) {
 
   const save = async () => {
     if (!f.name.trim()) { setError("Give the offer a name"); return; }
+    if (f.endTime && !TIME_24.test(f.endTime)) { setError("End time: use 24-hour time, e.g. 18:30"); return; }
     if (f.budget !== "" && !(Number(f.budget) > 0)) { setError("Budget must be more than £0, or left empty"); return; }
     const payload = {
       id: offer.id,
       name: f.name.trim(),
-      endDate: f.endDate || null,
+      endDate: dateWithTime(f.endDate, f.endTime),
       globalUsageLimit: blankToNull(f.globalUsageLimit),
       perCustomerLimit: blankToNull(f.perCustomerLimit),
       ...(shared ? {} : { budget: blankToNull(f.budget) }),
@@ -73,8 +76,11 @@ export default function LiveOfferEditModal({ offer, onClose }) {
           <Input value={f.name} onChange={set("name")} maxLength={200} />
         </Field>
         <div className="qo-row">
-          <Field label="Ends" hint="Leave empty to run until you pause it">
+          <Field label="Ends (UK)" hint="Leave empty to run until you pause it">
             <Input type="date" value={f.endDate} onChange={set("endDate")} />
+          </Field>
+          <Field label="End time" hint="24-hour. Empty = 23:59">
+            <TimeInput24 value={f.endTime} onChange={(v) => setF((p) => ({ ...p, endTime: v }))} placeholder="23:59" disabled={!f.endDate} />
           </Field>
           <Field label="Budget (£)" hint={shared ? `Uses the shared budget "${offer.sharedBudgetName}"` : "Stops new orders when this much has been given away"}>
             <Input type="number" min="1" step="1" value={shared ? "" : f.budget} onChange={set("budget")} placeholder={shared ? "Shared" : "No limit"} disabled={shared} />

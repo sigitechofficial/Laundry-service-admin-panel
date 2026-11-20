@@ -29,6 +29,7 @@ import CatalogMultiSelect from "./CatalogMultiSelect";
 import PromotionConditionBuilder, { DayPicker } from "./PromotionConditionBuilder";
 import PromotionSimulateModal from "./PromotionSimulateModal";
 import QuickOfferForm from "./QuickOfferForm";
+import TimeInput24, { TIME_24, dateWithTime } from "./TimeInput24";
 import LiveOfferEditModal from "./LiveOfferEditModal";
 import { CONDITION_DEFS, WEEKDAYS, conditionError, serializeCondition } from "./promotionConditions";
 import { BENEFIT_HELP, BENEFIT_TYPES, STATUS_OPTIONS, STATUS_TONES } from "./promotionLabels";
@@ -220,7 +221,9 @@ const INITIAL_FORM = () => ({
   zoneIds: [],
   zoneOverrides: [],
   startDate: "",
+  startTime: "",
   endDate: "",
+  endTime: "",
   recurringDays: [],
   recurringStartTime: "",
   recurringEndTime: "",
@@ -277,6 +280,9 @@ function formFromPromotion(p) {
     })),
     startDate: promotionDay(p, "start"),
     endDate: promotionDay(p, "end"),
+    // UK times; whole days (00:00 / 23:59) show as empty.
+    startTime: p.startTime && p.startTime !== "00:00" ? p.startTime : "",
+    endTime: p.endTime && p.endTime !== "23:59" ? p.endTime : "",
     recurringDays: parseJson(p.recurringDays, []) || [],
     recurringStartTime: p.recurringStartTime ? String(p.recurringStartTime).slice(0, 5) : "",
     recurringEndTime: p.recurringEndTime ? String(p.recurringEndTime).slice(0, 5) : "",
@@ -353,8 +359,8 @@ function buildPayload(form) {
         minSubtotal: numOrNull(zo.minSubtotal),
       })),
     // Sent as calendar days: the server turns them into the start / end of that day in UK time.
-    startDate: form.startDate || null,
-    endDate: form.endDate || null,
+    startDate: dateWithTime(form.startDate, form.startTime),
+    endDate: dateWithTime(form.endDate, form.endTime),
     recurringDays: form.recurringDays.length ? [...form.recurringDays].sort((a, b) => a - b) : null,
     recurringStartTime: hasTimes ? form.recurringStartTime : null,
     recurringEndTime: hasTimes ? form.recurringEndTime : null,
@@ -547,7 +553,10 @@ function validateStep(step, form) {
       return null;
     }
     case 4: {
+      if (form.startTime && !TIME_24.test(form.startTime)) return "Start time: use 24-hour time, e.g. 09:00";
+      if (form.endTime && !TIME_24.test(form.endTime)) return "End time: use 24-hour time, e.g. 18:30";
       if (form.startDate && form.endDate && form.endDate < form.startDate) return "End date must be after the start date";
+      if (form.startDate && form.endDate === form.startDate && (form.endTime || "23:59") <= (form.startTime || "00:00")) return "The end time must be after the start time";
       if (Boolean(form.recurringStartTime) !== Boolean(form.recurringEndTime)) return "Enter both a start and end time for the recurring window";
       return null;
     }
@@ -961,6 +970,7 @@ export default function PromotionsPage() {
       id: row.id,
       name: row.name,
       endDate: promotionDay(row, "end"),
+      endTime: row.endTime && row.endTime !== "23:59" ? row.endTime : "",
       globalUsageLimit: row.globalUsageLimit,
       perCustomerLimit: row.perCustomerLimit,
       budget: c && isOwnBudget(c) && c.budgetMinor != null ? c.budgetMinor / 100 : "",
@@ -1534,12 +1544,18 @@ export default function PromotionsPage() {
               <div className="flex items-center gap-2 text-gray-900 font-semibold text-sm">
                 <TbCalendarEvent className="text-indigo-600" size={18} /> Schedule
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-4 gap-4">
                 <Field label="Start Date" hint="UK time. Blank = starts when published">
                   <Input type="date" value={form.startDate} onChange={(e) => setField("startDate", e.target.value)} />
                 </Field>
-                <Field label="End Date" hint="Runs to the end of this day, UK time. Blank = no end">
+                <Field label="Start time" hint="24-hour. Blank = 00:00">
+                  <TimeInput24 value={form.startTime} onChange={(v) => setField("startTime", v)} placeholder="00:00" disabled={!form.startDate} />
+                </Field>
+                <Field label="End Date" hint="UK time. Blank = no end">
                   <Input type="date" value={form.endDate} min={form.startDate || undefined} onChange={(e) => setField("endDate", e.target.value)} />
+                </Field>
+                <Field label="End time" hint="24-hour. Blank = 23:59">
+                  <TimeInput24 value={form.endTime} onChange={(v) => setField("endTime", v)} placeholder="23:59" disabled={!form.endDate} />
                 </Field>
               </div>
             </div>
@@ -1602,7 +1618,7 @@ export default function PromotionsPage() {
                 <div><span className="text-gray-500">Combines with other offers:</span> <strong>{form.stackable ? "Yes (stackable)" : "No"}</strong></div>
                 <div><span className="text-gray-500">Visibility:</span> <strong>{labelOf(VISIBILITY_OPTIONS, form.visibility)}</strong></div>
                 <div><span className="text-gray-500">Campaign:</span> <strong>{form.campaignId ? campaignOptions.find((c) => c.value === String(form.campaignId))?.label || "Selected" : "None"}</strong></div>
-                <div><span className="text-gray-500">Dates:</span> <strong>{form.startDate || "∞"} — {form.endDate || "∞"}</strong></div>
+                <div><span className="text-gray-500">Dates (UK):</span> <strong>{form.startDate ? `${form.startDate} ${form.startTime || "00:00"}` : "∞"} — {form.endDate ? `${form.endDate} ${form.endTime || "23:59"}` : "∞"}</strong></div>
                 <div><span className="text-gray-500">Recurring:</span> <strong>{[days, timeWindow].filter(Boolean).join(" ") || "Always"}</strong></div>
                 {form.description?.trim() ? (
                   <div className="col-span-2"><span className="text-gray-500">Description:</span> <strong>{form.description.trim()}</strong></div>

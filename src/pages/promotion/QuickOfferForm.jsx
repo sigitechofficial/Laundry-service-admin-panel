@@ -7,6 +7,7 @@ import {
   useGetCategoriesQuery,
 } from "../../store/services/api";
 import CatalogMultiSelect from "./CatalogMultiSelect";
+import TimeInput24, { TIME_24, dateWithTime } from "./TimeInput24";
 import "./quickOffer.css";
 
 /**
@@ -64,7 +65,9 @@ const INITIAL = () => ({
   who: "everyone",
   code: "",
   startDate: dayjs().format("YYYY-MM-DD"),
+  startTime: "",
   endDate: "",
+  endTime: "",
   perCustomer: "1",
   totalUses: "",
   budget: "",
@@ -138,7 +141,13 @@ function summaryOf(f, { targetNames, nameOf, priceOf, serviceNameOf }) {
   const needs = f.on === "order" && f.needs && needNames ? ` when it includes ${needNames}` : "";
   const who = f.who === "code" ? ` for customers who enter ${f.code.trim().toUpperCase() || "a code"}`
     : f.who === "first" ? " on a new customer's first order" : " for everyone";
-  const when = f.endDate ? `, ${dayjs(f.startDate).format("D MMM")} – ${dayjs(f.endDate).format("D MMM YYYY")}` : f.startDate && dayjs(f.startDate).isAfter(dayjs(), "day") ? `, from ${dayjs(f.startDate).format("D MMM YYYY")}` : ", starting today";
+  // e.g. ", 20 Nov 09:00 – 25 Nov 2026 18:00" (UK time)
+  const at = (t) => (t && TIME_24.test(t) ? ` ${t}` : "");
+  const when = f.endDate
+    ? `, ${dayjs(f.startDate).format("D MMM")}${at(f.startTime)} – ${dayjs(f.endDate).format("D MMM YYYY")}${at(f.endTime)}`
+    : f.startDate && (dayjs(f.startDate).isAfter(dayjs(), "day") || at(f.startTime))
+      ? `, from ${dayjs(f.startDate).format("D MMM YYYY")}${at(f.startTime)}`
+      : ", starting today";
   const stop = [
     num(f.budget) ? `stops when ${money(f.budget)} has been given` : null,
     num(f.totalUses) ? `stops after ${num(f.totalUses)} orders` : null,
@@ -165,7 +174,10 @@ function validate(f) {
     if (f.what === "percent" && v > 100) return "% off can't be more than 100";
   }
   if (f.who === "code" && !/^[A-Z0-9_-]{3,30}$/i.test(f.code.trim())) return "Enter a code: 3–30 letters or numbers";
+  if (f.startTime && !TIME_24.test(f.startTime)) return "Start time: use 24-hour time, e.g. 09:00";
+  if (f.endTime && !TIME_24.test(f.endTime)) return "End time: use 24-hour time, e.g. 18:30";
   if (f.endDate && f.startDate && f.endDate < f.startDate) return "The end date is before the start date";
+  if (f.endDate && f.endDate === f.startDate && (f.endTime || "23:59") <= (f.startTime || "00:00")) return "The end time must be after the start time";
   if (num(f.budget) != null && num(f.budget) <= 0) return "Budget must be more than £0, or left empty";
   if (num(f.totalUses) != null && !(Number.isInteger(num(f.totalUses)) && num(f.totalUses) >= 1)) return "Total orders must be a whole number";
   if (num(f.perCustomer) != null && !(Number.isInteger(num(f.perCustomer)) && num(f.perCustomer) >= 1)) return "Uses per customer must be a whole number";
@@ -199,7 +211,9 @@ export function quickOfferToPreset(f) {
           : []),
     ],
     startDate: f.startDate,
+    startTime: f.startTime,
     endDate: f.endDate,
+    endTime: f.endTime,
     perCustomerLimit: f.perCustomer,
     globalUsageLimit: f.totalUses,
     budget: f.budget,
@@ -229,8 +243,11 @@ function toPayload(f) {
     repricingPolicy: "recalculate",
     perCustomerLimit: num(p.perCustomerLimit),
     globalUsageLimit: num(p.globalUsageLimit),
-    startDate: p.startDate || null,
-    endDate: p.endDate || null,
+    // UK time: date only = whole day; with a time = that minute.
+    startDate: dateWithTime(p.startDate, p.startTime),
+    endDate: dateWithTime(p.endDate, p.endTime),
+    startTime: undefined,
+    endTime: undefined,
     budget: num(p.budget),
   };
 }
@@ -533,13 +550,19 @@ export default function QuickOfferForm({ open, onClose, onSaved, onMoreOptions }
           ) : null}
         </Section>
 
-        <Section n="3" title="When?">
-          <div className="qo-row">
+        <Section n="3" title="When? (UK time, 24-hour)">
+          <div className="qo-when">
             <Field label="Starts">
               <Input type="date" value={f.startDate} onChange={set("startDate")} />
             </Field>
-            <Field label="Ends" hint="Optional. Leave empty to run until you pause it">
+            <Field label="Start time" hint="Optional. Empty = 00:00">
+              <TimeInput24 value={f.startTime} onChange={(v) => setF((p) => ({ ...p, startTime: v }))} placeholder="00:00" />
+            </Field>
+            <Field label="Ends" hint="Optional. Empty = runs until you pause it">
               <Input type="date" value={f.endDate} min={f.startDate || undefined} onChange={set("endDate")} />
+            </Field>
+            <Field label="End time" hint="Optional. Empty = 23:59">
+              <TimeInput24 value={f.endTime} onChange={(v) => setF((p) => ({ ...p, endTime: v }))} placeholder="23:59" disabled={!f.endDate} />
             </Field>
           </div>
         </Section>
