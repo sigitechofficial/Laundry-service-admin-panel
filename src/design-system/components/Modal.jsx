@@ -185,6 +185,10 @@ export default function Modal({
   const maxHeightClass = MAX_HEIGHTS[maxHeight] ? ` ${MAX_HEIGHTS[maxHeight]}` : "";
   const labelledBy = !hideHeader && title ? titleId : undefined;
   const describedBy = !hideHeader && description ? descId : undefined;
+  // The header has a close (✕) whenever it is shown and the popup can be closed.
+  const showsX = !hideHeader && Boolean(title || description) && Boolean(onClose);
+  // Every footer button just closes (read-only views): no Save / Confirm action of its own.
+  const closeOnlyFooter = !onPrimary || onPrimary === onClose;
 
   return createPortal(
     <DsScope
@@ -231,7 +235,8 @@ export default function Modal({
             {children}
           </div>
         ) : null}
-        {!hideFooter ? (
+        {/* A footer whose buttons only close the popup repeats the ✕ in the header: not shown. */}
+        {!hideFooter && !(showsX && closeOnlyFooter) ? (
           <div className="jd-modal__f">
             {/* secondaryLabel={null}: one-button popups (e.g. read-only views) */}
             {secondaryLabel ? (

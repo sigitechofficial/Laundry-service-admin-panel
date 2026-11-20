@@ -308,9 +308,6 @@ export default function OverallPolicies() {
         open={Boolean(viewing)}
         title="Zone policy"
         onClose={() => setViewingZone(null)}
-        primaryLabel="Close"
-        secondaryLabel="Close"
-        onPrimary={() => setViewingZone(null)}
         size="lg"
       >
         {viewing ? (
