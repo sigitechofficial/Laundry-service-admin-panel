@@ -1,8 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import dayjs from "dayjs";
 import { Button, Field, Input, Modal } from "../../design-system";
 import useToaster from "../../components/ui/Toaster";
-import { useCreatePromotionMutation, usePublishPromotionMutation } from "../../store/services/api";
+import {
+  useCreatePromotionMutation, usePublishPromotionMutation, useGetAllServicesQuery, useGetSubCategoriesQuery,
+} from "../../store/services/api";
+import CatalogMultiSelect from "./CatalogMultiSelect";
 import "./quickOffer.css";
 
 /**
@@ -12,10 +15,27 @@ import "./quickOffer.css";
  * "More options" opens the full form with these answers filled in.
  */
 
-const WHAT = [
-  { value: "percent", label: "% off the order" },
-  { value: "amount", label: "£ off the order" },
+const ON = [
+  { value: "order", label: "Whole order" },
+  { value: "service", label: "Specific services" },
+  { value: "item", label: "Specific items" },
 ];
+const WHAT = (on) => (on === "order"
+  ? [{ value: "percent", label: "% off" }, { value: "amount", label: "£ off the order" }]
+  : [{ value: "percent", label: "% off" }, { value: "amount", label: "£ off each item" }]);
+// "On what?" → promotion type and what it targets.
+const ON_TYPE = {
+  order: { benefitType: "basket_discount", targetType: "basket" },
+  service: { benefitType: "service_discount", targetType: "service" },
+  item: { benefitType: "item_discount", targetType: "subCategory" },
+};
+
+/** Catalog API responses come in a few shapes. */
+function listOf(response, ...keys) {
+  const root = response?.data ?? response;
+  for (const k of keys) if (Array.isArray(root?.[k])) return root[k];
+  return Array.isArray(root) ? root : [];
+}
 const WHO = [
   { value: "everyone", label: "Everyone" },
   { value: "code", label: "Customers with a code" },
@@ -24,6 +44,8 @@ const WHO = [
 
 const INITIAL = () => ({
   name: "",
+  on: "order",
+  targetIds: [],
   what: "percent",
   value: "",
   maxOff: "",
@@ -69,9 +91,15 @@ const num = (v) => (v === "" || v == null ? null : Number(v));
 const money = (n) => `£${Number(n).toFixed(2).replace(/\.00$/, "")}`;
 
 /** Plain-words line of what the admin is making. */
-function summaryOf(f) {
+function summaryOf(f, targetNames) {
   if (!num(f.value)) return "Choose what customers get.";
-  const off = f.what === "percent" ? `${num(f.value)}% off` : `${money(f.value)} off`;
+  const names = targetNames.length > 3 ? `${targetNames.slice(0, 3).join(", ")} and ${targetNames.length - 3} more` : targetNames.join(", ");
+  // e.g. "Shirt, Trousers" / "Dry Clean items"
+  const target = f.on === "item" ? (names || "the chosen items")
+    : f.on === "service" ? (names ? `${names} items` : "items in the chosen services") : "";
+  const off = f.on === "order"
+    ? (f.what === "percent" ? `${num(f.value)}% off the order` : `${money(f.value)} off the order`)
+    : (f.what === "percent" ? `${num(f.value)}% off ${target}` : `${money(f.value)} off each piece of ${target}`);
   const cap = f.what === "percent" && num(f.maxOff) ? ` (up to ${money(f.maxOff)})` : "";
   const min = num(f.minOrder) ? ` on orders over ${money(f.minOrder)}` : "";
   const who = f.who === "code" ? ` for customers who enter ${f.code.trim().toUpperCase() || "a code"}`
@@ -86,6 +114,7 @@ function summaryOf(f) {
 
 function validate(f) {
   if (!f.name.trim()) return "Give the offer a name";
+  if (f.on !== "order" && !f.targetIds.length) return f.on === "item" ? "Choose at least one item" : "Choose at least one service";
   const v = num(f.value);
   if (!v || v <= 0) return f.what === "percent" ? "Enter the % off" : "Enter the £ off";
   if (f.what === "percent" && v > 100) return "% off can't be more than 100";
@@ -101,7 +130,8 @@ function validate(f) {
 export function quickOfferToPreset(f) {
   return {
     name: f.name.trim(),
-    benefitType: "basket_discount",
+    ...ON_TYPE[f.on],
+    targetIds: f.on === "order" ? [] : f.targetIds,
     discountMode: f.what,
     discountValue: f.value,
     maxDiscountCap: f.what === "percent" ? f.maxOff : "",
@@ -125,7 +155,7 @@ function toPayload(f) {
     discountValue: num(p.discountValue),
     maxDiscountCap: num(p.maxDiscountCap),
     minSubtotal: num(p.minSubtotal),
-    targetType: "basket",
+    targetIds: p.targetIds.length ? p.targetIds.map(Number) : null,
     zoneScopeMode: "all",
     stackable: false,
     priority: 50,
@@ -142,16 +172,42 @@ export default function QuickOfferForm({ open, onClose, onSaved, onMoreOptions }
   const toast = useToaster();
   const [f, setF] = useState(INITIAL);
   const [error, setError] = useState(null);
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
+  const openedRef = useRef("");
   const [createPromotion, { isLoading: creating }] = useCreatePromotionMutation();
   const [publishPromotion, { isLoading: publishing }] = usePublishPromotionMutation();
   const busy = creating || publishing;
 
   useEffect(() => {
-    if (open) { setF(INITIAL()); setError(null); }
+    if (open) {
+      const start = INITIAL();
+      openedRef.current = JSON.stringify(start);
+      setF(start);
+      setError(null);
+      setConfirmDiscard(false);
+    }
   }, [open]);
 
   const set = (k) => (e) => setF((prev) => ({ ...prev, [k]: e?.target ? e.target.value : e }));
-  const summary = useMemo(() => summaryOf(f), [f]);
+  const { data: servicesResp } = useGetAllServicesQuery(undefined, { skip: !open || f.on !== "service" });
+  const { data: itemsResp } = useGetSubCategoriesQuery(undefined, { skip: !open || f.on !== "item" });
+  const catalog = useMemo(() => {
+    const opt = (list) => list.map((x) => ({
+      value: String(x.id ?? x._id),
+      label: x.name ?? x.serviceName ?? x.subCategoryName ?? x.title ?? `#${x.id}`,
+      price: x.price,
+    }));
+    return {
+      service: opt(listOf(servicesResp, "services", "data")),
+      item: opt(listOf(itemsResp, "subCategories", "subCat", "data")),
+    };
+  }, [servicesResp, itemsResp]);
+  const targetNames = useMemo(() => {
+    const opts = catalog[f.on] || [];
+    return f.targetIds.map((id) => opts.find((o) => o.value === String(id))?.label).filter(Boolean);
+  }, [catalog, f.on, f.targetIds]);
+  const summary = useMemo(() => summaryOf(f, targetNames), [f, targetNames]);
+  const setOn = (on) => setF((prev) => ({ ...prev, on, targetIds: [] }));
 
   const save = async (goLive) => {
     const err = validate(f);
@@ -174,17 +230,50 @@ export default function QuickOfferForm({ open, onClose, onSaved, onMoreOptions }
     }
   };
 
+  // Escape, the close button and Cancel all come here: typed work is never lost by accident.
+  const requestClose = () => {
+    if (JSON.stringify(f) !== openedRef.current) setConfirmDiscard(true);
+    else onClose?.();
+  };
+
   return (
-    <Modal open={open} onClose={onClose} title="Create offer" size="lg" hideFooter closeOnBackdrop={false}>
+    <>
+    <Modal
+      open={confirmDiscard}
+      onClose={() => setConfirmDiscard(false)}
+      title="Discard this offer?"
+      description="What you've entered will be lost."
+      secondaryLabel="Keep editing"
+      primaryLabel="Discard"
+      danger
+      onPrimary={() => { setConfirmDiscard(false); onClose?.(); }}
+    />
+    <Modal open={open && !confirmDiscard} onClose={requestClose} title="Create offer" size="lg" hideFooter closeOnBackdrop={false}>
       <div className="qo">
         <Field label="Offer name" hint="Customers see this on their order, e.g. “10% off this week”">
           <Input value={f.name} onChange={set("name")} placeholder="10% off this week" maxLength={200} />
         </Field>
 
         <Section n="1" title="What do customers get?">
-          <Choice label="Discount type" options={WHAT} value={f.what} onChange={set("what")} />
+          <Field label="On what?">
+            <Choice label="On what" options={ON} value={f.on} onChange={setOn} />
+          </Field>
+          {f.on !== "order" ? (
+            <Field
+              label={f.on === "item" ? "Items" : "Services"}
+              hint={f.on === "item" ? "The discount applies to every piece of these items" : "The discount applies to every item in these services. Add-ons are not included"}
+            >
+              <CatalogMultiSelect
+                options={catalog[f.on]}
+                selectedIds={f.targetIds}
+                onChange={(ids) => setF((prev) => ({ ...prev, targetIds: ids }))}
+                placeholder={f.on === "item" ? "Search items, e.g. Shirt…" : "Choose services…"}
+              />
+            </Field>
+          ) : null}
+          <Choice label="Discount type" options={WHAT(f.on)} value={f.what} onChange={set("what")} />
           <div className="qo-row">
-            <Field label={f.what === "percent" ? "% off" : "£ off"}>
+            <Field label={f.what === "percent" ? "% off" : f.on === "order" ? "£ off" : "£ off each item"}>
               <Input type="number" min="0" step={f.what === "percent" ? "1" : "0.5"} value={f.value} onChange={set("value")} placeholder={f.what === "percent" ? "10" : "5"} />
             </Field>
             {f.what === "percent" ? (
@@ -246,5 +335,6 @@ export default function QuickOfferForm({ open, onClose, onSaved, onMoreOptions }
         </div>
       </div>
     </Modal>
+    </>
   );
 }

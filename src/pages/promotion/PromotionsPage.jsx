@@ -126,6 +126,14 @@ const defaultTargetType = (bt) => {
 
 const money = (n) => `£${Number(n).toFixed(2)}`;
 
+/** What the offer is on, for the list ("2 services", "5 items"); null for the whole order. */
+function onLabel(p) {
+  const n = (parseJson(p.targetIds, []) || []).length;
+  const kind = { service: ["service", "services"], category: ["category", "categories"], subCategory: ["item", "items"], addon: ["add-on", "add-ons"] }[p.targetType];
+  if (!kind) return p.targetType === "all" ? "all items" : null;
+  return `on ${n} ${n === 1 ? kind[0] : kind[1]}`;
+}
+
 /** Who gets the offer, in a few words, for the list. */
 function whoLabel(p) {
   const conds = Array.isArray(p.conditions) ? p.conditions : [];
@@ -1020,7 +1028,7 @@ export default function PromotionsPage() {
     {
       key: "promotion",
       header: "Offer",
-      render: (row) => <DirectoryIdentity name={row.name} meta={`${valueLabel(row)} · ${whoLabel(row)}`} />,
+      render: (row) => <DirectoryIdentity name={row.name} meta={[valueLabel(row), onLabel(row), whoLabel(row)].filter(Boolean).join(" · ")} />,
     },
     {
       key: "status",

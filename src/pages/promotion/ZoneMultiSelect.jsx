@@ -22,7 +22,17 @@ export default function ZoneMultiSelect({ zones = [], selectedIds = [], onChange
   };
 
   return (
-    <div style={{ position: "relative" }}>
+    <div
+      style={{ position: "relative" }}
+      // Escape closes only this list. preventDefault tells the popup around it
+      // (design-system Modal) not to close too and lose the form.
+      onKeyDown={(e) => {
+        if (e.key !== "Escape" || !open) return;
+        e.preventDefault();
+        setOpen(false);
+        setSearch("");
+      }}
+    >
       {open && (
         <div
           style={{ position: "fixed", inset: 0, zIndex: 99 }}
