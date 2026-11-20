@@ -141,7 +141,10 @@ function whoLabel(p) {
   const firstOrder = FIRST_ORDER_TYPES.includes(p.benefitType) || conds.some((c) => c.conditionType === "FIRST_ORDER");
   const codes = (p.couponCodes || []).filter((c) => c.isActive !== false).map((c) => c.code);
   if (p.activationType === "coupon_required") return codes.length === 1 ? `Code ${codes[0]}` : `${codes.length} codes`;
-  return firstOrder ? "First order" : "Everyone";
+  const who = firstOrder ? "First order" : "Everyone";
+  // "Only if the order includes…" offers say so in the list.
+  const needsItems = conds.some((c) => ["PRODUCT", "SERVICE", "CATEGORY", "ADDON"].includes(c.conditionType));
+  return needsItems ? `${who} · only with chosen items` : who;
 }
 
 /** Human value for table / review / view — % vs £ per discountMode. */
@@ -1373,7 +1376,7 @@ export default function PromotionsPage() {
                         <Input type="number" min="0" step="0.01" value={o.maxDiscountCap} onChange={(e) => patchOverride(o.zoneId, "maxDiscountCap", e.target.value)} placeholder={form.maxDiscountCap || "Default"} />
                       </Field>
                     )}
-                    <Field label="Min subtotal (£)" hint={`Laundry total the invoice must reach in this zone. Blank = main minimum (${form.minSubtotal ? money(form.minSubtotal) : "none"})`}>
+                    <Field label="Laundry total over (£)" hint={`Laundry total (service fee not included) the invoice must reach in this zone. Blank = main minimum (${form.minSubtotal ? money(form.minSubtotal) : "none"})`}>
                       <Input type="number" min="0" step="0.01" value={o.minSubtotal} onChange={(e) => patchOverride(o.zoneId, "minSubtotal", e.target.value)} placeholder={form.minSubtotal || "Default"} />
                     </Field>
                   </div>
@@ -1487,7 +1490,7 @@ export default function PromotionsPage() {
                 <TbShoppingCart className="text-blue-600" size={18} /> Basket Requirements
               </div>
               <div className="grid grid-cols-3 gap-4">
-                <Field label="Minimum Subtotal (£)" hint={offerItemsOnly ? "The selected items on the final invoice must come to at least this; other services do not count. Blank = no minimum" : "The laundry total on the final invoice must reach this. Blank = no minimum"}>
+                <Field label={offerItemsOnly ? "Selected items total over (£)" : "Laundry total over (£)"} hint={offerItemsOnly ? "The selected items on the final invoice must come to at least this; other services do not count. Service fee not included. Blank = no minimum" : "The laundry total on the final invoice must reach this. Service fee not included. Blank = no minimum"}>
                   <Input type="number" min="0" step="0.01" value={form.minSubtotal} onChange={(e) => setField("minSubtotal", e.target.value)} placeholder="No minimum" />
                 </Field>
                 <Field label="Maximum Subtotal (£)" hint={offerItemsOnly ? "No offer when the selected items come to more than this; other services do not count. Blank = no maximum" : "No offer when the laundry total is above this. Blank = no maximum"}>

@@ -58,6 +58,9 @@ const INITIAL = () => ({
   deals: [newDeal()],
   maxOff: "",
   minOrder: "",
+  needs: false,
+  needServiceIds: [],
+  needItemIds: [],
   who: "everyone",
   code: "",
   startDate: dayjs().format("YYYY-MM-DD"),
@@ -125,10 +128,14 @@ function summaryOf(f, { targetNames, nameOf, priceOf, serviceNameOf }) {
   const target = f.on === "item" ? (names || "the chosen items")
     : f.on === "service" ? (names ? `${names} items` : "items in the chosen services") : "";
   const off = f.on === "order"
-    ? (f.what === "percent" ? `${num(f.value)}% off the order` : `${money(f.value)} off the order`)
+    ? (f.what === "percent" ? `${num(f.value)}% off the whole order` : `${money(f.value)} off the whole order`)
     : (f.what === "percent" ? `${num(f.value)}% off ${target}` : `${money(f.value)} off each piece of ${target}`);
   const cap = f.what === "percent" && num(f.maxOff) ? ` (up to ${money(f.maxOff)})` : "";
-  const min = num(f.minOrder) ? ` on orders over ${money(f.minOrder)}` : "";
+  const min = num(f.minOrder) ? ` when the laundry total is over ${money(f.minOrder)}` : "";
+  const needNames = f.needItemIds.length
+    ? f.needItemIds.map(nameOf).filter(Boolean).join(" or ")
+    : f.needServiceIds.map(serviceNameOf).filter(Boolean).join(" or ");
+  const needs = f.on === "order" && f.needs && needNames ? ` when it includes ${needNames}` : "";
   const who = f.who === "code" ? ` for customers who enter ${f.code.trim().toUpperCase() || "a code"}`
     : f.who === "first" ? " on a new customer's first order" : " for everyone";
   const when = f.endDate ? `, ${dayjs(f.startDate).format("D MMM")} – ${dayjs(f.endDate).format("D MMM YYYY")}` : f.startDate && dayjs(f.startDate).isAfter(dayjs(), "day") ? `, from ${dayjs(f.startDate).format("D MMM YYYY")}` : ", starting today";
@@ -136,7 +143,7 @@ function summaryOf(f, { targetNames, nameOf, priceOf, serviceNameOf }) {
     num(f.budget) ? `stops when ${money(f.budget)} has been given` : null,
     num(f.totalUses) ? `stops after ${num(f.totalUses)} orders` : null,
   ].filter(Boolean).join(" or ");
-  return `${off}${cap}${min}${who}${when}. ${num(f.perCustomer) ? `Each customer can use it ${num(f.perCustomer) === 1 ? "once" : `${num(f.perCustomer)} times`}.` : "No limit per customer."}${stop ? ` It ${stop}.` : ""}`;
+  return `${off}${cap}${min}${needs}${who}${when}. ${num(f.perCustomer) ? `Each customer can use it ${num(f.perCustomer) === 1 ? "once" : `${num(f.perCustomer)} times`}.` : "No limit per customer."}${stop ? ` It ${stop}.` : ""}`;
 }
 
 function validate(f) {
@@ -152,6 +159,7 @@ function validate(f) {
     }
   } else {
     if (f.on !== "order" && !f.targetIds.length) return f.on === "item" ? "Choose at least one item" : "Choose at least one service";
+    if (f.on === "order" && f.needs && !f.needServiceIds.length) return "Choose what the order must include, or untick “Only if the order includes…”";
     const v = num(f.value);
     if (!v || v <= 0) return f.what === "percent" ? "Enter the % off" : "Enter the £ off";
     if (f.what === "percent" && v > 100) return "% off can't be more than 100";
@@ -181,7 +189,15 @@ export function quickOfferToPreset(f) {
     activationType: f.who === "code" ? "coupon_required" : "automatic",
     visibility: f.who === "code" ? "private_code" : "public",
     couponCodes: f.who === "code" && f.code.trim() ? [{ code: f.code.trim().toUpperCase(), codeType: "shared" }] : [],
-    conditions: f.who === "first" ? [{ conditionType: "FIRST_ORDER", operator: "equals", value: true, logicGroup: "ALL" }] : [],
+    conditions: [
+      ...(f.who === "first" ? [{ conditionType: "FIRST_ORDER", operator: "equals", value: true, logicGroup: "ALL" }] : []),
+      // "Only if the order includes…": the chosen items, or else anything from the chosen services.
+      ...(f.on === "order" && f.needs && f.needItemIds.length
+        ? [{ conditionType: "PRODUCT", operator: "in", value: f.needItemIds.map(Number), logicGroup: "ALL" }]
+        : f.on === "order" && f.needs && f.needServiceIds.length
+          ? [{ conditionType: "SERVICE", operator: "in", value: f.needServiceIds.map(Number), logicGroup: "ALL" }]
+          : []),
+    ],
     startDate: f.startDate,
     endDate: f.endDate,
     perCustomerLimit: f.perCustomer,
@@ -240,10 +256,12 @@ export default function QuickOfferForm({ open, onClose, onSaved, onMoreOptions }
   }, [open]);
 
   const set = (k) => (e) => setF((prev) => ({ ...prev, [k]: e?.target ? e.target.value : e }));
-  const { data: servicesResp } = useGetAllServicesQuery(undefined, { skip: !open || (f.on !== "service" && f.what !== "bulk") });
-  const { data: itemsResp } = useGetSubCategoriesQuery(undefined, { skip: !open || f.on !== "item" });
+  // Items are picked for bulk deals and for "Only if the order includes…".
+  const pickingItems = f.what === "bulk" || (f.on === "order" && f.needs);
+  const { data: servicesResp } = useGetAllServicesQuery(undefined, { skip: !open || (f.on !== "service" && !pickingItems) });
+  const { data: itemsResp } = useGetSubCategoriesQuery(undefined, { skip: !open || (f.on !== "item" && !pickingItems) });
   // Every item belongs to one service through its category.
-  const { data: categoriesResp } = useGetCategoriesQuery(undefined, { skip: !open || f.what !== "bulk" });
+  const { data: categoriesResp } = useGetCategoriesQuery(undefined, { skip: !open || !pickingItems });
   const catalog = useMemo(() => {
     const opt = (list) => list.map((x) => ({
       value: String(x.id ?? x._id),
@@ -442,11 +460,55 @@ export default function QuickOfferForm({ open, onClose, onSaved, onMoreOptions }
                 <Input type="number" min="0" step="0.5" value={f.maxOff} onChange={set("maxOff")} placeholder="No limit" />
               </Field>
             ) : null}
-            <Field label="Orders over (£)" hint="Optional">
+            <Field label="Laundry total over (£)" hint="Optional. Service fee not included">
               <Input type="number" min="0" step="0.5" value={f.minOrder} onChange={set("minOrder")} placeholder="Any order" />
             </Field>
           </div>
           )}
+          {f.on === "order" ? (
+            <div className="qo-needs">
+              <label className="qo-check">
+                <input
+                  type="checkbox"
+                  checked={f.needs}
+                  onChange={(e) => setF((p) => ({ ...p, needs: e.target.checked, needServiceIds: [], needItemIds: [] }))}
+                />
+                Only if the order includes…
+              </label>
+              {f.needs ? (
+                <div className="qo-deal__row qo-deal__row--what">
+                  <Field label="Service">
+                    <CatalogMultiSelect
+                      options={catalog.service}
+                      selectedIds={f.needServiceIds}
+                      onChange={(ids) => setF((p) => {
+                        const keep = new Set(ids.map(String));
+                        return {
+                          ...p,
+                          needServiceIds: ids,
+                          needItemIds: p.needItemIds.filter((id) => keep.has(catalog.item.find((o) => o.value === String(id))?.serviceId)),
+                        };
+                      })}
+                      placeholder="Choose services…"
+                    />
+                  </Field>
+                  <Field label="Items" hint={f.needServiceIds.length ? "Optional. Empty = anything from these services" : "Choose a service first"}>
+                    {f.needServiceIds.length ? (
+                      <CatalogMultiSelect
+                        options={itemsInServices(f.needServiceIds)}
+                        selectedIds={f.needItemIds}
+                        onChange={(ids) => setF((p) => ({ ...p, needItemIds: ids }))}
+                        placeholder="Search items, e.g. Duvet…"
+                        emptyText="No items in these services yet. Add them in Service Management."
+                      />
+                    ) : (
+                      <Input disabled placeholder="Choose a service first" aria-label="Items" />
+                    )}
+                  </Field>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
         </Section>
 
         <Section n="2" title="Who gets it?">

@@ -6,7 +6,7 @@ export const BENEFIT_TYPES = [
   { value: "fixed_amount_discount", label: "Fixed Amount Discount" },
   { value: "free_delivery", label: "Free Delivery" },
   { value: "delivery_discount", label: "Delivery Discount" },
-  { value: "basket_discount", label: "Basket Discount" },
+  { value: "basket_discount", label: "Whole Order Discount" },
   { value: "item_discount", label: "Item Discount" },
   { value: "category_discount", label: "Category Discount" },
   { value: "service_discount", label: "Service Discount" },
@@ -19,11 +19,11 @@ export const BENEFIT_TYPES = [
 
 /** One line on what each benefit type does, shown under the Benefit Type field. */
 export const BENEFIT_HELP = {
-  percentage_discount: "Older type: % off the laundry total. Use Basket Discount for new offers.",
-  fixed_amount_discount: "Older type: £ off the laundry total. Use Basket Discount for new offers.",
+  percentage_discount: "Older type: % off the laundry total. Use Whole Order Discount for new offers.",
+  fixed_amount_discount: "Older type: £ off the laundry total. Use Whole Order Discount for new offers.",
   free_delivery: "Delivery is already free, so this saves nothing today.",
   delivery_discount: "£ off delivery. Delivery is already free, so this saves nothing today.",
-  basket_discount: "% or £ off the whole laundry total (all services and add-ons).",
+  basket_discount: "% or £ off the whole laundry total (all services and add-ons; the service fee is not included).",
   item_discount: "% or £ off each chosen item, every piece of it.",
   category_discount: "% or £ off each item in the chosen categories. Add-ons not included.",
   service_discount: "% or £ off each item in the chosen services. Add-ons not included.",

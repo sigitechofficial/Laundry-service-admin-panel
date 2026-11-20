@@ -42,3 +42,8 @@
 .jd-ds .qo-deal__row--what { grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); }
 .jd-ds .qo-deal__row--price { grid-template-columns: repeat(2, minmax(0, 160px)); }
 @media (max-width: 640px) { .jd-ds .qo-deal__row--what { grid-template-columns: 1fr; } .jd-ds .qo-deal__row--price { grid-template-columns: 1fr 1fr; } }
+
+/* "Only if the order includes…" */
+.jd-ds .qo-needs { display: flex; flex-direction: column; gap: 10px; border-top: 1px solid var(--line); padding-top: 12px; }
+.jd-ds .qo-check { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; color: var(--ink); cursor: pointer; }
+.jd-ds .qo-check input { width: 16px; height: 16px; accent-color: var(--accent); }
