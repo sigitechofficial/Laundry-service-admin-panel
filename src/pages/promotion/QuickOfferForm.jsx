@@ -252,7 +252,7 @@ function toPayload(f) {
   };
 }
 
-export default function QuickOfferForm({ open, onClose, onSaved, onMoreOptions }) {
+export default function QuickOfferForm({ open, resume = false, onClose, onSaved, onMoreOptions }) {
   const toast = useToaster();
   const [f, setF] = useState(INITIAL);
   const [error, setError] = useState(null);
@@ -262,8 +262,9 @@ export default function QuickOfferForm({ open, onClose, onSaved, onMoreOptions }
   const [publishPromotion, { isLoading: publishing }] = usePublishPromotionMutation();
   const busy = creating || publishing;
 
+  // A fresh open starts blank; coming back from "More options" keeps what was entered.
   useEffect(() => {
-    if (open) {
+    if (open && !resume) {
       const start = INITIAL();
       openedRef.current = JSON.stringify(start);
       setF(start);

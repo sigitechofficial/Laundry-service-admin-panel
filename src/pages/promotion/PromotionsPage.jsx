@@ -786,6 +786,10 @@ export default function PromotionsPage() {
   const [reportRow, setReportRow] = useState(null);
   const [showSimulate, setShowSimulate] = useState(false);
   const [showQuick, setShowQuick] = useState(false);
+  // The full form was opened from Create promotion's "More options": it can go back there.
+  const [fromQuick, setFromQuick] = useState(false);
+  const [resumeQuick, setResumeQuick] = useState(false);
+  const [confirmBack, setConfirmBack] = useState(false);
   const [liveEdit, setLiveEdit] = useState(null);
 
   const { data, isLoading } = useGetPromotionsQuery({
@@ -902,11 +906,23 @@ export default function PromotionsPage() {
     setForm(nextForm);
     setConfirmDiscard(false);
     setWizardStep(0);
+    setFromQuick(false);
     setShowForm(true);
   };
   const closeFormNow = () => {
     setConfirmDiscard(false);
     setShowForm(false);
+  };
+  // Back to the simple Create promotion form, with its answers as they were.
+  const backToQuickNow = () => {
+    setConfirmBack(false);
+    setShowForm(false);
+    setResumeQuick(true);
+    setShowQuick(true);
+  };
+  const requestBackToQuick = () => {
+    if (JSON.stringify(form) !== openedFormRef.current) setConfirmBack(true);
+    else backToQuickNow();
   };
   // Escape, Cancel and the close paths all come here, so typed work is never lost by accident.
   const requestCloseForm = () => {
@@ -1648,7 +1664,7 @@ export default function PromotionsPage() {
                 <TbPlus size={18} /> Add to this campaign
               </Button>
             ) : null}
-            <Button onClick={() => setShowQuick(true)}>
+            <Button onClick={() => { setResumeQuick(false); setShowQuick(true); }}>
               <TbPlus size={18} /> Create promotion
             </Button>
           </>
@@ -1657,6 +1673,7 @@ export default function PromotionsPage() {
       <LiveOfferEditModal offer={liveEdit} onClose={() => setLiveEdit(null)} />
       <QuickOfferForm
         open={showQuick}
+        resume={resumeQuick}
         onClose={() => setShowQuick(false)}
         onSaved={(status) => {
           setShowQuick(false);
@@ -1666,6 +1683,7 @@ export default function PromotionsPage() {
         onMoreOptions={(preset) => {
           setShowQuick(false);
           openCreate(preset);
+          setFromQuick(true);
         }}
       />
 
@@ -1713,8 +1731,11 @@ export default function PromotionsPage() {
           <PromotionSummaryBar parts={promotionSummary(form, zoneName, catalogOptions)} />
           {renderStep()}
           <div className="flex justify-between mt-6">
-            <Button variant="secondary" onClick={() => (wizardStep > 0 ? setWizardStep(wizardStep - 1) : requestCloseForm())}>
-              {wizardStep > 0 ? "← Back" : "Cancel"}
+            <Button
+              variant="secondary"
+              onClick={() => (wizardStep > 0 ? setWizardStep(wizardStep - 1) : fromQuick ? requestBackToQuick() : requestCloseForm())}
+            >
+              {wizardStep > 0 ? "← Back" : fromQuick ? "← Back to simple form" : "Cancel"}
             </Button>
             <div className="flex gap-2">
               {wizardStep < STEPS.length - 1 ? (
@@ -1744,6 +1765,20 @@ export default function PromotionsPage() {
             ? "Your changes to this promotion have not been saved."
             : "This promotion has not been saved yet."}{" "}
           If you close now, what you entered is lost.
+        </p>
+      </Modal>
+
+      {/* ─── Back to the simple form: changes made here are not carried back ─── */}
+      <Modal
+        open={confirmBack}
+        onClose={() => setConfirmBack(false)}
+        title="Go back to the simple form?"
+        secondaryLabel="Stay here"
+        primaryLabel="Go back"
+        onPrimary={backToQuickNow}
+      >
+        <p style={{ fontSize: 14, color: "#374151" }}>
+          Your answers in the simple form are kept. Changes you made on this screen are not carried back.
         </p>
       </Modal>
 
