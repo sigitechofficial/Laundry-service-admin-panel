@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dayjs from "dayjs";
-import { Button, Field, Input, Modal, Select } from "../../design-system";
+import { Button, Field, Input, Modal } from "../../design-system";
 import useToaster from "../../components/ui/Toaster";
 import {
   useCreatePromotionMutation, usePublishPromotionMutation, useGetAllServicesQuery, useGetSubCategoriesQuery,
@@ -46,7 +46,7 @@ const WHO = [
 ];
 
 /** One bulk deal row: these items, this many pieces, for this price. */
-const newDeal = () => ({ itemIds: [], qty: "10", price: "" });
+const newDeal = () => ({ itemIds: [], serviceIds: [], qty: "10", price: "" });
 
 const INITIAL = () => ({
   name: "",
@@ -55,7 +55,6 @@ const INITIAL = () => ({
   what: "percent",
   value: "",
   deals: [newDeal()],
-  onlyService: "",
   maxOff: "",
   minOrder: "",
   who: "everyone",
@@ -106,18 +105,18 @@ function dealNormal(deal, priceOf) {
 }
 
 /** Plain-words line of what the admin is making. */
-function summaryOf(f, { targetNames, nameOf, priceOf, serviceName }) {
+function summaryOf(f, { targetNames, nameOf, priceOf, serviceNameOf }) {
   if (f.what === "bulk") {
     const ready = f.deals.filter((d) => d.itemIds.length && num(d.price));
     if (!ready.length) return "Add your deals: items, how many pieces, and the price.";
     const parts = ready.map((d) => {
       const names = d.itemIds.map(nameOf).filter(Boolean).join(" or ");
+      const services = d.serviceIds.map(serviceNameOf).filter(Boolean).join(" or ");
       const normal = dealNormal(d, priceOf);
-      return `${num(d.qty) || "N"} ${names} for ${money(d.price)}${normal != null ? ` (normally ${money(normal)})` : ""}`;
+      return `${num(d.qty) || "N"} ${names}${services ? ` (${services})` : ""} for ${money(d.price)}${normal != null ? ` (normally ${money(normal)})` : ""}`;
     });
-    const where = serviceName ? ` in ${serviceName}` : "";
     const own = ready.length > 1 ? " Each deal counts only its own items." : "";
-    return `${parts.join("; ")}${where}. Extra pieces are at the normal price.${own}`;
+    return `${parts.join("; ")}. Extra pieces are at the normal price.${own}`;
   }
   if (!num(f.value)) return "Choose what customers get.";
   const names = targetNames.length > 3 ? `${targetNames.slice(0, 3).join(", ")} and ${targetNames.length - 3} more` : targetNames.join(", ");
@@ -197,8 +196,9 @@ function toPayload(f) {
     benefitConfig: f.what === "bulk"
       ? {
         bundleQuantity: num(bundleQuantity),
-        deals: f.deals.map((d) => ({ itemIds: d.itemIds.map(Number), quantity: num(d.qty), price: num(d.price) })),
-        ...(f.onlyService ? { onlyServiceIds: [Number(f.onlyService)] } : {}),
+        deals: f.deals.map((d) => ({
+          itemIds: d.itemIds.map(Number), serviceIds: d.serviceIds.map(Number), quantity: num(d.qty), price: num(d.price),
+        })),
       }
       : null,
     discountValue: num(p.discountValue),
@@ -258,10 +258,13 @@ export default function QuickOfferForm({ open, onClose, onSaved, onMoreOptions }
   const itemById = useMemo(() => new Map(catalog.item.map((o) => [o.value, o])), [catalog]);
   const nameOf = useCallback((id) => itemById.get(String(id))?.label, [itemById]);
   const priceOf = useCallback((id) => Number(itemById.get(String(id))?.price), [itemById]);
-  const serviceName = f.onlyService ? catalog.service.find((o) => o.value === String(f.onlyService))?.label : null;
+  const serviceNameOf = useCallback(
+    (id) => catalog.service.find((o) => o.value === String(id))?.label,
+    [catalog]
+  );
   const summary = useMemo(
-    () => summaryOf(f, { targetNames, nameOf, priceOf, serviceName }),
-    [f, targetNames, nameOf, priceOf, serviceName]
+    () => summaryOf(f, { targetNames, nameOf, priceOf, serviceNameOf }),
+    [f, targetNames, nameOf, priceOf, serviceNameOf]
   );
   // Bulk price is for chosen items only: switching away from items drops it.
   const setOn = (on) => setF((prev) => ({
@@ -359,7 +362,7 @@ export default function QuickOfferForm({ open, onClose, onSaved, onMoreOptions }
                         </button>
                       ) : null}
                     </div>
-                    <div className="qo-deal__row">
+                    <div className="qo-deal__row qo-deal__row--what">
                       <Field label="Items">
                         <CatalogMultiSelect
                           options={catalog.item.filter((o) => !taken.has(o.value))}
@@ -368,6 +371,16 @@ export default function QuickOfferForm({ open, onClose, onSaved, onMoreOptions }
                           placeholder="Search items, e.g. T-Shirt…"
                         />
                       </Field>
+                      <Field label="Services" hint="Empty = any service">
+                        <CatalogMultiSelect
+                          options={catalog.service}
+                          selectedIds={d.serviceIds}
+                          onChange={(ids) => setDeal(i, { serviceIds: ids })}
+                          placeholder="Any service"
+                        />
+                      </Field>
+                    </div>
+                    <div className="qo-deal__row qo-deal__row--price">
                       <Field label="Pieces">
                         <Input type="number" min="2" step="1" value={d.qty} onChange={(e) => setDeal(i, { qty: e.target.value })} placeholder="10" />
                       </Field>
@@ -383,15 +396,6 @@ export default function QuickOfferForm({ open, onClose, onSaved, onMoreOptions }
               })}
               <div>
                 <Button variant="secondary" onClick={addDeal} disabled={f.deals.length >= 20}>+ Add another deal</Button>
-              </div>
-              <div className="qo-row">
-                <Field label="In which service?" hint="Optional. Any = pieces count in every service">
-                  <Select
-                    value={f.onlyService}
-                    onChange={(v) => setF((p) => ({ ...p, onlyService: v ?? "" }))}
-                    options={[{ value: "", label: "Any service" }, ...catalog.service]}
-                  />
-                </Field>
               </div>
             </div>
           ) : (
