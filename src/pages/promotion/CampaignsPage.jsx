@@ -332,11 +332,11 @@ export default function CampaignsPage() {
   return (
     <>
       <PageHeader
-        title="Shared budgets"
-        description="Only needed when several offers share one budget, one set of dates and one on/off switch. For a single offer, set Budget on the offer."
+        title="Campaigns"
+        description="Only needed when several promotions share one budget, one set of dates and one on/off switch. For a single promotion, set Budget on the promotion."
         actions={
           <Button onClick={openCreate}>
-            <TbPlus size={18} /> New shared budget
+            <TbPlus size={18} /> New Campaign
           </Button>
         }
       />

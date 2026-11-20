@@ -733,7 +733,7 @@ function PromotionViewBody({ promotion: p, campaign }) {
             p.minQuantity ? { label: "Min items", value: p.minQuantity } : null,
             periodLimits ? { label: "Limits", value: periodLimits } : null,
             { label: "Priority", value: `${p.priority ?? 50} (higher wins)` },
-            { label: "Stackable", value: p.stackable ? `Yes${p.stackGroup ? ` · group ${p.stackGroup}` : ""}` : "No — best single offer" },
+            { label: "Stackable", value: p.stackable ? `Yes${p.stackGroup ? ` · group ${p.stackGroup}` : ""}` : "No — best single promotion" },
           ]}
         />
       </ViewSection>
@@ -1065,7 +1065,7 @@ export default function PromotionsPage() {
   const columns = [
     {
       key: "promotion",
-      header: "Offer",
+      header: "Promotion",
       render: (row) => <DirectoryIdentity name={row.name} meta={[valueLabel(row), onLabel(row), whoLabel(row)].filter(Boolean).join(" · ")} />,
     },
     {
@@ -1089,7 +1089,7 @@ export default function PromotionsPage() {
       render: (row) => {
         const c = campaignOf(row);
         if (!c) return <span className="text-gray-400">No limit</span>;
-        if (!isOwnBudget(c)) return <span title="Shared with other offers">Shared · {c.name}</span>;
+        if (!isOwnBudget(c)) return <span title="Campaign budget, shared with other promotions">Campaign · {c.name}</span>;
         return c.budgetMinor == null ? "No limit" : `£${(budgetTakenMinor(c) / 100).toFixed(2)} of £${(c.budgetMinor / 100).toFixed(2)}`;
       },
     },
@@ -1204,14 +1204,14 @@ export default function PromotionsPage() {
               <div className="flex items-center gap-2 text-gray-900 font-semibold text-sm">
                 <TbDiscount className="text-blue-600" size={18} /> Promotion Benefit
               </div>
-              <Field label="Promotion Name *" hint="Customers see this name on their offers and order">
+              <Field label="Promotion Name *" hint="Customers see this name on their order">
                 <Input value={form.name} onChange={(e) => setField("name", e.target.value)} placeholder="e.g. First Order 20% Off" />
               </Field>
-              <Field label="Description" hint="Optional. A short note on what the offer is for">
+              <Field label="Description" hint="Optional. A short note on what the promotion is for">
                 <Textarea value={form.description} onChange={(e) => setField("description", e.target.value)} rows={2} />
               </Field>
               <div className="grid grid-cols-2 gap-4">
-                <Field label="Shared budget" hint="Optional. Only when several offers share one budget, dates and on/off switch. For one offer, use Budget on the Limits step">
+                <Field label="Campaign" hint="Optional. Only when several promotions share one budget, dates and on/off switch. For one promotion, use Budget on the Limits step">
                   <Select options={campaignOptions} value={form.campaignId} onChange={(v) => setField("campaignId", v ?? "")} />
                 </Field>
                 <Field label="Activation" hint="Automatic: applies by itself. Coupon: the customer must enter a code when booking">
@@ -1464,7 +1464,7 @@ export default function PromotionsPage() {
                 <Field
                   label="Budget (£)"
                   hint={form.campaignId
-                    ? "This offer uses its shared budget (step 1)"
+                    ? "This promotion uses its campaign budget (step 1)"
                     : "Stops new orders when this much has been given away. Orders already booked keep the full discount. Blank = no limit"}
                 >
                   <Input type="number" min="1" value={form.campaignId ? "" : form.budget} onChange={(e) => setField("budget", e.target.value)} placeholder={form.campaignId ? "Shared" : "No limit"} disabled={Boolean(form.campaignId)} />
@@ -1516,7 +1516,7 @@ export default function PromotionsPage() {
                 <TbDiscount className="text-indigo-600" size={18} /> Priority & Stacking
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <Field label="Priority (higher wins)" hint="0 – 1000. When two offers cannot be combined, the higher number is used. Same number: the older promotion wins">
+                <Field label="Priority (higher wins)" hint="0 – 1000. When two promotions cannot be combined, the higher number is used. Same number: the older promotion wins">
                   <Input type="number" step="1" value={form.priority} onChange={(e) => setField("priority", e.target.value)} placeholder="50" />
                 </Field>
                 <Field label="Stackable" hint="Off: if another order discount also qualifies, only the higher-priority one applies. On: it is added to other discounts that also allow combining">
@@ -1607,7 +1607,7 @@ export default function PromotionsPage() {
                 <div><span className="text-gray-500">Coupons:</span> <strong>{form.couponCodes.length} {form.couponCodes.length === 1 ? "code" : "codes"}</strong></div>
                 <div><span className="text-gray-500">Conditions:</span> <strong>{form.conditions.length} rules</strong></div>
                 <div><span className="text-gray-500">Global Limit:</span> <strong>{form.globalUsageLimit || "∞"}</strong></div>
-                <div><span className="text-gray-500">Budget:</span> <strong>{form.campaignId ? "Shared budget" : form.budget ? `£${form.budget}` : "No limit"}</strong></div>
+                <div><span className="text-gray-500">Budget:</span> <strong>{form.campaignId ? "Campaign budget" : form.budget ? `£${form.budget}` : "No limit"}</strong></div>
                 <div><span className="text-gray-500">Per Customer:</span> <strong>{(perCustomerLock?.value ?? form.perCustomerLimit) || "∞"}{perCustomerLock ? " (set by type)" : ""}</strong></div>
                 <div><span className="text-gray-500">Subtotal:</span> <strong>{form.minSubtotal ? `£${form.minSubtotal}` : "£0"} – {form.maxSubtotal ? `£${form.maxSubtotal}` : "∞"}</strong></div>
                 {showsPeriodLimits(form.benefitType) && (
@@ -1636,7 +1636,7 @@ export default function PromotionsPage() {
   return (
     <>
       <PageHeader
-        title="Offers"
+        title="Promotions"
         description="Discounts customers get on their orders"
         actions={
           <>
@@ -1645,11 +1645,11 @@ export default function PromotionsPage() {
             </Button>
             {campaignFilter ? (
               <Button variant="secondary" onClick={() => openCreate({ campaignId: campaignFilter })}>
-                <TbPlus size={18} /> Add to this shared budget
+                <TbPlus size={18} /> Add to this campaign
               </Button>
             ) : null}
             <Button onClick={() => setShowQuick(true)}>
-              <TbPlus size={18} /> Create offer
+              <TbPlus size={18} /> Create promotion
             </Button>
           </>
         }

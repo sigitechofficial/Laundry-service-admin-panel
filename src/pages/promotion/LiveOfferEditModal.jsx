@@ -38,7 +38,7 @@ export default function LiveOfferEditModal({ offer, onClose }) {
   const shared = Boolean(offer.sharedBudgetName);
 
   const save = async () => {
-    if (!f.name.trim()) { setError("Give the offer a name"); return; }
+    if (!f.name.trim()) { setError("Give the promotion a name"); return; }
     if (f.endTime && !TIME_24.test(f.endTime)) { setError("End time: use 24-hour time, e.g. 18:30"); return; }
     if (f.budget !== "" && !(Number(f.budget) > 0)) { setError("Budget must be more than £0, or left empty"); return; }
     const payload = {
@@ -62,7 +62,7 @@ export default function LiveOfferEditModal({ offer, onClose }) {
     <Modal
       open
       onClose={onClose}
-      title="Edit live offer"
+      title="Edit live promotion"
       description="It stays live while you change these. To change the discount, who gets it or what it's on, pause it first."
       primaryLabel={isLoading ? "Saving…" : "Save"}
       onPrimary={save}
@@ -72,7 +72,7 @@ export default function LiveOfferEditModal({ offer, onClose }) {
       closeOnBackdrop={false}
     >
       <div className="qo">
-        <Field label="Offer name">
+        <Field label="Promotion name">
           <Input value={f.name} onChange={set("name")} maxLength={200} />
         </Field>
         <div className="qo-row">
@@ -82,8 +82,8 @@ export default function LiveOfferEditModal({ offer, onClose }) {
           <Field label="End time" hint="24-hour. Empty = 23:59">
             <TimeInput24 value={f.endTime} onChange={(v) => setF((p) => ({ ...p, endTime: v }))} aria-label="End time" disabled={!f.endDate} />
           </Field>
-          <Field label="Budget (£)" hint={shared ? `Uses the shared budget "${offer.sharedBudgetName}"` : "Stops new orders when this much has been given away"}>
-            <Input type="number" min="1" step="1" value={shared ? "" : f.budget} onChange={set("budget")} placeholder={shared ? "Shared" : "No limit"} disabled={shared} />
+          <Field label="Budget (£)" hint={shared ? `Uses the campaign budget "${offer.sharedBudgetName}"` : "Stops new orders when this much has been given away"}>
+            <Input type="number" min="1" step="1" value={shared ? "" : f.budget} onChange={set("budget")} placeholder={shared ? "Campaign" : "No limit"} disabled={shared} />
           </Field>
         </div>
         <div className="qo-row">

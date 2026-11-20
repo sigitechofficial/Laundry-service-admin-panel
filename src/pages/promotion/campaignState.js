@@ -64,10 +64,10 @@ export function stopReasonText(reason, campaign) {
   if (isOwnBudget(campaign)) return reason === "CAMPAIGN_BUDGET_EXHAUSTED" ? "Budget used up" : "Budget is off";
   switch (reason) {
     case "CAMPAIGN_NOT_ACTIVE":
-      return campaign?.status === "draft" ? "Shared budget is a draft" : `Shared budget is ${campaignStatusLabel(campaign?.status).toLowerCase()}`;
-    case "CAMPAIGN_NOT_STARTED": return "Shared budget has not started";
-    case "CAMPAIGN_ENDED": return "Shared budget has ended";
-    case "CAMPAIGN_BUDGET_EXHAUSTED": return "Shared budget used up";
+      return campaign?.status === "draft" ? "Campaign is a draft" : `Campaign is ${campaignStatusLabel(campaign?.status).toLowerCase()}`;
+    case "CAMPAIGN_NOT_STARTED": return "Campaign has not started";
+    case "CAMPAIGN_ENDED": return "Campaign has ended";
+    case "CAMPAIGN_BUDGET_EXHAUSTED": return "Campaign budget used up";
     default: return null;
   }
 }

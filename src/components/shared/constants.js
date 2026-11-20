@@ -272,12 +272,12 @@ export const sidebarList = [
     size: "24px",
     children: [
       {
-        label: "Shared budgets",
+        label: "Campaigns",
         path: "/promotion/campaigns",
         size: "24px",
       },
       {
-        label: "Offers",
+        label: "Promotions",
         path: "/promotion/promotions",
         size: "24px",
       },

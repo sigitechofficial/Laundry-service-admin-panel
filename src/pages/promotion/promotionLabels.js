@@ -19,8 +19,8 @@ export const BENEFIT_TYPES = [
 
 /** One line on what each benefit type does, shown under the Benefit Type field. */
 export const BENEFIT_HELP = {
-  percentage_discount: "Older type: % off the laundry total. Use Whole Order Discount for new offers.",
-  fixed_amount_discount: "Older type: £ off the laundry total. Use Whole Order Discount for new offers.",
+  percentage_discount: "Older type: % off the laundry total. Use Whole Order Discount for new promotions.",
+  fixed_amount_discount: "Older type: £ off the laundry total. Use Whole Order Discount for new promotions.",
   free_delivery: "Delivery is already free, so this saves nothing today.",
   delivery_discount: "£ off delivery. Delivery is already free, so this saves nothing today.",
   basket_discount: "% or £ off the whole laundry total (all services and add-ons; the service fee is not included).",

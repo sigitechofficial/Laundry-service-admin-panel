@@ -156,7 +156,7 @@ function summaryOf(f, { targetNames, nameOf, priceOf, serviceNameOf }) {
 }
 
 function validate(f) {
-  if (!f.name.trim()) return "Give the offer a name";
+  if (!f.name.trim()) return "Give the promotion a name";
   if (f.what === "bulk") {
     for (const [i, d] of f.deals.entries()) {
       const n = f.deals.length > 1 ? `Deal ${i + 1}: ` : "";
@@ -374,7 +374,7 @@ export default function QuickOfferForm({ open, onClose, onSaved, onMoreOptions }
         onSaved?.("draft");
       }
     } catch (e) {
-      setError(e?.data?.message || "Could not save the offer");
+      setError(e?.data?.message || "Could not save the promotion");
     }
   };
 
@@ -389,16 +389,16 @@ export default function QuickOfferForm({ open, onClose, onSaved, onMoreOptions }
     <Modal
       open={confirmDiscard}
       onClose={() => setConfirmDiscard(false)}
-      title="Discard this offer?"
+      title="Discard this promotion?"
       description="What you've entered will be lost."
       secondaryLabel="Keep editing"
       primaryLabel="Discard"
       danger
       onPrimary={() => { setConfirmDiscard(false); onClose?.(); }}
     />
-    <Modal open={open && !confirmDiscard} onClose={requestClose} title="Create offer" size="lg" hideFooter closeOnBackdrop={false}>
+    <Modal open={open && !confirmDiscard} onClose={requestClose} title="Create promotion" size="lg" hideFooter closeOnBackdrop={false}>
       <div className="qo">
-        <Field label="Offer name" hint="Customers see this on their order, e.g. “10% off this week”">
+        <Field label="Promotion name" hint="Customers see this on their order, e.g. “10% off this week”">
           <Input value={f.name} onChange={set("name")} placeholder="10% off this week" maxLength={200} />
         </Field>
 
@@ -579,7 +579,7 @@ export default function QuickOfferForm({ open, onClose, onSaved, onMoreOptions }
               <Input type="number" min="0" step="1" value={f.budget} onChange={set("budget")} placeholder="No limit" />
             </Field>
           </div>
-          <p className="qo-note">Orders booked while the offer is on always get the full discount.</p>
+          <p className="qo-note">Orders booked while the promotion is on always get the full discount.</p>
         </Section>
 
         <div className="qo-summary" aria-live="polite">{summary}</div>
@@ -590,7 +590,7 @@ export default function QuickOfferForm({ open, onClose, onSaved, onMoreOptions }
             variant="ghost"
             onClick={() => onMoreOptions?.(quickOfferToPreset(f))}
             disabled={busy || (f.what === "bulk" && f.deals.length > 1)}
-            title={f.what === "bulk" && f.deals.length > 1 ? "Offers with several deals are made here" : undefined}
+            title={f.what === "bulk" && f.deals.length > 1 ? "Promotions with several deals are made here" : undefined}
           >
             More options…
           </Button>
