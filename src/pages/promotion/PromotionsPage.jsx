@@ -963,7 +963,12 @@ export default function PromotionsPage() {
     }
     try {
       const res = await publishPromotion({ id: publishTarget.id }).unwrap();
-      toast.success(res?.data?.status === "scheduled" ? "Promotion scheduled" : "Promotion published & active");
+      const blockedBy = campaignStopReason(campaignOf(publishTarget));
+      toast.success(
+        blockedBy
+          ? `Promotion published. It will not apply to orders until the campaign "${campaignOf(publishTarget)?.name}" runs.`
+          : res?.data?.status === "scheduled" ? "Promotion scheduled" : "Promotion published & active"
+      );
       setPublishTarget(null);
     } catch (err) { toast.error(err?.data?.message || "Publish failed"); }
   };
@@ -1654,7 +1659,9 @@ export default function PromotionsPage() {
       >
         <p style={{ fontSize: 14, color: "#374151" }}>
           <strong>&ldquo;{publishTarget?.name}&rdquo;</strong> ({publishTarget && valueLabel(publishTarget)}){" "}
-          {publishTarget?.startDate && dayjs(publishTarget.startDate).isAfter(dayjs())
+          {publishTarget && campaignStopReason(campaignOf(publishTarget))
+            ? "will be published, but will not apply to orders yet."
+            : publishTarget?.startDate && dayjs(publishTarget.startDate).isAfter(dayjs())
             ? `will start applying to new orders on ${dayjs(promotionDay(publishTarget, "start")).format("DD MMM YYYY")} (UK time).`
             : "will go live now and start applying to new orders."}
         </p>

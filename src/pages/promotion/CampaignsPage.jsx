@@ -298,7 +298,9 @@ export default function CampaignsPage() {
       render: (row) => {
         const total = row.promotions?.length || 0;
         const live = liveOf(row.promotions).length;
-        return total ? `${total} (${live} live)` : "0";
+        if (!total) return "0";
+        // "live" only when they actually run: a stopped campaign runs none of them.
+        return campaignStopReason(row) ? `${total} (none running)` : `${total} (${live} running)`;
       },
     },
     {

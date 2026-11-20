@@ -224,9 +224,12 @@ export default function Modal({
         ) : null}
         {!hideFooter ? (
           <div className="jd-modal__f">
-            <Button variant="secondary" onClick={onClose} disabled={secondaryDisabled}>
-              {secondaryLabel}
-            </Button>
+            {/* secondaryLabel={null}: one-button popups (e.g. read-only views) */}
+            {secondaryLabel ? (
+              <Button variant="secondary" onClick={onClose} disabled={secondaryDisabled}>
+                {secondaryLabel}
+              </Button>
+            ) : null}
             <Button
               variant={primaryTone || (danger ? "danger" : "primary")}
               onClick={onPrimary || onClose}

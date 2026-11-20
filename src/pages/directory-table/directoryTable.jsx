@@ -540,8 +540,9 @@ export function DirectoryViewModal({
       open={open}
       title={title}
       onClose={onClose}
-      secondaryLabel="Close"
-      primaryLabel="Done"
+      // Read-only view: one button. "Close" and "Done" both only closed it.
+      secondaryLabel={null}
+      primaryLabel="Close"
       onPrimary={onClose}
       {...rest}
     >
