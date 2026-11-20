@@ -33,6 +33,7 @@ import {
 } from "./policyUtils";
 import { useForm, Controller } from "react-hook-form";
 import useToaster from "../../components/ui/Toaster";
+import { showFirstFormError } from "./policyFormErrors";
 import {
   useAddNoShowPolicyMutation,
   useGetNoShowPoliciesQuery,
@@ -853,7 +854,7 @@ export default function NoShowPolicyContent({
         size={"xl"}
         primaryLabel={isSubmitting ? "Saving…" : "Save"}
         secondaryLabel={"Cancel"}
-        onPrimary={handleSubmit(onSubmit)}
+        onPrimary={handleSubmit(onSubmit, showFirstFormError(showError))}
         primaryDisabled={Boolean(isSubmitting)}
 
       >
@@ -883,9 +884,8 @@ export default function NoShowPolicyContent({
               <Controller
                 name="description"
                 control={control}
-                rules={{ required: "Description is required" }}
                 render={({ field: { onChange, value } }) => (
-                  <Field label={"Description*"} hint={"Policy description or notes. Optional field to provide additional context about the policy."}>
+                  <Field label={"Description"} hint={"Policy description or notes. Optional field to provide additional context about the policy."}>
                       <Input placeholder={"Enter description"} value={value || ""} onChange={(e) => onChange(e.target.value)} />
                     </Field>
                 )}

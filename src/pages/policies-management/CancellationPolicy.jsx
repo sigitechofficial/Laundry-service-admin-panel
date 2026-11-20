@@ -35,6 +35,7 @@ import {
 } from "./policyUtils";
 import { useForm, Controller } from "react-hook-form";
 import useToaster from "../../components/ui/Toaster";
+import { showFirstFormError } from "./policyFormErrors";
 import {
   useAddCancellationPolicyMutation,
   useGetCancellationPoliciesQuery,
@@ -548,7 +549,7 @@ export default function CancellationPolicy() {
       prePickupAbsoluteAmount: config.prePickupAbsoluteAmount?.toString() || "",
       prePickupPercentage: config.prePickupPercentage?.toString() || "",
       prePickupFreeChargeWindowMinutes: config.prePickupFreeChargeWindowMinutes
-        ? (Number(config.prePickupFreeChargeWindowMinutes) / 60).toString()
+        ? String(Math.round((Number(config.prePickupFreeChargeWindowMinutes) / 60) * 100) / 100)
         : "",
       prePickupFirstCancellationLeniency: config.prePickupFirstCancellationLeniency ?? true,
       // Determine fee type from absolute vs prepaid-% (canonical = order value %, legacy = unprocessedPercentage)
@@ -580,7 +581,7 @@ export default function CancellationPolicy() {
       unprocessedAbsoluteAmount: config.unprocessedAbsoluteAmount?.toString() || "",
       unprocessedPercentage: "",
       unprocessedAfterPickupMinutes: config.unprocessedAfterPickupMinutes
-        ? (Number(config.unprocessedAfterPickupMinutes) / 60).toString()
+        ? String(Math.round((Number(config.unprocessedAfterPickupMinutes) / 60) * 100) / 100)
         : "",
       unprocessedOrderValuePercentage: "",
       allowCancelUnprocessed: config.allowCancelUnprocessed ?? true,
@@ -1075,7 +1076,7 @@ export default function CancellationPolicy() {
         size={"xl"}
         primaryLabel={isSubmitting ? "Saving…" : "Save"}
         secondaryLabel={"Cancel"}
-        onPrimary={handleSubmit(onSubmit)}
+        onPrimary={handleSubmit(onSubmit, showFirstFormError(showError))}
         primaryDisabled={Boolean(isSubmitting)}
 
       >
@@ -1111,10 +1112,9 @@ export default function CancellationPolicy() {
                     <Controller
                       name="description"
                       control={control}
-                      rules={{ required: "Description is required" }}
                       render={({ field: { onChange, value } }) => (
                         <div>
-                          <Field label={"Description*"} hint={"Policy description or notes. Optional field to provide additional context about the policy."}>
+                          <Field label={"Description"} hint={"Policy description or notes. Optional field to provide additional context about the policy."}>
                       <Input placeholder={"Enter policy description"} value={value || ""} onChange={(e) => onChange(e.target.value)} />
                     </Field>
                           {errors.description && (
@@ -1246,7 +1246,7 @@ export default function CancellationPolicy() {
                         name="prePickupFeeType"
                         control={control}
                         render={({ field: { onChange, value } }) => (
-                          <Field label={"Fee Type"} hint={"Choose between a fixed amount (Absolute) or a percentage of the order value (Percentage)."}>
+                          <Field label={"Fee Type"} hint={"Choose between a fixed amount (Absolute) or a percentage (Percentage) of what the customer paid at booking: minimum order, service fee and tip."}>
                       <Select aria-label={"Fee Type"} value={value} onChange={(next) => ((e) => {
                               onChange(e.target.value);
                               // Clear the fee value when switching types
@@ -1268,7 +1268,7 @@ export default function CancellationPolicy() {
                         render={({ field: { onChange, value } }) => (
                           <Field label={prePickupFeeType === "absolute" ? "Absolute Amount" : "Percentage (%)"} hint={prePickupFeeType === "absolute"
                                 ? "Fixed cancellation fee amount for pre-pickup cancellations. This is a flat fee charged when a customer cancels before pickup."
-                                : "Percentage-based cancellation fee for pre-pickup cancellations (e.g., 5.00 for 5% of order value)."}>
+                                : "Percentage-based cancellation fee for pre-pickup cancellations, of what the customer paid at booking (minimum order, service fee and tip). E.g. 5 = 5%."}>
                       <Input type={"number"} placeholder={prePickupFeeType === "absolute" ? "Enter amount" : "Enter percentage"} value={value || ""} onChange={(e) => onChange(e.target.value)} />
                     </Field>
                         )}

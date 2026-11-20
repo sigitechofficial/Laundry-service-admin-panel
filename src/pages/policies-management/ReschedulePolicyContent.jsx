@@ -33,6 +33,7 @@ import {
 } from "./policyUtils";
 import { useForm, Controller } from "react-hook-form";
 import useToaster from "../../components/ui/Toaster";
+import { showFirstFormError } from "./policyFormErrors";
 import {
   useAddReschedulePolicyMutation,
   useGetReschedulePoliciesQuery,
@@ -833,11 +834,12 @@ export default function ReschedulePolicyContent({
         size="xl"
         primaryLabel={isSubmitting ? "Saving…" : "Save"}
         secondaryLabel="Cancel"
-        onPrimary={handleSubmit(onSubmit)}
+        onPrimary={handleSubmit(onSubmit, showFirstFormError(showError))}
         primaryDisabled={Boolean(isSubmitting)}
       >
 
-        <div className="flex flex-col gap-6 max-h-[70vh] overflow-y-auto pr-1">
+        {/* The popup itself scrolls; no second scroll box inside it. */}
+        <div className="flex flex-col gap-6">
           {/* Basic Information */}
           <div>
             <h3 style={{ margin: 0 }}>
@@ -862,9 +864,8 @@ export default function ReschedulePolicyContent({
               <Controller
                 name="description"
                 control={control}
-                rules={{ required: "Description is required" }}
                 render={({ field: { onChange, value } }) => (
-                  <Field label={"Description*"}>
+                  <Field label={"Description"}>
                       <Input placeholder={"e.g. Standard reschedule policy for customers"} value={value || ""} onChange={(e) => onChange(e.target.value)} />
                     </Field>
                 )}
