@@ -57,15 +57,11 @@ import {
 // Same as basket_discount in % / £ mode — kept for labels and existing promotions,
 // but not offered when picking a type (unless the promotion already uses it).
 const RETIRED_BENEFIT_TYPES = ["percentage_discount", "fixed_amount_discount"];
-// Delivery is free today, so the delivery types save £0: they come last and say so.
-const benefitTypeOptions = (current) => {
-  const offered = BENEFIT_TYPES.filter((b) => !RETIRED_BENEFIT_TYPES.includes(b.value) || b.value === current);
-  const delivery = (b) => ["free_delivery", "delivery_discount"].includes(b.value);
-  return [
-    ...offered.filter((b) => !delivery(b)),
-    ...offered.filter(delivery).map((b) => ({ ...b, label: b.label })),
-  ];
-};
+// Delivery is free today, so the delivery types would save £0: they are not offered for new
+// promotions (a promotion that already uses one still shows it).
+const HIDDEN_WHILE_DELIVERY_FREE = ["free_delivery", "delivery_discount"];
+const benefitTypeOptions = (current) => BENEFIT_TYPES.filter((b) =>
+  b.value === current || (!RETIRED_BENEFIT_TYPES.includes(b.value) && !HIDDEN_WHILE_DELIVERY_FREE.includes(b.value)));
 
 
 const DISCOUNT_MODES = [
@@ -330,26 +326,43 @@ function CouponCodesBuilder({ codes, onChange, onError }) {
           value={newCode}
           // Spaces and symbols are ignored as you type; letters become capitals.
           onChange={(e) => setNewCode(cleanCode(e.target.value))}
-          maxLength={50}
+          maxLength={30}
           onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); add(); } }}
           placeholder="Enter coupon code"
           className="flex-1"
         />
         <Button variant="secondary" onClick={add}>Add</Button>
       </div>
-      <div className="flex flex-wrap gap-2">
+      {/* One row per code: optional "Max uses" for that code (all customers together). */}
+      <div className="space-y-2">
         {codes.map((c, i) => (
-          <span
-            key={c.code}
-            className={`inline-flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-full ${
-              c.isActive === false ? "bg-gray-100 text-gray-400 line-through" : "bg-blue-50 text-blue-700"
-            }`}
-            title={c.usedCount ? `Used ${c.usedCount}× — removing deactivates it instead of deleting` : undefined}
-          >
-            {c.code}
-            {c.usedCount ? <span className="font-normal text-gray-500">· {c.usedCount} used</span> : null}
-            <button type="button" onClick={() => remove(i)} className="hover:text-red-600 ml-1">✕</button>
-          </span>
+          <div key={c.code} className="flex items-center gap-3">
+            <span
+              className={`inline-flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-full ${
+                c.isActive === false ? "bg-gray-100 text-gray-400 line-through" : "bg-blue-50 text-blue-700"
+              }`}
+              title={c.usedCount ? `Used ${c.usedCount}× — removing deactivates it instead of deleting` : undefined}
+            >
+              {c.code}
+              {c.usedCount ? <span className="font-normal text-gray-500">· {c.usedCount} used</span> : null}
+              <button type="button" onClick={() => remove(i)} className="hover:text-red-600 ml-1" aria-label={`Remove ${c.code}`}>✕</button>
+            </span>
+            <label className="flex items-center gap-2 text-xs text-gray-500">
+              Max uses
+              <Input
+                type="number"
+                min="1"
+                step="1"
+                value={c.usageLimit ?? ""}
+                onChange={(e) => onChange(codes.map((x, j) => (j === i
+                  ? { ...x, usageLimit: e.target.value === "" ? null : Number(e.target.value) }
+                  : x)))}
+                placeholder="No limit"
+                aria-label={`Max uses for ${c.code}`}
+                style={{ width: 110 }}
+              />
+            </label>
+          </div>
         ))}
       </div>
     </div>
@@ -846,7 +859,8 @@ export default function PromotionsPage() {
       header: "Orders",
       // Booked = holds the offer, not paid yet; paid = done. Both count towards Total orders.
       render: (row) => {
-        const booked = row.globalReservedCount || 0;
+        // Orders getting money off (or not priced yet); a hold priced at £0 is not counted.
+        const booked = row.bookedCount ?? row.globalReservedCount ?? 0;
         const paid = row.globalUsedCount || 0;
         return (
           <div className="flex flex-col">

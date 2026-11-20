@@ -2059,6 +2059,18 @@ export default function OrderDetailsPage() {
                 </p>
               </div>
               ) : null}
+              {/* The invoice's promotion discount, so Total and Amount Due add up on screen.
+                  Which promotions gave it is in the Promotions card below. */}
+              {Number(earningsBreakdown?.discount) > 0 ? (
+              <div className="flex items-center justify-between" style={{ paddingTop: 7.2, paddingBottom: 7.2 }}>
+                <p style={{ margin: 0, color: "var(--muted)", fontSize: 14 }}>
+                  Promotion discount
+                </p>
+                <p style={{ margin: 0, color: "#065F46", fontSize: 14 }}>
+                  −{formatMoney(earningsBreakdown.discount, paymentCurrencySymbol)}
+                </p>
+              </div>
+              ) : null}
               {Number(tipAmount) > 0 ? (
               <div className="flex items-center justify-between" style={{ paddingTop: 7.2, paddingBottom: 7.2 }}>
                 <p style={{ margin: 0, color: "var(--muted)", fontSize: 14 }}>

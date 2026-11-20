@@ -295,6 +295,8 @@ export function validateStep(step, form, priceOf) {
     case 2: {
       // Who: a promotion that needs a code must have one.
       if (form.activationType === "coupon_required" && !form.couponCodes.length) return "Add at least one code, or choose Automatic";
+      const badLimit = form.couponCodes.find((c) => c.usageLimit != null && !isPosInt(c.usageLimit));
+      if (badLimit) return `Max uses for ${badLimit.code} must be a whole number of 1 or more (empty = no limit)`;
       for (const c of form.conditions) {
         const err = conditionError(c);
         if (err) return err;

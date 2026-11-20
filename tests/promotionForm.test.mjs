@@ -261,3 +261,17 @@ describe("Typing a coupon code", async () => {
     assert.equal(codeError("ABC"), null);
   });
 });
+
+describe("Codes in More options", () => {
+  it("a code's Max uses is saved", () => {
+    const p = buildPayload(form({ discountValue: "5", activationType: "coupon_required", couponCodes: [{ code: "SAVE5", codeType: "shared", usageLimit: 100 }] }));
+    assert.deepEqual(p.couponCodes, [{ code: "SAVE5", codeType: "shared", usageLimit: 100 }]);
+  });
+  it("Max uses must be a whole number", () => {
+    assert.match(firstError(form({ discountValue: "5", activationType: "coupon_required", couponCodes: [{ code: "SAVE5", usageLimit: 0 }] })), /Max uses for SAVE5/);
+  });
+  it("codes are at most 30 characters", async () => {
+    const { cleanCode } = await import("../src/pages/promotion/promotionCodes.js");
+    assert.equal(cleanCode("A".repeat(40)).length, 30);
+  });
+});
