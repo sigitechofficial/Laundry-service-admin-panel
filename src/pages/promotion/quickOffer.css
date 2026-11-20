@@ -30,3 +30,13 @@
 
 .jd-ds .qo-foot { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; border-top: 1px solid var(--line); padding-top: 14px; }
 .jd-ds .qo-foot__sp { flex: 1; }
+
+/* Bulk price deals: one bordered row per deal */
+.jd-ds .qo-deals { display: flex; flex-direction: column; gap: 10px; }
+.jd-ds .qo-deal { border: 1px solid var(--line); border-radius: var(--r-md); padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; background: var(--canvas); }
+.jd-ds .qo-deal__h { display: flex; align-items: center; justify-content: space-between; }
+.jd-ds .qo-deal__n { font-size: 13px; font-weight: 700; color: var(--ink); }
+.jd-ds .qo-deal__rm { border: 0; background: none; color: var(--danger); font-size: 13px; font-weight: 600; cursor: pointer; padding: 4px 6px; border-radius: 6px; }
+.jd-ds .qo-deal__rm:hover { background: var(--danger-bg); }
+.jd-ds .qo-deal__row { display: grid; grid-template-columns: minmax(200px, 2fr) minmax(90px, 1fr) minmax(110px, 1fr); gap: 10px; align-items: start; }
+@media (max-width: 640px) { .jd-ds .qo-deal__row { grid-template-columns: 1fr 1fr; } .jd-ds .qo-deal__row > :first-child { grid-column: 1 / -1; } }

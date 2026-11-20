@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dayjs from "dayjs";
 import { Button, Field, Input, Modal, Select } from "../../design-system";
 import useToaster from "../../components/ui/Toaster";
@@ -45,13 +45,16 @@ const WHO = [
   { value: "first", label: "New customers (first order)" },
 ];
 
+/** One bulk deal row: these items, this many pieces, for this price. */
+const newDeal = () => ({ itemIds: [], qty: "10", price: "" });
+
 const INITIAL = () => ({
   name: "",
   on: "order",
   targetIds: [],
   what: "percent",
   value: "",
-  bulkQty: "10",
+  deals: [newDeal()],
   onlyService: "",
   maxOff: "",
   minOrder: "",
@@ -95,24 +98,29 @@ function Section({ n, title, children }) {
 const num = (v) => (v === "" || v == null ? null : Number(v));
 const money = (n) => `£${Number(n).toFixed(2).replace(/\.00$/, "")}`;
 
-/** Bulk price: what N pieces normally cost (cheapest chosen item, as the deal groups the cheapest first). */
-function bulkNormal(f, targetPrices) {
-  const q = num(f.bulkQty);
-  if (!targetPrices.length || !q) return null;
-  return Math.min(...targetPrices) * q;
+/** What a deal's pieces normally cost (cheapest chosen item, as the deal groups the cheapest first). */
+function dealNormal(deal, priceOf) {
+  const prices = deal.itemIds.map(priceOf).filter((p) => p > 0);
+  const q = num(deal.qty);
+  return prices.length && q ? Math.min(...prices) * q : null;
 }
 
 /** Plain-words line of what the admin is making. */
-function summaryOf(f, targetNames, targetPrices, serviceName) {
+function summaryOf(f, { targetNames, nameOf, priceOf, serviceName }) {
+  if (f.what === "bulk") {
+    const ready = f.deals.filter((d) => d.itemIds.length && num(d.price));
+    if (!ready.length) return "Add your deals: items, how many pieces, and the price.";
+    const parts = ready.map((d) => {
+      const names = d.itemIds.map(nameOf).filter(Boolean).join(" or ");
+      const normal = dealNormal(d, priceOf);
+      return `${num(d.qty) || "N"} ${names} for ${money(d.price)}${normal != null ? ` (normally ${money(normal)})` : ""}`;
+    });
+    const where = serviceName ? ` in ${serviceName}` : "";
+    const own = ready.length > 1 ? " Each deal counts only its own items." : "";
+    return `${parts.join("; ")}${where}. Extra pieces are at the normal price.${own}`;
+  }
   if (!num(f.value)) return "Choose what customers get.";
   const names = targetNames.length > 3 ? `${targetNames.slice(0, 3).join(", ")} and ${targetNames.length - 3} more` : targetNames.join(", ");
-  if (f.what === "bulk") {
-    const normal = bulkNormal(f, targetPrices);
-    const saving = normal != null ? ` (normally ${money(normal)}, saving ${money(normal - num(f.value))})` : "";
-    const mix = targetNames.length > 1 ? " Pieces of the chosen items count together." : "";
-    const where = serviceName ? ` in ${serviceName}` : "";
-    return `Every ${num(f.bulkQty) || "N"} pieces of ${names || "the chosen items"}${where} for ${money(f.value)}${saving}. Extra pieces are at the normal price.${mix}`;
-  }
   // e.g. "Shirt, Trousers" / "Dry Clean items"
   const target = f.on === "item" ? (names || "the chosen items")
     : f.on === "service" ? (names ? `${names} items` : "items in the chosen services") : "";
@@ -133,15 +141,20 @@ function summaryOf(f, targetNames, targetPrices, serviceName) {
 
 function validate(f) {
   if (!f.name.trim()) return "Give the offer a name";
-  if (f.on !== "order" && !f.targetIds.length) return f.on === "item" ? "Choose at least one item" : "Choose at least one service";
-  const v = num(f.value);
   if (f.what === "bulk") {
-    const q = num(f.bulkQty);
-    if (!Number.isInteger(q) || q < 2 || q > 1000) return "How many pieces: a whole number from 2 to 1000";
-    if (!v || v <= 0) return "Enter the price for these pieces";
+    for (const [i, d] of f.deals.entries()) {
+      const n = f.deals.length > 1 ? `Deal ${i + 1}: ` : "";
+      if (!d.itemIds.length) return `${n}choose at least one item`;
+      const q = num(d.qty);
+      if (!Number.isInteger(q) || q < 2 || q > 1000) return `${n}pieces must be a whole number from 2 to 1000`;
+      if (!(num(d.price) > 0)) return `${n}enter the price for these pieces`;
+    }
+  } else {
+    if (f.on !== "order" && !f.targetIds.length) return f.on === "item" ? "Choose at least one item" : "Choose at least one service";
+    const v = num(f.value);
+    if (!v || v <= 0) return f.what === "percent" ? "Enter the % off" : "Enter the £ off";
+    if (f.what === "percent" && v > 100) return "% off can't be more than 100";
   }
-  if (!v || v <= 0) return f.what === "percent" ? "Enter the % off" : "Enter the £ off";
-  if (f.what === "percent" && v > 100) return "% off can't be more than 100";
   if (f.who === "code" && !/^[A-Z0-9_-]{3,30}$/i.test(f.code.trim())) return "Enter a code: 3–30 letters or numbers";
   if (f.endDate && f.startDate && f.endDate < f.startDate) return "The end date is before the start date";
   if (num(f.budget) != null && num(f.budget) <= 0) return "Budget must be more than £0, or left empty";
@@ -153,13 +166,15 @@ function validate(f) {
 /** Quick answers → the full promotion payload (and the full form's preset for "More options"). */
 export function quickOfferToPreset(f) {
   const bulk = f.what === "bulk";
+  const first = f.deals[0] || newDeal();
   return {
     name: f.name.trim(),
     ...ON_TYPE[f.on],
-    ...(bulk ? { benefitType: "bundle", bundleQuantity: f.bulkQty } : {}),
-    targetIds: f.on === "order" ? [] : f.targetIds,
+    // Bulk: the offer's items are every deal's items; the first deal fills the single-deal fields.
+    ...(bulk ? { benefitType: "bundle", bundleQuantity: first.qty } : {}),
+    targetIds: f.on === "order" ? [] : bulk ? [...new Set(f.deals.flatMap((d) => d.itemIds))] : f.targetIds,
     discountMode: bulk ? "amount" : f.what,
-    discountValue: f.value,
+    discountValue: bulk ? first.price : f.value,
     maxDiscountCap: f.what === "percent" ? f.maxOff : "",
     minSubtotal: bulk ? "" : f.minOrder,
     activationType: f.who === "code" ? "coupon_required" : "automatic",
@@ -180,7 +195,11 @@ function toPayload(f) {
   return {
     ...rest,
     benefitConfig: f.what === "bulk"
-      ? { bundleQuantity: num(bundleQuantity), ...(f.onlyService ? { onlyServiceIds: [Number(f.onlyService)] } : {}) }
+      ? {
+        bundleQuantity: num(bundleQuantity),
+        deals: f.deals.map((d) => ({ itemIds: d.itemIds.map(Number), quantity: num(d.qty), price: num(d.price) })),
+        ...(f.onlyService ? { onlyServiceIds: [Number(f.onlyService)] } : {}),
+      }
       : null,
     discountValue: num(p.discountValue),
     maxDiscountCap: num(p.maxDiscountCap),
@@ -236,25 +255,32 @@ export default function QuickOfferForm({ open, onClose, onSaved, onMoreOptions }
     const opts = catalog[f.on] || [];
     return f.targetIds.map((id) => opts.find((o) => o.value === String(id))?.label).filter(Boolean);
   }, [catalog, f.on, f.targetIds]);
-  const targetPrices = useMemo(() => {
-    const opts = catalog[f.on] || [];
-    return f.targetIds.map((id) => Number(opts.find((o) => o.value === String(id))?.price)).filter((p) => p > 0);
-  }, [catalog, f.on, f.targetIds]);
+  const itemById = useMemo(() => new Map(catalog.item.map((o) => [o.value, o])), [catalog]);
+  const nameOf = useCallback((id) => itemById.get(String(id))?.label, [itemById]);
+  const priceOf = useCallback((id) => Number(itemById.get(String(id))?.price), [itemById]);
   const serviceName = f.onlyService ? catalog.service.find((o) => o.value === String(f.onlyService))?.label : null;
   const summary = useMemo(
-    () => summaryOf(f, targetNames, targetPrices, serviceName),
-    [f, targetNames, targetPrices, serviceName]
+    () => summaryOf(f, { targetNames, nameOf, priceOf, serviceName }),
+    [f, targetNames, nameOf, priceOf, serviceName]
   );
-  const bulkNormalPrice = f.what === "bulk" ? bulkNormal(f, targetPrices) : null;
   // Bulk price is for chosen items only: switching away from items drops it.
   const setOn = (on) => setF((prev) => ({
     ...prev, on, targetIds: [], what: prev.what === "bulk" && on !== "item" ? "percent" : prev.what,
   }));
+  const setDeal = (i, patch) => setF((prev) => ({ ...prev, deals: prev.deals.map((d, j) => (j === i ? { ...d, ...patch } : d)) }));
+  const addDeal = () => setF((prev) => ({ ...prev, deals: [...prev.deals, newDeal()] }));
+  const removeDeal = (i) => setF((prev) => ({ ...prev, deals: prev.deals.filter((_, j) => j !== i) }));
 
   const save = async (goLive) => {
     let err = validate(f);
-    if (!err && bulkNormalPrice != null && num(f.value) >= bulkNormalPrice) {
-      err = `The deal price must be less than the normal ${money(bulkNormalPrice)}`;
+    if (!err && f.what === "bulk") {
+      // A deal must be cheaper than buying the pieces normally.
+      f.deals.some((d, i) => {
+        const normal = dealNormal(d, priceOf);
+        if (normal == null || num(d.price) < normal) return false;
+        err = `${f.deals.length > 1 ? `Deal ${i + 1}: ` : ""}the price must be less than the normal ${money(normal)}`;
+        return true;
+      });
     }
     setError(err);
     if (err) return;
@@ -303,7 +329,7 @@ export default function QuickOfferForm({ open, onClose, onSaved, onMoreOptions }
           <Field label="On what?">
             <Choice label="On what" options={ON} value={f.on} onChange={setOn} />
           </Field>
-          {f.on !== "order" ? (
+          {f.on !== "order" && f.what !== "bulk" ? (
             <Field
               label={f.on === "item" ? "Items" : "Services"}
               hint={f.on === "item" ? "The discount applies to every piece of these items" : "The discount applies to every item in these services. Add-ons are not included"}
@@ -318,25 +344,55 @@ export default function QuickOfferForm({ open, onClose, onSaved, onMoreOptions }
           ) : null}
           <Choice label="Discount type" options={WHAT(f.on)} value={f.what} onChange={set("what")} />
           {f.what === "bulk" ? (
-            <div className="qo-row">
-              <Field label="How many pieces">
-                <Input type="number" min="2" step="1" value={f.bulkQty} onChange={set("bulkQty")} placeholder="10" />
-              </Field>
-              <Field
-                label="For (£)"
-                hint={bulkNormalPrice != null
-                  ? `Normally ${money(bulkNormalPrice)}${num(f.value) ? ` · saves ${money(bulkNormalPrice - num(f.value))}` : ""}`
-                  : "Price for these pieces together"}
-              >
-                <Input type="number" min="0" step="0.5" value={f.value} onChange={set("value")} placeholder="30" />
-              </Field>
-              <Field label="In which service?" hint="Optional. Any = pieces count in every service">
-                <Select
-                  value={f.onlyService}
-                  onChange={(v) => setF((p) => ({ ...p, onlyService: v ?? "" }))}
-                  options={[{ value: "", label: "Any service" }, ...catalog.service]}
-                />
-              </Field>
+            <div className="qo-deals">
+              {f.deals.map((d, i) => {
+                // An item can be in one deal only: other deals' items are not offered here.
+                const taken = new Set(f.deals.flatMap((x, j) => (j === i ? [] : x.itemIds.map(String))));
+                const normal = dealNormal(d, priceOf);
+                return (
+                  <div className="qo-deal" key={i}>
+                    <div className="qo-deal__h">
+                      <span className="qo-deal__n">Deal {i + 1}</span>
+                      {f.deals.length > 1 ? (
+                        <button type="button" className="qo-deal__rm" onClick={() => removeDeal(i)} aria-label={`Remove deal ${i + 1}`}>
+                          Remove
+                        </button>
+                      ) : null}
+                    </div>
+                    <div className="qo-deal__row">
+                      <Field label="Items">
+                        <CatalogMultiSelect
+                          options={catalog.item.filter((o) => !taken.has(o.value))}
+                          selectedIds={d.itemIds}
+                          onChange={(ids) => setDeal(i, { itemIds: ids })}
+                          placeholder="Search items, e.g. T-Shirt…"
+                        />
+                      </Field>
+                      <Field label="Pieces">
+                        <Input type="number" min="2" step="1" value={d.qty} onChange={(e) => setDeal(i, { qty: e.target.value })} placeholder="10" />
+                      </Field>
+                      <Field
+                        label="For (£)"
+                        hint={normal != null ? `Normally ${money(normal)}${num(d.price) ? ` · saves ${money(normal - num(d.price))}` : ""}` : undefined}
+                      >
+                        <Input type="number" min="0" step="0.5" value={d.price} onChange={(e) => setDeal(i, { price: e.target.value })} placeholder="30" />
+                      </Field>
+                    </div>
+                  </div>
+                );
+              })}
+              <div>
+                <Button variant="secondary" onClick={addDeal} disabled={f.deals.length >= 20}>+ Add another deal</Button>
+              </div>
+              <div className="qo-row">
+                <Field label="In which service?" hint="Optional. Any = pieces count in every service">
+                  <Select
+                    value={f.onlyService}
+                    onChange={(v) => setF((p) => ({ ...p, onlyService: v ?? "" }))}
+                    options={[{ value: "", label: "Any service" }, ...catalog.service]}
+                  />
+                </Field>
+              </div>
             </div>
           ) : (
           <div className="qo-row">
@@ -396,7 +452,14 @@ export default function QuickOfferForm({ open, onClose, onSaved, onMoreOptions }
         {error ? <p className="qo-error" role="alert">{error}</p> : null}
 
         <div className="qo-foot">
-          <Button variant="ghost" onClick={() => onMoreOptions?.(quickOfferToPreset(f))} disabled={busy}>More options…</Button>
+          <Button
+            variant="ghost"
+            onClick={() => onMoreOptions?.(quickOfferToPreset(f))}
+            disabled={busy || (f.what === "bulk" && f.deals.length > 1)}
+            title={f.what === "bulk" && f.deals.length > 1 ? "Offers with several deals are made here" : undefined}
+          >
+            More options…
+          </Button>
           <span className="qo-foot__sp" />
           <Button variant="secondary" onClick={() => save(false)} disabled={busy}>Save as draft</Button>
           <Button onClick={() => save(true)} disabled={busy}>{busy ? "Saving…" : "Save & go live"}</Button>

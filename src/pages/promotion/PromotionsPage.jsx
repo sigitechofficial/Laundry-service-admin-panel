@@ -151,7 +151,12 @@ function valueLabel(p) {
   const n = Number(p.discountValue);
   if (p.benefitType === "fixed_price") return `Basket for ${money(n)}`;
   const cap = showsCap(p) && p.maxDiscountCap ? ` (max ${money(p.maxDiscountCap)})` : "";
-  if (p.benefitType === "bundle") return `${bundleSize(p) || "N"} for ${money(n)}${cap}`;
+  if (p.benefitType === "bundle") {
+    // Several deals: "10 for £30.00 + 5 for £25.00"
+    const deals = parseJson(p.benefitConfig, {})?.deals;
+    if (Array.isArray(deals) && deals.length > 1) return deals.map((d) => `${d.quantity} for ${money(d.price)}`).join(" + ") + cap;
+    return `${bundleSize(p) || "N"} for ${money(n)}${cap}`;
+  }
   if (effectiveMode(p) === "percent") return `${n}%${cap}`;
   if (ITEM_SCOPE_TYPES.includes(p.benefitType)) return `${money(n)} off each${cap}`;
   return `${money(n)}${cap}`;
@@ -230,6 +235,7 @@ const INITIAL_FORM = () => ({
   maxSubtotal: "",
   minQuantity: "",
   repricingPolicy: "recalculate",
+  keptConfig: {},
   conditions: [],
   couponCodes: [],
 });
@@ -254,6 +260,8 @@ function formFromPromotion(p) {
     maxDiscountCap: numStr(p.maxDiscountCap),
     firstOrders: config.firstOrders != null ? String(config.firstOrders) : "3",
     bundleQuantity: config.bundleQuantity != null ? String(config.bundleQuantity) : "10",
+    // Settings this form has no fields for (bulk deals, only-in-service) are kept as they are.
+    keptConfig: { ...(config.deals ? { deals: config.deals } : {}), ...(config.onlyServiceIds ? { onlyServiceIds: config.onlyServiceIds } : {}) },
     targetType: p.targetType || defaultTargetType(p.benefitType),
     targetIds: (parseJson(p.targetIds, []) || []).map(String),
     zoneScopeMode: p.zoneScopeMode || "all",
@@ -324,7 +332,7 @@ function buildPayload(form) {
     discountValue: needsValue(bt) ? numOrNull(form.discountValue) : null,
     maxDiscountCap: cap ? numOrNull(form.maxDiscountCap) : null,
     benefitConfig: bt === "first_x_orders_discount" ? { firstOrders: Number(form.firstOrders) }
-      : bt === "bundle" ? { bundleQuantity: Number(form.bundleQuantity) }
+      : bt === "bundle" ? { ...(form.keptConfig || {}), bundleQuantity: Number(form.bundleQuantity) }
       : null,
     targetType,
     targetIds: itemScope && targetType !== "all" ? form.targetIds.map(Number) : null,
