@@ -312,10 +312,21 @@ export default function QuickOfferForm({ open, onClose, onSaved, onMoreOptions }
     () => summaryOf(f, { targetNames, nameOf, priceOf, serviceNameOf }),
     [f, targetNames, nameOf, priceOf, serviceNameOf]
   );
+  /**
+   * Bulk deals are for every order, so they start with no per-customer limit; other offers
+   * start at once per customer. Only the untouched default switches, never a typed value.
+   */
+  const perCustomerFor = (what, prev) => {
+    if (what === "bulk" && prev.perCustomer === "1") return "";
+    if (what !== "bulk" && prev.what === "bulk" && prev.perCustomer === "") return "1";
+    return prev.perCustomer;
+  };
+  const setWhat = (what) => setF((prev) => ({ ...prev, what, perCustomer: perCustomerFor(what, prev) }));
   // Bulk price is for chosen items only: switching away from items drops it.
-  const setOn = (on) => setF((prev) => ({
-    ...prev, on, targetIds: [], what: prev.what === "bulk" && on !== "item" ? "percent" : prev.what,
-  }));
+  const setOn = (on) => setF((prev) => {
+    const what = prev.what === "bulk" && on !== "item" ? "percent" : prev.what;
+    return { ...prev, on, targetIds: [], what, perCustomer: perCustomerFor(what, prev) };
+  });
   const setDeal = (i, patch) => setF((prev) => ({ ...prev, deals: prev.deals.map((d, j) => (j === i ? { ...d, ...patch } : d)) }));
   const addDeal = () => setF((prev) => ({ ...prev, deals: [...prev.deals, newDeal()] }));
   const removeDeal = (i) => setF((prev) => ({ ...prev, deals: prev.deals.filter((_, j) => j !== i) }));
@@ -391,7 +402,7 @@ export default function QuickOfferForm({ open, onClose, onSaved, onMoreOptions }
               />
             </Field>
           ) : null}
-          <Choice label="Discount type" options={WHAT(f.on)} value={f.what} onChange={set("what")} />
+          <Choice label="Discount type" options={WHAT(f.on)} value={f.what} onChange={setWhat} />
           {f.what === "bulk" ? (
             <div className="qo-deals">
               {f.deals.map((d, i) => {
