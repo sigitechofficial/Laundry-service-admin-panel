@@ -29,6 +29,7 @@ import CatalogMultiSelect from "./CatalogMultiSelect";
 import PromotionConditionBuilder, { DayPicker } from "./PromotionConditionBuilder";
 import PromotionSimulateModal from "./PromotionSimulateModal";
 import QuickOfferForm from "./QuickOfferForm";
+import LiveOfferEditModal from "./LiveOfferEditModal";
 import { CONDITION_DEFS, WEEKDAYS, conditionError, serializeCondition } from "./promotionConditions";
 import { BENEFIT_HELP, BENEFIT_TYPES, STATUS_OPTIONS, STATUS_TONES } from "./promotionLabels";
 import {
@@ -765,6 +766,7 @@ export default function PromotionsPage() {
   const [reportRow, setReportRow] = useState(null);
   const [showSimulate, setShowSimulate] = useState(false);
   const [showQuick, setShowQuick] = useState(false);
+  const [liveEdit, setLiveEdit] = useState(null);
 
   const { data, isLoading } = useGetPromotionsQuery({
     page, limit: 20, status: statusFilter || undefined, campaignId: campaignFilter || undefined,
@@ -941,6 +943,21 @@ export default function PromotionsPage() {
     }
   };
 
+  // Live offer: change name, end date, limits and budget without pausing.
+  const openLiveEdit = (row) => {
+    const c = campaignOf(row);
+    setLiveEdit({
+      id: row.id,
+      name: row.name,
+      endDate: promotionDay(row, "end"),
+      globalUsageLimit: row.globalUsageLimit,
+      perCustomerLimit: row.perCustomerLimit,
+      budget: c && isOwnBudget(c) && c.budgetMinor != null ? c.budgetMinor / 100 : "",
+      sharedBudgetName: c && !isOwnBudget(c) ? c.name : null,
+      taken: (row.globalUsedCount || 0) + (row.globalReservedCount || 0),
+    });
+  };
+
   // Moving forward validates every step in between.
   const goToStep = (target) => {
     for (let s = wizardStep; s < target; s += 1) {
@@ -1058,9 +1075,17 @@ export default function PromotionsPage() {
     {
       key: "usage",
       header: "Orders",
-      render: (row) => (row.globalUsageLimit
-        ? `${row.globalUsedCount || 0} of ${row.globalUsageLimit}`
-        : `${row.globalUsedCount || 0}`),
+      // Booked = holds the offer, not paid yet; paid = done. Both count towards Total orders.
+      render: (row) => {
+        const booked = row.globalReservedCount || 0;
+        const paid = row.globalUsedCount || 0;
+        return (
+          <div className="flex flex-col">
+            <span>{booked} booked · {paid} paid</span>
+            {row.globalUsageLimit ? <span className="text-xs text-gray-500">of {row.globalUsageLimit} allowed</span> : null}
+          </div>
+        );
+      },
     },
     {
       key: "actions",
@@ -1073,6 +1098,9 @@ export default function PromotionsPage() {
           </DirectoryActionIcon>
           {canEdit(row.status) && (
             <DirectoryActionEdit onClick={() => openEdit(row)} disabled={editLoadingId === row.id} />
+          )}
+          {canPause(row.status) && (
+            <DirectoryActionEdit onClick={() => openLiveEdit(row)} />
           )}
           {canPublish(row.status) && (
             <DirectoryActionIcon title="Publish" onClick={() => setPublishTarget(row)}>
@@ -1599,6 +1627,7 @@ export default function PromotionsPage() {
           </>
         }
       />
+      <LiveOfferEditModal offer={liveEdit} onClose={() => setLiveEdit(null)} />
       <QuickOfferForm
         open={showQuick}
         onClose={() => setShowQuick(false)}
