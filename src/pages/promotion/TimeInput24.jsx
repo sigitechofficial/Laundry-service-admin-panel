@@ -1,9 +1,9 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { TIME_24 } from "./promotionTime.js";
 import "./quickOffer.css";
 
-/** "HH:mm" in 24-hour time (00:00–23:59). */
-export const TIME_24 = /^([01]\d|2[0-3]):[0-5]\d$/;
+export { TIME_24, dateWithTime } from "./promotionTime.js";
 
 const pad = (n) => String(n).padStart(2, "0");
 const HOURS = Array.from({ length: 24 }, (_, h) => pad(h));
@@ -144,6 +144,3 @@ export default function TimeInput24({ value, onChange, disabled, placeholder = "
     </div>
   );
 }
-
-/** Date + optional time → what the API takes: "YYYY-MM-DD" (whole day) or "YYYY-MM-DDTHH:mm" (UK time). */
-export const dateWithTime = (date, time) => (date ? (time && TIME_24.test(time) ? `${date}T${time}` : date) : null);

@@ -4,9 +4,12 @@ import { Button, Field, Input, Modal } from "../../design-system";
 import useToaster from "../../components/ui/Toaster";
 import { useCreatePromotionMutation, usePublishPromotionMutation } from "../../store/services/api";
 import CatalogMultiSelect from "./CatalogMultiSelect";
-import BulkDealsEditor, { dealsSummary, dealsToConfig, newDeal, useServiceItemCatalog, validateDeals } from "./BulkDealsEditor";
-import TimeInput24, { TIME_24, dateWithTime } from "./TimeInput24";
+import BulkDealsEditor, { dealsSummary, useServiceItemCatalog } from "./BulkDealsEditor";
+import TimeInput24, { TIME_24 } from "./TimeInput24";
+import { INITIAL, num, quickOfferToPreset, toPayload, validate } from "./quickOfferRules.js";
 import "./quickOffer.css";
+
+export { quickOfferToPreset } from "./quickOfferRules.js";
 
 /**
  * The easy way to make an offer: four questions on one screen.
@@ -26,41 +29,11 @@ const WHAT = (on) => {
   // Bulk price: every N pieces of the chosen items for one price (10 T-shirts for £30).
   return on === "item" ? [...each, { value: "bulk", label: "Bulk price (e.g. 10 for £30)" }] : each;
 };
-// "On what?" → promotion type and what it targets.
-const ON_TYPE = {
-  order: { benefitType: "basket_discount", targetType: "basket" },
-  service: { benefitType: "service_discount", targetType: "service" },
-  item: { benefitType: "item_discount", targetType: "subCategory" },
-};
-
 const WHO = [
   { value: "everyone", label: "Everyone" },
   { value: "code", label: "Customers with a code" },
   { value: "first", label: "New customers (first order)" },
 ];
-
-const INITIAL = () => ({
-  name: "",
-  on: "order",
-  targetIds: [],
-  what: "percent",
-  value: "",
-  deals: [newDeal()],
-  maxOff: "",
-  minOrder: "",
-  needs: false,
-  needServiceIds: [],
-  needItemIds: [],
-  who: "everyone",
-  code: "",
-  startDate: dayjs().format("YYYY-MM-DD"),
-  startTime: "",
-  endDate: "",
-  endTime: "",
-  perCustomer: "1",
-  totalUses: "",
-  budget: "",
-});
 
 function Choice({ label, options, value, onChange }) {
   return (
@@ -90,7 +63,6 @@ function Section({ n, title, children }) {
   );
 }
 
-const num = (v) => (v === "" || v == null ? null : Number(v));
 const money = (n) => `£${Number(n).toFixed(2).replace(/\.00$/, "")}`;
 
 /** Plain-words line of what the admin is making. */
@@ -126,95 +98,6 @@ function summaryOf(f, { targetNames, nameOf, priceOf, serviceNameOf }) {
     num(f.totalUses) ? `stops after ${num(f.totalUses)} orders` : null,
   ].filter(Boolean).join(" or ");
   return `${off}${cap}${min}${needs}${who}${when}. ${num(f.perCustomer) ? `Each customer can use it ${num(f.perCustomer) === 1 ? "once" : `${num(f.perCustomer)} times`}.` : "No limit per customer."}${stop ? ` It ${stop}.` : ""}`;
-}
-
-function validate(f, priceOf) {
-  if (!f.name.trim()) return "Give the promotion a name";
-  if (f.what === "bulk") {
-    const err = validateDeals(f.deals, priceOf);
-    if (err) return err;
-  } else {
-    if (f.on !== "order" && !f.targetIds.length) return f.on === "item" ? "Choose at least one item" : "Choose at least one service";
-    if (f.on === "order" && f.needs && !f.needServiceIds.length) return "Choose what the order must include, or untick “Only if the order includes…”";
-    const v = num(f.value);
-    if (!v || v <= 0) return f.what === "percent" ? "Enter the % off" : "Enter the £ off";
-    if (f.what === "percent" && v > 100) return "% off can't be more than 100";
-  }
-  if (f.who === "code" && !/^[A-Z0-9_-]{3,30}$/i.test(f.code.trim())) return "Enter a code: 3–30 letters or numbers";
-  if (f.startTime && !TIME_24.test(f.startTime)) return "Start time: use 24-hour time, e.g. 09:00";
-  if (f.endTime && !TIME_24.test(f.endTime)) return "End time: use 24-hour time, e.g. 18:30";
-  if (f.endDate && f.startDate && f.endDate < f.startDate) return "The end date is before the start date";
-  if (f.endDate && f.endDate === f.startDate && (f.endTime || "23:59") <= (f.startTime || "00:00")) return "The end time must be after the start time";
-  if (num(f.budget) != null && num(f.budget) <= 0) return "Budget must be more than £0, or left empty";
-  if (num(f.totalUses) != null && !(Number.isInteger(num(f.totalUses)) && num(f.totalUses) >= 1)) return "Total orders must be a whole number";
-  if (num(f.perCustomer) != null && !(Number.isInteger(num(f.perCustomer)) && num(f.perCustomer) >= 1)) return "Uses per customer must be a whole number";
-  return null;
-}
-
-/** Quick answers → the full promotion payload (and the full form's preset for "More options"). */
-export function quickOfferToPreset(f) {
-  const bulk = f.what === "bulk";
-  const first = f.deals[0] || newDeal();
-  return {
-    name: f.name.trim(),
-    ...ON_TYPE[f.on],
-    // Bulk: the offer's items are every deal's items; the first deal fills the single-deal fields.
-    ...(bulk ? { benefitType: "bundle", bundleQuantity: first.qty, deals: f.deals } : {}),
-    targetIds: f.on === "order" ? [] : bulk ? [...new Set(f.deals.flatMap((d) => d.itemIds))] : f.targetIds,
-    discountMode: bulk ? "amount" : f.what,
-    discountValue: bulk ? first.price : f.value,
-    maxDiscountCap: f.what === "percent" ? f.maxOff : "",
-    minSubtotal: bulk ? "" : f.minOrder,
-    activationType: f.who === "code" ? "coupon_required" : "automatic",
-    visibility: f.who === "code" ? "private_code" : "public",
-    couponCodes: f.who === "code" && f.code.trim() ? [{ code: f.code.trim().toUpperCase(), codeType: "shared" }] : [],
-    conditions: [
-      ...(f.who === "first" ? [{ conditionType: "FIRST_ORDER", operator: "equals", value: true, logicGroup: "ALL" }] : []),
-      // "Only if the order includes…": the chosen items, or else anything from the chosen services.
-      ...(f.on === "order" && f.needs && f.needItemIds.length
-        ? [{ conditionType: "PRODUCT", operator: "in", value: f.needItemIds.map(Number), logicGroup: "ALL" }]
-        : f.on === "order" && f.needs && f.needServiceIds.length
-          ? [{ conditionType: "SERVICE", operator: "in", value: f.needServiceIds.map(Number), logicGroup: "ALL" }]
-          : []),
-    ],
-    startDate: f.startDate,
-    startTime: f.startTime,
-    endDate: f.endDate,
-    endTime: f.endTime,
-    perCustomerLimit: f.perCustomer,
-    globalUsageLimit: f.totalUses,
-    budget: f.budget,
-  };
-}
-
-function toPayload(f) {
-  const p = quickOfferToPreset(f);
-  const { bundleQuantity, deals, ...rest } = p;
-  return {
-    ...rest,
-    benefitConfig: f.what === "bulk"
-      ? {
-        bundleQuantity: num(bundleQuantity),
-        deals: dealsToConfig(deals),
-      }
-      : null,
-    discountValue: num(p.discountValue),
-    maxDiscountCap: num(p.maxDiscountCap),
-    minSubtotal: num(p.minSubtotal),
-    targetIds: p.targetIds.length ? p.targetIds.map(Number) : null,
-    zoneScopeMode: "all",
-    stackable: false,
-    priority: 50,
-    repricingPolicy: "recalculate",
-    perCustomerLimit: num(p.perCustomerLimit),
-    globalUsageLimit: num(p.globalUsageLimit),
-    // UK time: date only = whole day; with a time = that minute.
-    startDate: dateWithTime(p.startDate, p.startTime),
-    endDate: dateWithTime(p.endDate, p.endTime),
-    startTime: undefined,
-    endTime: undefined,
-    budget: num(p.budget),
-  };
 }
 
 export default function QuickOfferForm({ open, resume = false, onClose, onSaved, onMoreOptions }) {
