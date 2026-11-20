@@ -2545,11 +2545,12 @@ export const api = createApi({
     }),
     updateCampaign: builder.mutation({
       query: ({ id, ...body }) => ({ url: `admin/campaigns/${id}`, method: "PUT", body }),
-      invalidatesTags: ["Campaigns"],
+      // A campaign's status, dates and budget decide whether its promotions run — refresh both lists.
+      invalidatesTags: ["Campaigns", "Promotions"],
     }),
     deleteCampaign: builder.mutation({
+      // Only an empty campaign is deleted; one with promotions is archived from the Campaigns page instead.
       query: (id) => ({ url: `admin/campaigns/${id}`, method: "DELETE" }),
-      // Deleting a campaign detaches its promotions — refresh both lists.
       invalidatesTags: ["Campaigns", "Promotions"],
     }),
 
