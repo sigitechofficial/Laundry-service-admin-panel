@@ -31,6 +31,9 @@ import PromotionSimulateModal from "./PromotionSimulateModal";
 import QuickOfferForm from "./QuickOfferForm";
 import TimeInput24, { TIME_24, dateWithTime } from "./TimeInput24";
 import LiveOfferEditModal from "./LiveOfferEditModal";
+import BulkDealsEditor, {
+  dealsFromPromotion, dealsSummary, dealsToConfig, newDeal, useServiceItemCatalog, validateDeals,
+} from "./BulkDealsEditor";
 import { CONDITION_DEFS, WEEKDAYS, conditionError, serializeCondition } from "./promotionConditions";
 import { BENEFIT_HELP, BENEFIT_TYPES, STATUS_OPTIONS, STATUS_TONES } from "./promotionLabels";
 import {
@@ -38,7 +41,7 @@ import {
   isOwnBudget, budgetTakenMinor,
 } from "./campaignState";
 import {
-  FIRST_ORDER_TYPES, basketScopeWarning, bulkPriceSummary, bundleSize, conditionHidden, firstOrderLimitNote,
+  FIRST_ORDER_TYPES, basketScopeWarning, bundleSize, conditionHidden, firstOrderLimitNote,
   firstOrderRule, isTypeLocked, lockedPerCustomerLimit, showsPeriodLimits, visibilityOffered,
 } from "./promotionTypeRules";
 
@@ -157,8 +160,11 @@ function valueLabel(p) {
   const cap = showsCap(p) && p.maxDiscountCap ? ` (max ${money(p.maxDiscountCap)})` : "";
   if (p.benefitType === "bundle") {
     // Several deals: "10 for £30.00 + 5 for £25.00"
-    const deals = parseJson(p.benefitConfig, {})?.deals;
-    if (Array.isArray(deals) && deals.length > 1) return deals.map((d) => `${d.quantity} for ${money(d.price)}`).join(" + ") + cap;
+    const deals = p.deals || parseJson(p.benefitConfig, {})?.deals;
+    if (Array.isArray(deals) && deals.length) {
+      const set = deals.filter((d) => Number(d.price) > 0);
+      if (set.length) return set.map((d) => `${d.quantity ?? d.qty} for ${money(d.price)}`).join(" + ") + cap;
+    }
     return `${bundleSize(p) || "N"} for ${money(n)}${cap}`;
   }
   if (effectiveMode(p) === "percent") return `${n}%${cap}`;
@@ -215,6 +221,8 @@ const INITIAL_FORM = () => ({
   maxDiscountCap: "",
   firstOrders: "3",
   bundleQuantity: "10",
+  // Bulk price deals (benefitType "bundle"), edited with BulkDealsEditor.
+  deals: [newDeal()],
   targetType: "basket",
   targetIds: [],
   zoneScopeMode: "all",
@@ -267,7 +275,8 @@ function formFromPromotion(p) {
     firstOrders: config.firstOrders != null ? String(config.firstOrders) : "3",
     bundleQuantity: config.bundleQuantity != null ? String(config.bundleQuantity) : "10",
     // Settings this form has no fields for (bulk deals, only-in-service) are kept as they are.
-    keptConfig: { ...(config.deals ? { deals: config.deals } : {}), ...(config.onlyServiceIds ? { onlyServiceIds: config.onlyServiceIds } : {}) },
+    keptConfig: config.onlyServiceIds ? { onlyServiceIds: config.onlyServiceIds } : {},
+    deals: p.benefitType === "bundle" ? dealsFromPromotion(p, config) : [newDeal()],
     targetType: p.targetType || defaultTargetType(p.benefitType),
     targetIds: (parseJson(p.targetIds, []) || []).map(String),
     zoneScopeMode: p.zoneScopeMode || "all",
@@ -329,7 +338,10 @@ function buildPayload(form) {
   const mode = effectiveMode(form);
   const itemScope = ITEM_SCOPE_TYPES.includes(bt);
   const cap = showsCap(form);
-  const targetType = itemScope ? form.targetType : defaultTargetType(bt);
+  const bulk = bt === "bundle";
+  // Bulk deals: every deal's items are the offer's items; the first deal fills the single-deal fields.
+  const firstDeal = bulk ? form.deals[0] || newDeal() : null;
+  const targetType = bulk ? "subCategory" : itemScope ? form.targetType : defaultTargetType(bt);
   const hasTimes = form.recurringStartTime && form.recurringEndTime;
   return {
     name: form.name.trim(),
@@ -338,13 +350,14 @@ function buildPayload(form) {
     campaignId: form.campaignId ? Number(form.campaignId) : null,
     benefitType: bt,
     discountMode: mode,
-    discountValue: needsValue(bt) ? numOrNull(form.discountValue) : null,
+    discountValue: bulk ? numOrNull(firstDeal.price) : needsValue(bt) ? numOrNull(form.discountValue) : null,
     maxDiscountCap: cap ? numOrNull(form.maxDiscountCap) : null,
     benefitConfig: bt === "first_x_orders_discount" ? { firstOrders: Number(form.firstOrders) }
-      : bt === "bundle" ? { ...(form.keptConfig || {}), bundleQuantity: Number(form.bundleQuantity) }
+      : bulk ? { ...(form.keptConfig || {}), bundleQuantity: numOrNull(firstDeal.qty), deals: dealsToConfig(form.deals) }
       : null,
     targetType,
-    targetIds: itemScope && targetType !== "all" ? form.targetIds.map(Number) : null,
+    targetIds: bulk ? [...new Set(form.deals.flatMap((d) => d.itemIds.map(Number)))]
+      : itemScope && targetType !== "all" ? form.targetIds.map(Number) : null,
     zoneScopeMode: form.zoneScopeMode,
     zoneIds:
       form.zoneScopeMode !== "all"
@@ -354,7 +367,7 @@ function buildPayload(form) {
       .filter((zo) => overrideAllowed(form, zo.zoneId))
       .map((zo) => ({
         zoneId: Number(zo.zoneId),
-        discountValue: needsValue(bt) ? numOrNull(zo.discountValue) : null,
+        discountValue: needsValue(bt) && !bulk ? numOrNull(zo.discountValue) : null,
         maxDiscountCap: cap ? numOrNull(zo.maxDiscountCap) : null,
         minSubtotal: numOrNull(zo.minSubtotal),
       })),
@@ -395,10 +408,12 @@ const shortDay = (day) => dayjs(day).format("D MMM YYYY");
  * The promotion in plain words, rebuilt as the admin types: what it gives, how it is
  * activated, where, when and how often. Shown on every wizard step.
  */
-function promotionSummary(form, zoneName, catalogOptions = {}) {
+function promotionSummary(form, zoneName, catalogOptions = {}, dealsApi = null) {
   const bt = form.benefitType;
   const value = valueLabel(form);
-  const valueSet = !needsValue(bt) || Number(form.discountValue) > 0;
+  const valueSet = bt === "bundle"
+    ? form.deals.some((d) => d.itemIds.length && Number(d.price) > 0)
+    : !needsValue(bt) || Number(form.discountValue) > 0;
   const targetWord = { subCategory: "item", addon: "add-on", category: "category", service: "service" }[form.targetType] || "item";
   const picked = (catalogOptions[form.targetType] || [])
     .filter((o) => form.targetIds.map(String).includes(String(o.value)))
@@ -417,7 +432,8 @@ function promotionSummary(form, zoneName, catalogOptions = {}) {
   else if (bt === "cashback") what = `${value} cashback, added to the customer's credit after delivery`;
   else if (bt === "fixed_price") what = value;
   else if (bt === "bundle") {
-    what = bulkPriceSummary({ size: bundleSize(form), price: form.discountValue, cap: form.maxDiscountCap, targets });
+    what = (dealsApi && dealsSummary(form.deals, dealsApi)) || `${valueLabel(form)} bulk price`;
+    if (Number(form.maxDiscountCap) > 0) what += ` At most ${money(form.maxDiscountCap)} off one order.`;
   } else if (ITEM_SCOPE_TYPES.includes(bt) && effectiveMode(form) === "amount") {
     const amount = money(form.discountValue);
     const total = Number(form.maxDiscountCap) > 0 ? `, at most ${money(form.maxDiscountCap)} in total` : ", with no limit on the total";
@@ -484,14 +500,17 @@ function PromotionSummaryBar({ parts }) {
 }
 
 /** Returns the first validation error for a wizard step, or null. */
-function validateStep(step, form) {
+function validateStep(step, form, priceOf) {
   const mode = effectiveMode(form);
   const bt = form.benefitType;
   switch (step) {
     case 0: {
       if (!form.name.trim()) return "Promotion name is required";
       if (form.activationType === "coupon_required" && !form.couponCodes.length) return "Add at least one coupon code";
-      if (needsValue(bt)) {
+      if (bt === "bundle") {
+        const err = validateDeals(form.deals, priceOf);
+        if (err) return err;
+      } else if (needsValue(bt)) {
         const v = Number(form.discountValue);
         if (form.discountValue === "" || !Number.isFinite(v) || v <= 0) {
           return bt === "fixed_price" ? "Basket price must be greater than 0" : "Discount value must be greater than 0";
@@ -502,20 +521,19 @@ function validateStep(step, form) {
       if (bt === "fixed_price") {
         const max = Number(form.maxSubtotal);
         if (form.maxSubtotal === "" || !Number.isFinite(max) || max <= 0) {
-          return "Fixed price needs \"Only for baskets up to\", so a large basket cannot be sold at this price";
+          return "Fixed price needs “Only for laundry totals up to”, so a large order cannot be sold at this price";
         }
-        if (max <= Number(form.discountValue)) return "\"Only for baskets up to\" must be more than the fixed price";
+        if (max <= Number(form.discountValue)) return "“Only for laundry totals up to” must be more than the fixed price";
       }
       if (bt === "first_x_orders_discount" && !isPosInt(form.firstOrders)) return "First N orders must be a whole number of 1 or more";
-      if (bt === "bundle" && !(bundleSize(form) && bundleSize(form) <= 1000)) return "Pieces in the deal must be a whole number from 2 to 1000";
       if (showsCap(form) && form.maxDiscountCap !== "" && !(Number(form.maxDiscountCap) > 0)) return "Max discount cap must be greater than 0";
-      if (ITEM_SCOPE_TYPES.includes(bt) && form.targetType !== "all" && !form.targetIds.length) return "Select at least one target";
+      if (ITEM_SCOPE_TYPES.includes(bt) && bt !== "bundle" && form.targetType !== "all" && !form.targetIds.length) return "Select at least one target";
       return null;
     }
     case 1: {
       if (form.zoneScopeMode !== "all" && !form.zoneIds.length) return "Select at least one zone";
       for (const zo of form.zoneOverrides.filter((o) => overrideAllowed(form, o.zoneId))) {
-        if (zo.discountValue !== "") {
+        if (zo.discountValue !== "" && bt !== "bundle") {
           const v = Number(zo.discountValue);
           if (!(v > 0)) return "Zone override value must be greater than 0";
           if (mode === "percent" && v > 100) return "Zone override percentage cannot exceed 100%";
@@ -536,7 +554,7 @@ function validateStep(step, form) {
     }
     case 3: {
       const ints = [
-        ["globalUsageLimit", "Total uses"], ["minQuantity", "Minimum quantity"],
+        ["globalUsageLimit", "Total orders"], ["minQuantity", "Minimum quantity"],
         ...(lockedPerCustomerLimit(form) ? [] : [["perCustomerLimit", "Uses per customer"]]),
         ...(showsPeriodLimits(bt) ? [["perDayLimit", "Per-customer daily limit"], ["perWeekLimit", "Per-customer weekly limit"]] : []),
       ];
@@ -545,9 +563,9 @@ function validateStep(step, form) {
       }
       if (!form.campaignId && form.budget !== "" && !(Number(form.budget) > 0)) return "Budget must be more than £0 (blank = no limit)";
       if (form.minSubtotal !== "" && !(Number(form.minSubtotal) >= 0)) return "Minimum subtotal cannot be negative";
-      if (form.maxSubtotal !== "" && !(Number(form.maxSubtotal) > 0)) return "Maximum subtotal must be greater than 0";
+      if (form.maxSubtotal !== "" && !(Number(form.maxSubtotal) > 0)) return "\"Laundry total up to\" must be more than £0";
       if (form.minSubtotal !== "" && form.maxSubtotal !== "" && Number(form.maxSubtotal) < Number(form.minSubtotal)) {
-        return "Maximum subtotal must be at least the minimum subtotal";
+        return "\"Laundry total up to\" must be at least \"Laundry total over\"";
       }
       if (form.priority !== "" && !Number.isInteger(Number(form.priority))) return "Priority must be a whole number";
       return null;
@@ -557,7 +575,8 @@ function validateStep(step, form) {
       if (form.endTime && !TIME_24.test(form.endTime)) return "End time: use 24-hour time, e.g. 18:30";
       if (form.startDate && form.endDate && form.endDate < form.startDate) return "End date must be after the start date";
       if (form.startDate && form.endDate === form.startDate && (form.endTime || "23:59") <= (form.startTime || "00:00")) return "The end time must be after the start time";
-      if (Boolean(form.recurringStartTime) !== Boolean(form.recurringEndTime)) return "Enter both a start and end time for the recurring window";
+      if (Boolean(form.recurringStartTime) !== Boolean(form.recurringEndTime)) return "Repeat window: choose both From and To, or leave both empty";
+      if (form.recurringStartTime && form.recurringStartTime === form.recurringEndTime) return "Repeat window: From and To can't be the same time";
       return null;
     }
     default:
@@ -579,7 +598,7 @@ function StepIndicator({ step, onSelect }) {
           onClick={() => onSelect(i)}
           className={`flex-1 text-xs py-2 rounded-lg transition-all font-medium ${
             i === step
-              ? "bg-blue-600 text-white shadow-sm"
+              ? "bg-blue-600 text-white"
               : i < step
               ? "bg-blue-100 text-blue-700"
               : "bg-gray-100 text-gray-500"
@@ -819,6 +838,9 @@ export default function PromotionsPage() {
   const { data: subCatsResp } = useGetSubCategoriesQuery(undefined, { skip: !showForm });
   const { data: addonsResp } = useGetAllAddOnServicesQuery(undefined, { skip: !showForm });
 
+  // Bulk deals pick services, then their items (with prices for "normally £X").
+  const dealsApi = useServiceItemCatalog(showForm && form.benefitType === "bundle");
+
   const [fetchPromotion] = useLazyGetPromotionByIdQuery();
   const [createPromotion, { isLoading: creating }] = useCreatePromotionMutation();
   const [updatePromotion, { isLoading: updating }] = useUpdatePromotionMutation();
@@ -998,7 +1020,7 @@ export default function PromotionsPage() {
   // Moving forward validates every step in between.
   const goToStep = (target) => {
     for (let s = wizardStep; s < target; s += 1) {
-      const err = validateStep(s, form);
+      const err = validateStep(s, form, dealsApi.priceOf);
       if (err) {
         setWizardStep(s);
         toast.error(err);
@@ -1008,10 +1030,11 @@ export default function PromotionsPage() {
     setWizardStep(target);
   };
 
-  const handleSave = async () => {
-    if (saving) return;
+  // Save; with goLive the promotion is published straight away (like Create promotion's "Save & go live").
+  const handleSave = async (goLive = false) => {
+    if (saving || publishing) return;
     for (let s = 0; s < STEPS.length - 1; s += 1) {
-      const err = validateStep(s, form);
+      const err = validateStep(s, form, dealsApi.priceOf);
       if (err) {
         setWizardStep(s);
         toast.error(err);
@@ -1020,15 +1043,26 @@ export default function PromotionsPage() {
     }
     try {
       const payload = buildPayload(form);
+      let id = editId;
       if (editId) {
         await updatePromotion({ id: editId, ...payload }).unwrap();
+      } else {
+        const res = await createPromotion(payload).unwrap();
+        id = (res?.data ?? res)?.id;
+      }
+      if (goLive && id) {
+        const pub = await publishPromotion({ id }).unwrap();
+        const scheduled = (pub?.data ?? pub)?.status === "scheduled";
+        setStatusFilter(scheduled ? "scheduled" : "active");
+        setPage(1);
+        toast.success(scheduled ? `"${payload.name}" is scheduled` : `"${payload.name}" is live`);
+      } else if (editId) {
         toast.success("Promotion updated");
       } else {
-        await createPromotion(payload).unwrap();
-        // The list opens on Active, where a new draft would not be listed: show drafts.
+        // The list opens on Live, where a new draft would not be listed: show drafts.
         setStatusFilter("draft");
         setPage(1);
-        toast.success("Promotion saved as a draft. Showing drafts — publish it from the list.");
+        toast.success(`"${payload.name}" saved as a draft`);
       }
       closeFormNow();
     } catch (err) {
@@ -1284,19 +1318,21 @@ export default function PromotionsPage() {
                 </p>
               )}
               {form.benefitType === "bundle" && (
-                <p className="text-xs text-blue-800 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
-                  Example: 10 shirts for £25 when one shirt is £2.90. Every full group of the chosen pieces costs the
-                  price below; pieces left over pay the normal price (12 shirts = £25 + 2 × £2.90). Pieces of all the
-                  chosen items count together, and if their prices differ the cheapest are grouped first. A group never
-                  costs more than its normal price. Worked out on the final invoice.
-                </p>
+                <>
+                  <p className="text-xs text-blue-800 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+                    Example: 10 T-shirts for £30 when one is £4.50. Every full group costs the deal price; pieces left
+                    over pay the normal price (12 T-shirts = £30 + 2 × £4.50). Each deal counts only its own items, and
+                    the cheapest pieces are grouped first. Worked out on the final invoice.
+                  </p>
+                  <BulkDealsEditor deals={form.deals} onChange={(deals) => setField("deals", deals)} api={dealsApi} />
+                  <div className="grid grid-cols-2 gap-4">
+                    <Field label="Max Discount Cap (£)" hint="Optional. Most these deals take off one order in total">
+                      <Input type="number" min="0" step="0.01" value={form.maxDiscountCap} onChange={(e) => setField("maxDiscountCap", e.target.value)} placeholder="No cap" />
+                    </Field>
+                  </div>
+                </>
               )}
-              {form.benefitType === "bundle" && (
-                <Field label="Pieces in the deal *" hint="How many pieces make one group, e.g. 10 for “10 shirts for £25”">
-                  <Input type="number" min="2" max="1000" step="1" value={form.bundleQuantity} onChange={(e) => setField("bundleQuantity", e.target.value)} placeholder="e.g. 10" />
-                </Field>
-              )}
-              {needsValue(form.benefitType) && (
+              {needsValue(form.benefitType) && form.benefitType !== "bundle" && (
                 <div className="grid grid-cols-2 gap-4">
                   <Field
                     label={valueFieldLabel(form)}
@@ -1318,11 +1354,11 @@ export default function PromotionsPage() {
                   </Field>
                   {form.benefitType === "fixed_price" && (
                     <Field
-                      label="Only for baskets up to (£) *"
+                      label="Only for laundry totals up to (£) *"
                       hint={
                         Number(form.maxSubtotal) > Number(form.discountValue) && Number(form.discountValue) > 0
-                          ? `Biggest saving on one order: ${money(Number(form.maxSubtotal) - Number(form.discountValue))}. Larger baskets get no offer.`
-                          : "Larger baskets get no offer. Same as Maximum Subtotal on the Limits step."
+                          ? `Biggest saving on one order: ${money(Number(form.maxSubtotal) - Number(form.discountValue))}. Larger orders get no promotion.`
+                          : "Larger orders get no promotion. Same as “Laundry total up to” on the Limits step."
                       }
                     >
                       <Input type="number" min="0" step="0.01" value={form.maxSubtotal} onChange={(e) => setField("maxSubtotal", e.target.value)} placeholder="e.g. 40.00" />
@@ -1341,7 +1377,7 @@ export default function PromotionsPage() {
                 </Field>
               )}
             </div>
-            {itemScope && (
+            {itemScope && form.benefitType !== "bundle" && (
               <div className="bg-white border border-gray-200 rounded-xl p-5 space-y-4">
                 <div className="flex items-center gap-2 text-gray-900 font-semibold text-sm">
                   <TbTarget className="text-blue-600" size={18} /> Targets
@@ -1389,7 +1425,7 @@ export default function PromotionsPage() {
                 <div key={o.zoneId} className="bg-gray-50 rounded-lg p-3 space-y-2">
                   <div className="text-sm font-medium text-gray-900">{zoneName(o.zoneId)}</div>
                   <div className="grid grid-cols-3 gap-3">
-                    {needsValue(form.benefitType) && (
+                    {needsValue(form.benefitType) && form.benefitType !== "bundle" && (
                       <Field
                         label={form.benefitType === "fixed_price" ? "Basket price (£)" : form.benefitType === "bundle" ? "Group price (£)" : mode === "percent" ? "Value (%)" : "Value (£)"}
                         hint={`${form.benefitType === "fixed_price" ? "Basket price" : form.benefitType === "bundle" ? `Price of ${bundleSize(form) || "N"} pieces` : "Discount"} for orders in this zone. Blank = main value${mainValueText ? ` (${mainValueText})` : ""}`}
@@ -1422,11 +1458,13 @@ export default function PromotionsPage() {
               </Field>
               {form.visibility === "hidden" && (
                 <p className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
-                  Hidden never appears in customer/agent Offers. Automatic discounts can still apply at invoice, but the apps show “Special discount” only after a hold exists — use Public if you want customers to see the offer name.
+                  Hidden promotions are not listed in the apps. An automatic one can still be given on the invoice, shown as
+                  “Special discount”. Choose Public if customers should see its name before they order.
                 </p>
               )}
               <p className="text-xs text-gray-500">
-                Money applies when the shop invoices laundry (not at booking create). Basket min/max and min items are checked on the invoice subtotal.
+                The discount is worked out when the shop makes the invoice, not when the order is booked. Laundry totals and
+                item counts are checked on that invoice.
               </p>
             </div>
           </div>
@@ -1474,7 +1512,7 @@ export default function PromotionsPage() {
                 <TbShoppingCart className="text-red-600" size={18} /> Usage Limits
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <Field label="Total Uses (all customers)" hint="The promotion stops after this many uses. Blank = unlimited">
+                <Field label="Total orders" hint="Stops after this many orders, all customers together. Blank = no limit">
                   <Input type="number" min="1" value={form.globalUsageLimit} onChange={(e) => setField("globalUsageLimit", e.target.value)} placeholder="Unlimited" />
                 </Field>
                 <Field
@@ -1519,7 +1557,7 @@ export default function PromotionsPage() {
                 <Field label={offerItemsOnly ? "Selected items total over (£)" : "Laundry total over (£)"} hint={offerItemsOnly ? "The selected items on the final invoice must come to at least this; other services do not count. Service fee not included. Blank = no minimum" : "The laundry total on the final invoice must reach this. Service fee not included. Blank = no minimum"}>
                   <Input type="number" min="0" step="0.01" value={form.minSubtotal} onChange={(e) => setField("minSubtotal", e.target.value)} placeholder="No minimum" />
                 </Field>
-                <Field label="Maximum Subtotal (£)" hint={offerItemsOnly ? "No offer when the selected items come to more than this; other services do not count. Blank = no maximum" : "No offer when the laundry total is above this. Blank = no maximum"}>
+                <Field label={offerItemsOnly ? "Selected items total up to (£)" : "Laundry total up to (£)"} hint={offerItemsOnly ? "No offer when the selected items come to more than this; other services do not count. Blank = no maximum" : "No offer when the laundry total is above this. Blank = no maximum"}>
                   <Input type="number" min="0" step="0.01" value={form.maxSubtotal} onChange={(e) => setField("maxSubtotal", e.target.value)} placeholder="No maximum" />
                 </Field>
                 <Field label="Minimum Quantity" hint={offerItemsOnly ? "Fewest selected items on the invoice; items from other services do not count. Blank = no minimum" : "Fewest items on the invoice, add-ons included. Blank = no minimum"}>
@@ -1532,10 +1570,10 @@ export default function PromotionsPage() {
                 <TbDiscount className="text-indigo-600" size={18} /> Priority & Stacking
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <Field label="Priority (higher wins)" hint="0 – 1000. When two promotions cannot be combined, the higher number is used. Same number: the older promotion wins">
+                <Field label="Priority" hint="0 – 1000. When promotions can't be combined, the customer gets the one that saves the most. Priority only breaks a tie (higher wins)">
                   <Input type="number" step="1" value={form.priority} onChange={(e) => setField("priority", e.target.value)} placeholder="50" />
                 </Field>
-                <Field label="Stackable" hint="Off: if another order discount also qualifies, only the higher-priority one applies. On: it is added to other discounts that also allow combining">
+                <Field label="Stackable" hint="Off: if another promotion also applies, the customer gets whichever saves more. On: it is added to other promotions that can also combine">
                   <div className="pt-2">
                     <Toggle checked={form.stackable} onChange={(e) => setField("stackable", e.target.checked)} label="Can combine with other promotions" />
                   </div>
@@ -1577,18 +1615,18 @@ export default function PromotionsPage() {
             </div>
             <div className="bg-white border border-gray-200 rounded-xl p-5 space-y-4">
               <div className="flex items-center gap-2 text-gray-900 font-semibold text-sm">
-                <TbCalendarEvent className="text-teal-600" size={18} /> Recurring Window
+                <TbCalendarEvent className="text-teal-600" size={18} /> Repeat on days / times
               </div>
-              <p className="text-xs text-gray-500">Optional — only active on these days / times (UK time). Overnight windows like 22:00 → 02:00 are allowed.</p>
+              <p className="text-xs text-gray-500">Optional. Only works on these days and times (UK time), e.g. every Tuesday 09:00–12:00. Overnight like 22:00 → 02:00 is fine.</p>
               <Field label="Days" hint="The day the booking is placed, not the collection day. None selected = every day">
                 <DayPicker value={form.recurringDays} onChange={(v) => setField("recurringDays", v)} />
               </Field>
               <div className="grid grid-cols-2 gap-4">
-                <Field label="From" hint="Time the booking is placed. Blank = all day">
-                  <Input type="time" value={form.recurringStartTime} onChange={(e) => setField("recurringStartTime", e.target.value)} />
+                <Field label="From" hint="Time the booking is placed (24-hour). Empty = all day">
+                  <TimeInput24 value={form.recurringStartTime} onChange={(v) => setField("recurringStartTime", v)} aria-label="Repeat from" />
                 </Field>
-                <Field label="To" hint="Set both From and To, or leave both blank">
-                  <Input type="time" value={form.recurringEndTime} onChange={(e) => setField("recurringEndTime", e.target.value)} />
+                <Field label="To" hint="Choose both From and To, or leave both empty">
+                  <TimeInput24 value={form.recurringEndTime} onChange={(v) => setField("recurringEndTime", v)} aria-label="Repeat to" />
                 </Field>
               </div>
             </div>
@@ -1614,28 +1652,31 @@ export default function PromotionsPage() {
                 {form.benefitType === "first_x_orders_discount" && (
                   <div><span className="text-gray-500">Orders:</span> <strong>First {form.firstOrders}</strong></div>
                 )}
-                {itemScope && (
-                  <div><span className="text-gray-500">Targets:</span> <strong>{form.targetType === "all" ? "All items" : `${form.targetIds.length} selected`}</strong></div>
+                {itemScope && form.benefitType !== "bundle" && (
+                  <div><span className="text-gray-500">On:</span> <strong>{form.targetType === "all" ? "All items" : (catalogOptions[form.targetType] || []).filter((o) => form.targetIds.map(String).includes(o.value)).map((o) => o.label).join(", ") || `${form.targetIds.length} selected`}</strong></div>
+                )}
+                {form.benefitType === "bundle" && (
+                  <div className="col-span-2"><span className="text-gray-500">Deals:</span> <strong>{dealsSummary(form.deals, dealsApi) || "—"}</strong></div>
                 )}
                 <div><span className="text-gray-500">Zone:</span> <strong>{form.zoneScopeMode === "all" ? "All Zones" : `${form.zoneScopeMode === "excluded" ? "All except " : ""}${form.zoneIds.length} zones`}</strong></div>
                 <div><span className="text-gray-500">Zone overrides:</span> <strong>{form.zoneOverrides.filter((o) => overrideAllowed(form, o.zoneId)).length}</strong></div>
                 <div><span className="text-gray-500">Activation:</span> <strong>{form.activationType === "automatic" ? "Auto" : "Coupon"}</strong></div>
                 <div><span className="text-gray-500">Coupons:</span> <strong>{form.couponCodes.length} {form.couponCodes.length === 1 ? "code" : "codes"}</strong></div>
-                <div><span className="text-gray-500">Conditions:</span> <strong>{form.conditions.length} rules</strong></div>
-                <div><span className="text-gray-500">Global Limit:</span> <strong>{form.globalUsageLimit || "∞"}</strong></div>
+                <div><span className="text-gray-500">Audience rules:</span> <strong>{form.conditions.filter((c) => c.conditionType).length || "None"}</strong></div>
+                <div><span className="text-gray-500">Total orders:</span> <strong>{form.globalUsageLimit || "No limit"}</strong></div>
                 <div><span className="text-gray-500">Budget:</span> <strong>{form.campaignId ? "Campaign budget" : form.budget ? `£${form.budget}` : "No limit"}</strong></div>
-                <div><span className="text-gray-500">Per Customer:</span> <strong>{(perCustomerLock?.value ?? form.perCustomerLimit) || "∞"}{perCustomerLock ? " (set by type)" : ""}</strong></div>
-                <div><span className="text-gray-500">Subtotal:</span> <strong>{form.minSubtotal ? `£${form.minSubtotal}` : "£0"} – {form.maxSubtotal ? `£${form.maxSubtotal}` : "∞"}</strong></div>
+                <div><span className="text-gray-500">Per customer:</span> <strong>{(perCustomerLock?.value ?? form.perCustomerLimit) || "No limit"}{perCustomerLock ? " (set by type)" : ""}</strong></div>
+                <div><span className="text-gray-500">Laundry total:</span> <strong>{[form.minSubtotal ? `over £${form.minSubtotal}` : "", form.maxSubtotal ? `up to £${form.maxSubtotal}` : ""].filter(Boolean).join(", ") || "Any"}</strong></div>
                 {showsPeriodLimits(form.benefitType) && (
-                  <div><span className="text-gray-500">Per Customer per Day / Week:</span> <strong>{form.perDayLimit || "∞"} / {form.perWeekLimit || "∞"}</strong></div>
+                  <div><span className="text-gray-500">Per customer, per day / week:</span> <strong>{form.perDayLimit || "No limit"} / {form.perWeekLimit || "No limit"}</strong></div>
                 )}
                 <div><span className="text-gray-500">Minimum items:</span> <strong>{form.minQuantity || "None"}</strong></div>
                 <div><span className="text-gray-500">Priority:</span> <strong>{form.priority === "" ? 50 : form.priority}</strong></div>
-                <div><span className="text-gray-500">Combines with other offers:</span> <strong>{form.stackable ? "Yes (stackable)" : "No"}</strong></div>
+                <div><span className="text-gray-500">Combines with other promotions:</span> <strong>{form.stackable ? "Yes" : "No, the best saving is used"}</strong></div>
                 <div><span className="text-gray-500">Visibility:</span> <strong>{labelOf(VISIBILITY_OPTIONS, form.visibility)}</strong></div>
                 <div><span className="text-gray-500">Campaign:</span> <strong>{form.campaignId ? campaignOptions.find((c) => c.value === String(form.campaignId))?.label || "Selected" : "None"}</strong></div>
-                <div><span className="text-gray-500">Dates (UK):</span> <strong>{form.startDate ? `${form.startDate} ${form.startTime || "00:00"}` : "∞"} — {form.endDate ? `${form.endDate} ${form.endTime || "23:59"}` : "∞"}</strong></div>
-                <div><span className="text-gray-500">Recurring:</span> <strong>{[days, timeWindow].filter(Boolean).join(" ") || "Always"}</strong></div>
+                <div><span className="text-gray-500">Dates (UK):</span> <strong>{form.startDate ? `${shortDay(form.startDate)} ${form.startTime || "00:00"}` : "When published"} — {form.endDate ? `${shortDay(form.endDate)} ${form.endTime || "23:59"}` : "No end"}</strong></div>
+                <div><span className="text-gray-500">Repeat:</span> <strong>{[days, timeWindow].filter(Boolean).join(" ") || "Every day, all day"}</strong></div>
                 {form.description?.trim() ? (
                   <div className="col-span-2"><span className="text-gray-500">Description:</span> <strong>{form.description.trim()}</strong></div>
                 ) : null}
@@ -1725,10 +1766,10 @@ export default function PromotionsPage() {
       <PaginationBar page={page} limit={20} total={totalCount} onPageChange={setPage} />
 
       {/* ─── Wizard Modal ─────────────────────────────────────── */}
-      <Modal open={showForm} onClose={requestCloseForm} title={editId ? "Edit Promotion" : "New Promotion"} size="xl" hideFooter closeOnBackdrop={false}>
+      <Modal open={showForm} onClose={requestCloseForm} title={editId ? "Edit promotion" : "Create promotion"} size="xl" hideFooter closeOnBackdrop={false}>
         <div className="p-4" ref={wizardTopRef}>
           <StepIndicator step={wizardStep} onSelect={(i) => (i <= wizardStep ? setWizardStep(i) : goToStep(i))} />
-          <PromotionSummaryBar parts={promotionSummary(form, zoneName, catalogOptions)} />
+          <PromotionSummaryBar parts={promotionSummary(form, zoneName, catalogOptions, dealsApi)} />
           {renderStep()}
           <div className="flex justify-between mt-6">
             <Button
@@ -1741,9 +1782,14 @@ export default function PromotionsPage() {
               {wizardStep < STEPS.length - 1 ? (
                 <Button onClick={() => goToStep(wizardStep + 1)}>Next →</Button>
               ) : (
-                <Button onClick={handleSave} disabled={saving}>
-                  {saving ? "Saving…" : editId ? "Update Promotion" : "Create as Draft"}
-                </Button>
+                <>
+                  <Button variant="secondary" onClick={() => handleSave(false)} disabled={saving || publishing}>
+                    {editId ? "Save changes" : "Save as draft"}
+                  </Button>
+                  <Button onClick={() => handleSave(true)} disabled={saving || publishing}>
+                    {saving || publishing ? "Saving…" : "Save & go live"}
+                  </Button>
+                </>
               )}
             </div>
           </div>
