@@ -31,6 +31,7 @@ import PromotionSimulateModal from "./PromotionSimulateModal";
 import QuickOfferForm from "./QuickOfferForm";
 import TimeInput24 from "./TimeInput24";
 import LiveOfferEditModal from "./LiveOfferEditModal";
+import { cleanCode, codeError } from "./promotionCodes.js";
 import {
   DELIVERY_TYPES, FORCED_MODE, INITIAL_FORM, ITEM_SCOPE_TYPES, MODE_CHOICE_TYPES, STEPS, TARGET_TYPE_CHOICE,
   buildPayload, defaultTargetType, effectiveMode, formFromPromotion, isPosInt, needsValue, overrideAllowed,
@@ -303,13 +304,18 @@ function StepIndicator({ step, onSelect }) {
 
 /* ─── Coupon Codes Builder ──────────────────────────────────────────────── */
 
-function CouponCodesBuilder({ codes, onChange, onDuplicate }) {
+function CouponCodesBuilder({ codes, onChange, onError }) {
   const [newCode, setNewCode] = useState("");
   const add = () => {
-    const code = newCode.trim().toUpperCase();
+    const code = cleanCode(newCode);
     if (!code) return;
+    const invalid = codeError(code);
+    if (invalid) {
+      onError(invalid);
+      return;
+    }
     if (codes.some((c) => c.code.toUpperCase() === code)) {
-      onDuplicate(code);
+      onError(`Code ${code} is already added`);
       return;
     }
     onChange([...codes, { code, codeType: "shared" }]);
@@ -322,7 +328,9 @@ function CouponCodesBuilder({ codes, onChange, onDuplicate }) {
       <div className="flex gap-2">
         <Input
           value={newCode}
-          onChange={(e) => setNewCode(e.target.value)}
+          // Spaces and symbols are ignored as you type; letters become capitals.
+          onChange={(e) => setNewCode(cleanCode(e.target.value))}
+          maxLength={50}
           onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); add(); } }}
           placeholder="Enter coupon code"
           className="flex-1"
@@ -1148,7 +1156,7 @@ export default function PromotionsPage() {
                   <CouponCodesBuilder
                     codes={form.couponCodes}
                     onChange={(v) => setField("couponCodes", v)}
-                    onDuplicate={(code) => toast.error(`Code ${code} is already added`)}
+                    onError={(message) => toast.error(message)}
                   />
                 </div>
               )}

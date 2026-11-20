@@ -249,3 +249,15 @@ describe("The form stops what would go wrong", () => {
     assert.match(err, /less than the normal/);
   });
 });
+
+describe("Typing a coupon code", async () => {
+  const { cleanCode, codeError } = await import("../src/pages/promotion/promotionCodes.js");
+  it("spaces and symbols are ignored, letters become capitals", () => {
+    assert.equal(cleanCode("save 10"), "SAVE10");
+    assert.equal(cleanCode(" Sum-mer_£5! "), "SUM-MER_5");
+  });
+  it("too short", () => {
+    assert.match(codeError("AB"), /at least 3/);
+    assert.equal(codeError("ABC"), null);
+  });
+});

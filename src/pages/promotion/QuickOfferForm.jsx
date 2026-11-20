@@ -7,6 +7,7 @@ import CatalogMultiSelect from "./CatalogMultiSelect";
 import BulkDealsEditor, { dealsSummary, useServiceItemCatalog } from "./BulkDealsEditor";
 import TimeInput24, { TIME_24 } from "./TimeInput24";
 import { INITIAL, num, quickOfferToPreset, toPayload, validate } from "./quickOfferRules.js";
+import { cleanCode } from "./promotionCodes.js";
 import "./quickOffer.css";
 
 export { quickOfferToPreset } from "./quickOfferRules.js";
@@ -281,7 +282,7 @@ export default function QuickOfferForm({ open, resume = false, onClose, onSaved,
           {f.who === "code" ? (
             <div className="qo-row">
               <Field label="Code" hint="Customers type this at checkout">
-                <Input value={f.code} onChange={(e) => setF((p) => ({ ...p, code: e.target.value.toUpperCase().replace(/\s/g, "") }))} placeholder="SAVE10" maxLength={30} />
+                <Input value={f.code} onChange={(e) => setF((p) => ({ ...p, code: cleanCode(e.target.value) }))} placeholder="SAVE10" maxLength={30} />
               </Field>
             </div>
           ) : null}
