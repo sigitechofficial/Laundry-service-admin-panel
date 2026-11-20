@@ -1279,7 +1279,7 @@ export default function CancellationPolicy() {
                       name="prePickupFreeChargeWindowMinutes"
                       control={control}
                       render={({ field: { onChange, value } }) => (
-                        <Field label={"Free Charge Window (Hours)"} hint={"Time window in hours after order placement where cancellations are free. This value is converted to minutes before saving."}>
+                        <Field label={"Free Charge Window (Hours)"} hint={"Cancelling for free is allowed until this many hours before the collection time (UK time). Later than that, the fee below applies. 0 = no free cancellation."}>
                       <Input type={"number"} placeholder={"Enter hours"} value={value || ""} onChange={(e) => onChange(e.target.value)} />
                     </Field>
                       )}
