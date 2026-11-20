@@ -1549,13 +1549,13 @@ export default function PromotionsPage() {
                   <Input type="date" value={form.startDate} onChange={(e) => setField("startDate", e.target.value)} />
                 </Field>
                 <Field label="Start time" hint="24-hour. Blank = 00:00">
-                  <TimeInput24 value={form.startTime} onChange={(v) => setField("startTime", v)} placeholder="00:00" disabled={!form.startDate} />
+                  <TimeInput24 value={form.startTime} onChange={(v) => setField("startTime", v)} aria-label="Start time" disabled={!form.startDate} />
                 </Field>
                 <Field label="End Date" hint="UK time. Blank = no end">
                   <Input type="date" value={form.endDate} min={form.startDate || undefined} onChange={(e) => setField("endDate", e.target.value)} />
                 </Field>
                 <Field label="End time" hint="24-hour. Blank = 23:59">
-                  <TimeInput24 value={form.endTime} onChange={(v) => setField("endTime", v)} placeholder="23:59" disabled={!form.endDate} />
+                  <TimeInput24 value={form.endTime} onChange={(v) => setField("endTime", v)} aria-label="End time" disabled={!form.endDate} />
                 </Field>
               </div>
             </div>

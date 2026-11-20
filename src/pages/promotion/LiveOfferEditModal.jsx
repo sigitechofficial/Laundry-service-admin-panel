@@ -80,7 +80,7 @@ export default function LiveOfferEditModal({ offer, onClose }) {
             <Input type="date" value={f.endDate} onChange={set("endDate")} />
           </Field>
           <Field label="End time" hint="24-hour. Empty = 23:59">
-            <TimeInput24 value={f.endTime} onChange={(v) => setF((p) => ({ ...p, endTime: v }))} placeholder="23:59" disabled={!f.endDate} />
+            <TimeInput24 value={f.endTime} onChange={(v) => setF((p) => ({ ...p, endTime: v }))} aria-label="End time" disabled={!f.endDate} />
           </Field>
           <Field label="Budget (£)" hint={shared ? `Uses the shared budget "${offer.sharedBudgetName}"` : "Stops new orders when this much has been given away"}>
             <Input type="number" min="1" step="1" value={shared ? "" : f.budget} onChange={set("budget")} placeholder={shared ? "Shared" : "No limit"} disabled={shared} />

@@ -556,13 +556,13 @@ export default function QuickOfferForm({ open, onClose, onSaved, onMoreOptions }
               <Input type="date" value={f.startDate} onChange={set("startDate")} />
             </Field>
             <Field label="Start time" hint="Optional. Empty = 00:00">
-              <TimeInput24 value={f.startTime} onChange={(v) => setF((p) => ({ ...p, startTime: v }))} placeholder="00:00" />
+              <TimeInput24 value={f.startTime} onChange={(v) => setF((p) => ({ ...p, startTime: v }))} aria-label="Start time" />
             </Field>
             <Field label="Ends" hint="Optional. Empty = runs until you pause it">
               <Input type="date" value={f.endDate} min={f.startDate || undefined} onChange={set("endDate")} />
             </Field>
             <Field label="End time" hint="Optional. Empty = 23:59">
-              <TimeInput24 value={f.endTime} onChange={(v) => setF((p) => ({ ...p, endTime: v }))} placeholder="23:59" disabled={!f.endDate} />
+              <TimeInput24 value={f.endTime} onChange={(v) => setF((p) => ({ ...p, endTime: v }))} aria-label="End time" disabled={!f.endDate} />
             </Field>
           </div>
         </Section>
