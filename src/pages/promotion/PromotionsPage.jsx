@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dayjs from "dayjs";
 import {
   Button, Field, Input, Modal, PageHeader, Select, Table, Textarea,
@@ -28,7 +28,7 @@ import CatalogMultiSelect from "./CatalogMultiSelect";
 import PromotionConditionBuilder, { DayPicker } from "./PromotionConditionBuilder";
 import PromotionSimulateModal from "./PromotionSimulateModal";
 import { CONDITION_DEFS, WEEKDAYS, conditionError, serializeCondition } from "./promotionConditions";
-import { BENEFIT_TYPES, STATUS_OPTIONS, STATUS_TONES } from "./promotionLabels";
+import { BENEFIT_HELP, BENEFIT_TYPES, STATUS_OPTIONS, STATUS_TONES } from "./promotionLabels";
 import {
   FIRST_ORDER_TYPES, basketScopeWarning, bulkPriceSummary, bundleSize, conditionHidden, firstOrderLimitNote,
   firstOrderRule, isTypeLocked, lockedPerCustomerLimit, showsPeriodLimits, visibilityOffered,
@@ -407,7 +407,8 @@ function promotionSummary(form, zoneName, catalogOptions = {}) {
   const firstOrder = firstOrderRule(form.conditions);
   const who = firstOrder === "only" ? "First order only"
     : firstOrder === "never" ? "Not on a customer's first order" : null;
-  const otherRules = form.conditions.filter((c) => c.conditionType !== "FIRST_ORDER").length;
+  // A row with no rule chosen yet does nothing, so it is not counted.
+  const otherRules = form.conditions.filter((c) => c.conditionType && c.conditionType !== "FIRST_ORDER").length;
   const audience = [who, otherRules ? `${otherRules} more audience rule${otherRules === 1 ? "" : "s"}` : null]
     .filter(Boolean).join(", ");
 
@@ -440,12 +441,21 @@ function validateStep(step, form) {
   switch (step) {
     case 0: {
       if (!form.name.trim()) return "Promotion name is required";
+      if (form.activationType === "coupon_required" && !form.couponCodes.length) return "Add at least one coupon code";
       if (needsValue(bt)) {
         const v = Number(form.discountValue);
         if (form.discountValue === "" || !Number.isFinite(v) || v <= 0) {
           return bt === "fixed_price" ? "Basket price must be greater than 0" : "Discount value must be greater than 0";
         }
         if (mode === "percent" && v > 100) return "Percentage cannot exceed 100%";
+      }
+      // Without a ceiling a £300 basket sold for £15 gives £285 off.
+      if (bt === "fixed_price") {
+        const max = Number(form.maxSubtotal);
+        if (form.maxSubtotal === "" || !Number.isFinite(max) || max <= 0) {
+          return "Fixed price needs \"Only for baskets up to\", so a large basket cannot be sold at this price";
+        }
+        if (max <= Number(form.discountValue)) return "\"Only for baskets up to\" must be more than the fixed price";
       }
       if (bt === "first_x_orders_discount" && !isPosInt(form.firstOrders)) return "First N orders must be a whole number of 1 or more";
       if (bt === "bundle" && !(bundleSize(form) && bundleSize(form) <= 1000)) return "Pieces in the deal must be a whole number from 2 to 1000";
@@ -467,7 +477,6 @@ function validateStep(step, form) {
       return null;
     }
     case 2: {
-      if (form.activationType === "coupon_required" && !form.couponCodes.length) return "Add at least one coupon code";
       for (const c of form.conditions) {
         const err = conditionError(c);
         if (err) return err;
@@ -775,20 +784,55 @@ export default function PromotionsPage() {
   const setBenefitType = (bt) => setForm((prev) => ({
     ...prev,
     benefitType: bt,
-    discountMode: MODE_CHOICE_TYPES.includes(bt) ? prev.discountMode || "percent" : FORCED_MODE[bt] || "percent",
+    // Keep the admin's % / £ choice only between types that both offer it; a mode forced
+    // by the previous type (e.g. £ for Delivery Discount) must not carry over.
+    discountMode: MODE_CHOICE_TYPES.includes(bt)
+      ? (MODE_CHOICE_TYPES.includes(prev.benefitType) && prev.discountMode) || "percent"
+      : FORCED_MODE[bt] || "percent",
     targetType: defaultTargetType(bt),
     targetIds: [],
     visibility: visibilityOffered(prev.visibility, { ...prev, benefitType: bt }) ? prev.visibility : "public",
   }));
 
-  // "Private — code only" has no meaning without a code.
-  const setActivationType = (activationType) => setForm((prev) => ({
-    ...prev,
-    activationType,
-    visibility: visibilityOffered(prev.visibility, { ...prev, activationType }) ? prev.visibility : "public",
-  }));
+  // "Private — code only" has no meaning without a code; a new coupon offer starts private
+  // (customers who have the code use it). The admin can still pick Public to list it.
+  const setActivationType = (activationType) => setForm((prev) => {
+    let visibility = visibilityOffered(prev.visibility, { ...prev, activationType }) ? prev.visibility : "public";
+    if (activationType === "coupon_required" && prev.activationType !== "coupon_required" && visibility === "public") {
+      visibility = "private_code";
+    }
+    return { ...prev, activationType, visibility };
+  });
 
-  const openCreate = () => { setForm(INITIAL_FORM()); setEditId(null); setTypeLocked(false); setWizardStep(0); setShowForm(true); };
+  // What the form looked like when it opened: closing asks first when anything changed.
+  const openedFormRef = useRef("");
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
+  const wizardTopRef = useRef(null);
+
+  const openForm = (nextForm) => {
+    openedFormRef.current = JSON.stringify(nextForm);
+    setForm(nextForm);
+    setConfirmDiscard(false);
+    setWizardStep(0);
+    setShowForm(true);
+  };
+  const closeFormNow = () => {
+    setConfirmDiscard(false);
+    setShowForm(false);
+  };
+  // Escape, Cancel and the close paths all come here, so typed work is never lost by accident.
+  const requestCloseForm = () => {
+    if (JSON.stringify(form) !== openedFormRef.current) setConfirmDiscard(true);
+    else closeFormNow();
+  };
+
+  // Every step starts at its top, not where the previous step was scrolled to.
+  useEffect(() => {
+    if (!showForm) return;
+    wizardTopRef.current?.closest(".jd-modal__b")?.scrollTo({ top: 0 });
+  }, [wizardStep, showForm]);
+
+  const openCreate = () => { setEditId(null); setTypeLocked(false); openForm(INITIAL_FORM()); };
 
   // Edit loads the full detail — list rows carry no conditions / overrides.
   const openEdit = async (row) => {
@@ -796,11 +840,9 @@ export default function PromotionsPage() {
     try {
       const res = await fetchPromotion(row.id).unwrap();
       const promo = res?.data ?? res;
-      setForm(formFromPromotion(promo));
       setEditId(row.id);
       setTypeLocked(isTypeLocked(promo));
-      setWizardStep(0);
-      setShowForm(true);
+      openForm(formFromPromotion(promo));
     } catch (err) {
       toast.error(err?.data?.message || "Failed to load promotion");
     } finally {
@@ -838,9 +880,12 @@ export default function PromotionsPage() {
         toast.success("Promotion updated");
       } else {
         await createPromotion(payload).unwrap();
-        toast.success("Promotion created as draft");
+        // The list opens on Active, where a new draft would not be listed: show drafts.
+        setStatusFilter("draft");
+        setPage(1);
+        toast.success("Promotion saved as a draft. Showing drafts — publish it from the list.");
       }
-      setShowForm(false);
+      closeFormNow();
     } catch (err) {
       toast.error(err?.data?.message || "Failed to save");
     }
@@ -1015,10 +1060,26 @@ export default function PromotionsPage() {
                   <Select options={ACTIVATION_TYPES} value={form.activationType} onChange={setActivationType} />
                 </Field>
               </div>
+              {/* The codes sit right under the choice that needs them. */}
+              {form.activationType === "coupon_required" && (
+                <div className="rounded-xl border border-gray-200 p-4 space-y-3">
+                  <div className="flex items-center gap-2 text-gray-900 font-semibold text-sm">
+                    <TbDiscount className="text-blue-600" size={18} /> Coupon Codes *
+                  </div>
+                  <p className="text-xs text-gray-500">Customers type one of these when booking. Letters are saved in capitals.</p>
+                  <CouponCodesBuilder
+                    codes={form.couponCodes}
+                    onChange={(v) => setField("couponCodes", v)}
+                    onDuplicate={(code) => toast.error(`Code ${code} is already added`)}
+                  />
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-4">
                 <Field
                   label="Benefit Type *"
-                  hint={typeLocked ? "Fixed once published, because orders may already hold this offer. Create a new promotion for a different type." : "Decides which settings the next steps ask for"}
+                  hint={typeLocked
+                    ? "Fixed once published, because orders may already hold this offer. Create a new promotion for a different type."
+                    : BENEFIT_HELP[form.benefitType] || "Decides which settings the next steps ask for"}
                 >
                   <Select options={benefitTypeOptions(form.benefitType)} value={form.benefitType} onChange={setBenefitType} disabled={typeLocked} />
                 </Field>
@@ -1058,7 +1119,7 @@ export default function PromotionsPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <Field
                     label={valueFieldLabel(form)}
-                    hint={form.benefitType === "fixed_price" ? "Qualifying basket is sold for this price"
+                    hint={form.benefitType === "fixed_price" ? "The customer pays this for the laundry (services and add-ons), whatever it would normally cost"
                       : form.benefitType === "bundle" ? `What ${bundleSize(form) || "these"} pieces cost together`
                       : mode === "percent" ? "1 – 100"
                       : ITEM_SCOPE_TYPES.includes(form.benefitType) ? "Taken off every matching item (each piece), not off the order. For a set amount in total, also fill Max Discount Cap."
@@ -1074,6 +1135,18 @@ export default function PromotionsPage() {
                       placeholder={mode === "percent" ? "e.g. 20" : form.benefitType === "bundle" ? "e.g. 25.00" : "e.g. 5.00"}
                     />
                   </Field>
+                  {form.benefitType === "fixed_price" && (
+                    <Field
+                      label="Only for baskets up to (£) *"
+                      hint={
+                        Number(form.maxSubtotal) > Number(form.discountValue) && Number(form.discountValue) > 0
+                          ? `Biggest saving on one order: ${money(Number(form.maxSubtotal) - Number(form.discountValue))}. Larger baskets get no offer.`
+                          : "Larger baskets get no offer. Same as Maximum Subtotal on the Limits step."
+                      }
+                    >
+                      <Input type="number" min="0" step="0.01" value={form.maxSubtotal} onChange={(e) => setField("maxSubtotal", e.target.value)} placeholder="e.g. 40.00" />
+                    </Field>
+                  )}
                   {capVisible && (
                     <Field label={form.benefitType === "cashback" ? "Max Cashback (£)" : "Max Discount Cap (£)"} hint={form.benefitType === "cashback" ? "Most cashback one order can earn" : form.benefitType === "bundle" ? "Optional. Most this deal takes off one order in total, however many groups it has" : ITEM_SCOPE_TYPES.includes(form.benefitType) && mode === "amount" ? "Most this promotion takes off one order in total. Example: £30 here with £30 off each item gives £30 off these items altogether." : "Caps the whole promotion's saving"}>
                       <Input type="number" min="0" step="0.01" value={form.maxDiscountCap} onChange={(e) => setField("maxDiscountCap", e.target.value)} placeholder="No cap" />
@@ -1193,7 +1266,7 @@ export default function PromotionsPage() {
                   Add a condition only to narrow it further (payment method, collection day, what is in the basket).
                 </p>
               ) : (
-                <p className="text-xs text-gray-500">Optional. Zones, basket minimums, days and times, and coupon codes each have their own step, so they are not repeated here.</p>
+                <p className="text-xs text-gray-500">Optional. Set elsewhere, so not repeated here: coupon codes (Benefit), zones (Geography), basket minimums (Limits), days and times (Schedule).</p>
               )}
               <p className="text-xs text-gray-500">&quot;Must match&quot; conditions all apply (AND); at least one &quot;Any of&quot; condition must match (OR).</p>
               <PromotionConditionBuilder
@@ -1209,18 +1282,6 @@ export default function PromotionsPage() {
                 </p>
               ) : null}
             </div>
-            {form.activationType === "coupon_required" && (
-              <div className="bg-white border border-gray-200 rounded-xl p-5 space-y-4">
-                <div className="flex items-center gap-2 text-gray-900 font-semibold text-sm">
-                  <TbDiscount className="text-blue-600" size={18} /> Coupon Codes *
-                </div>
-                <CouponCodesBuilder
-                  codes={form.couponCodes}
-                  onChange={(v) => setField("couponCodes", v)}
-                  onDuplicate={(code) => toast.error(`Code ${code} is already added`)}
-                />
-              </div>
-            )}
           </div>
         );
 
@@ -1364,14 +1425,24 @@ export default function PromotionsPage() {
                 <div><span className="text-gray-500">Zone:</span> <strong>{form.zoneScopeMode === "all" ? "All Zones" : `${form.zoneScopeMode === "excluded" ? "All except " : ""}${form.zoneIds.length} zones`}</strong></div>
                 <div><span className="text-gray-500">Zone overrides:</span> <strong>{form.zoneOverrides.filter((o) => overrideAllowed(form, o.zoneId)).length}</strong></div>
                 <div><span className="text-gray-500">Activation:</span> <strong>{form.activationType === "automatic" ? "Auto" : "Coupon"}</strong></div>
-                <div><span className="text-gray-500">Coupons:</span> <strong>{form.couponCodes.length} codes</strong></div>
+                <div><span className="text-gray-500">Coupons:</span> <strong>{form.couponCodes.length} {form.couponCodes.length === 1 ? "code" : "codes"}</strong></div>
                 <div><span className="text-gray-500">Conditions:</span> <strong>{form.conditions.length} rules</strong></div>
                 <div><span className="text-gray-500">Global Limit:</span> <strong>{form.globalUsageLimit || "∞"}</strong></div>
                 <div><span className="text-gray-500">Per Customer:</span> <strong>{(perCustomerLock?.value ?? form.perCustomerLimit) || "∞"}{perCustomerLock ? " (set by type)" : ""}</strong></div>
                 <div><span className="text-gray-500">Subtotal:</span> <strong>{form.minSubtotal ? `£${form.minSubtotal}` : "£0"} – {form.maxSubtotal ? `£${form.maxSubtotal}` : "∞"}</strong></div>
-                <div><span className="text-gray-500">Priority:</span> <strong>{form.priority === "" ? 50 : form.priority}{form.stackable ? " · stackable" : ""}</strong></div>
+                {showsPeriodLimits(form.benefitType) && (
+                  <div><span className="text-gray-500">Per Customer per Day / Week:</span> <strong>{form.perDayLimit || "∞"} / {form.perWeekLimit || "∞"}</strong></div>
+                )}
+                <div><span className="text-gray-500">Minimum items:</span> <strong>{form.minQuantity || "None"}</strong></div>
+                <div><span className="text-gray-500">Priority:</span> <strong>{form.priority === "" ? 50 : form.priority}</strong></div>
+                <div><span className="text-gray-500">Combines with other offers:</span> <strong>{form.stackable ? "Yes (stackable)" : "No"}</strong></div>
+                <div><span className="text-gray-500">Visibility:</span> <strong>{labelOf(VISIBILITY_OPTIONS, form.visibility)}</strong></div>
+                <div><span className="text-gray-500">Campaign:</span> <strong>{form.campaignId ? campaignOptions.find((c) => c.value === String(form.campaignId))?.label || "Selected" : "None"}</strong></div>
                 <div><span className="text-gray-500">Dates:</span> <strong>{form.startDate || "∞"} — {form.endDate || "∞"}</strong></div>
                 <div><span className="text-gray-500">Recurring:</span> <strong>{[days, timeWindow].filter(Boolean).join(" ") || "Always"}</strong></div>
+                {form.description?.trim() ? (
+                  <div className="col-span-2"><span className="text-gray-500">Description:</span> <strong>{form.description.trim()}</strong></div>
+                ) : null}
               </div>
             </div>
           </div>
@@ -1428,13 +1499,13 @@ export default function PromotionsPage() {
       <PaginationBar page={page} limit={20} total={totalCount} onPageChange={setPage} />
 
       {/* ─── Wizard Modal ─────────────────────────────────────── */}
-      <Modal open={showForm} onClose={() => setShowForm(false)} title={editId ? "Edit Promotion" : "New Promotion"} size="xl" hideFooter closeOnBackdrop={false}>
-        <div className="p-4">
+      <Modal open={showForm} onClose={requestCloseForm} title={editId ? "Edit Promotion" : "New Promotion"} size="xl" hideFooter closeOnBackdrop={false}>
+        <div className="p-4" ref={wizardTopRef}>
           <StepIndicator step={wizardStep} onSelect={(i) => (i <= wizardStep ? setWizardStep(i) : goToStep(i))} />
           <PromotionSummaryBar parts={promotionSummary(form, zoneName, catalogOptions)} />
           {renderStep()}
           <div className="flex justify-between mt-6">
-            <Button variant="secondary" onClick={() => (wizardStep > 0 ? setWizardStep(wizardStep - 1) : setShowForm(false))}>
+            <Button variant="secondary" onClick={() => (wizardStep > 0 ? setWizardStep(wizardStep - 1) : requestCloseForm())}>
               {wizardStep > 0 ? "← Back" : "Cancel"}
             </Button>
             <div className="flex gap-2">
@@ -1448,6 +1519,24 @@ export default function PromotionsPage() {
             </div>
           </div>
         </div>
+      </Modal>
+
+      {/* ─── Discard Confirm ──────────────────────────────────── */}
+      <Modal
+        open={confirmDiscard}
+        onClose={() => setConfirmDiscard(false)}
+        title="Discard changes?"
+        secondaryLabel="Keep editing"
+        primaryLabel="Discard"
+        onPrimary={closeFormNow}
+        danger
+      >
+        <p style={{ fontSize: 14, color: "#374151" }}>
+          {editId
+            ? "Your changes to this promotion have not been saved."
+            : "This promotion has not been saved yet."}{" "}
+          If you close now, what you entered is lost.
+        </p>
       </Modal>
 
       {/* ─── View Modal ───────────────────────────────────────── */}

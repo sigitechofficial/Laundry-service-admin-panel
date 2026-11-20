@@ -68,8 +68,14 @@ export const CONDITION_DEFS = {
 
 export const CONDITION_TYPE_OPTIONS = Object.entries(CONDITION_DEFS).map(([value, d]) => ({ value, label: d.label }));
 
-export const newCondition = (conditionType = "FIRST_ORDER") => {
+/**
+ * A new row starts with no rule chosen ("Choose a rule…"), so adding a row never
+ * quietly narrows the offer (it used to start as "First order = Yes"). It cannot be
+ * saved until the admin picks what it checks.
+ */
+export const newCondition = (conditionType = "") => {
   const def = CONDITION_DEFS[conditionType];
+  if (!def) return { conditionType: "", operator: "", value: null, logicGroup: "ALL" };
   return { conditionType, operator: def.operators[0], value: def.initial(), logicGroup: "ALL" };
 };
 
@@ -78,6 +84,7 @@ const isTime = (v) => /^\d{2}:\d{2}$/.test(String(v || ""));
 
 /** Returns an error string for an invalid condition, or null. */
 export function conditionError(c) {
+  if (!c.conditionType) return "Choose what this condition checks, or remove it";
   const def = CONDITION_DEFS[c.conditionType];
   if (!def) return `"${c.conditionType}" is not supported in this editor — remove it`;
   const v = c.value;

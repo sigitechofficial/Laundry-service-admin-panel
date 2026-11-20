@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 function Chevron() {
@@ -48,7 +48,9 @@ export default function Select({
   const searchTimer = useRef(0);
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(() => indexOfValue(options, value));
-  const [pos, setPos] = useState({ top: 0, left: 0, width: 200 });
+  // null until measured: the menu stays hidden until it sits under its field, so it is
+  // never painted (or clicked) at the top-left corner first.
+  const [pos, setPos] = useState(null);
 
   const selected = options.find((o) => String(o.value) === String(value));
 
@@ -68,8 +70,16 @@ export default function Select({
 
   function close() {
     setOpen(false);
+    setPos(null);
     searchRef.current = "";
   }
+
+  // Measure before the browser paints the menu (useEffect ran after the first paint).
+  useLayoutEffect(() => {
+    if (open) place();
+    else setPos(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   function pick(index) {
     const opt = options[index];
@@ -103,7 +113,6 @@ export default function Select({
 
   useEffect(() => {
     if (!open) return undefined;
-    place();
     const onDoc = (e) => {
       if (wrapRef.current?.contains(e.target) || popRef.current?.contains(e.target)) return;
       setOpen(false);
@@ -139,7 +148,11 @@ export default function Select({
           className="jd-ds jd-ds-sel-pop"
           role="listbox"
           id={listId}
-          style={{ top: pos.top, left: pos.left, minWidth: pos.width }}
+          style={
+            pos
+              ? { top: pos.top, left: pos.left, minWidth: pos.width }
+              : { top: 0, left: 0, visibility: "hidden" }
+          }
         >
           {options.map((o, i) => {
             const on = String(o.value) === String(value);

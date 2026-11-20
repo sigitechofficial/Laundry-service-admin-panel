@@ -17,6 +17,23 @@ export const BENEFIT_TYPES = [
   { value: "fixed_price", label: "Fixed Price Offer" },
 ];
 
+/** One line on what each benefit type does, shown under the Benefit Type field. */
+export const BENEFIT_HELP = {
+  percentage_discount: "Older type: % off the laundry total. Use Basket Discount for new offers.",
+  fixed_amount_discount: "Older type: £ off the laundry total. Use Basket Discount for new offers.",
+  free_delivery: "Delivery is already free, so this saves nothing today.",
+  delivery_discount: "£ off delivery. Delivery is already free, so this saves nothing today.",
+  basket_discount: "% or £ off the whole laundry total (all services and add-ons).",
+  item_discount: "% or £ off each chosen item, every piece of it.",
+  category_discount: "% or £ off each item in the chosen categories. Add-ons not included.",
+  service_discount: "% or £ off each item in the chosen services. Add-ons not included.",
+  bundle: "A set number of pieces for one price, e.g. 10 shirts for £25.",
+  first_order_discount: "% off a customer's very first order, once.",
+  first_x_orders_discount: "% off each of a customer's first N orders.",
+  cashback: "Nothing off now: the customer gets credit for a later order after this one is completed.",
+  fixed_price: "The whole laundry basket for one set price, up to a basket limit you choose.",
+};
+
 export const STATUS_OPTIONS = [
   { value: "", label: "All statuses" },
   { value: "draft", label: "Draft" },

@@ -171,9 +171,8 @@ function ValueEditor({ condition, onChange, zones, catalogOptions }) {
  */
 export default function PromotionConditionBuilder({ conditions, onChange, zones = [], catalogOptions = {}, hidden = () => null }) {
   const offered = CONDITION_TYPE_OPTIONS.filter((o) => !hidden(o.value));
-  // Start a new row on a common rule that is offered here.
-  const firstType = ["FIRST_ORDER", "PAYMENT_METHOD"].find((t) => offered.some((o) => o.value === t)) || offered[0]?.value;
-  const add = () => onChange([...conditions, newCondition(firstType)]);
+  // A new row starts empty: the admin picks the rule, nothing is pre-filled.
+  const add = () => onChange([...conditions, newCondition()]);
   const remove = (idx) => onChange(conditions.filter((_, i) => i !== idx));
   const patch = (idx, next) => onChange(conditions.map((c, i) => (i === idx ? { ...c, ...next } : c)));
 
@@ -208,7 +207,11 @@ export default function PromotionConditionBuilder({ conditions, onChange, zones 
               <div className="col-span-5">
                 <Select
                   aria-label="Condition type"
-                  options={def ? typeOptions : [{ value: c.conditionType, label: c.conditionType }, ...typeOptions]}
+                  options={
+                    def
+                      ? typeOptions
+                      : [{ value: c.conditionType, label: c.conditionType || "Choose a rule…" }, ...typeOptions]
+                  }
                   value={c.conditionType}
                   onChange={(v) => changeType(i, v)}
                 />

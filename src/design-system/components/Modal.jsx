@@ -99,6 +99,10 @@ export default function Modal({
 
     const onKey = (e) => {
       if (e.key === "Escape") {
+        // A dropdown, date picker or other control inside already used this Escape to
+        // close itself (it calls preventDefault): that must not also close the popup
+        // and throw away the form.
+        if (e.defaultPrevented) return;
         e.stopPropagation();
         onCloseRef.current?.();
         return;
