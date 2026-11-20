@@ -32,17 +32,6 @@ const STATUS_OPTIONS = [
 const STATUS_TONES = { active: "success", paused: "warning", draft: "created", completed: "info", archived: "neutral" };
 const statusLabel = (s) => STATUS_OPTIONS.find((o) => o.value === s)?.label || s;
 
-const OBJECTIVE_OPTIONS = [
-  { value: "", label: "All objectives" },
-  { value: "acquisition", label: "Customer Acquisition" },
-  { value: "retention", label: "Customer Retention" },
-  { value: "reactivation", label: "Win-Back / Reactivation" },
-  { value: "brand_awareness", label: "Brand Awareness" },
-  { value: "seasonal", label: "Seasonal / Holiday" },
-  { value: "zone_launch", label: "New Zone Launch" },
-];
-const objectiveLabel = (v) => OBJECTIVE_OPTIONS.find((o) => o.value === v)?.label || v || "";
-
 const SORT_OPTIONS = [
   { value: "cost_desc", label: "Most spent first" },
   { value: "cost_asc", label: "Least spent first" },
@@ -57,14 +46,12 @@ const SORT_OPTIONS = [
 
 const plural = (n, word) => `${Number(n) || 0} ${word}${Number(n) === 1 ? "" : "s"}`;
 
-const EXTRA_KEYS = ["status", "objective", "onlyUsed", "sort"];
+const EXTRA_KEYS = ["status", "onlyUsed", "sort"];
 
 const CSV_COLUMNS = [
   { key: "id", header: "Campaign ID" },
   { key: "name", header: "Campaign" },
   { header: "Status", value: (r) => statusLabel(r.status) },
-  { header: "Objective", value: (r) => objectiveLabel(r.objective) },
-  { key: "channel", header: "Channel" },
   { key: "promotions", header: "Promotions" },
   { key: "activePromotions", header: "Active promotions" },
   { key: "uses", header: "Paid uses in period" },
@@ -99,8 +86,8 @@ export default function CampaignsReport() {
   const x = useSpendReportExtras(f, EXTRA_KEYS);
   const { sort, dir } = splitSort(x.values.sort);
   const params = useMemo(
-    () => ({ ...f.params, sort, dir, status: x.values.status, objective: x.values.objective, onlyUsed: x.values.onlyUsed }),
-    [f.params, sort, dir, x.values.status, x.values.objective, x.values.onlyUsed]
+    () => ({ ...f.params, sort, dir, status: x.values.status, onlyUsed: x.values.onlyUsed }),
+    [f.params, sort, dir, x.values.status, x.values.onlyUsed]
   );
   const { data, isLoading, isError, error, refetch } = useReportsCampaignsQuery(params);
   const { rows, total, summary, currency } = unwrapReport(data);
@@ -166,7 +153,7 @@ export default function CampaignsReport() {
             <ReportToolbar
               search={f.search}
               onSearch={f.setSearch}
-              searchPlaceholder="Search campaign, objective, channel or promotion…"
+              searchPlaceholder="Search campaign or promotion…"
               period={f.period}
               onPeriodChange={f.setPeriod}
               startDate={f.startDate}
@@ -183,9 +170,6 @@ export default function CampaignsReport() {
                   </DirectoryToolSelect>
                   <DirectoryToolSelect>
                     <Select aria-label="Status" value={x.values.status} onChange={x.set("status")} options={STATUS_OPTIONS} />
-                  </DirectoryToolSelect>
-                  <DirectoryToolSelect>
-                    <Select aria-label="Objective" value={x.values.objective} onChange={x.set("objective")} options={OBJECTIVE_OPTIONS} />
                   </DirectoryToolSelect>
                   <DirectoryToolSelect>
                     <Select aria-label="Used" value={x.values.onlyUsed} onChange={x.set("onlyUsed")} options={YES_NO_USED} />
@@ -214,7 +198,7 @@ export default function CampaignsReport() {
                 render: (row) => (
                   <DirectoryIdentity
                     name={row.name}
-                    meta={[`#${row.id}`, objectiveLabel(row.objective), row.channel, `${plural(row.promotions, "promotion")} (${row.activePromotions} active)`].filter(Boolean).join(" · ")}
+                    meta={[`#${row.id}`, `${plural(row.promotions, "promotion")} (${row.activePromotions} active)`].filter(Boolean).join(" · ")}
                     onClick={() => setOpenRow(row)}
                     title="Open this campaign's report"
                   />

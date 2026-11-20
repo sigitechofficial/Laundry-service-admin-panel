@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dayjs from "dayjs";
+import { useSearchParams } from "react-router-dom";
 import {
   Button, Field, Input, Modal, PageHeader, Select, Table, Textarea,
 } from "../../design-system";
@@ -29,6 +30,9 @@ import PromotionConditionBuilder, { DayPicker } from "./PromotionConditionBuilde
 import PromotionSimulateModal from "./PromotionSimulateModal";
 import { CONDITION_DEFS, WEEKDAYS, conditionError, serializeCondition } from "./promotionConditions";
 import { BENEFIT_HELP, BENEFIT_TYPES, STATUS_OPTIONS, STATUS_TONES } from "./promotionLabels";
+import {
+  CLOSED_CAMPAIGN_STATUSES, LIVE_PROMOTION_STATUSES, campaignStatusLabel, campaignStopReason, stopReasonText,
+} from "./campaignState";
 import {
   FIRST_ORDER_TYPES, basketScopeWarning, bulkPriceSummary, bundleSize, conditionHidden, firstOrderLimitNote,
   firstOrderRule, isTypeLocked, lockedPerCustomerLimit, showsPeriodLimits, visibilityOffered,
@@ -611,7 +615,7 @@ function ViewSection({ title, children }) {
 }
 
 /** Read-only promotion summary: what it gives, to whom, under which rules, and when. */
-function PromotionViewBody({ promotion: p }) {
+function PromotionViewBody({ promotion: p, campaign }) {
   const zones = parseJson(p.zoneIds, []) || [];
   const days = parseJson(p.recurringDays, []) || [];
   const dayText = days.length
@@ -659,6 +663,12 @@ function PromotionViewBody({ promotion: p }) {
       <ViewSection title="Who & where">
         <DirectoryViewFields
           fields={[
+            {
+              label: "Campaign",
+              value: campaign
+                ? `${campaign.name} · ${campaignStatusLabel(campaign.status)}${campaignStopReason(campaign) ? ` (${stopReasonText(campaignStopReason(campaign), campaign).toLowerCase()})` : ""}`
+                : "None",
+            },
             { label: "Activation", value: labelOf(ACTIVATION_TYPES, p.activationType) },
             { label: "Visibility", value: labelOf(VISIBILITY_OPTIONS, p.visibility) },
             { label: "Zones", value: p.zoneScopeMode === "all" ? "All zones" : `${labelOf(ZONE_SCOPES, p.zoneScopeMode)} · ${zones.length} zone${zones.length === 1 ? "" : "s"}` },
@@ -713,6 +723,8 @@ export default function PromotionsPage() {
   const toast = useToaster();
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState("active");
+  const [campaignFilter, setCampaignFilter] = useState("");
+  const [searchParams, setSearchParams] = useSearchParams();
   const [showForm, setShowForm] = useState(false);
   const [wizardStep, setWizardStep] = useState(0);
   const [form, setForm] = useState(INITIAL_FORM());
@@ -725,8 +737,25 @@ export default function PromotionsPage() {
   const [reportRow, setReportRow] = useState(null);
   const [showSimulate, setShowSimulate] = useState(false);
 
-  const { data, isLoading } = useGetPromotionsQuery({ page, limit: 20, status: statusFilter || undefined });
+  const { data, isLoading } = useGetPromotionsQuery({
+    page, limit: 20, status: statusFilter || undefined, campaignId: campaignFilter || undefined,
+  });
   const { data: campaignsData } = useGetCampaignsQuery({ limit: 200 });
+  const campaignById = useMemo(
+    () => new Map((campaignsData?.rows || []).map((c) => [String(c.id), c])),
+    [campaignsData]
+  );
+  /** The promotion's campaign: from the row when the API includes it, else from the campaign list. */
+  const campaignOf = useCallback(
+    (p) => (p?.campaignId ? p.campaign || campaignById.get(String(p.campaignId)) || null : null),
+    [campaignById]
+  );
+  /** Why new orders cannot use a live promotion because of its campaign, or null. */
+  const campaignStop = useCallback((p) => {
+    if (!p || !LIVE_PROMOTION_STATUSES.includes(p.status)) return null;
+    if (p.campaignStopReason !== undefined) return p.campaignStopReason;
+    return campaignStopReason(campaignOf(p));
+  }, [campaignOf]);
   const { data: zonesData } = useGetAllZonesQuery();
 
   // Catalog lists feed the target picker and catalog conditions — only needed while the wizard is open.
@@ -761,8 +790,16 @@ export default function PromotionsPage() {
 
   const campaignOptions = useMemo(() => [
     { value: "", label: "No Campaign" },
+    ...(campaignsData?.rows || [])
+      .filter((c) => !CLOSED_CAMPAIGN_STATUSES.includes(c.status) || String(c.id) === String(form.campaignId))
+      .map((c) => ({ value: String(c.id), label: c.status === "active" ? c.name : `${c.name} (${campaignStatusLabel(c.status)})` })),
+  ], [campaignsData, form.campaignId]);
+  const campaignFilterOptions = useMemo(() => [
+    { value: "", label: "All campaigns" },
     ...(campaignsData?.rows || []).map((c) => ({ value: String(c.id), label: c.name })),
   ], [campaignsData]);
+  const formCampaign = form.campaignId ? campaignById.get(String(form.campaignId)) || null : null;
+  const formCampaignStop = campaignStopReason(formCampaign);
 
   const catalogOptions = useMemo(() => {
     const opt = (list, kind) => list.map((x) => ({
@@ -832,7 +869,32 @@ export default function PromotionsPage() {
     wizardTopRef.current?.closest(".jd-modal__b")?.scrollTo({ top: 0 });
   }, [wizardStep, showForm]);
 
-  const openCreate = () => { setEditId(null); setTypeLocked(false); openForm(INITIAL_FORM()); };
+  const openCreate = (preset = {}) => {
+    setEditId(null);
+    setTypeLocked(false);
+    openForm({ ...INITIAL_FORM(), ...preset });
+  };
+
+  // Links from the Campaigns page: add a promotion into a campaign, or open one.
+  useEffect(() => {
+    const wantsNew = searchParams.get("new") === "1";
+    const viewId = searchParams.get("view");
+    if (!wantsNew && !viewId) return;
+    const next = new URLSearchParams(searchParams);
+    next.delete("new");
+    next.delete("campaign");
+    next.delete("view");
+    setSearchParams(next, { replace: true });
+    if (wantsNew) {
+      const campaignId = searchParams.get("campaign") || "";
+      openCreate(campaignId ? { campaignId } : {});
+      return;
+    }
+    fetchPromotion(Number(viewId)).unwrap()
+      .then((res) => setViewRow(res?.data ?? res))
+      .catch(() => toast.error("Promotion not found"));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   // Edit loads the full detail — list rows carry no conditions / overrides.
   const openEdit = async (row) => {
@@ -937,7 +999,28 @@ export default function PromotionsPage() {
     {
       key: "status",
       header: "Status",
-      render: (row) => <DirectoryDotPill tone={STATUS_TONES[row.status] || "neutral"}>{statusLabel(row.status)}</DirectoryDotPill>,
+      render: (row) => {
+        const stop = campaignStop(row);
+        return (
+          <div className="flex flex-col items-start gap-1">
+            <DirectoryDotPill tone={STATUS_TONES[row.status] || "neutral"}>{statusLabel(row.status)}</DirectoryDotPill>
+            {stop ? (
+              <span className="text-xs font-medium text-amber-700" title="New orders cannot use it until the campaign runs again">
+                Not running · {stopReasonText(stop, campaignOf(row))}
+              </span>
+            ) : null}
+          </div>
+        );
+      },
+    },
+    {
+      key: "campaign",
+      header: "Campaign",
+      render: (row) => {
+        const c = campaignOf(row);
+        if (!row.campaignId) return <span className="text-gray-400">—</span>;
+        return c ? c.name : `#${row.campaignId}`;
+      },
     },
     { key: "discount", header: "Discount", render: (row) => valueLabel(row) },
     {
@@ -1053,8 +1136,8 @@ export default function PromotionsPage() {
                 <Textarea value={form.description} onChange={(e) => setField("description", e.target.value)} rows={2} />
               </Field>
               <div className="grid grid-cols-2 gap-4">
-                <Field label="Campaign" hint="Optional. Groups promotions under one budget and one report">
-                  <Select options={campaignOptions} value={form.campaignId} onChange={(v) => setField("campaignId", v)} />
+                <Field label="Campaign" hint="Optional. Groups promotions under one budget, one set of dates and one on/off switch">
+                  <Select options={campaignOptions} value={form.campaignId} onChange={(v) => setField("campaignId", v ?? "")} />
                 </Field>
                 <Field label="Activation" hint="Automatic: applies by itself. Coupon: the customer must enter a code when booking">
                   <Select options={ACTIVATION_TYPES} value={form.activationType} onChange={setActivationType} />
@@ -1089,6 +1172,13 @@ export default function PromotionsPage() {
                   </Field>
                 )}
               </div>
+              {formCampaignStop && (
+                <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                  {stopReasonText(formCampaignStop, formCampaign)}: this promotion will not run, even once published,
+                  until the campaign &ldquo;{formCampaign?.name}&rdquo; runs
+                  {formCampaign?.status === "draft" ? " (set the campaign to Active on the Campaigns page)" : ""}.
+                </p>
+              )}
               {DELIVERY_TYPES.includes(form.benefitType) && (
                 <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
                   Delivery is free today, so there is no delivery fee to discount. This promotion will save £0
@@ -1463,7 +1553,7 @@ export default function PromotionsPage() {
             <Button variant="secondary" onClick={() => setShowSimulate(true)}>
               <TbFlask size={18} /> Simulate
             </Button>
-            <Button onClick={openCreate}>
+            <Button onClick={() => openCreate(campaignFilter ? { campaignId: campaignFilter } : {})}>
               <TbPlus size={18} /> New Promotion
             </Button>
           </>
@@ -1478,6 +1568,15 @@ export default function PromotionsPage() {
             value={statusFilter}
             onChange={(v) => { setStatusFilter(v ?? ""); setPage(1); }}
             placeholder="All statuses"
+          />
+        </DirectoryToolSelect>
+        <DirectoryToolSelect>
+          <Select
+            aria-label="Campaign"
+            options={campaignFilterOptions}
+            value={campaignFilter}
+            onChange={(v) => { setCampaignFilter(v ?? ""); setPage(1); }}
+            placeholder="All campaigns"
           />
         </DirectoryToolSelect>
         <DirectoryToolbarEnd>
@@ -1541,7 +1640,7 @@ export default function PromotionsPage() {
 
       {/* ─── View Modal ───────────────────────────────────────── */}
       <DirectoryViewModal open={!!viewRow} onClose={() => setViewRow(null)} title={viewRow?.name || "Promotion"} size="md">
-        {viewRow && <PromotionViewBody promotion={viewRow} />}
+        {viewRow && <PromotionViewBody promotion={viewRow} campaign={campaignOf(viewRow)} />}
       </DirectoryViewModal>
 
       {/* ─── Publish Confirm ──────────────────────────────────── */}
@@ -1559,6 +1658,12 @@ export default function PromotionsPage() {
             ? `will start applying to new orders on ${dayjs(promotionDay(publishTarget, "start")).format("DD MMM YYYY")} (UK time).`
             : "will go live now and start applying to new orders."}
         </p>
+        {publishTarget && campaignStopReason(campaignOf(publishTarget)) ? (
+          <p className="mt-3 mb-0 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+            {stopReasonText(campaignStopReason(campaignOf(publishTarget)), campaignOf(publishTarget))}: it will not apply to orders
+            until the campaign &ldquo;{campaignOf(publishTarget)?.name}&rdquo; runs.
+          </p>
+        ) : null}
       </Modal>
 
       {/* ─── Archive Confirm ──────────────────────────────────── */}
