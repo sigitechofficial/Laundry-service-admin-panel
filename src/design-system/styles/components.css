@@ -460,6 +460,41 @@
   flex: 0 0 auto;
 }
 
+.jd-ds .jd-modal__h.has-x {
+  position: relative;
+  padding-right: 56px;
+}
+
+.jd-ds .jd-modal__x {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.jd-ds .jd-modal__x svg {
+  width: 18px;
+  height: 18px;
+}
+
+.jd-ds .jd-modal__x:hover {
+  background: var(--canvas);
+  color: var(--ink-2);
+}
+
+.jd-ds .jd-modal__x:focus-visible {
+  outline: none;
+  border-color: var(--brand-500);
+}
+
 .jd-ds .jd-modal__h h3 {
   margin: 0 0 3px;
   font-size: 17px;

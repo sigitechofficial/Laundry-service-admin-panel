@@ -92,7 +92,8 @@ export default function Modal({
       document.activeElement instanceof HTMLElement ? document.activeElement : null;
 
     const focusInitial = () => {
-      const first = focusableIn(dialogRef.current)[0];
+      // Start on the first field, not on the close button in the header.
+      const first = focusableIn(dialogRef.current).find((el) => !el.classList.contains("jd-modal__x"));
       (first || dialogRef.current)?.focus();
     };
     const frame = requestAnimationFrame(focusInitial);
@@ -202,9 +203,17 @@ export default function Modal({
         aria-label={!labelledBy ? title : undefined}
       >
         {!hideHeader && (title || description) ? (
-          <div className="jd-modal__h">
+          <div className={`jd-modal__h${onClose ? " has-x" : ""}`}>
             {title ? <h3 id={titleId}>{title}</h3> : null}
             {description ? <p id={descId}>{description}</p> : null}
+            {/* Close is always at the top: long forms should not need scrolling to find Cancel. */}
+            {onClose ? (
+              <button type="button" className="jd-modal__x" aria-label="Close" onClick={onClose}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
+                  <path d="M6 6l12 12M18 6 6 18" />
+                </svg>
+              </button>
+            ) : null}
           </div>
         ) : null}
         <div
