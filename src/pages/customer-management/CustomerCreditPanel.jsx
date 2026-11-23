@@ -2,7 +2,8 @@ import { useState } from "react";
 import { Badge, Button, Field, Input, Modal, Textarea } from "../../design-system";
 import useToaster from "../../components/ui/Toaster";
 import { getApiErrorMessage } from "../../store/services/apiErrors";
-import { formatDate } from "../../utilities/formatters";
+import { currencyPrefix, formatDate, labelWithCurrency } from "../../utilities/formatters";
+import { useCurrencyUnits } from "../../hooks/useCurrency";
 import { useGetCustomerCreditQuery, useAdjustCustomerCreditMutation } from "../../store/services/api";
 
 const PANEL = {
@@ -22,7 +23,8 @@ const TYPE = {
   EXPIRE: { label: "Expired", tone: "neutral" },
 };
 
-const money = (n) => `${Number(n) < 0 ? "−" : ""}£${Math.abs(Number(n || 0)).toFixed(2)}`;
+/** Signed amount in the credit's currency (`symbol`; plain number when unknown). */
+const money = (n, symbol) => `${Number(n) < 0 ? "−" : ""}${currencyPrefix(symbol)}${Math.abs(Number(n || 0)).toFixed(2)}`;
 
 /**
  * Customer credit (cashback): balance, what is held on unpaid orders, history, and a
@@ -39,6 +41,9 @@ export default function CustomerCreditPanel({ customerId }) {
   const [reason, setReason] = useState("");
   const [requestId, setRequestId] = useState("");
   const credit = data?.data;
+  // Balances are in the credit's own currency; each history line in its entry's currency.
+  const { symbolOf } = useCurrencyUnits();
+  const sym = symbolOf(credit?.currency);
 
   const startAdjust = (dir) => {
     setDirection(dir);
@@ -80,11 +85,11 @@ export default function CustomerCreditPanel({ customerId }) {
         <div style={{ display: "flex", flexWrap: "wrap", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
           <div>
             <p style={{ margin: 0, fontSize: 12, color: "var(--ink-2)", textTransform: "uppercase", letterSpacing: 0.4, fontWeight: 700 }}>Credit balance</p>
-            <p style={{ margin: "4px 0 0", fontSize: 28, fontWeight: 800 }}>{money(credit.balance)}</p>
+            <p style={{ margin: "4px 0 0", fontSize: 28, fontWeight: 800 }}>{money(credit.balance, sym)}</p>
             <p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--ink-2)" }}>
-              {credit.held > 0 ? `${money(credit.held)} held on unpaid orders · ` : ""}
+              {credit.held > 0 ? `${money(credit.held, sym)} held on unpaid orders · ` : ""}
               {credit.expiringSoon
-                ? `${money(credit.expiringSoon.amount)} expires ${formatDate(credit.expiringSoon.expiresAt)}`
+                ? `${money(credit.expiringSoon.amount, sym)} expires ${formatDate(credit.expiringSoon.expiresAt)}`
                 : credit.expiryDays
                   ? `Credit expires ${credit.expiryDays} days after it is earned`
                   : "Credit does not expire"}
@@ -129,10 +134,10 @@ export default function CustomerCreditPanel({ customerId }) {
                       <td style={{ padding: "8px", color: "var(--ink-2)" }}>
                         {e.description || "—"}
                         {e.reason ? ` · ${e.reason}` : ""}
-                        {e.remainingAmount != null && e.remainingAmount !== e.amount && e.amount > 0 ? ` · ${money(e.remainingAmount)} left` : ""}
+                        {e.remainingAmount != null && e.remainingAmount !== e.amount && e.amount > 0 ? ` · ${money(e.remainingAmount, symbolOf(e.currency))} left` : ""}
                       </td>
                       <td style={{ padding: "8px", textAlign: "right", fontWeight: 600, color: e.amount < 0 ? "#b42318" : "#067647", whiteSpace: "nowrap" }}>
-                        {e.amount > 0 ? "+" : ""}{money(e.amount)}
+                        {e.amount > 0 ? "+" : ""}{money(e.amount, symbolOf(e.currency))}
                       </td>
                     </tr>
                   );
@@ -161,7 +166,7 @@ export default function CustomerCreditPanel({ customerId }) {
         closeOnBackdrop={false}
       >
         <div style={{ display: "grid", gap: 12 }}>
-          <Field label="Amount (£)" hint={direction === "remove" ? `Up to ${money(credit.balance)}` : "Up to £1,000"}>
+          <Field label={labelWithCurrency("Amount", sym)} hint={direction === "remove" ? `Up to ${money(credit.balance, sym)}` : `Up to ${currencyPrefix(sym)}1,000`}>
             <Input type="number" min="0.01" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="e.g. 5.00" />
           </Field>
           <Field label="Reason (saved with the change)">

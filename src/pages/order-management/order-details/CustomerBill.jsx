@@ -1,13 +1,16 @@
+import { currencyPrefix } from "../../../utilities/formatters";
+
 /**
  * The customer's bill as the server built it (paymentSummary.bill): laundry to
  * "Left to pay", with a note when a discount came out smaller than the offer.
  * Same lines and wording as the customer and agent apps.
  */
-const money = (sym, n) => `${sym}${(Math.round((Number(n) || 0) * 100) / 100).toFixed(2)}`;
+const money = (sym, n) => `${currencyPrefix(sym)}${(Math.round((Number(n) || 0) * 100) / 100).toFixed(2)}`;
 
 export default function CustomerBill({ bill }) {
   if (!bill || !Array.isArray(bill.lines) || !bill.lines.length) return null;
-  const sym = bill.currencySymbol || "£";
+  // The bill's own currency; empty (unknown) shows plain amounts.
+  const sym = bill.currencySymbol || "";
   return (
     <div style={{ border: "1px solid #E2E8F0", borderRadius: 10, padding: "10px 14px", background: "#fff" }}>
       <p style={{ margin: "0 0 6px", fontSize: 12, fontWeight: 600, letterSpacing: 0.4, textTransform: "uppercase", color: "#64748B" }}>

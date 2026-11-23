@@ -8,7 +8,7 @@ import {
   useExcludeCustomerFromShopMutation,
   useIncludeCustomerForShopMutation,
 } from "../../store/services/api";
-import { formatDate, formatMoney } from "../../utilities/formatters";
+import { currencyPrefix, formatDate, formatMoney } from "../../utilities/formatters";
 import { formatUserPhone } from "../../utilities/contactLinks";
 import {
   DirectoryActionView,
@@ -36,16 +36,17 @@ const CARD = {
   boxShadow: "0 1px 2px rgba(16, 21, 31, 0.04)",
 };
 
-const LIST_FILTER_OPTIONS = [
+/** Spend thresholds are in the shop's currency (`symbol`; plain numbers when unknown). */
+const listFilterOptions = (symbol) => [
   { value: "all", label: "All customers" },
   { value: "returning", label: "Returning only" },
   { value: "assigned", label: "Assigned only" },
   { value: "excluded", label: "Excluded only" },
   { value: "spend_high", label: "Spend: High → Low" },
   { value: "spend_low", label: "Spend: Low → High" },
-  { value: "spend_above_500", label: "Spend above £500" },
-  { value: "spend_above_100", label: "Spend above £100" },
-  { value: "spend_below_100", label: "Spend below £100" },
+  { value: "spend_above_500", label: `Spend above ${currencyPrefix(symbol)}500` },
+  { value: "spend_above_100", label: `Spend above ${currencyPrefix(symbol)}100` },
+  { value: "spend_below_100", label: `Spend below ${currencyPrefix(symbol)}100` },
 ];
 
 /**
@@ -53,7 +54,8 @@ const LIST_FILTER_OPTIONS = [
  * Returning badges live in the main list; assign preferred shop + exclude
  * are independent controls.
  */
-export default function ShopCustomersTab({ shopId, currencySymbol = "£" }) {
+export default function ShopCustomersTab({ shopId, currencySymbol = "" }) {
+  const spend = (n) => `${currencyPrefix(currencySymbol)}${n}`;
   const navigate = useNavigate();
   const [listFilter, setListFilter] = useState("all");
   const [search, setSearch] = useState("");
@@ -373,11 +375,11 @@ export default function ShopCustomersTab({ shopId, currencySymbol = "£" }) {
                   : listFilter === "spend_low"
                     ? "Customers by spend (low → high)"
                     : listFilter === "spend_above_500"
-                      ? "Customers with spend above £500"
+                      ? `Customers with spend above ${spend(500)}`
                       : listFilter === "spend_above_100"
-                        ? "Customers with spend above £100"
+                        ? `Customers with spend above ${spend(100)}`
                         : listFilter === "spend_below_100"
-                          ? "Customers with spend below £100"
+                          ? `Customers with spend below ${spend(100)}`
                           : "All customers at this shop"}
           {isFetching ? (
             <span
@@ -406,7 +408,7 @@ export default function ShopCustomersTab({ shopId, currencySymbol = "£" }) {
                   aria-label="Customer list filter"
                   value={listFilter}
                   onChange={(v) => setListFilter(v || "all")}
-                  options={LIST_FILTER_OPTIONS}
+                  options={listFilterOptions(currencySymbol)}
                 />
               </DirectoryToolSelect>
               <DirectoryToolbarEnd>
@@ -427,11 +429,11 @@ export default function ShopCustomersTab({ shopId, currencySymbol = "£" }) {
                 : listFilter === "assigned"
                   ? "No customers have an active preferred-shop assignment"
                   : listFilter === "spend_above_500"
-                    ? "No customers with spend above £500"
+                    ? `No customers with spend above ${spend(500)}`
                     : listFilter === "spend_above_100"
-                      ? "No customers with spend above £100"
+                      ? `No customers with spend above ${spend(100)}`
                       : listFilter === "spend_below_100"
-                        ? "No customers with spend below £100"
+                        ? `No customers with spend below ${spend(100)}`
                         : returningOnly
                           ? "No returning customers at this shop"
                           : "No customers have ordered at this shop yet"

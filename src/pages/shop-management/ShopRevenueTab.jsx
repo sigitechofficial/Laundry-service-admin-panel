@@ -161,7 +161,7 @@ function HighlightStat({ label, value, hint, tone = "navy" }) {
   );
 }
 
-export default function ShopRevenueTab({ shopId, fallbackSymbol = "£" }) {
+export default function ShopRevenueTab({ shopId, fallbackSymbol = "" }) {
   const navigate = useNavigate();
   const [period, setPeriod] = useState("this_month");
   const [startDate, setStartDate] = useState("");

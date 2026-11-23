@@ -5,7 +5,8 @@ import { useChangeOrderPaymentMethodMutation } from "../../../store/services/api
 import { formatMoney } from "../../../utilities/formatters";
 import useToaster from "../../../components/ui/Toaster";
 
-function money(n, symbol = "£") {
+/** Amount in the booking's currency; a plain number when it is unknown. */
+function money(n, symbol = "") {
   return formatMoney(n, symbol);
 }
 
@@ -61,7 +62,7 @@ export default function ChangePaymentMethodModal({
   currentMethod, // effective current balance method: "cash" | "card"
   bookedType, // original paymentType: "cash" | "card"
   amountDueNow,
-  currencySymbol = "£",
+  currencySymbol = "",
   onSuccess,
 }) {
   const { success, error: toastError } = useToaster();

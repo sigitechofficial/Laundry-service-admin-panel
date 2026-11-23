@@ -1,5 +1,6 @@
 import { Button, Table } from "../../design-system";
 import { DirectoryMetrics } from "../directory-table/directoryTable";
+import { currencyPrefix } from "../../utilities/formatters";
 
 /**
  * Shop report — web layout for the admin panel. Same data model as the
@@ -27,7 +28,7 @@ function num(value) {
 }
 
 function money(symbol, value) {
-  return `${symbol || "£"}${num(value).toFixed(2)}`;
+  return `${currencyPrefix(symbol)}${num(value).toFixed(2)}`;
 }
 
 function pct(part, whole) {

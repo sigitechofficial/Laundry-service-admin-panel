@@ -15,7 +15,7 @@ const STATUS = {
  * Promotions on this order: the discount lines on the invoice and every hold/use in the
  * ledger. An admin can take a promotion off an order that is not paid yet.
  */
-export default function OrderPromotionsCard({ bookingId, currencySymbol = "£", onChanged }) {
+export default function OrderPromotionsCard({ bookingId, currencySymbol = "", onChanged }) {
   const { error: showError, success } = useToaster();
   const { data, isLoading } = useGetOrderPromotionsQuery(bookingId, { skip: !bookingId });
   const [removePromotion, { isLoading: removing }] = useRemoveOrderPromotionMutation();
