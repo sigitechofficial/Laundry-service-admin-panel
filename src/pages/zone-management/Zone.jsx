@@ -20,8 +20,6 @@ import { triggerGoogleMapResize, useGoogleMaps } from "../../utilities/googleMap
 import {
   formatAmount,
   formatMoney,
-  findCurrencyUnitForCountry,
-  currencyMetaForCountry,
   resolveCurrencySymbol,
   resolveDisplayCurrency,
 } from "../../utilities/formatters";
@@ -188,9 +186,7 @@ function zoneCountryRef(zone) {
 function formatZoneCurrencyLabel(zone, currencyUnits = []) {
   const resolved = resolveDisplayCurrency(zone, {
     currencyUnits,
-    country: zoneCountryRef(zone),
     countryId: zone?.city?.countryId ?? zoneCountryRef(zone)?.id,
-    applyDefault: false,
   });
   if (resolved.code && resolved.symbol) return `${resolved.code} (${resolved.symbol})`;
   if (resolved.code) return resolved.code;
@@ -217,25 +213,8 @@ function formatZoneAdminLabel(zone) {
 function formatMoneyCell(value, zone, currencyUnits = []) {
   return formatAmount(value, zone, {
     currencyUnits,
-    country: zoneCountryRef(zone),
     countryId: zone?.city?.countryId ?? zoneCountryRef(zone)?.id,
   });
-}
-
-/** Fields to merge into zone form when country implies a currency (US→USD, GB→GBP, …). */
-function currencyFieldsForCountry(country, currencyUnits) {
-  const unit = findCurrencyUnitForCountry(country, currencyUnits);
-  if (!unit?.name) return null;
-  return {
-    zoneCurrency: unit.name,
-    currencyUnitId: unit.id != null && unit.id !== "" ? String(unit.id) : "",
-  };
-}
-
-function currencyMatchesCountry(currencyName, country) {
-  const meta = currencyMetaForCountry(country);
-  if (!meta) return true;
-  return String(currencyName || "").trim().toUpperCase() === meta.code;
 }
 
 /** CSV columns for the zones list (rows from `zonesData` / `filteredZonesData`). */
@@ -574,8 +553,9 @@ export default function ZoneManagement() {
     [selectedCountry]
   );
 
-  // In edit mode, if city is known but country isn't, derive country from full city list
-  // and align currency to that country when missing / mismatched (e.g. GBP on a US city).
+  // In edit mode, if city is known but country isn't, derive country from full city list.
+  // The zone's currency is never touched here: it is the admin's choice (zone currency
+  // field), not something inferred from the country.
   useEffect(() => {
     if (!add.open || !isEditMode || add.countryId || !add.cityId) return;
     const matchedCity = Array.isArray(allCities)
@@ -583,60 +563,11 @@ export default function ZoneManagement() {
       : null;
     const derivedCountryId = matchedCity?.countryId || matchedCity?.country?.id;
     if (!derivedCountryId) return;
-    const country =
-      Array.isArray(countries) &&
-      countries.find((c) => String(c.id) === String(derivedCountryId));
-    const currencyPatch =
-      country && !currencyMatchesCountry(add.zoneCurrency, country)
-        ? currencyFieldsForCountry(country, currenciesForSelect)
-        : null;
     setAdd((prev) => ({
       ...prev,
       countryId: String(derivedCountryId),
-      ...(currencyPatch || {}),
     }));
-  }, [
-    add.open,
-    isEditMode,
-    add.cityId,
-    add.countryId,
-    add.zoneCurrency,
-    allCities,
-    countries,
-    currenciesForSelect,
-  ]);
-
-  // After currency units load, fill currency when country is set but name/id still empty
-  // (does not overwrite a user-chosen ISO code).
-  useEffect(() => {
-    if (!add.open || !add.countryId || !currenciesForSelect.length) return;
-    const hasName = String(add.zoneCurrency || "").trim() !== "";
-    const hasId = String(add.currencyUnitId || "").trim() !== "";
-    if (hasName && hasId) return;
-    const country =
-      Array.isArray(countries) &&
-      countries.find((c) => String(c.id) === String(add.countryId));
-    if (!country) return;
-    const patch = currencyFieldsForCountry(country, currenciesForSelect);
-    if (!patch) return;
-    setAdd((prev) => {
-      const prevHasName = String(prev.zoneCurrency || "").trim() !== "";
-      const prevHasId = String(prev.currencyUnitId || "").trim() !== "";
-      if (prevHasName && prevHasId) return prev;
-      return {
-        ...prev,
-        zoneCurrency: prevHasName ? prev.zoneCurrency : patch.zoneCurrency,
-        currencyUnitId: prevHasId ? prev.currencyUnitId : patch.currencyUnitId,
-      };
-    });
-  }, [
-    add.open,
-    add.countryId,
-    add.zoneCurrency,
-    add.currencyUnitId,
-    countries,
-    currenciesForSelect,
-  ]);
+  }, [add.open, isEditMode, add.cityId, add.countryId, allCities]);
 
   useEffect(() => {
     if (!editPendingMapCenter || !map || !add.open) return;
@@ -702,9 +633,7 @@ export default function ZoneManagement() {
         const isAssigned = Boolean(zone.zoneAdminId || zone.zoneAdmin);
         const moneyOpts = {
           currencyUnits: currencies,
-          country: zoneCountryRef(zone),
           countryId: zone?.city?.countryId ?? zoneCountryRef(zone)?.id,
-          applyDefault: true,
         };
         return {
           id: zone.id,
@@ -1110,29 +1039,16 @@ export default function ZoneManagement() {
         cityFromAllCities?.country?.id ||
         "";
 
-      const countryForCurrency =
+      const zoneCountry =
         (Array.isArray(countries) &&
           countries.find((c) => String(c.id) === String(derivedCountryId))) ||
         zone?.city?.country ||
         cityFromAllCities?.country ||
         null;
 
-      let zoneCurrency = selectedCurrency?.name || "";
-      let currencyUnitId = zone.currencyUnitId ? String(zone.currencyUnitId) : "";
-      // Prefer country-default when stored currency is missing or does not match country (US≠GBP).
-      if (
-        countryForCurrency &&
-        (!zoneCurrency || !currencyMatchesCountry(zoneCurrency, countryForCurrency))
-      ) {
-        const patch = currencyFieldsForCountry(
-          countryForCurrency,
-          currenciesForSelect.length ? currenciesForSelect : currencies
-        );
-        if (patch) {
-          zoneCurrency = patch.zoneCurrency;
-          currencyUnitId = patch.currencyUnitId || currencyUnitId;
-        }
-      }
+      // The zone's stored currency, exactly as saved.
+      const zoneCurrency = selectedCurrency?.name || "";
+      const currencyUnitId = zone.currencyUnitId ? String(zone.currencyUnitId) : "";
 
       setAdd((prev) => ({
         ...prev,
@@ -1201,7 +1117,7 @@ export default function ZoneManagement() {
       for (const postcode of uniquePostcodes) {
         try {
           const boundaryData = await fetchPostalCodeBoundary(postcode, {
-            countryIso: normalizeCountryIso(countryForCurrency) || selectedCountryIso,
+            countryIso: normalizeCountryIso(zoneCountry) || selectedCountryIso,
             cityName: cityFromAllCities?.name || zone?.city?.name || null,
           });
           if (boundaryData) {
@@ -1514,22 +1430,16 @@ export default function ZoneManagement() {
       const selectedCurrency = currenciesForSelect.find(
         (currency) => currency.name === add.zoneCurrency
       );
-      const countryForCurrency = countryForPostcodes;
-      const countryCurrency = countryForCurrency
-        ? findCurrencyUnitForCountry(countryForCurrency, currenciesForSelect)
-        : null;
       const fromSelect =
         selectedCurrency?.id != null ? Number(selectedCurrency.id) : NaN;
       const fromForm = add.currencyUnitId
         ? parseInt(String(add.currencyUnitId), 10)
         : NaN;
-      const fromCountry =
-        countryCurrency?.id != null ? Number(countryCurrency.id) : NaN;
-      const currencyUnitId = [fromSelect, fromForm, fromCountry].find(
+      const currencyUnitId = [fromSelect, fromForm].find(
         (n) => Number.isFinite(n) && n > 0
       );
       if (!currencyUnitId) {
-        showError("Please select a valid zone currency for this country.");
+        showError("Please select the zone currency.");
         return;
       }
 
@@ -1599,9 +1509,6 @@ export default function ZoneManagement() {
     const country =
       Array.isArray(countries) &&
       countries.find((c) => String(c.id) === String(selectedCountryId));
-    const currencyPatch = country
-      ? currencyFieldsForCountry(country, currenciesForSelect)
-      : null;
 
     // Drop postcodes that are invalid for the newly selected country (e.g. UK codes on US).
     const kept = [];
@@ -1635,7 +1542,9 @@ export default function ZoneManagement() {
       ...prev,
       countryId: selectedCountryId,
       cityId: "",
-      ...(currencyPatch || { zoneCurrency: "", currencyUnitId: "" }),
+      // A different country may use a different currency: the admin chooses it again.
+      zoneCurrency: "",
+      currencyUnitId: "",
     }));
   };
 
