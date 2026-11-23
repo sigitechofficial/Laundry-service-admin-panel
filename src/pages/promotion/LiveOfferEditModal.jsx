@@ -3,13 +3,14 @@ import { Field, Input, Modal } from "../../design-system";
 import useToaster from "../../components/ui/Toaster";
 import { useUpdatePromotionMutation } from "../../store/services/api";
 import TimeInput24, { TIME_24, dateWithTime } from "./TimeInput24";
+import { labelWithCurrency } from "../../utilities/formatters";
 import "./quickOffer.css";
 
 /**
  * Change a live offer without pausing it: name, end date, limits and budget.
  * These never change what an order already booked gets (the API refuses anything else).
  *
- * initial: { id, name, endDate, globalUsageLimit, perCustomerLimit, budget, sharedBudgetName, taken }
+ * initial: { id, name, endDate, globalUsageLimit, perCustomerLimit, budget, currencySymbol, sharedBudgetName, taken }
  */
 const blankToNull = (v) => (v === "" || v == null ? null : Number(v));
 
@@ -40,7 +41,7 @@ export default function LiveOfferEditModal({ offer, onClose }) {
   const save = async () => {
     if (!f.name.trim()) { setError("Give the promotion a name"); return; }
     if (f.endTime && !TIME_24.test(f.endTime)) { setError("End time: use 24-hour time, e.g. 18:30"); return; }
-    if (f.budget !== "" && !(Number(f.budget) > 0)) { setError("Budget must be more than £0, or left empty"); return; }
+    if (f.budget !== "" && !(Number(f.budget) > 0)) { setError("Budget must be more than 0, or left empty"); return; }
     const payload = {
       id: offer.id,
       name: f.name.trim(),
@@ -82,7 +83,7 @@ export default function LiveOfferEditModal({ offer, onClose }) {
           <Field label="End time" hint="24-hour. Empty = 23:59">
             <TimeInput24 value={f.endTime} onChange={(v) => setF((p) => ({ ...p, endTime: v }))} aria-label="End time" disabled={!f.endDate} />
           </Field>
-          <Field label="Budget (£)" hint={shared ? `Uses the campaign budget "${offer.sharedBudgetName}"` : "Stops new orders when this much has been given away"}>
+          <Field label={labelWithCurrency("Budget", offer.currencySymbol)} hint={shared ? `Uses the campaign budget "${offer.sharedBudgetName}"` : "Stops new orders when this much has been given away"}>
             <Input type="number" min="1" step="1" value={shared ? "" : f.budget} onChange={set("budget")} placeholder={shared ? "Campaign" : "No limit"} disabled={shared} />
           </Field>
         </div>

@@ -1,13 +1,15 @@
 /**
  * Bulk deals ("10 T-shirts for £30"): rules shared by Create promotion, the full form and tests.
  * Stored as benefitConfig.deals = [{ itemIds, serviceIds, quantity, price }].
+ * Prices are in the promotion's currency; `currencySymbol` is its symbol ('' when unknown).
  */
+import { currencyPrefix } from "../../utilities/formatMoney.js";
 
 /** One deal row in a form (strings while typing). */
 export const newDeal = () => ({ itemIds: [], serviceIds: [], qty: "10", price: "" });
 
 const num = (v) => (v === "" || v == null ? null : Number(v));
-const money = (n) => `£${Number(n).toFixed(2).replace(/\.00$/, "")}`;
+const money = (n, symbol) => `${currencyPrefix(symbol)}${Number(n).toFixed(2).replace(/\.00$/, "")}`;
 
 /** What a deal's pieces normally cost (cheapest chosen item, as the deal groups the cheapest first). */
 export function dealNormal(deal, priceOf) {
@@ -17,7 +19,7 @@ export function dealNormal(deal, priceOf) {
 }
 
 /** First problem with the deals, or null. */
-export function validateDeals(deals, priceOf) {
+export function validateDeals(deals, priceOf, currencySymbol = "") {
   if (!deals.length) return "Add a deal";
   for (const [i, d] of deals.entries()) {
     const n = deals.length > 1 ? `Deal ${i + 1}: ` : "";
@@ -28,7 +30,7 @@ export function validateDeals(deals, priceOf) {
     if (!(num(d.price) > 0)) return `${n}enter the price for these pieces`;
     // A deal must be cheaper than buying the pieces normally.
     const normal = priceOf ? dealNormal(d, priceOf) : null;
-    if (normal != null && num(d.price) >= normal) return `${n}the price must be less than the normal ${money(normal)}`;
+    if (normal != null && num(d.price) >= normal) return `${n}the price must be less than the normal ${money(normal, currencySymbol)}`;
   }
   return null;
 }
@@ -61,14 +63,14 @@ export function dealsFromPromotion(p, config) {
 }
 
 /** "10 T-Shirt for £30 (normally £45); 5 Trousers (Dry Clean) for £25" */
-export function dealsSummary(deals, { nameOf, priceOf, serviceNameOf }) {
+export function dealsSummary(deals, { nameOf, priceOf, serviceNameOf, currencySymbol = "" }) {
   const ready = deals.filter((d) => d.itemIds.length && num(d.price));
   if (!ready.length) return null;
   const parts = ready.map((d) => {
     const names = d.itemIds.map(nameOf).filter(Boolean).join(" or ") || `${d.itemIds.length} items`;
     const services = d.serviceIds.map(serviceNameOf).filter(Boolean).join(" or ");
     const normal = dealNormal(d, priceOf);
-    return `${num(d.qty) || "N"} ${names}${services ? ` (${services})` : ""} for ${money(d.price)}${normal != null ? ` (normally ${money(normal)})` : ""}`;
+    return `${num(d.qty) || "N"} ${names}${services ? ` (${services})` : ""} for ${money(d.price, currencySymbol)}${normal != null ? ` (normally ${money(normal, currencySymbol)})` : ""}`;
   });
   const own = ready.length > 1 ? " Each deal counts only its own items." : "";
   return `${parts.join("; ")}. Extra pieces are at the normal price.${own}`;

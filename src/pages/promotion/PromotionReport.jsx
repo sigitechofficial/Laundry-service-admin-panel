@@ -13,8 +13,11 @@ import {
   useGetCampaignReportQuery,
 } from "../../store/services/api";
 import useCsvExport from "../../hooks/useCsvExport";
+import { useCurrencyUnits } from "../../hooks/useCurrency";
+import { formatMoney } from "../../utilities/formatters";
 
-const money = (n) => `£${Number(n || 0).toFixed(2)}`;
+/** An amount in the promotion's / campaign's currency (`symbol`; no symbol when unknown). */
+const money = (n, symbol) => formatMoney(Number(n || 0), symbol);
 /** What a use cost: its discount plus its cashback (cashback promotions give no discount). */
 const costOf = (r) => Number(r.discount || 0) + Number(r.cashback || 0);
 
@@ -100,7 +103,7 @@ function SimpleTable({ columns, rows, empty = "No paid uses yet" }) {
 }
 
 /** Paid discount per day as a row of bars (one per day, height = share of the busiest day). */
-function DailyBars({ days = [] }) {
+function DailyBars({ days = [], currencySymbol: sym = "" }) {
   const max = Math.max(0, ...days.map(costOf));
   if (!days.length) return null;
   return (
@@ -109,7 +112,7 @@ function DailyBars({ days = [] }) {
         {days.map((d) => (
           <div
             key={d.date}
-            title={`${dayjs(d.date).format("DD MMM")}: ${d.uses} uses, ${money(costOf(d))}`}
+            title={`${dayjs(d.date).format("DD MMM")}: ${d.uses} uses, ${money(costOf(d), sym)}`}
             className="flex-1 bg-blue-500/80 rounded-t-sm min-w-[2px]"
             style={{ height: max ? `${Math.max(2, (costOf(d) / max) * 100)}%` : "2px", opacity: d.uses ? 1 : 0.25 }}
           />
@@ -123,16 +126,16 @@ function DailyBars({ days = [] }) {
   );
 }
 
-function ZoneTable({ zones }) {
+function ZoneTable({ zones, currencySymbol: sym = "" }) {
   return (
     <SimpleTable
       columns={[
         { key: "zoneName", header: "Zone" },
         { key: "uses", header: "Uses", align: "right" },
         { key: "customers", header: "Customers", align: "right" },
-        { key: "discount", header: "Discount", align: "right", render: (r) => money(r.discount) },
+        { key: "discount", header: "Discount", align: "right", render: (r) => money(r.discount, sym) },
         ...(zones.some((z) => Number(z.cashback) > 0)
-          ? [{ key: "cashback", header: "Cashback", align: "right", render: (r) => money(r.cashback) }]
+          ? [{ key: "cashback", header: "Cashback", align: "right", render: (r) => money(r.cashback, sym) }]
           : []),
       ]}
       rows={zones.map((z) => ({ ...z, key: z.zoneId ?? z.zoneName }))}
@@ -154,6 +157,9 @@ const ORDER_CSV_COLUMNS = [
 /** Report for one promotion: uses, money, customers, by zone / day / code, recent orders. */
 export function PromotionReportModal({ promotion, onClose }) {
   const r = useReportRange("30");
+  // Its money is in the promotion's currency.
+  const { symbolOf } = useCurrencyUnits();
+  const sym = symbolOf(promotion?.currency);
   const { data, isFetching, isError } = useGetPromotionAnalyticsQuery(
     { id: promotion?.id, ...r.range },
     { skip: !promotion?.id || !r.range }
@@ -190,24 +196,24 @@ export function PromotionReportModal({ promotion, onClose }) {
             items={[
               { label: "Paid uses", value: s.uses, hint: report.promotion.usageLimit != null ? `${report.promotion.usesLeft} left of ${report.promotion.usageLimit}` : "No limit" },
               isCashback
-                ? { label: "Cashback given", value: money(s.totalCashback), hint: `${money(s.cashbackCredited)} credited · ${money(s.cashbackPending)} waiting for delivery` }
-                : { label: "Discount given", value: money(s.totalDiscount), hint: `Avg ${money(s.averageDiscount)} per order` },
+                ? { label: "Cashback given", value: money(s.totalCashback, sym), hint: `${money(s.cashbackCredited, sym)} credited · ${money(s.cashbackPending, sym)} waiting for delivery` }
+                : { label: "Discount given", value: money(s.totalDiscount, sym), hint: `Avg ${money(s.averageDiscount, sym)} per order` },
               { label: "Customers", value: s.uniqueCustomers },
               { label: "Orders holding it", value: s.bookingsHolding, hint: "Booked, not invoiced/paid yet" },
             ]}
           />
           <p className="text-xs text-gray-500">
-            Refunded: {s.refunded} ({money(Number(s.refundedDiscount || 0) + Number(s.refundedCashback || 0))} returned to budget) · Did not go ahead: {s.released}
+            Refunded: {s.refunded} ({money(Number(s.refundedDiscount || 0) + Number(s.refundedCashback || 0), sym)} returned to budget) · Did not go ahead: {s.released}
           </p>
 
           <div>
             <SectionTitle>{isCashback ? "Cashback per day" : "Discount per day"}</SectionTitle>
-            <DailyBars days={report.byDay} />
+            <DailyBars days={report.byDay} currencySymbol={sym} />
           </div>
 
           <div>
             <SectionTitle>By zone</SectionTitle>
-            <ZoneTable zones={report.byZone} />
+            <ZoneTable zones={report.byZone} currencySymbol={sym} />
           </div>
 
           {report.byCode.length > 0 && (
@@ -217,7 +223,7 @@ export function PromotionReportModal({ promotion, onClose }) {
                 columns={[
                   { key: "code", header: "Code", render: (r) => <span className="font-mono">{r.code}</span> },
                   { key: "uses", header: "Uses", align: "right" },
-                  { key: "discount", header: isCashback ? "Cashback" : "Discount", align: "right", render: (r) => money(costOf(r)) },
+                  { key: "discount", header: isCashback ? "Cashback" : "Discount", align: "right", render: (r) => money(costOf(r), sym) },
                 ]}
                 rows={report.byCode.map((c) => ({ ...c, key: c.code }))}
               />
@@ -232,7 +238,7 @@ export function PromotionReportModal({ promotion, onClose }) {
                 { key: "customerName", header: "Customer", render: (r) => r.customerName || (r.customerId ? `#${r.customerId}` : "—") },
                 { key: "couponCode", header: "Code", render: (r) => r.couponCode || "Automatic" },
                 { key: "paidAt", header: "Paid", render: (r) => (r.paidAt ? dayjs(r.paidAt).format("DD MMM YYYY HH:mm") : "—") },
-                { key: "discount", header: isCashback ? "Cashback" : "Discount", align: "right", render: (r) => money(costOf(r)) },
+                { key: "discount", header: isCashback ? "Cashback" : "Discount", align: "right", render: (r) => money(costOf(r), sym) },
               ]}
               rows={report.recent.map((r) => ({ ...r, key: r.redemptionId }))}
             />
@@ -257,6 +263,7 @@ const CAMPAIGN_PROMO_CSV_COLUMNS = [
 
 export function CampaignReportSection({ campaignId }) {
   const r = useReportRange("365");
+  const { symbolOf } = useCurrencyUnits();
   const { data, isFetching, isError } = useGetCampaignReportQuery(
     { id: campaignId, ...r.range },
     { skip: !campaignId || !r.range }
@@ -276,6 +283,8 @@ export function CampaignReportSection({ campaignId }) {
   if (isError) return <p className="text-sm text-red-600">Could not load the campaign report.</p>;
   if (!report) return <p className="text-sm text-gray-500">{isFetching ? "Loading report…" : ""}</p>;
   const b = report.budget;
+  // Its money is in the campaign budget's currency (none when the campaign has no currency).
+  const sym = symbolOf(b.currency);
   const pct = b.percentUsed ?? 0;
   const spentInRange = Number(report.summary.totalDiscount || 0) + Number(report.summary.totalCashback || 0);
 
@@ -287,9 +296,9 @@ export function CampaignReportSection({ campaignId }) {
       </div>
       <DirectoryMetrics
         items={[
-          { label: "Budget", value: b.budget != null ? money(b.budget) : "No limit" },
-          { label: "Budget used (all time)", value: money(b.spent), hint: b.percentUsed != null ? `${b.percentUsed}% of budget · ${b.remaining != null ? money(b.remaining) : "—"} left` : "Discounts + cashback" },
-          { label: `Spent · ${r.label}`, value: money(spentInRange), hint: `${money(report.summary.totalDiscount)} discount + ${money(report.summary.totalCashback)} cashback` },
+          { label: "Budget", value: b.budget != null ? money(b.budget, sym) : "No limit" },
+          { label: "Budget used (all time)", value: money(b.spent, sym), hint: b.percentUsed != null ? `${b.percentUsed}% of budget · ${b.remaining != null ? money(b.remaining, sym) : "—"} left` : "Discounts + cashback" },
+          { label: `Spent · ${r.label}`, value: money(spentInRange, sym), hint: `${money(report.summary.totalDiscount, sym)} discount + ${money(report.summary.totalCashback, sym)} cashback` },
           { label: "Paid uses", value: report.summary.uses, hint: `${report.summary.uniqueCustomers} customers in this period` },
         ]}
       />
@@ -309,18 +318,18 @@ export function CampaignReportSection({ campaignId }) {
             { key: "name", header: "Promotion" },
             { key: "status", header: "Status" },
             { key: "uses", header: "Uses", align: "right" },
-            { key: "discount", header: "Discount", align: "right", render: (r) => money(r.discount) },
+            { key: "discount", header: "Discount", align: "right", render: (r) => money(r.discount, sym) },
             ...(report.promotions.some((p) => Number(p.cashback) > 0)
-              ? [{ key: "cashback", header: "Cashback", align: "right", render: (r) => money(r.cashback) }]
+              ? [{ key: "cashback", header: "Cashback", align: "right", render: (r) => money(r.cashback, sym) }]
               : []),
-            { key: "cost", header: "Cost", align: "right", render: (r) => money(costOf(r)) },
+            { key: "cost", header: "Cost", align: "right", render: (r) => money(costOf(r), sym) },
           ]}
           rows={promoRows.map((p) => ({ ...p, key: p.id }))}
         />
       </div>
       <div>
         <SectionTitle>By zone</SectionTitle>
-        <ZoneTable zones={report.byZone} />
+        <ZoneTable zones={report.byZone} currencySymbol={sym} />
       </div>
     </div>
   );

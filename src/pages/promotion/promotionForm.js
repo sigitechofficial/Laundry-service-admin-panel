@@ -7,6 +7,7 @@ import { CONDITION_DEFS, conditionError, serializeCondition } from "./promotionC
 import { conditionHidden, lockedPerCustomerLimit, showsPeriodLimits } from "./promotionTypeRules.js";
 import { TIME_24, dateWithTime } from "./promotionTime.js";
 import { dealsFromPromotion, dealsToConfig, newDeal, validateDeals } from "./promotionDeals.js";
+import { sharedZoneCurrency } from "../../utilities/formatMoney.js";
 
 // discountMode is fixed for these types; MODE_CHOICE_TYPES let the admin pick.
 export const FORCED_MODE = {
@@ -75,6 +76,9 @@ export const INITIAL_FORM = () => ({
   zoneScopeMode: "all",
   zoneIds: [],
   zoneOverrides: [],
+  // ISO code chosen by the admin; "" = the currency the promotion's zones share
+  // (promotionZonesCurrency), which is what the form shows and saves.
+  currency: "",
   startDate: "",
   startTime: "",
   endDate: "",
@@ -134,6 +138,7 @@ export function formFromPromotion(p) {
       maxDiscountCap: numStr(zo.maxDiscountCap),
       minSubtotal: numStr(zo.minSubtotal),
     })),
+    currency: p.currency || "",
     startDate: promotionDay(p, "start"),
     endDate: promotionDay(p, "end"),
     // UK times; whole days (00:00 / 23:59) show as empty.
@@ -179,8 +184,38 @@ export function overrideAllowed(form, zoneId) {
   return true;
 }
 
-/** Form state → create/update payload. Optional numbers/dates are null, never "". */
-export function buildPayload(form) {
+/**
+ * The currency every zone the promotion applies to shares (ISO code), from the active zones
+ * list — the backend's defaultPromotionCurrency rule: selected zones → theirs; all zones →
+ * every active zone's; excluded → every other active zone's. '' when there is no single one
+ * (different currencies, a zone without one, or a selected zone not in the list): the admin
+ * must then choose the currency.
+ * @param {{ zoneScopeMode: string, zoneIds: string[] }} form
+ * @param {Array} zones active zones (admin/getZones), with currencyUnitZ
+ * @param {Array} [currencyUnits] units rows, for zones that only carry currencyUnitId
+ */
+export function promotionZonesCurrency(form, zones = [], currencyUnits = []) {
+  const ids = new Set((form.zoneIds || []).map(String));
+  const idOf = (z) => String(z.id ?? z._id);
+  let scoped = zones;
+  if (form.zoneScopeMode === "selected") {
+    scoped = zones.filter((z) => ids.has(idOf(z)));
+    if (scoped.length !== ids.size) return "";
+  } else if (form.zoneScopeMode === "excluded") {
+    scoped = zones.filter((z) => !ids.has(idOf(z)));
+  }
+  return sharedZoneCurrency(scoped, currencyUnits).code;
+}
+
+/** The currency the promotion is saved in: the admin's choice, else its zones' shared one. */
+export const promotionCurrency = (form, zonesCurrency = "") => form.currency || zonesCurrency || "";
+
+/**
+ * Form state → create/update payload. Optional numbers/dates are null, never "".
+ * `zonesCurrency` (promotionZonesCurrency) is saved as the currency when the admin chose none,
+ * so the promotion is saved in exactly the currency the form showed.
+ */
+export function buildPayload(form, { zonesCurrency = "" } = {}) {
   const bt = form.benefitType;
   const mode = effectiveMode(form);
   const itemScope = ITEM_SCOPE_TYPES.includes(bt);
@@ -196,6 +231,7 @@ export function buildPayload(form) {
     internalNotes: form.internalNotes.trim() || null,
     campaignId: form.campaignId ? Number(form.campaignId) : null,
     benefitType: bt,
+    currency: promotionCurrency(form, zonesCurrency) || null,
     discountMode: mode,
     discountValue: bulk ? numOrNull(firstDeal.price) : needsValue(bt) ? numOrNull(form.discountValue) : null,
     maxDiscountCap: cap ? numOrNull(form.maxDiscountCap) : null,
@@ -249,15 +285,19 @@ export function buildPayload(form) {
   };
 }
 
-/** Returns the first validation error for a wizard step, or null. */
-export function validateStep(step, form, priceOf) {
+/**
+ * Returns the first validation error for a wizard step, or null.
+ * `zonesCurrency`: promotionZonesCurrency for the form; `currencySymbol`: the promotion
+ * currency's symbol, for messages that name an amount.
+ */
+export function validateStep(step, form, priceOf, { zonesCurrency = "", currencySymbol = "" } = {}) {
   const mode = effectiveMode(form);
   const bt = form.benefitType;
   switch (step) {
     case 0: {
       if (!form.name.trim()) return "Promotion name is required";
       if (bt === "bundle") {
-        const err = validateDeals(form.deals, priceOf);
+        const err = validateDeals(form.deals, priceOf, currencySymbol);
         if (err) return err;
       } else if (needsValue(bt)) {
         const v = Number(form.discountValue);
@@ -281,6 +321,10 @@ export function validateStep(step, form, priceOf) {
     }
     case 1: {
       if (form.zoneScopeMode !== "all" && !form.zoneIds.length) return "Select at least one zone";
+      if (!promotionCurrency(form, zonesCurrency)) {
+        return "Choose the promotion's currency: the zones it applies to do not share one";
+      }
+      if (!/^[A-Z]{3}$/.test(promotionCurrency(form, zonesCurrency))) return "Currency must be a 3-letter ISO code (e.g. GBP)";
       for (const zo of form.zoneOverrides.filter((o) => overrideAllowed(form, o.zoneId))) {
         if (zo.discountValue !== "" && bt !== "bundle") {
           const v = Number(zo.discountValue);
@@ -314,7 +358,7 @@ export function validateStep(step, form, priceOf) {
       for (const [k, label] of ints) {
         if (form[k] !== "" && !isPosInt(form[k])) return `${label} must be a whole number of 1 or more (blank = unlimited)`;
       }
-      if (!form.campaignId && form.budget !== "" && !(Number(form.budget) > 0)) return "Budget must be more than £0 (blank = no limit)";
+      if (!form.campaignId && form.budget !== "" && !(Number(form.budget) > 0)) return "Budget must be more than 0 (blank = no limit)";
       if (form.minSubtotal !== "" && !(Number(form.minSubtotal) >= 0)) return "Minimum subtotal cannot be negative";
       if (form.maxSubtotal !== "" && !(Number(form.maxSubtotal) > 0)) return "Maximum subtotal must be greater than 0";
       if (form.minSubtotal !== "" && form.maxSubtotal !== "" && Number(form.maxSubtotal) < Number(form.minSubtotal)) {

@@ -5,6 +5,7 @@
 import dayjs from "dayjs";
 import { TIME_24, dateWithTime } from "./promotionTime.js";
 import { dealsToConfig, newDeal, validateDeals } from "./promotionDeals.js";
+import { promotionCurrency } from "./promotionForm.js";
 
 export const num = (v) => (v === "" || v == null ? null : Number(v));
 
@@ -36,18 +37,25 @@ export const INITIAL = () => ({
   perCustomer: "1",
   totalUses: "",
   budget: "",
+  // ISO code chosen by the admin; "" = the currency every active zone shares (the offer is
+  // for all zones). Asked for only when the zones do not share one.
+  currency: "",
 });
 
-export function validate(f, priceOf) {
+/**
+ * First problem with the answers, or null. `zonesCurrency`: the currency every active zone
+ * shares ('' when they do not); `currencySymbol`: the offer currency's symbol, for messages.
+ */
+export function validate(f, priceOf, { zonesCurrency = "", currencySymbol = "" } = {}) {
   if (!f.name.trim()) return "Give the promotion a name";
   if (f.what === "bulk") {
-    const err = validateDeals(f.deals, priceOf);
+    const err = validateDeals(f.deals, priceOf, currencySymbol);
     if (err) return err;
   } else {
     if (f.on !== "order" && !f.targetIds.length) return f.on === "item" ? "Choose at least one item" : "Choose at least one service";
     if (f.on === "order" && f.needs && !f.needServiceIds.length) return "Choose what the order must include, or untick “Only if the order includes…”";
     const v = num(f.value);
-    if (!v || v <= 0) return f.what === "percent" ? "Enter the % off" : "Enter the £ off";
+    if (!v || v <= 0) return f.what === "percent" ? "Enter the % off" : "Enter the amount off";
     if (f.what === "percent" && v > 100) return "% off can't be more than 100";
   }
   if (f.who === "code" && !/^[A-Z0-9_-]{3,30}$/i.test(f.code.trim())) return "Enter a code: 3–30 letters or numbers";
@@ -55,7 +63,8 @@ export function validate(f, priceOf) {
   if (f.endTime && !TIME_24.test(f.endTime)) return "End time: use 24-hour time, e.g. 18:30";
   if (f.endDate && f.startDate && f.endDate < f.startDate) return "The end date is before the start date";
   if (f.endDate && f.endDate === f.startDate && (f.endTime || "23:59") <= (f.startTime || "00:00")) return "The end time must be after the start time";
-  if (num(f.budget) != null && num(f.budget) <= 0) return "Budget must be more than £0, or left empty";
+  if (num(f.budget) != null && num(f.budget) <= 0) return "Budget must be more than 0, or left empty";
+  if (!promotionCurrency(f, zonesCurrency)) return "Choose the offer's currency: your zones do not share one";
   if (num(f.totalUses) != null && !(Number.isInteger(num(f.totalUses)) && num(f.totalUses) >= 1)) return "Total orders must be a whole number";
   if (num(f.perCustomer) != null && !(Number.isInteger(num(f.perCustomer)) && num(f.perCustomer) >= 1)) return "Uses per customer must be a whole number";
   return null;
@@ -67,6 +76,7 @@ export function quickOfferToPreset(f) {
   const first = f.deals[0] || newDeal();
   return {
     name: f.name.trim(),
+    currency: f.currency,
     ...ON_TYPE[f.on],
     // Bulk: the offer's items are every deal's items; the first deal fills the single-deal fields.
     ...(bulk ? { benefitType: "bundle", bundleQuantity: first.qty, deals: f.deals } : {}),
@@ -97,11 +107,13 @@ export function quickOfferToPreset(f) {
   };
 }
 
-export function toPayload(f) {
+/** Answers → the create payload; `zonesCurrency` as in validate (saved when none was chosen). */
+export function toPayload(f, { zonesCurrency = "" } = {}) {
   const p = quickOfferToPreset(f);
   const { bundleQuantity, deals, ...rest } = p;
   return {
     ...rest,
+    currency: promotionCurrency(f, zonesCurrency) || null,
     benefitConfig: f.what === "bulk"
       ? {
         bundleQuantity: num(bundleQuantity),

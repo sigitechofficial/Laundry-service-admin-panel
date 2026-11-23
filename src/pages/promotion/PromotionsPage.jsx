@@ -31,11 +31,14 @@ import PromotionSimulateModal from "./PromotionSimulateModal";
 import QuickOfferForm from "./QuickOfferForm";
 import TimeInput24 from "./TimeInput24";
 import LiveOfferEditModal from "./LiveOfferEditModal";
+import CurrencySelect from "./CurrencySelect";
+import { useCurrencyUnits } from "../../hooks/useCurrency";
+import { currencyPrefix, labelWithCurrency } from "../../utilities/formatters";
 import { cleanCode, codeError } from "./promotionCodes.js";
 import {
   DELIVERY_TYPES, FORCED_MODE, INITIAL_FORM, ITEM_SCOPE_TYPES, MODE_CHOICE_TYPES, STEPS, TARGET_TYPE_CHOICE,
   buildPayload, defaultTargetType, effectiveMode, formFromPromotion, isPosInt, needsValue, overrideAllowed,
-  parseJson, promotionDay, showsCap, validateStep,
+  parseJson, promotionCurrency, promotionDay, promotionZonesCurrency, showsCap, validateStep,
 } from "./promotionForm.js";
 import BulkDealsEditor, {
   dealsSummary, useServiceItemCatalog,
@@ -44,7 +47,7 @@ import { WEEKDAYS } from "./promotionConditions";
 import { BENEFIT_HELP, BENEFIT_TYPES, STATUS_OPTIONS, STATUS_TONES } from "./promotionLabels";
 import {
   CLOSED_CAMPAIGN_STATUSES, LIVE_PROMOTION_STATUSES, campaignStatusLabel, campaignStopReason, stopReasonText,
-  isOwnBudget, budgetTakenMinor,
+  isOwnBudget, budgetTakenMinor, moneyFromMinor,
 } from "./campaignState";
 import {
   FIRST_ORDER_TYPES, basketScopeWarning, bundleSize, conditionHidden, firstOrderLimitNote,
@@ -64,9 +67,10 @@ const benefitTypeOptions = (current) => BENEFIT_TYPES.filter((b) =>
   b.value === current || (!RETIRED_BENEFIT_TYPES.includes(b.value) && !HIDDEN_WHILE_DELIVERY_FREE.includes(b.value)));
 
 
-const DISCOUNT_MODES = [
+/** % or a fixed amount, the amount in the promotion's currency (`symbol`, '' when unknown). */
+const discountModes = (symbol) => [
   { value: "percent", label: "Percentage (%)" },
-  { value: "amount", label: "Amount (£)" },
+  { value: "amount", label: labelWithCurrency("Amount", symbol) },
 ];
 
 const ITEM_TARGET_TYPES = [
@@ -107,7 +111,8 @@ const canArchive = (s) => s !== "archived";
 /* ─── Helpers ────────────────────────────────────────────────────────────── */
 
 
-const money = (n) => `£${Number(n).toFixed(2)}`;
+/** An amount in the promotion's currency: `symbol` is its symbol, '' when unknown (plain number). */
+const money = (n, symbol) => `${currencyPrefix(symbol)}${Number(n).toFixed(2)}`;
 
 /** What the offer is on, for the list ("2 services", "5 items"); null for the whole order. */
 function onLabel(p) {
@@ -129,38 +134,39 @@ function whoLabel(p) {
   return needsItems ? `${who} · only with chosen items` : who;
 }
 
-/** Human value for table / review / view — % vs £ per discountMode. */
-function valueLabel(p) {
+/** Human value for table / review / view — % vs amount per discountMode; `sym`: currency symbol. */
+function valueLabel(p, sym) {
   if (p.benefitType === "free_delivery") return "Free delivery";
   if (p.discountValue === "" || p.discountValue == null) return "—";
   const n = Number(p.discountValue);
-  if (p.benefitType === "fixed_price") return `Basket for ${money(n)}`;
-  const cap = showsCap(p) && p.maxDiscountCap ? ` (max ${money(p.maxDiscountCap)})` : "";
+  if (p.benefitType === "fixed_price") return `Basket for ${money(n, sym)}`;
+  const cap = showsCap(p) && p.maxDiscountCap ? ` (max ${money(p.maxDiscountCap, sym)})` : "";
   if (p.benefitType === "bundle") {
     // Several deals: "10 for £30.00 + 5 for £25.00"
     const deals = p.deals || parseJson(p.benefitConfig, {})?.deals;
     if (Array.isArray(deals) && deals.length) {
       const set = deals.filter((d) => Number(d.price) > 0);
-      if (set.length) return set.map((d) => `${d.quantity ?? d.qty} for ${money(d.price)}`).join(" + ") + cap;
+      if (set.length) return set.map((d) => `${d.quantity ?? d.qty} for ${money(d.price, sym)}`).join(" + ") + cap;
     }
-    return `${bundleSize(p) || "N"} for ${money(n)}${cap}`;
+    return `${bundleSize(p) || "N"} for ${money(n, sym)}${cap}`;
   }
   if (effectiveMode(p) === "percent") return `${n}%${cap}`;
-  if (ITEM_SCOPE_TYPES.includes(p.benefitType)) return `${money(n)} off each${cap}`;
-  return `${money(n)}${cap}`;
+  if (ITEM_SCOPE_TYPES.includes(p.benefitType)) return `${money(n, sym)} off each${cap}`;
+  return `${money(n, sym)}${cap}`;
 }
 
-function valueFieldLabel(form) {
+function valueFieldLabel(form, sym) {
   const mode = effectiveMode(form);
   const bt = form.benefitType;
-  if (bt === "fixed_price") return "Sell basket for (£) *";
-  if (bt === "bundle") return "Price for these pieces (£) *";
-  if (bt === "cashback") return mode === "percent" ? "Cashback (%) *" : "Cashback (£) *";
+  const amount = (label) => `${labelWithCurrency(label, sym)} *`;
+  if (bt === "fixed_price") return amount("Sell basket for");
+  if (bt === "bundle") return amount("Price for these pieces");
+  if (bt === "cashback") return mode === "percent" ? "Cashback (%) *" : amount("Cashback");
   if (mode === "percent") return "Discount (%) *";
-  if (ITEM_SCOPE_TYPES.includes(bt)) return "£ off each item *";
-  if (bt === "delivery_discount") return "£ off delivery *";
-  if (bt === "basket_discount") return "£ off basket *";
-  return "Discount (£) *";
+  if (ITEM_SCOPE_TYPES.includes(bt)) return amount("Amount off each item");
+  if (bt === "delivery_discount") return amount("Amount off delivery");
+  if (bt === "basket_discount") return amount("Amount off basket");
+  return amount("Discount");
 }
 
 
@@ -180,9 +186,9 @@ const shortDay = (day) => dayjs(day).format("D MMM YYYY");
  * The promotion in plain words, rebuilt as the admin types: what it gives, how it is
  * activated, where, when and how often. Shown on every wizard step.
  */
-function promotionSummary(form, zoneName, catalogOptions = {}, dealsApi = null) {
+function promotionSummary(form, zoneName, catalogOptions = {}, dealsApi = null, sym = "") {
   const bt = form.benefitType;
-  const value = valueLabel(form);
+  const value = valueLabel(form, sym);
   const valueSet = bt === "bundle"
     ? form.deals.some((d) => d.itemIds.length && Number(d.price) > 0)
     : !needsValue(bt) || Number(form.discountValue) > 0;
@@ -204,12 +210,12 @@ function promotionSummary(form, zoneName, catalogOptions = {}, dealsApi = null) 
   else if (bt === "cashback") what = `${value} cashback, added to the customer's credit after delivery`;
   else if (bt === "fixed_price") what = value;
   else if (bt === "bundle") {
-    what = (dealsApi && dealsSummary(form.deals, dealsApi)) || `${valueLabel(form)} bulk price`;
-    if (Number(form.maxDiscountCap) > 0) what += ` At most ${money(form.maxDiscountCap)} off one order.`;
+    what = (dealsApi && dealsSummary(form.deals, { ...dealsApi, currencySymbol: sym })) || `${value} bulk price`;
+    if (Number(form.maxDiscountCap) > 0) what += ` At most ${money(form.maxDiscountCap, sym)} off one order.`;
   } else if (ITEM_SCOPE_TYPES.includes(bt) && effectiveMode(form) === "amount") {
-    const amount = money(form.discountValue);
-    const total = Number(form.maxDiscountCap) > 0 ? `, at most ${money(form.maxDiscountCap)} in total` : ", with no limit on the total";
-    what = `${amount} off every single item in ${targets} (an item never goes below £0)${total}`;
+    const amount = money(form.discountValue, sym);
+    const total = Number(form.maxDiscountCap) > 0 ? `, at most ${money(form.maxDiscountCap, sym)} in total` : ", with no limit on the total";
+    what = `${amount} off every single item in ${targets} (an item never goes below zero)${total}`;
   } else if (ITEM_SCOPE_TYPES.includes(bt)) what = `${value} on ${targets}`;
   else what = `${value} off the order`;
 
@@ -226,10 +232,10 @@ function promotionSummary(form, zoneName, catalogOptions = {}, dealsApi = null) 
 
   const spend = [
     form.minSubtotal !== "" && Number(form.minSubtotal) > 0
-      ? `${ITEM_SCOPE_TYPES.includes(bt) ? "selected items of" : "orders of"} ${money(form.minSubtotal)} or more`
+      ? `${ITEM_SCOPE_TYPES.includes(bt) ? "selected items of" : "orders of"} ${money(form.minSubtotal, sym)} or more`
       : null,
     form.maxSubtotal !== "" && Number(form.maxSubtotal) > 0
-      ? `${ITEM_SCOPE_TYPES.includes(bt) && !(Number(form.minSubtotal) > 0) ? "selected items up to" : "up to"} ${money(form.maxSubtotal)}`
+      ? `${ITEM_SCOPE_TYPES.includes(bt) && !(Number(form.minSubtotal) > 0) ? "selected items up to" : "up to"} ${money(form.maxSubtotal, sym)}`
       : null,
   ].filter(Boolean).join(", ");
 
@@ -410,7 +416,7 @@ function appliesToLabel(p, catalogOptions = {}) {
   return `${kindLabel}: ${ids.map((id) => nameById.get(id) || `#${id}`).join(", ")}`;
 }
 
-function PromotionViewBody({ promotion: p, campaign, catalogOptions }) {
+function PromotionViewBody({ promotion: p, campaign, catalogOptions, currencySymbol }) {
   const zones = parseJson(p.zoneIds, []) || [];
   const days = parseJson(p.recurringDays, []) || [];
   const dayText = days.length
@@ -423,8 +429,8 @@ function PromotionViewBody({ promotion: p, campaign, catalogOptions }) {
   const used = Number(p.globalUsedCount || 0);
   const limit = p.globalUsageLimit;
   const subtotalRule = [
-    p.minSubtotal != null && p.minSubtotal !== "" ? `min ${money(p.minSubtotal)}` : null,
-    p.maxSubtotal != null && p.maxSubtotal !== "" ? `max ${money(p.maxSubtotal)}` : null,
+    p.minSubtotal != null && p.minSubtotal !== "" ? `min ${money(p.minSubtotal, currencySymbol)}` : null,
+    p.maxSubtotal != null && p.maxSubtotal !== "" ? `max ${money(p.maxSubtotal, currencySymbol)}` : null,
   ].filter(Boolean).join(" · ");
   const periodLimits = [
     p.perDayLimit ? `${p.perDayLimit} / day per customer` : null,
@@ -437,7 +443,7 @@ function PromotionViewBody({ promotion: p, campaign, catalogOptions }) {
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="m-0 text-xs font-semibold uppercase tracking-wide text-gray-500">{benefitLabel(p.benefitType)}</p>
-            <p className="m-0 mt-1 text-2xl font-bold text-gray-900 break-words">{valueLabel(p)}</p>
+            <p className="m-0 mt-1 text-2xl font-bold text-gray-900 break-words">{valueLabel(p, currencySymbol)}</p>
             <p className="m-0 mt-1 text-sm text-gray-600">
               {p.activationType === "coupon_required" ? "Needs a coupon code" : "Applies automatically"}
               {" · "}
@@ -467,6 +473,7 @@ function PromotionViewBody({ promotion: p, campaign, catalogOptions }) {
             { label: "Activation", value: labelOf(ACTIVATION_TYPES, p.activationType) },
             { label: "Visibility", value: labelOf(VISIBILITY_OPTIONS, p.visibility) },
             { label: "Zones", value: p.zoneScopeMode === "all" ? "All zones" : `${labelOf(ZONE_SCOPES, p.zoneScopeMode)} · ${zones.length} zone${zones.length === 1 ? "" : "s"}` },
+            { label: "Currency", value: p.currency || "—" },
             ITEM_SCOPE_TYPES.includes(p.benefitType) ? { label: "Applies to", value: appliesToLabel(p, catalogOptions) } : null,
           ]}
         />
@@ -593,6 +600,16 @@ export default function PromotionsPage() {
     },
     [zones]
   );
+
+  // Currency: the admin's choice, else the one the promotion's zones share (the backend's rule).
+  const { units: currencyUnits, symbolOf } = useCurrencyUnits();
+  const zonesCurrency = useMemo(
+    () => promotionZonesCurrency(form, zones, currencyUnits),
+    [form, zones, currencyUnits]
+  );
+  const formCurrency = promotionCurrency(form, zonesCurrency);
+  const formSymbol = symbolOf(formCurrency);
+  const currencyRules = { zonesCurrency, currencySymbol: formSymbol };
 
   const campaignOptions = useMemo(() => [
     { value: "", label: "None (own limits)" },
@@ -741,6 +758,7 @@ export default function PromotionsPage() {
       globalUsageLimit: row.globalUsageLimit,
       perCustomerLimit: row.perCustomerLimit,
       budget: c && isOwnBudget(c) && c.budgetMinor != null ? c.budgetMinor / 100 : "",
+      currencySymbol: symbolOf(row.currency),
       sharedBudgetName: c && !isOwnBudget(c) ? c.name : null,
       taken: (row.globalUsedCount || 0) + (row.globalReservedCount || 0),
     });
@@ -749,7 +767,7 @@ export default function PromotionsPage() {
   // Moving forward validates every step in between.
   const goToStep = (target) => {
     for (let s = wizardStep; s < target; s += 1) {
-      const err = validateStep(s, form, dealsApi.priceOf);
+      const err = validateStep(s, form, dealsApi.priceOf, currencyRules);
       if (err) {
         setWizardStep(s);
         toast.error(err);
@@ -763,7 +781,7 @@ export default function PromotionsPage() {
   const handleSave = async (goLive = false) => {
     if (saving || publishing) return;
     for (let s = 0; s < STEPS.length - 1; s += 1) {
-      const err = validateStep(s, form, dealsApi.priceOf);
+      const err = validateStep(s, form, dealsApi.priceOf, currencyRules);
       if (err) {
         setWizardStep(s);
         toast.error(err);
@@ -771,7 +789,7 @@ export default function PromotionsPage() {
       }
     }
     try {
-      const payload = buildPayload(form);
+      const payload = buildPayload(form, { zonesCurrency });
       let id = editId;
       if (editId) {
         await updatePromotion({ id: editId, ...payload }).unwrap();
@@ -845,7 +863,7 @@ export default function PromotionsPage() {
     {
       key: "promotion",
       header: "Promotion",
-      render: (row) => <DirectoryIdentity name={row.name} meta={[valueLabel(row), onLabel(row), whoLabel(row)].filter(Boolean).join(" · ")} />,
+      render: (row) => <DirectoryIdentity name={row.name} meta={[valueLabel(row, symbolOf(row.currency)), onLabel(row), whoLabel(row)].filter(Boolean).join(" · ")} />,
     },
     {
       key: "status",
@@ -869,7 +887,8 @@ export default function PromotionsPage() {
         const c = campaignOf(row);
         if (!c) return <span className="text-gray-400">No limit</span>;
         if (!isOwnBudget(c)) return <span title="Campaign budget, shared with other promotions">Campaign · {c.name}</span>;
-        return c.budgetMinor == null ? "No limit" : `£${(budgetTakenMinor(c) / 100).toFixed(2)} of £${(c.budgetMinor / 100).toFixed(2)}`;
+        const sym = symbolOf(c.currency);
+        return c.budgetMinor == null ? "No limit" : `${moneyFromMinor(budgetTakenMinor(c), sym)} of ${moneyFromMinor(c.budgetMinor, sym)}`;
       },
     },
     {
@@ -934,7 +953,9 @@ export default function PromotionsPage() {
   // Item, category and service discounts measure spend / quantity on their own items only.
   const offerItemsOnly = ITEM_SCOPE_TYPES.includes(form.benefitType);
   const perCustomerLock = lockedPerCustomerLimit(form);
-  const mainValueText = form.discountValue === "" ? "" : mode === "percent" ? `${form.discountValue}%` : money(form.discountValue);
+  const mainValueText = form.discountValue === "" ? "" : mode === "percent" ? `${form.discountValue}%` : money(form.discountValue, formSymbol);
+  // Amount in examples and hints, in the promotion's currency ("£30", or "30" when unknown).
+  const example = (n) => `${currencyPrefix(formSymbol)}${n}`;
   const overrideZones = zones.filter((z) => overrideAllowed(form, String(z.id ?? z._id)));
 
   const setOverrideZones = (ids) => setField(
@@ -1006,7 +1027,7 @@ export default function PromotionsPage() {
                 </Field>
                 {MODE_CHOICE_TYPES.includes(form.benefitType) && (
                   <Field label="Discount Mode *">
-                    <Select options={DISCOUNT_MODES} value={form.discountMode} onChange={(v) => setField("discountMode", v)} />
+                    <Select options={discountModes(formSymbol)} value={form.discountMode} onChange={(v) => setField("discountMode", v)} />
                   </Field>
                 )}
               </div>
@@ -1019,7 +1040,7 @@ export default function PromotionsPage() {
               )}
               {DELIVERY_TYPES.includes(form.benefitType) && (
                 <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-                  Delivery is free today, so there is no delivery fee to discount. This promotion will save £0
+                  Delivery is free today, so there is no delivery fee to discount. This promotion will save nothing
                   until a delivery fee is added. It never discounts the service fee.
                 </p>
               )}
@@ -1033,13 +1054,13 @@ export default function PromotionsPage() {
               {form.benefitType === "bundle" && (
                 <>
                   <p className="text-xs text-blue-800 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
-                    Example: 10 T-shirts for £30 when one is £4.50. Every full group costs the deal price; pieces left
-                    over pay the normal price (12 T-shirts = £30 + 2 × £4.50). Each deal counts only its own items, and
+                    Example: 10 T-shirts for {example(30)} when one is {example("4.50")}. Every full group costs the deal price; pieces left
+                    over pay the normal price (12 T-shirts = {example(30)} + 2 × {example("4.50")}). Each deal counts only its own items, and
                     the cheapest pieces are grouped first. Worked out on the final invoice.
                   </p>
-                  <BulkDealsEditor deals={form.deals} onChange={(deals) => setField("deals", deals)} api={dealsApi} />
+                  <BulkDealsEditor deals={form.deals} onChange={(deals) => setField("deals", deals)} api={dealsApi} currencySymbol={formSymbol} />
                   <div className="grid grid-cols-2 gap-4">
-                    <Field label="Max Discount Cap (£)" hint="Optional. Most these deals take off one order in total">
+                    <Field label={labelWithCurrency("Max Discount Cap", formSymbol)} hint="Optional. Most these deals take off one order in total">
                       <Input type="number" min="0" step="0.01" value={form.maxDiscountCap} onChange={(e) => setField("maxDiscountCap", e.target.value)} placeholder="No cap" />
                     </Field>
                   </div>
@@ -1048,7 +1069,7 @@ export default function PromotionsPage() {
               {needsValue(form.benefitType) && form.benefitType !== "bundle" && (
                 <div className="grid grid-cols-2 gap-4">
                   <Field
-                    label={valueFieldLabel(form)}
+                    label={valueFieldLabel(form, formSymbol)}
                     hint={form.benefitType === "fixed_price" ? "The customer pays this for the laundry (services and add-ons), whatever it would normally cost"
                       : form.benefitType === "bundle" ? `What ${bundleSize(form) || "these"} pieces cost together`
                       : mode === "percent" ? "1 – 100"
@@ -1067,10 +1088,10 @@ export default function PromotionsPage() {
                   </Field>
                   {form.benefitType === "fixed_price" && (
                     <Field
-                      label="Only for baskets up to (£) *"
+                      label={`${labelWithCurrency("Only for baskets up to", formSymbol)} *`}
                       hint={
                         Number(form.maxSubtotal) > Number(form.discountValue) && Number(form.discountValue) > 0
-                          ? `Biggest saving on one order: ${money(Number(form.maxSubtotal) - Number(form.discountValue))}. Larger orders get no promotion.`
+                          ? `Biggest saving on one order: ${money(Number(form.maxSubtotal) - Number(form.discountValue), formSymbol)}. Larger orders get no promotion.`
                           : "Larger orders get no promotion. Same as Maximum Subtotal on the Limits step."
                       }
                     >
@@ -1078,7 +1099,7 @@ export default function PromotionsPage() {
                     </Field>
                   )}
                   {capVisible && (
-                    <Field label={form.benefitType === "cashback" ? "Max Cashback (£)" : "Max Discount Cap (£)"} hint={form.benefitType === "cashback" ? "Most cashback one order can earn" : form.benefitType === "bundle" ? "Optional. Most this deal takes off one order in total, however many groups it has" : ITEM_SCOPE_TYPES.includes(form.benefitType) && mode === "amount" ? "Most this promotion takes off one order in total. Example: £30 here with £30 off each item gives £30 off these items altogether." : "Caps the whole promotion's saving"}>
+                    <Field label={labelWithCurrency(form.benefitType === "cashback" ? "Max Cashback" : "Max Discount Cap", formSymbol)} hint={form.benefitType === "cashback" ? "Most cashback one order can earn" : form.benefitType === "bundle" ? "Optional. Most this deal takes off one order in total, however many groups it has" : ITEM_SCOPE_TYPES.includes(form.benefitType) && mode === "amount" ? `Most this promotion takes off one order in total. Example: ${example(30)} here with ${example(30)} off each item gives ${example(30)} off these items altogether.` : "Caps the whole promotion's saving"}>
                       <Input type="number" min="0" step="0.01" value={form.maxDiscountCap} onChange={(e) => setField("maxDiscountCap", e.target.value)} placeholder="No cap" />
                     </Field>
                   )}
@@ -1120,6 +1141,27 @@ export default function PromotionsPage() {
                   />
                 </Field>
               )}
+              <Field
+                label="Currency *"
+                hint={form.currency
+                  ? "Every amount in this promotion (value, caps, minimums, budget) is in this currency"
+                  : zonesCurrency
+                    ? `The currency of the zones it applies to. Every amount in this promotion is in ${zonesCurrency}`
+                    : "The zones it applies to do not share a currency: choose the one its amounts are in"}
+              >
+                <CurrencySelect
+                  value={formCurrency}
+                  onChange={(v) => setField("currency", v === zonesCurrency ? "" : v)}
+                  error={!formCurrency}
+                  aria-label="Promotion currency"
+                />
+              </Field>
+              {formCurrency && zonesCurrency && formCurrency !== zonesCurrency ? (
+                <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                  Orders in these zones are in {zonesCurrency}, but this promotion is in {formCurrency}. Its amounts are
+                  applied to those orders as they are, without conversion.
+                </p>
+              ) : null}
             </div>
             <div className="bg-white border border-gray-200 rounded-xl p-5 space-y-4">
               <div className="flex items-center gap-2 text-gray-900 font-semibold text-sm">
@@ -1140,18 +1182,18 @@ export default function PromotionsPage() {
                   <div className="grid grid-cols-3 gap-3">
                     {needsValue(form.benefitType) && form.benefitType !== "bundle" && (
                       <Field
-                        label={form.benefitType === "fixed_price" ? "Basket price (£)" : form.benefitType === "bundle" ? "Group price (£)" : mode === "percent" ? "Value (%)" : "Value (£)"}
+                        label={mode === "percent" && form.benefitType !== "fixed_price" ? "Value (%)" : labelWithCurrency(form.benefitType === "fixed_price" ? "Basket price" : "Value", formSymbol)}
                         hint={`${form.benefitType === "fixed_price" ? "Basket price" : form.benefitType === "bundle" ? `Price of ${bundleSize(form) || "N"} pieces` : "Discount"} for orders in this zone. Blank = main value${mainValueText ? ` (${mainValueText})` : ""}`}
                       >
                         <Input type="number" min="0" step="0.01" value={o.discountValue} onChange={(e) => patchOverride(o.zoneId, "discountValue", e.target.value)} placeholder={form.discountValue || "Default"} />
                       </Field>
                     )}
                     {capVisible && (
-                      <Field label="Cap (£)" hint={`Most this promotion can save on one order in this zone. Blank = main cap (${form.maxDiscountCap ? money(form.maxDiscountCap) : "no cap"})`}>
+                      <Field label={labelWithCurrency("Cap", formSymbol)} hint={`Most this promotion can save on one order in this zone. Blank = main cap (${form.maxDiscountCap ? money(form.maxDiscountCap, formSymbol) : "no cap"})`}>
                         <Input type="number" min="0" step="0.01" value={o.maxDiscountCap} onChange={(e) => patchOverride(o.zoneId, "maxDiscountCap", e.target.value)} placeholder={form.maxDiscountCap || "Default"} />
                       </Field>
                     )}
-                    <Field label="Laundry total over (£)" hint={`Laundry total (service fee not included) the invoice must reach in this zone. Blank = main minimum (${form.minSubtotal ? money(form.minSubtotal) : "none"})`}>
+                    <Field label={labelWithCurrency("Laundry total over", formSymbol)} hint={`Laundry total (service fee not included) the invoice must reach in this zone. Blank = main minimum (${form.minSubtotal ? money(form.minSubtotal, formSymbol) : "none"})`}>
                       <Input type="number" min="0" step="0.01" value={o.minSubtotal} onChange={(e) => patchOverride(o.zoneId, "minSubtotal", e.target.value)} placeholder={form.minSubtotal || "Default"} />
                     </Field>
                   </div>
@@ -1219,6 +1261,7 @@ export default function PromotionsPage() {
                 onChange={(v) => setField("conditions", v)}
                 zones={zones}
                 catalogOptions={catalogOptions}
+                currencySymbol={formSymbol}
                 hidden={(type) => conditionHidden(type, form.benefitType)}
               />
               {basketScopeWarning(form.benefitType, form.conditions) ? (
@@ -1242,7 +1285,7 @@ export default function PromotionsPage() {
                   <Input type="number" min="1" value={form.globalUsageLimit} onChange={(e) => setField("globalUsageLimit", e.target.value)} placeholder="No limit" />
                 </Field>
                 <Field
-                  label="Budget (£)"
+                  label={labelWithCurrency("Budget", formSymbol)}
                   hint={form.campaignId
                     ? "This promotion uses its campaign budget (Benefit step)"
                     : "Stops new orders when this much has been given away. Orders already booked keep the full discount. Blank = no limit"}
@@ -1280,10 +1323,10 @@ export default function PromotionsPage() {
                 <TbShoppingCart className="text-blue-600" size={18} /> Basket Requirements
               </div>
               <div className="grid grid-cols-3 gap-4">
-                <Field label={offerItemsOnly ? "Selected items total over (£)" : "Laundry total over (£)"} hint={offerItemsOnly ? "The selected items on the final invoice must come to at least this; other services do not count. Service fee not included. Blank = no minimum" : "The laundry total on the final invoice must reach this. Service fee not included. Blank = no minimum"}>
+                <Field label={labelWithCurrency(offerItemsOnly ? "Selected items total over" : "Laundry total over", formSymbol)} hint={offerItemsOnly ? "The selected items on the final invoice must come to at least this; other services do not count. Service fee not included. Blank = no minimum" : "The laundry total on the final invoice must reach this. Service fee not included. Blank = no minimum"}>
                   <Input type="number" min="0" step="0.01" value={form.minSubtotal} onChange={(e) => setField("minSubtotal", e.target.value)} placeholder="No minimum" />
                 </Field>
-                <Field label="Maximum Subtotal (£)" hint={offerItemsOnly ? "No offer when the selected items come to more than this; other services do not count. Blank = no maximum" : "No offer when the laundry total is above this. Blank = no maximum"}>
+                <Field label={labelWithCurrency("Maximum Subtotal", formSymbol)} hint={offerItemsOnly ? "No offer when the selected items come to more than this; other services do not count. Blank = no maximum" : "No offer when the laundry total is above this. Blank = no maximum"}>
                   <Input type="number" min="0" step="0.01" value={form.maxSubtotal} onChange={(e) => setField("maxSubtotal", e.target.value)} placeholder="No maximum" />
                 </Field>
                 <Field label="Minimum Quantity" hint={offerItemsOnly ? "Fewest selected items on the invoice; items from other services do not count. Blank = no minimum" : "Fewest items on the invoice, add-ons included. Blank = no minimum"}>
@@ -1374,7 +1417,8 @@ export default function PromotionsPage() {
               <div className="grid grid-cols-2 gap-3 text-sm">
                 <div><span className="text-gray-500">Name:</span> <strong>{form.name || "—"}</strong></div>
                 <div><span className="text-gray-500">Type:</span> <strong>{benefitLabel(form.benefitType)}</strong></div>
-                <div><span className="text-gray-500">Value:</span> <strong>{valueLabel(form)}</strong></div>
+                <div><span className="text-gray-500">Value:</span> <strong>{valueLabel(form, formSymbol)}</strong></div>
+                <div><span className="text-gray-500">Currency:</span> <strong>{formCurrency || "Not chosen"}</strong></div>
                 {form.benefitType === "first_x_orders_discount" && (
                   <div><span className="text-gray-500">Orders:</span> <strong>First {form.firstOrders}</strong></div>
                 )}
@@ -1382,7 +1426,7 @@ export default function PromotionsPage() {
                   <div><span className="text-gray-500">Targets:</span> <strong>{form.targetType === "all" ? "All items" : (catalogOptions[form.targetType] || []).filter((o) => form.targetIds.map(String).includes(o.value)).map((o) => o.label).join(", ") || `${form.targetIds.length} selected`}</strong></div>
                 )}
                 {form.benefitType === "bundle" && (
-                  <div className="col-span-2"><span className="text-gray-500">Deals:</span> <strong>{dealsSummary(form.deals, dealsApi) || "—"}</strong></div>
+                  <div className="col-span-2"><span className="text-gray-500">Deals:</span> <strong>{dealsSummary(form.deals, { ...dealsApi, currencySymbol: formSymbol }) || "—"}</strong></div>
                 )}
                 <div><span className="text-gray-500">Zone:</span> <strong>{form.zoneScopeMode === "all" ? "All Zones" : `${form.zoneScopeMode === "excluded" ? "All except " : ""}${form.zoneIds.length} zones`}</strong></div>
                 <div><span className="text-gray-500">Zone overrides:</span> <strong>{form.zoneOverrides.filter((o) => overrideAllowed(form, o.zoneId)).length || "None"}</strong></div>
@@ -1390,9 +1434,9 @@ export default function PromotionsPage() {
                 <div><span className="text-gray-500">Coupons:</span> <strong>{form.couponCodes.map((c) => c.code).join(", ") || "None"}</strong></div>
                 <div><span className="text-gray-500">Conditions:</span> <strong>{form.conditions.filter((c) => c.conditionType).length || "None"}</strong></div>
                 <div><span className="text-gray-500">Global Limit:</span> <strong>{form.globalUsageLimit || "No limit"}</strong></div>
-                <div><span className="text-gray-500">Budget:</span> <strong>{form.campaignId ? "Campaign budget" : form.budget ? `£${form.budget}` : "No limit"}</strong></div>
+                <div><span className="text-gray-500">Budget:</span> <strong>{form.campaignId ? "Campaign budget" : form.budget ? money(form.budget, formSymbol) : "No limit"}</strong></div>
                 <div><span className="text-gray-500">Per Customer:</span> <strong>{(perCustomerLock?.value ?? form.perCustomerLimit) || "No limit"}{perCustomerLock ? " (set by type)" : ""}</strong></div>
-                <div><span className="text-gray-500">Subtotal:</span> <strong>{[form.minSubtotal ? `over £${form.minSubtotal}` : "", form.maxSubtotal ? `up to £${form.maxSubtotal}` : ""].filter(Boolean).join(", ") || "Any"}</strong></div>
+                <div><span className="text-gray-500">Subtotal:</span> <strong>{[form.minSubtotal ? `over ${money(form.minSubtotal, formSymbol)}` : "", form.maxSubtotal ? `up to ${money(form.maxSubtotal, formSymbol)}` : ""].filter(Boolean).join(", ") || "Any"}</strong></div>
                 {showsPeriodLimits(form.benefitType) && (
                   <div><span className="text-gray-500">Per Customer per Day / Week:</span> <strong>{form.perDayLimit || "No limit"} / {form.perWeekLimit || "No limit"}</strong></div>
                 )}
@@ -1498,7 +1542,7 @@ export default function PromotionsPage() {
       <Modal open={showForm} onClose={requestCloseForm} title={editId ? "Edit promotion" : "Create promotion"} size="xl" maxHeight="fixed" hideFooter closeOnBackdrop={false}>
         <div className="p-4" ref={wizardTopRef}>
           <StepIndicator step={wizardStep} onSelect={(i) => (i <= wizardStep ? setWizardStep(i) : goToStep(i))} />
-          <PromotionSummaryBar parts={promotionSummary(form, zoneName, catalogOptions, dealsApi)} />
+          <PromotionSummaryBar parts={promotionSummary(form, zoneName, catalogOptions, dealsApi, formSymbol)} />
           {renderStep()}
           <div className="flex justify-between mt-6">
             <Button
@@ -1559,7 +1603,7 @@ export default function PromotionsPage() {
 
       {/* ─── View Modal ───────────────────────────────────────── */}
       <DirectoryViewModal open={!!viewRow} onClose={() => setViewRow(null)} title={viewRow?.name || "Promotion"} size="md">
-        {viewRow && <PromotionViewBody promotion={viewRow} campaign={campaignOf(viewRow)} catalogOptions={catalogOptions} />}
+        {viewRow && <PromotionViewBody promotion={viewRow} campaign={campaignOf(viewRow)} catalogOptions={catalogOptions} currencySymbol={symbolOf(viewRow.currency)} />}
       </DirectoryViewModal>
 
       {/* ─── Publish Confirm ──────────────────────────────────── */}
@@ -1572,7 +1616,7 @@ export default function PromotionsPage() {
         primaryDisabled={publishing}
       >
         <p style={{ fontSize: 14, color: "#374151" }}>
-          <strong>&ldquo;{publishTarget?.name}&rdquo;</strong> ({publishTarget && valueLabel(publishTarget)}){" "}
+          <strong>&ldquo;{publishTarget?.name}&rdquo;</strong> ({publishTarget && valueLabel(publishTarget, symbolOf(publishTarget.currency))}){" "}
           {publishTarget && campaignStopReason(campaignOf(publishTarget))
             ? "will be published, but will not apply to orders yet."
             : publishTarget?.startDate && dayjs(publishTarget.startDate).isAfter(dayjs())

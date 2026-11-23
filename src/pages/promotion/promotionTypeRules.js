@@ -2,6 +2,7 @@
  * What a promotion's type, or another wizard step, already decides — so the wizard never
  * asks for the same rule twice. Pure functions (no React), mirrored by the server.
  */
+import { currencyPrefix } from "../../utilities/formatMoney.js";
 
 export const FIRST_ORDER_TYPES = ["first_order_discount", "first_x_orders_discount"];
 
@@ -130,14 +131,14 @@ export function bundleSize(p = {}) {
   return Number.isInteger(n) && n >= 2 ? n : null;
 }
 
-const pounds = (n) => `£${Number(n).toFixed(2)}`;
+const money = (n, symbol) => `${currencyPrefix(symbol)}${Number(n).toFixed(2)}`;
 
 /**
  * Bulk price in plain words, e.g. "Any 10 pieces from 2 selected items for £25.00 (normal price for
- * extra pieces), at most £5.00 off in total".
+ * extra pieces), at most £5.00 off in total". `currencySymbol` is the promotion's ('' when unknown).
  */
-export function bulkPriceSummary({ size, price, cap, targets }) {
+export function bulkPriceSummary({ size, price, cap, targets, currencySymbol = "" }) {
   const n = size || "N";
-  const total = Number(cap) > 0 ? `, at most ${pounds(cap)} off in total` : "";
-  return `Any ${n} pieces from ${targets} for ${pounds(price)} (extra pieces pay the normal price)${total}`;
+  const total = Number(cap) > 0 ? `, at most ${money(cap, currencySymbol)} off in total` : "";
+  return `Any ${n} pieces from ${targets} for ${money(price, currencySymbol)} (extra pieces pay the normal price)${total}`;
 }

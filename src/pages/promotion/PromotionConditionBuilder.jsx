@@ -82,7 +82,7 @@ function CodeChips({ value = [], onChange }) {
   );
 }
 
-function ValueEditor({ condition, onChange, zones, catalogOptions }) {
+function ValueEditor({ condition, onChange, zones, catalogOptions, currencySymbol }) {
   const def = CONDITION_DEFS[condition.conditionType];
   const v = condition.value;
   switch (def.kind) {
@@ -98,7 +98,7 @@ function ValueEditor({ condition, onChange, zones, catalogOptions }) {
     case "integer":
     case "money": {
       const step = def.kind === "money" ? "0.01" : "1";
-      const placeholder = def.kind === "money" ? "£" : "Qty";
+      const placeholder = def.kind === "money" ? currencySymbol || "Amount" : "Qty";
       if (condition.operator === "between") {
         const [min = "", max = ""] = Array.isArray(v) ? v : [];
         return (
@@ -169,7 +169,8 @@ function ValueEditor({ condition, onChange, zones, catalogOptions }) {
  * (the promotion's type or another step already covers it), or null. A condition that
  * already uses such a type stays visible with the reason, so nothing vanishes on edit.
  */
-export default function PromotionConditionBuilder({ conditions, onChange, zones = [], catalogOptions = {}, hidden = () => null }) {
+/** `currencySymbol`: the promotion currency's symbol, for amount conditions ('' when unknown). */
+export default function PromotionConditionBuilder({ conditions, onChange, zones = [], catalogOptions = {}, currencySymbol = "", hidden = () => null }) {
   const offered = CONDITION_TYPE_OPTIONS.filter((o) => !hidden(o.value));
   // A new row starts empty: the admin picks the rule, nothing is pre-filled.
   const add = () => onChange([...conditions, newCondition()]);
@@ -236,6 +237,7 @@ export default function PromotionConditionBuilder({ conditions, onChange, zones 
                 onChange={(value) => patch(i, { value })}
                 zones={zones}
                 catalogOptions={catalogOptions}
+                currencySymbol={currencySymbol}
               />
             )}
             {error && <p className="text-xs text-red-600">{error}</p>}

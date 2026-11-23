@@ -8,6 +8,10 @@ import BulkDealsEditor, { dealsSummary, useServiceItemCatalog } from "./BulkDeal
 import TimeInput24, { TIME_24 } from "./TimeInput24";
 import { INITIAL, num, quickOfferToPreset, toPayload, validate } from "./quickOfferRules.js";
 import { cleanCode } from "./promotionCodes.js";
+import CurrencySelect from "./CurrencySelect";
+import { promotionCurrency } from "./promotionForm.js";
+import { useActiveZonesCurrency, useCurrencyUnits } from "../../hooks/useCurrency";
+import { currencyPrefix, labelWithCurrency } from "../../utilities/formatters";
 import "./quickOffer.css";
 
 export { quickOfferToPreset } from "./quickOfferRules.js";
@@ -24,11 +28,13 @@ const ON = [
   { value: "service", label: "Specific services" },
   { value: "item", label: "Specific items" },
 ];
-const WHAT = (on) => {
-  if (on === "order") return [{ value: "percent", label: "% off" }, { value: "amount", label: "£ off the order" }];
-  const each = [{ value: "percent", label: "% off" }, { value: "amount", label: "£ off each item" }];
+/** `sym`: the offer currency's symbol ('' when unknown). */
+const amountOff = (sym) => (sym ? `${sym} off` : "Amount off");
+const WHAT = (on, sym) => {
+  if (on === "order") return [{ value: "percent", label: "% off" }, { value: "amount", label: `${amountOff(sym)} the order` }];
+  const each = [{ value: "percent", label: "% off" }, { value: "amount", label: `${amountOff(sym)} each item` }];
   // Bulk price: every N pieces of the chosen items for one price (10 T-shirts for £30).
-  return on === "item" ? [...each, { value: "bulk", label: "Bulk price (e.g. 10 for £30)" }] : each;
+  return on === "item" ? [...each, { value: "bulk", label: `Bulk price (e.g. 10 for ${currencyPrefix(sym)}30)` }] : each;
 };
 const WHO = [
   { value: "everyone", label: "Everyone" },
@@ -64,12 +70,11 @@ function Section({ n, title, children }) {
   );
 }
 
-const money = (n) => `£${Number(n).toFixed(2).replace(/\.00$/, "")}`;
-
-/** Plain-words line of what the admin is making. */
-function summaryOf(f, { targetNames, nameOf, priceOf, serviceNameOf }) {
+/** Plain-words line of what the admin is making; amounts in the offer currency (`currencySymbol`). */
+function summaryOf(f, { targetNames, nameOf, priceOf, serviceNameOf, currencySymbol }) {
+  const money = (n) => `${currencyPrefix(currencySymbol)}${Number(n).toFixed(2).replace(/\.00$/, "")}`;
   if (f.what === "bulk") {
-    return dealsSummary(f.deals, { nameOf, priceOf, serviceNameOf }) || "Add your deals: services, items, how many pieces, and the price.";
+    return dealsSummary(f.deals, { nameOf, priceOf, serviceNameOf, currencySymbol }) || "Add your deals: services, items, how many pieces, and the price.";
   }
   if (!num(f.value)) return "Choose what customers get.";
   const names = targetNames.length > 3 ? `${targetNames.slice(0, 3).join(", ")} and ${targetNames.length - 3} more` : targetNames.join(", ");
@@ -131,9 +136,16 @@ export default function QuickOfferForm({ open, resume = false, onClose, onSaved,
     const opts = catalog[f.on] || [];
     return f.targetIds.map((id) => opts.find((o) => o.value === String(id))?.label).filter(Boolean);
   }, [catalog, f.on, f.targetIds]);
+  // The offer is for all zones: its currency is the one every active zone shares, unless
+  // the admin chooses one (asked only when the zones share none).
+  const { code: zonesCurrency } = useActiveZonesCurrency();
+  const { symbolOf } = useCurrencyUnits();
+  const offerCurrency = promotionCurrency(f, zonesCurrency);
+  const sym = symbolOf(offerCurrency);
+  const askCurrency = !zonesCurrency || Boolean(f.currency);
   const summary = useMemo(
-    () => summaryOf(f, { targetNames, nameOf, priceOf, serviceNameOf }),
-    [f, targetNames, nameOf, priceOf, serviceNameOf]
+    () => summaryOf(f, { targetNames, nameOf, priceOf, serviceNameOf, currencySymbol: sym }),
+    [f, targetNames, nameOf, priceOf, serviceNameOf, sym]
   );
   /**
    * Bulk deals are for every order, so they start with no per-customer limit; other offers
@@ -152,11 +164,11 @@ export default function QuickOfferForm({ open, resume = false, onClose, onSaved,
   });
 
   const save = async (goLive) => {
-    const err = validate(f, priceOf);
+    const err = validate(f, priceOf, { zonesCurrency, currencySymbol: sym });
     setError(err);
     if (err) return;
     try {
-      const res = await createPromotion(toPayload(f)).unwrap();
+      const res = await createPromotion(toPayload(f, { zonesCurrency })).unwrap();
       const id = (res?.data ?? res)?.id;
       if (goLive && id) {
         const pub = await publishPromotion({ id }).unwrap();
@@ -213,20 +225,32 @@ export default function QuickOfferForm({ open, resume = false, onClose, onSaved,
               />
             </Field>
           ) : null}
-          <Choice label="Discount type" options={WHAT(f.on)} value={f.what} onChange={setWhat} />
+          <Choice label="Discount type" options={WHAT(f.on, sym)} value={f.what} onChange={setWhat} />
+          {askCurrency ? (
+            <div className="qo-row">
+              <Field label="Currency" hint={zonesCurrency ? "Every amount in this offer is in this currency" : "Your zones use different currencies: choose the one this offer's amounts are in"}>
+                <CurrencySelect
+                  value={offerCurrency}
+                  onChange={(v) => setF((p) => ({ ...p, currency: v === zonesCurrency ? "" : v }))}
+                  error={!offerCurrency}
+                  aria-label="Offer currency"
+                />
+              </Field>
+            </div>
+          ) : null}
           {f.what === "bulk" ? (
-            <BulkDealsEditor deals={f.deals} onChange={(deals) => setF((p) => ({ ...p, deals }))} api={dealsApi} />
+            <BulkDealsEditor deals={f.deals} onChange={(deals) => setF((p) => ({ ...p, deals }))} api={dealsApi} currencySymbol={sym} />
           ) : (
           <div className="qo-row">
-            <Field label={f.what === "percent" ? "% off" : f.on === "order" ? "£ off" : "£ off each item"}>
+            <Field label={f.what === "percent" ? "% off" : f.on === "order" ? amountOff(sym) : `${amountOff(sym)} each item`}>
               <Input type="number" min="0" step={f.what === "percent" ? "1" : "0.5"} value={f.value} onChange={set("value")} placeholder={f.what === "percent" ? "10" : "5"} />
             </Field>
             {f.what === "percent" ? (
-              <Field label="Up to (£)" hint="Optional. Most it can take off one order">
+              <Field label={labelWithCurrency("Up to", sym)} hint="Optional. Most it can take off one order">
                 <Input type="number" min="0" step="0.5" value={f.maxOff} onChange={set("maxOff")} placeholder="No limit" />
               </Field>
             ) : null}
-            <Field label="Laundry total over (£)" hint="Optional. Service fee not included">
+            <Field label={labelWithCurrency("Laundry total over", sym)} hint="Optional. Service fee not included">
               <Input type="number" min="0" step="0.5" value={f.minOrder} onChange={set("minOrder")} placeholder="Any order" />
             </Field>
           </div>
@@ -313,7 +337,7 @@ export default function QuickOfferForm({ open, resume = false, onClose, onSaved,
             <Field label="Total orders" hint="Stops after this many orders">
               <Input type="number" min="1" step="1" value={f.totalUses} onChange={set("totalUses")} placeholder="No limit" />
             </Field>
-            <Field label="Budget (£)" hint="Stops when this much has been given away">
+            <Field label={labelWithCurrency("Budget", sym)} hint="Stops when this much has been given away">
               <Input type="number" min="0" step="1" value={f.budget} onChange={set("budget")} placeholder="No limit" />
             </Field>
           </div>
