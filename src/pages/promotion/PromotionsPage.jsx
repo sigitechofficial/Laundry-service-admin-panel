@@ -394,7 +394,23 @@ function ViewSection({ title, children }) {
 }
 
 /** Read-only promotion summary: what it gives, to whom, under which rules, and when. */
-function PromotionViewBody({ promotion: p, campaign }) {
+/**
+ * "Applies to" for the View popup: the target kind plus the names of the picked
+ * services / categories / items / add-ons. While the catalog is loading it shows the
+ * count; an id no longer in the catalog shows as #id.
+ */
+function appliesToLabel(p, catalogOptions = {}) {
+  const kindLabel = labelOf(ITEM_TARGET_TYPES, p.targetType);
+  if (!p.targetType || p.targetType === "all") return kindLabel;
+  const ids = (parseJson(p.targetIds, []) || []).map(String);
+  if (!ids.length) return kindLabel;
+  const options = catalogOptions[p.targetType] || [];
+  if (!options.length) return `${kindLabel} · ${ids.length}`;
+  const nameById = new Map(options.map((o) => [String(o.value), o.label]));
+  return `${kindLabel}: ${ids.map((id) => nameById.get(id) || `#${id}`).join(", ")}`;
+}
+
+function PromotionViewBody({ promotion: p, campaign, catalogOptions }) {
   const zones = parseJson(p.zoneIds, []) || [];
   const days = parseJson(p.recurringDays, []) || [];
   const dayText = days.length
@@ -451,7 +467,7 @@ function PromotionViewBody({ promotion: p, campaign }) {
             { label: "Activation", value: labelOf(ACTIVATION_TYPES, p.activationType) },
             { label: "Visibility", value: labelOf(VISIBILITY_OPTIONS, p.visibility) },
             { label: "Zones", value: p.zoneScopeMode === "all" ? "All zones" : `${labelOf(ZONE_SCOPES, p.zoneScopeMode)} · ${zones.length} zone${zones.length === 1 ? "" : "s"}` },
-            ITEM_SCOPE_TYPES.includes(p.benefitType) ? { label: "Applies to", value: labelOf(ITEM_TARGET_TYPES, p.targetType) } : null,
+            ITEM_SCOPE_TYPES.includes(p.benefitType) ? { label: "Applies to", value: appliesToLabel(p, catalogOptions) } : null,
           ]}
         />
       </ViewSection>
@@ -543,11 +559,13 @@ export default function PromotionsPage() {
   }, [campaignOf]);
   const { data: zonesData } = useGetAllZonesQuery();
 
-  // Catalog lists feed the target picker and catalog conditions — only needed while the wizard is open.
-  const { data: servicesResp } = useGetAllServicesQuery(undefined, { skip: !showForm });
-  const { data: categoriesResp } = useGetCategoriesQuery(undefined, { skip: !showForm });
-  const { data: subCatsResp } = useGetSubCategoriesQuery(undefined, { skip: !showForm });
-  const { data: addonsResp } = useGetAllAddOnServicesQuery(undefined, { skip: !showForm });
+  // Catalog lists feed the target picker and catalog conditions, and name the targets in
+  // the View popup — only needed while the wizard or the View popup is open.
+  const skipCatalog = !showForm && !viewRow;
+  const { data: servicesResp } = useGetAllServicesQuery(undefined, { skip: skipCatalog });
+  const { data: categoriesResp } = useGetCategoriesQuery(undefined, { skip: skipCatalog });
+  const { data: subCatsResp } = useGetSubCategoriesQuery(undefined, { skip: skipCatalog });
+  const { data: addonsResp } = useGetAllAddOnServicesQuery(undefined, { skip: skipCatalog });
 
   // Bulk deals pick services, then their items (with prices for "normally £X").
   const dealsApi = useServiceItemCatalog(showForm && form.benefitType === "bundle");
@@ -1541,7 +1559,7 @@ export default function PromotionsPage() {
 
       {/* ─── View Modal ───────────────────────────────────────── */}
       <DirectoryViewModal open={!!viewRow} onClose={() => setViewRow(null)} title={viewRow?.name || "Promotion"} size="md">
-        {viewRow && <PromotionViewBody promotion={viewRow} campaign={campaignOf(viewRow)} />}
+        {viewRow && <PromotionViewBody promotion={viewRow} campaign={campaignOf(viewRow)} catalogOptions={catalogOptions} />}
       </DirectoryViewModal>
 
       {/* ─── Publish Confirm ──────────────────────────────────── */}
