@@ -29,12 +29,11 @@ export function useCurrencyUnits() {
 }
 
 /**
- * Currency of the master catalogue (prices not tied to a zone): the one every active zone
- * shares — the backend's rule for unzoned prices (resolveDisplayCurrency({})). Empty while
- * loading, or when active zones are in different currencies: the master prices then have
- * no single currency and are shown as plain numbers.
+ * The currency every active zone shares `{ symbol, code }` — the backend's
+ * resolveDisplayCurrency({}). Empty while loading, or when active zones are in different
+ * currencies: then there is no single platform currency.
  */
-export function useMasterCatalogCurrency() {
+export function useActiveZonesCurrency() {
   const { data } = useGetAllZonesQuery();
   const { units } = useCurrencyUnits();
   return useMemo(
@@ -43,8 +42,12 @@ export function useMasterCatalogCurrency() {
   );
 }
 
-/** Formatter for master-catalogue prices (see useMasterCatalogCurrency). */
+/**
+ * Formatter for master-catalogue prices (not tied to a zone). They are in the currency every
+ * active zone shares — the backend's rule for unzoned prices; with zones in different
+ * currencies they have no single currency and show as plain numbers.
+ */
 export function useMasterCatalogMoney() {
-  const { symbol, code } = useMasterCatalogCurrency();
+  const { symbol, code } = useActiveZonesCurrency();
   return useCallback((amount) => formatMoney(amount, symbol, code), [symbol, code]);
 }

@@ -8,6 +8,7 @@ export {
   zoneDisplayCurrency,
   sharedZoneCurrency,
   labelWithCurrency,
+  currencyPrefix,
 } from "./formatMoney";
 export { formatDate, DATE_FORMAT, DATE_TIME_FORMAT, formatCalendarDate, formatClock, formatBookingWindow, isDateOnlyValue } from "./formatDate";
 export { joinMediaUrl } from "./mediaUrl";

@@ -277,6 +277,16 @@ export function resolveCurrencySymbol(source, currencyUnitsOrOptions, maybeOptio
 }
 
 /**
+ * What goes before an amount: the symbol ("£"), with a space after a letter symbol
+ * ("CHF "); '' when the currency is unknown.
+ */
+export function currencyPrefix(symbol) {
+  const sym = trimStr(symbol);
+  if (!sym) return "";
+  return sym.length > 1 && !/[\s$£€¥₹]/.test(sym.slice(-1)) ? `${sym} ` : sym;
+}
+
+/**
  * Format an amount with the API currency symbol (or ISO code if no symbol). With neither
  * (unknown currency) the amount is shown on its own.
  *
@@ -291,11 +301,8 @@ export function formatMoney(amount, symbol, code) {
     ? n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
     : String(amount);
 
-  const sym = trimStr(symbol);
-  if (sym) {
-    const sep = sym.length > 1 && !/[\s$£€¥₹]/.test(sym.slice(-1)) ? " " : "";
-    return `${sym}${sep}${num}`;
-  }
+  const prefix = currencyPrefix(symbol);
+  if (prefix) return `${prefix}${num}`;
 
   const iso = trimStr(code);
   if (iso) return `${iso} ${num}`;
