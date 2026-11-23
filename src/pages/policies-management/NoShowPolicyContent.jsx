@@ -290,7 +290,8 @@ export default function NoShowPolicyContent({
       enableForDelivery: true,
       useUnifiedFee: true,
       feeType: "absolute",
-      currency: "USD",
+      // Set from the chosen zone; "" until then (sent as null = the booking zone's currency).
+      currency: "",
       pickupNoShowFee: "",
       deliveryNoShowFee: "",
       storageFeePerDay: "",
@@ -448,7 +449,8 @@ export default function NoShowPolicyContent({
       enableForDelivery: true,
       useUnifiedFee: true,
       feeType: "absolute",
-      currency: "USD",
+      // Set from the chosen zone; "" until then (sent as null = the booking zone's currency).
+      currency: "",
       pickupNoShowFee: "",
       deliveryNoShowFee: "",
       storageFeePerDay: "",
@@ -499,7 +501,14 @@ export default function NoShowPolicyContent({
       enableForDelivery: config.enableForDelivery ?? true,
       useUnifiedFee: config.useUnifiedFee ?? true,
       feeType: config.feeType || "absolute",
-      currency: config.currency || "USD",
+      // The policy's own currency, else its zone's (shown read-only; it follows the zone).
+      currency:
+        config.currency ||
+        currencyCodeFromZone(
+          policy.zone || zonesList.find((z) => String(z.id) === String(policy.zoneId)),
+          currencyUnitsList
+        ) ||
+        "",
       pickupNoShowFee: config.pickupNoShowFee?.toString() || "",
       deliveryNoShowFee: config.deliveryNoShowFee?.toString() || "",
       storageFeePerDay: config.storageFeePerDay?.toString() || "",
@@ -657,7 +666,7 @@ export default function NoShowPolicyContent({
         enableForDelivery: data.enableForDelivery,
         useUnifiedFee: data.useUnifiedFee,
         feeType: data.feeType,
-        currency: data.currency,
+        currency: data.currency || null,
         pickupNoShowFee: data.pickupNoShowFee ? parseFloat(data.pickupNoShowFee) : 0,
         deliveryNoShowFee: data.deliveryNoShowFee ? parseFloat(data.deliveryNoShowFee) : 0,
         storageFeePerDay: data.storageFeePerDay ? parseFloat(data.storageFeePerDay) : 0,

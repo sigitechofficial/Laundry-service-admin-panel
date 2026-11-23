@@ -294,7 +294,8 @@ export default function ReschedulePolicyContent({
     effectiveTo: null,
     isActive: true,
     isDefault: false,
-    currency: "USD",
+    // Set from the chosen zone; "" until then (sent as null = the booking zone's currency).
+    currency: "",
     atPickupAbsoluteAmount: "",
     atPickupPercentage: "",
     atPickupCourtesyCount: 1,
@@ -370,11 +371,6 @@ export default function ReschedulePolicyContent({
   const policiesData =
     policies?.map((policy, index) => {
       const config = policy.rescheduleConfig || policy.reschedulePolicyConfig || policy;
-      const currency =
-        config.atPickupAbsoluteCurrency ||
-        config.atDeliveryAbsoluteCurrency ||
-        config.currency ||
-        "USD";
       const pickupFee =
         config.atPickupAbsoluteAmount ?? config.pickupRescheduleFee ?? 0;
       const deliveryFee =
@@ -392,6 +388,13 @@ export default function ReschedulePolicyContent({
         zone?.name ||
         zoneOptions.find((z) => String(z.value) === String(policy.zoneId))?.label ||
         null;
+      // The policy's own currency, else its zone's (NULL in the policy = the zone's).
+      const currency =
+        config.atPickupAbsoluteCurrency ||
+        config.atDeliveryAbsoluteCurrency ||
+        config.currency ||
+        currencyCodeFromZone(zone, currencyUnitsList) ||
+        "";
       const currencySymbol = resolvePolicyCurrencySymbol({
         zone,
         code: currency,
@@ -458,11 +461,15 @@ export default function ReschedulePolicyContent({
     const policy = row._rawPolicy || policies.find((p) => p.id === row.id) || row;
     setEditingPolicy(policy);
     const config = policy.rescheduleConfig || policy.reschedulePolicyConfig || policy;
+    const policyZone =
+      policy.zone || zonesList.find((z) => String(z.id) === String(policy.zoneId)) || null;
+    // The policy's own currency, else its zone's (shown read-only; it follows the zone).
     const selectedCurrency =
       config.atPickupAbsoluteCurrency ||
       config.atDeliveryAbsoluteCurrency ||
       config.currency ||
-      "USD";
+      currencyCodeFromZone(policyZone, currencyUnitsList) ||
+      "";
     reset({
       name: policy.name || "",
       description: policy.description || "",
@@ -602,7 +609,8 @@ export default function ReschedulePolicyContent({
   const onSubmit = async (data) => {
     let payload;
     try {
-      const selectedCurrency = data.currency || "USD";
+      // The zone's currency; null (unknown) lets the backend use the booking zone's.
+      const selectedCurrency = data.currency || null;
       const effectiveFromUtc = data.effectiveFrom
         ? dayjs(data.effectiveFrom).toDate().toISOString()
         : dayjs().toDate().toISOString();
