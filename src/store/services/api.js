@@ -1,5 +1,6 @@
 import { createApi } from "@reduxjs/toolkit/query/react";
 import baseQueryWithReauth from "./baseQueryWithReauth";
+import { adminShopBusinessInfoPath } from "../../pages/shop-management/shopBusinessInfo";
 
 export const api = createApi({
   reducerPath: "api",
@@ -1301,8 +1302,8 @@ export const api = createApi({
       }),
     }),
     getBusinessInformation: builder.query({
-      query: (userId) => ({
-        url: `agent/getBussinessInforMation/${userId}`,
+      query: (agentId) => ({
+        url: adminShopBusinessInfoPath(agentId),
         method: "GET",
       }),
     }),
