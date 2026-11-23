@@ -21,7 +21,7 @@ import {
 } from "../directory-table/directoryTable";
 import CatalogChrome, { useCatalogScope } from "./catalogChrome";
 import ZoneModeGuard from "./ZoneModeGuard";
-import { formatAmount } from "../../utilities/formatters";
+import { useMasterCatalogMoney } from "../../hooks/useCurrency";
 import {
   useCreateRepairGarmentMutation,
   useCreateRepairOptionMutation,
@@ -43,13 +43,10 @@ function unwrapList(res) {
   return [];
 }
 
-/** Catalog prices have no zone row — use platform default (zone→country→GBP). */
-function money(value) {
-  return formatAmount(value, null, { applyDefault: true });
-}
-
 export default function RepairCatalogPage() {
   const { isZoneMode } = useCatalogScope();
+  // Repair prices are master-catalogue prices (no zone row).
+  const money = useMasterCatalogMoney();
   const { success, error } = useToaster();
   const {
     data: garmentsRes,

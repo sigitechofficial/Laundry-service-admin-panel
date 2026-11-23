@@ -3,6 +3,7 @@ import { Button, Field, Input } from "../../design-system";
 import { useGetAllServicesQuery, useGetCategoriesQuery, useGetSubCategoriesQuery } from "../../store/services/api";
 import CatalogMultiSelect from "./CatalogMultiSelect";
 import { dealNormal, newDeal } from "./promotionDeals.js";
+import { currencyPrefix, labelWithCurrency } from "../../utilities/formatters";
 import "./quickOffer.css";
 
 /**
@@ -14,7 +15,7 @@ import "./quickOffer.css";
 export { newDeal, dealNormal, validateDeals, dealsToConfig, dealsFromPromotion, dealsSummary } from "./promotionDeals.js";
 
 const num = (v) => (v === "" || v == null ? null : Number(v));
-const money = (n) => `£${Number(n).toFixed(2).replace(/\.00$/, "")}`;
+const money = (n, symbol) => `${currencyPrefix(symbol)}${Number(n).toFixed(2).replace(/\.00$/, "")}`;
 
 function listOf(response, ...keys) {
   const root = response?.data ?? response;
@@ -62,7 +63,8 @@ export function useServiceItemCatalog(enabled = true) {
   return { catalog, itemsInServices, nameOf, priceOf, serviceOf, serviceNameOf };
 }
 
-export default function BulkDealsEditor({ deals, onChange, api }) {
+/** `currencySymbol`: the promotion currency's symbol ('' when unknown). */
+export default function BulkDealsEditor({ deals, onChange, api, currencySymbol = "" }) {
   const { catalog, itemsInServices, priceOf, serviceOf } = api;
   const setDeal = (i, patch) => onChange(deals.map((d, j) => (j === i ? { ...d, ...patch } : d)));
   // Changing a deal's services drops items that aren't in them any more.
@@ -125,8 +127,8 @@ export default function BulkDealsEditor({ deals, onChange, api }) {
                 <Input type="number" min="2" step="1" value={d.qty} onChange={(e) => setDeal(i, { qty: e.target.value })} placeholder="10" />
               </Field>
               <Field
-                label="For (£)"
-                hint={normal != null ? `Normally ${money(normal)}${num(d.price) ? ` · saves ${money(normal - num(d.price))}` : ""}` : undefined}
+                label={labelWithCurrency("For", currencySymbol)}
+                hint={normal != null ? `Normally ${money(normal, currencySymbol)}${num(d.price) ? ` · saves ${money(normal - num(d.price), currencySymbol)}` : ""}` : undefined}
               >
                 <Input type="number" min="0" step="0.5" value={d.price} onChange={(e) => setDeal(i, { price: e.target.value })} placeholder="30" />
               </Field>

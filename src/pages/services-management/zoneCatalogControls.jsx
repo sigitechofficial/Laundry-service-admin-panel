@@ -7,7 +7,7 @@ import {
   useUpsertZoneCatalogOverrideMutation,
 } from "../../store/services/api";
 import { TbChevronDown, TbChevronRight } from "../../shared/icons/index";
-import { formatAmount } from "../../utilities/formatters";
+import { useMasterCatalogMoney } from "../../hooks/useCurrency";
 import { getApiErrorMessage } from "../../store/services/apiErrors";
 import { DirectoryDotPill, DirectoryTableWrap } from "../directory-table/directoryTable";
 import { EmptyHint } from "./QueryState";
@@ -130,6 +130,7 @@ export function ZonePriceEditor({
   disabled,
   onSave,
 }) {
+  const catalogMoney = useMasterCatalogMoney();
   // Show the stored zone price when one exists (even while overlays are
   // staged/off); otherwise the effective price, which equals master.
   const shown = zonePrice != null && zonePrice !== "" ? zonePrice : price;
@@ -194,7 +195,7 @@ export function ZonePriceEditor({
       >
         {priceInherited
           ? "Master price"
-          : `Master ${formatAmount(masterPrice, null, { applyDefault: true })}${
+          : `Master ${catalogMoney(masterPrice)}${
               staged ? " · saved, applies when zone pricing is on" : ""
             }`}
       </span>

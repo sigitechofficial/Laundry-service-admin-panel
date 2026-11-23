@@ -207,12 +207,11 @@ export default function CustomerDetails() {
   const currencySymbol = useMemo(() => {
     for (const booking of bookingDetails) {
       const symbol = resolveCurrencySymbol(
-        booking?.billingDetail ?? booking?.paymentSummary ?? booking?.zone ?? booking,
-        { applyDefault: false }
+        booking?.billingDetail ?? booking?.paymentSummary ?? booking?.zone ?? booking
       );
       if (symbol) return symbol;
     }
-    return resolveCurrencySymbol(userDetails ?? user, { applyDefault: true });
+    return resolveCurrencySymbol(userDetails ?? user);
   }, [bookingDetails, user, userDetails]);
 
   const allOrderRows = useMemo(

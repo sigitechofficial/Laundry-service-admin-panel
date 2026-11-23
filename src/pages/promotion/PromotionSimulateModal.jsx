@@ -3,8 +3,8 @@ import { Button, Field, Input, Modal, Select } from "../../design-system";
 import useToaster from "../../components/ui/Toaster";
 import { useSimulatePromotionMutation } from "../../store/services/api";
 import { useServiceItemCatalog } from "./BulkDealsEditor";
-
-const money = (n) => `£${(Number(n) || 0).toFixed(2)}`;
+import { useCurrencyUnits, useMasterCatalogMoney } from "../../hooks/useCurrency";
+import { formatMoney, labelWithCurrency, zoneDisplayCurrency } from "../../utilities/formatters";
 
 const INITIAL = () => ({ zoneId: "", subtotal: "", deliveryFee: "", couponCode: "", customerId: "", items: [{ itemId: "", qty: "1" }] });
 
@@ -22,9 +22,19 @@ export default function PromotionSimulateModal({ open, onClose, zones = [] }) {
 
   const setField = (k, v) => setForm((prev) => ({ ...prev, [k]: v }));
   const { catalog } = useServiceItemCatalog(open);
+  // Item prices are catalogue prices (no zone); the basket is in the chosen zone's currency.
+  const catalogMoney = useMasterCatalogMoney();
+  const { units: currencyUnits, symbolOf } = useCurrencyUnits();
+  const zoneCurrency = zoneDisplayCurrency(
+    zones.find((z) => String(z.id ?? z._id) === String(form.zoneId)),
+    currencyUnits
+  );
+  // Results: the basket currency the server priced in, else the zone's.
+  const resultSymbol = result?.currency ? symbolOf(result.currency) : zoneCurrency.symbol;
+  const money = (n) => formatMoney(Number(n) || 0, resultSymbol);
   const itemOptions = catalog.item.map((o) => ({
     value: o.value,
-    label: `${o.label}${o.serviceLabel ? ` · ${o.serviceLabel}` : ""}${Number(o.price) > 0 ? ` · ${money(o.price)}` : ""}`,
+    label: `${o.label}${o.serviceLabel ? ` · ${o.serviceLabel}` : ""}${Number(o.price) > 0 ? ` · ${catalogMoney(o.price)}` : ""}`,
   }));
   const setItem = (i, patch) => setForm((prev) => ({ ...prev, items: prev.items.map((it, j) => (j === i ? { ...it, ...patch } : it)) }));
   const chosenItems = form.items.filter((it) => it.itemId);
@@ -74,10 +84,10 @@ export default function PromotionSimulateModal({ open, onClose, zones = [] }) {
           <Field label="Customer ID" hint="Optional — evaluates customer conditions & limits">
             <Input type="number" min="1" value={form.customerId} onChange={(e) => setField("customerId", e.target.value)} placeholder="e.g. 123" />
           </Field>
-          <Field label="Basket subtotal (£) *">
+          <Field label={`${labelWithCurrency("Basket subtotal", zoneCurrency.symbol)} *`}>
             <Input type="number" min="0" step="0.01" value={form.subtotal} onChange={(e) => setField("subtotal", e.target.value)} placeholder="e.g. 45.00" />
           </Field>
-          <Field label="Delivery fee (£)">
+          <Field label={labelWithCurrency("Delivery fee", zoneCurrency.symbol)}>
             <Input type="number" min="0" step="0.01" value={form.deliveryFee} onChange={(e) => setField("deliveryFee", e.target.value)} placeholder="e.g. 3.99" />
           </Field>
           <Field label="Coupon code">

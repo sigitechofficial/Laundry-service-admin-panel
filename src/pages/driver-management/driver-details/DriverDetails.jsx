@@ -69,8 +69,7 @@ export default function DriverDetails() {
         pickupDateTime: formatDate(booking?.collectionDate, DATE_TIME_FORMAT),
         deliveryDateTime: formatDate(booking?.deliveryDate, DATE_TIME_FORMAT),
         currencySymbol: resolveCurrencySymbol(
-          booking?.billingDetail ?? booking?.paymentSummary ?? booking?.zone ?? booking,
-          { applyDefault: true }
+          booking?.billingDetail ?? booking?.paymentSummary ?? booking?.zone ?? booking
         ),
         onHold: booking?.OnHoldConfirmations?.length || 0,
         pickupDriver: `${booking?.driver?.firstName || ""} ${booking?.driver?.lastName || ""}`.trim() || "—",
@@ -138,7 +137,7 @@ export default function DriverDetails() {
       header: "Total",
       render: (row) => (
         <DirectoryMoney>
-          {formatAmount(row.cost, row, { applyDefault: true })}
+          {formatAmount(row.cost, row)}
         </DirectoryMoney>
       ),
     },

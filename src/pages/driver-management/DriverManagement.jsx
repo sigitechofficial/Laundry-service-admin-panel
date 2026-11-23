@@ -131,7 +131,7 @@ export default function DriverManagement() {
         completedOrders: driver.completedOrders || 0,
         pendingOrders: driver.pendingOrders || 0,
         driverEarnings: driver.driverEarnings || 0,
-        currencySymbol: resolveCurrencySymbol(driver, { applyDefault: true }),
+        currencySymbol: resolveCurrencySymbol(driver),
         createdAt: driver.createdAt,
         status: driver.status,
         changeStatus: driver.status,
@@ -253,7 +253,7 @@ export default function DriverManagement() {
       header: "Earnings",
       render: (row) => (
         <DirectoryMoney>
-          {formatAmount(row.driverEarnings, row, { applyDefault: true })}
+          {formatAmount(row.driverEarnings, row)}
         </DirectoryMoney>
       ),
     },
@@ -385,7 +385,7 @@ export default function DriverManagement() {
           { label: "Pending", value: viewRow?.pendingOrders },
           {
             label: "Earnings",
-            value: formatAmount(viewRow?.driverEarnings, viewRow, { applyDefault: true }),
+            value: formatAmount(viewRow?.driverEarnings, viewRow),
           },
           { label: "Status", value: viewRow?.status ? "Active" : "Inactive" },
           { label: "Created", value: formatDate(viewRow?.createdAt) },

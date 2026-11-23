@@ -69,7 +69,7 @@ import {
 const isSuccess = (res) => res?.status === "1" || res?.status === 1;
 
 function formatAgentMoney(amount, source) {
-  return formatAmount(amount, source, { applyDefault: true });
+  return formatAmount(amount, source);
 }
 
 const emptyActionModal = {
@@ -350,7 +350,7 @@ export default function AgentSettlement() {
 
   const summary = useMemo(() => {
     const symbols = new Set(
-      cashDueAgents.map((agent) => resolveCurrencySymbol(agent, { applyDefault: true }))
+      cashDueAgents.map((agent) => resolveCurrencySymbol(agent))
     );
     const currencySymbol = symbols.size === 1 ? [...symbols][0] : "";
     // Prefer server totals (whole filtered set); fall back to page sums for older APIs.
@@ -1260,7 +1260,7 @@ export default function AgentSettlement() {
           Still to collect = cash collected − refunds − commission credited − cash already sent
         </p>
         <p style={{ margin: 0, fontSize: 12, color: "#8a94a6", lineHeight: 1.5 }}>
-          After you tap Record, <strong>Still to collect</strong> can become £0. That is expected —
+          After you tap Record, <strong>Still to collect</strong> can become zero. That is expected —
           the money moved into <strong>Already collected from agents</strong>. Open the agent for
           the full split (tips, refunds, clawbacks, payouts). Pending remittances from the agent
           app sit in the other tab ({formatMoney(summary.totalPending, summary.currencySymbol)}).
@@ -1312,7 +1312,7 @@ export default function AgentSettlement() {
 
       <p className="jd-lead" style={{ margin: "0 0 16px" }}>
         {tab === "cash-due"
-          ? "Live due can be £0 after you record cash — remitted and released columns keep the lifetime trail. Open a shop for statement, payouts, and Connect."
+          ? "Live due can be zero after you record cash — remitted and released columns keep the lifetime trail. Open a shop for statement, payouts, and Connect."
           : tab === "remittances"
             ? "Agent-submitted cash remittances awaiting your confirmation."
             : "Agent withdrawal requests. Approve transfers money to their Stripe Connect payout account; reject releases the reserved balance."}

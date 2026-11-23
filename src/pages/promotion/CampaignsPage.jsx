@@ -18,12 +18,14 @@ import {
   useGetPromotionsQuery,
 } from "../../store/services/api";
 import { TbPlus } from "../../shared/icons/index";
-import { TbSpeakerphone, TbCurrencyPound, TbAlertTriangle } from "react-icons/tb";
-import { formatDate } from "../../utilities/formatters";
+import { TbSpeakerphone, TbCoins, TbAlertTriangle } from "react-icons/tb";
+import { formatDate, labelWithCurrency } from "../../utilities/formatters";
+import { useActiveZonesCurrency, useCurrencyUnits } from "../../hooks/useCurrency";
+import CurrencySelect from "./CurrencySelect";
 import { STATUS_TONES as PROMOTION_STATUS_TONES, benefitLabel, statusLabel as promotionStatusLabel } from "./promotionLabels";
 import {
   CAMPAIGN_STATUS_OPTIONS, LIVE_PROMOTION_STATUSES, SWITCH_OFF_STATUSES,
-  budgetLeftMinor, budgetTakenMinor, campaignStatusLabel, campaignStopReason, poundsFromMinor, stopReasonText, ukToday,
+  budgetLeftMinor, budgetTakenMinor, campaignStatusLabel, campaignStopReason, moneyFromMinor, stopReasonText, ukToday,
 } from "./campaignState";
 
 const PROMOTIONS_PATH = "/promotion/promotions";
@@ -32,7 +34,8 @@ const INITIAL_FORM = () => ({
   name: "",
   description: "",
   budgetMinor: "",
-  currency: "GBP",
+  // ISO code of the budget. A campaign has no zone, so the admin names it (required with a budget).
+  currency: "",
   startDate: "",
   endDate: "",
   status: "draft",
@@ -87,8 +90,9 @@ function RunningPill({ campaign }) {
   return <DirectoryDotPill tone="neutral">Not running · {stopReasonText(reason, campaign)}</DirectoryDotPill>;
 }
 
-function BudgetMeter({ campaign }) {
+function BudgetMeter({ campaign, currencySymbol }) {
   if (campaign.budgetMinor == null) return <p className="m-0 text-sm text-gray-600">No budget limit</p>;
+  const money = (minor) => moneyFromMinor(minor, currencySymbol);
   const budget = Number(campaign.budgetMinor);
   const spent = Number(campaign.usedBudgetMinor || 0);
   const held = Number(campaign.heldBudgetMinor || 0);
@@ -96,15 +100,15 @@ function BudgetMeter({ campaign }) {
   const pct = (v) => (budget > 0 ? Math.min(100, (v / budget) * 100) : 100);
   return (
     <div className="space-y-2">
-      <div className="flex h-2 w-full overflow-hidden rounded-full bg-gray-100" role="img" aria-label={`Budget ${poundsFromMinor(budgetTakenMinor(campaign))} of ${poundsFromMinor(budget)} used`}>
+      <div className="flex h-2 w-full overflow-hidden rounded-full bg-gray-100" role="img" aria-label={`Budget ${money(budgetTakenMinor(campaign))} of ${money(budget)} used`}>
         <div className="h-full bg-blue-600" style={{ width: `${pct(spent)}%` }} />
         <div className="h-full bg-blue-300" style={{ width: `${Math.min(100 - pct(spent), pct(held))}%` }} />
       </div>
       <div className="grid grid-cols-4 gap-2 text-xs">
-        <div><p className="m-0 text-gray-500">Budget</p><p className="m-0 font-semibold text-gray-900 tabular-nums">{poundsFromMinor(budget)}</p></div>
-        <div><p className="m-0 text-gray-500"><span className="mr-1 inline-block h-2 w-2 rounded-full bg-blue-600" />Spent (paid)</p><p className="m-0 font-semibold text-gray-900 tabular-nums">{poundsFromMinor(spent)}</p></div>
-        <div><p className="m-0 text-gray-500"><span className="mr-1 inline-block h-2 w-2 rounded-full bg-blue-300" />Held (unpaid)</p><p className="m-0 font-semibold text-gray-900 tabular-nums">{campaign.heldBudgetMinor != null ? poundsFromMinor(held) : "—"}</p></div>
-        <div><p className="m-0 text-gray-500">Left</p><p className={`m-0 font-semibold tabular-nums ${left === 0 ? "text-red-600" : "text-gray-900"}`}>{poundsFromMinor(left)}</p></div>
+        <div><p className="m-0 text-gray-500">Budget</p><p className="m-0 font-semibold text-gray-900 tabular-nums">{money(budget)}</p></div>
+        <div><p className="m-0 text-gray-500"><span className="mr-1 inline-block h-2 w-2 rounded-full bg-blue-600" />Spent (paid)</p><p className="m-0 font-semibold text-gray-900 tabular-nums">{money(spent)}</p></div>
+        <div><p className="m-0 text-gray-500"><span className="mr-1 inline-block h-2 w-2 rounded-full bg-blue-300" />Held (unpaid)</p><p className="m-0 font-semibold text-gray-900 tabular-nums">{campaign.heldBudgetMinor != null ? money(held) : "—"}</p></div>
+        <div><p className="m-0 text-gray-500">Left</p><p className={`m-0 font-semibold tabular-nums ${left === 0 ? "text-red-600" : "text-gray-900"}`}>{money(left)}</p></div>
       </div>
     </div>
   );
@@ -181,13 +185,17 @@ export default function CampaignsPage() {
 
   const setField = useCallback((k, v) => setForm((prev) => ({ ...prev, [k]: v })), []);
 
-  const openCreate = () => { setForm(INITIAL_FORM()); setEditRow(null); setShowForm(true); };
+  const { symbolOf } = useCurrencyUnits();
+  // Suggested for a new campaign: the currency every active zone shares (none when they differ).
+  const zonesCurrency = useActiveZonesCurrency();
+
+  const openCreate = () => { setForm({ ...INITIAL_FORM(), currency: zonesCurrency.code }); setEditRow(null); setShowForm(true); };
   const openEdit = (row) => {
     setForm({
       name: row.name || "",
       description: row.description || "",
       budgetMinor: row.budgetMinor != null ? String(row.budgetMinor / 100) : "",
-      currency: row.currency || "GBP",
+      currency: row.currency || "",
       startDate: row.startDate ? dayjs(row.startDate).format("YYYY-MM-DD") : "",
       endDate: row.endDate ? dayjs(row.endDate).format("YYYY-MM-DD") : "",
       status: row.status || "draft",
@@ -203,6 +211,7 @@ export default function CampaignsPage() {
     if (!form.name.trim()) return "Campaign name is required";
     const budget = form.budgetMinor === "" ? null : Number(form.budgetMinor);
     if (budget != null && !(budget >= 0)) return "Budget cannot be negative";
+    if (budget != null && !form.currency) return "Choose the currency of the budget";
     if (form.startDate && form.endDate && form.endDate < form.startDate) return "End date must be on or after the start date";
     if (form.status === "active" && form.endDate && form.endDate < ukToday()) {
       return "This campaign has already ended. Change the end date to make it active.";
@@ -218,7 +227,7 @@ export default function CampaignsPage() {
         name: form.name.trim(),
         description: form.description.trim() || null,
         budgetMinor: budget == null ? null : Math.round(budget * 100),
-        currency: form.currency || "GBP",
+        currency: form.currency || null,
         status: form.status,
         // Campaign dates are calendar days: send the day itself, not a moment in this browser's timezone.
         startDate: form.startDate || null,
@@ -290,7 +299,7 @@ export default function CampaignsPage() {
       header: "Budget",
       render: (row) => (row.budgetMinor == null
         ? "No limit"
-        : `${poundsFromMinor(budgetTakenMinor(row))} of ${poundsFromMinor(row.budgetMinor)}`),
+        : `${moneyFromMinor(budgetTakenMinor(row), symbolOf(row.currency))} of ${moneyFromMinor(row.budgetMinor, symbolOf(row.currency))}`),
     },
     {
       key: "promotions",
@@ -386,11 +395,17 @@ export default function CampaignsPage() {
 
           <div className="bg-white border border-gray-200 rounded-xl p-5 space-y-4">
             <div className="flex items-center gap-2 text-gray-900 font-semibold text-sm">
-              <TbCurrencyPound className="text-green-600" size={18} /> Budget, Dates & Status
+              <TbCoins className="text-green-600" size={18} /> Budget, Dates & Status
             </div>
             <div className="grid grid-cols-2 gap-4">
-              <Field label="Budget (£)" hint="Total discount + cashback all its promotions may give. Empty = no limit">
+              <Field label={labelWithCurrency("Budget", symbolOf(form.currency))} hint="Total discount + cashback all its promotions may give. Empty = no limit">
                 <Input type="number" min="0" step="0.01" value={form.budgetMinor} onChange={(e) => setField("budgetMinor", e.target.value)} placeholder="e.g. 500" />
+              </Field>
+              <Field
+                label={form.budgetMinor !== "" ? "Budget currency *" : "Budget currency"}
+                hint="Its promotions must be in this currency. Needed when there is a budget"
+              >
+                <CurrencySelect value={form.currency} onChange={(v) => setField("currency", v)} aria-label="Budget currency" />
               </Field>
               <Field label="Status" hint={STATUS_HINTS[form.status]}>
                 <Select options={CAMPAIGN_STATUS_OPTIONS} value={form.status} onChange={(v) => setField("status", v)} />
@@ -446,7 +461,7 @@ export default function CampaignsPage() {
                   : "No dates: runs while active"}
               </p>
               {viewRow.description ? <p className="m-0 text-sm text-gray-700">{viewRow.description}</p> : null}
-              <BudgetMeter campaign={viewRow} />
+              <BudgetMeter campaign={viewRow} currencySymbol={symbolOf(viewRow.currency)} />
             </div>
             <CampaignPromotions campaign={viewRow} onAdd={() => addPromotion(viewRow)} onOpen={openPromotion} />
             <CampaignReportSection campaignId={viewRow.id} />

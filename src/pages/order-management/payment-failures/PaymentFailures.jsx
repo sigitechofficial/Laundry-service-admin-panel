@@ -100,9 +100,7 @@ function formatFailureAmount(row) {
   const attempt = Array.isArray(row?.invoicePaymentAttempts)
     ? row.invoicePaymentAttempts[0]
     : null;
-  return formatAmount(amount, row?.paymentSummary ?? row ?? attempt, {
-    applyDefault: true,
-  });
+  return formatAmount(amount, row?.paymentSummary ?? row ?? attempt);
 }
 
 function IconRefresh() {

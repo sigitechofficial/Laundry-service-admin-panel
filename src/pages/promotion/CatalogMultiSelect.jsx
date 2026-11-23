@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { TbChevronDown, TbX, TbCheck } from "react-icons/tb";
+import { useMasterCatalogMoney } from "../../hooks/useCurrency";
 
 /**
  * Searchable multi-select for catalog entities (services, categories, items, add-ons).
@@ -16,6 +17,8 @@ export default function CatalogMultiSelect({
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
+  // Option prices are catalogue prices (no zone), in the currency every active zone shares.
+  const catalogMoney = useMasterCatalogMoney();
 
   const filtered = options.filter((o) =>
     String(o.label || "")
@@ -37,7 +40,7 @@ export default function CatalogMultiSelect({
     if (price == null || price === "") return null;
     const n = Number(price);
     if (!Number.isFinite(n)) return null;
-    return `£${n.toFixed(2)}`;
+    return catalogMoney(n);
   };
 
   return (

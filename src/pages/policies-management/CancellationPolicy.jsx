@@ -292,7 +292,7 @@ export default function CancellationPolicy() {
       effectiveTo: null,
       isActive: true,
       isDefault: true,
-      currency: "USD", // Single general currency for entire policy
+      currency: "", // Single currency for the policy: set from the chosen zone (null = the zone's)
       prePickupFeeType: "absolute", // New key: "absolute" or "percentage"
       prePickupFeeValue: "", // New field: stores the value
       prePickupAbsoluteAmount: "",
@@ -410,7 +410,7 @@ export default function CancellationPolicy() {
       prePickupFreeChargeWindowMinutes: config.prePickupFreeChargeWindowMinutes || 0,
       prePickupFirstCancellationLeniency: config.prePickupFirstCancellationLeniency ?? false,
       // Unprocessed Order Charges
-      unprocessedAbsoluteCurrency: config.unprocessedAbsoluteCurrency || "USD",
+      unprocessedAbsoluteCurrency: config.unprocessedAbsoluteCurrency || currencyCode || "",
       unprocessedAbsoluteAmount: config.unprocessedAbsoluteAmount || "0.00",
       unprocessedPercentage: config.unprocessedPercentage || null,
       unprocessedAfterPickupMinutes: config.unprocessedAfterPickupMinutes || 0,
@@ -491,7 +491,11 @@ export default function CancellationPolicy() {
       effectiveTo: null,
       isActive: true,
       isDefault: true,
-      currency: "USD",
+      // Set from the zone (below / when one is chosen); "" until then.
+      currency: currencyCodeFromZone(
+        zonesList.find((z) => String(z.id) === String(selectedZoneFilter)),
+        currencyUnitsList
+      ) || "",
       prePickupFeeType: "absolute",
       prePickupFeeValue: "",
       prePickupAbsoluteAmount: "",
@@ -549,7 +553,15 @@ export default function CancellationPolicy() {
         : (policy.expiry_date ? dayjs(policy.expiry_date) : null),
       isActive: policy.isActive ?? true,
       isDefault: policy.isDefault ?? true,
-      currency: config.prePickupAbsoluteCurrency || config.unprocessedAbsoluteCurrency || "USD",
+      // The policy's own currency, else its zone's (shown read-only; it follows the zone).
+      currency:
+        config.prePickupAbsoluteCurrency ||
+        config.unprocessedAbsoluteCurrency ||
+        currencyCodeFromZone(
+          policy.zone || zonesList.find((z) => String(z.id) === String(policy.zoneId)),
+          currencyUnitsList
+        ) ||
+        "",
       prePickupFeeType: feeType,
       prePickupFeeValue: feeValue,
       prePickupAbsoluteAmount: config.prePickupAbsoluteAmount?.toString() || "",
@@ -735,14 +747,14 @@ export default function CancellationPolicy() {
         effectiveTo: effectiveToUtc,
         isActive: !!data.isActive,
         isDefault: !!data.isDefault,
-        prePickupAbsoluteCurrency: data.currency,
+        prePickupAbsoluteCurrency: data.currency || null,
         prePickupAbsoluteAmount: prePickupAbsoluteAmount,
         prePickupPercentage: prePickupPercentage,
         prePickupFreeChargeWindowMinutes: data.prePickupFreeChargeWindowMinutes
           ? Math.round(parseFloat(data.prePickupFreeChargeWindowMinutes) * 60)
           : 0,
         prePickupFirstCancellationLeniency: data.prePickupFirstCancellationLeniency,
-        unprocessedAbsoluteCurrency: data.currency,
+        unprocessedAbsoluteCurrency: data.currency || null,
         unprocessedAbsoluteAmount: unprocessedAbsoluteAmount,
         unprocessedPercentage: unprocessedPct || null,
         unprocessedAfterPickupMinutes: data.unprocessedAfterPickupMinutes

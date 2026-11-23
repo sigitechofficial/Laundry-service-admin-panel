@@ -5,6 +5,7 @@
  * The API sends `stopReason` / `campaignStopReason` (it also counts budget held by unpaid
  * orders); without them, the rule is worked out here from the campaign row.
  */
+import { currencyPrefix } from "../../utilities/formatMoney.js";
 
 export const CAMPAIGN_STATUS_OPTIONS = [
   { value: "draft", label: "Draft" },
@@ -72,7 +73,9 @@ export function stopReasonText(reason, campaign) {
   }
 }
 
-export const poundsFromMinor = (minor) => (minor == null || minor === "" ? "—" : `£${(Number(minor) / 100).toFixed(2)}`);
+/** Minor units (pence, cents) → "£12.50" in the budget's currency symbol; no symbol when unknown. */
+export const moneyFromMinor = (minor, currencySymbol = "") =>
+  (minor == null || minor === "" ? "—" : `${currencyPrefix(currencySymbol)}${(Number(minor) / 100).toFixed(2)}`);
 
 /** Promotions that new orders can use now (live status), i.e. the ones a campaign change affects. */
 export const LIVE_PROMOTION_STATUSES = ["active", "scheduled"];

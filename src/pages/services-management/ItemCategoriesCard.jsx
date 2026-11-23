@@ -16,7 +16,7 @@ import SubCategoryModal from "./categories-modal/SubCategoryModal";
 import CategoryLinkAddOnsModal from "./CategoryLinkAddOnsModal";
 import ConfirmDeleteModal from "./ConfirmDeleteModal";
 import useToaster from "../../components/ui/Toaster";
-import { formatAmount } from "../../utilities/formatters";
+import { useMasterCatalogMoney } from "../../hooks/useCurrency";
 import { getApiErrorMessage } from "../../store/services/apiErrors";
 import { EmptyHint, QueryState } from "./QueryState";
 import {
@@ -34,6 +34,7 @@ import {
 } from "../directory-table/directoryTable";
 
 export default function ItemCategoriesCard({ triggerAdd }) {
+  const catalogMoney = useMasterCatalogMoney();
   const categoryData = useSelector((state) => state?.apiData);
   const { success, error } = useToaster();
   const { isLoading, isError, error: categoriesQueryError, refetch } = useGetCategoriesQuery();
@@ -419,7 +420,7 @@ export default function ItemCategoriesCard({ triggerAdd }) {
                                   : `Unit count: ${uc}`
                               }
                             />
-                            <DirectoryMoney>{formatAmount(item?.price, null, { applyDefault: true })}</DirectoryMoney>
+                            <DirectoryMoney>{catalogMoney(item?.price)}</DirectoryMoney>
                           </div>
                           <DirectoryActions>
                             <Button

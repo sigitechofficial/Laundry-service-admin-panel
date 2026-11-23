@@ -24,7 +24,7 @@ const FILTER_OPTIONS = [
 export default function CustomerShopHistoryPanel({
   history = [],
   title = "Orders by shop",
-  currencySymbol = "£",
+  currencySymbol = "",
   selectedShopId = null,
   onSelectShop,
   returningOnly = false,

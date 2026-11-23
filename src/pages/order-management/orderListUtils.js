@@ -29,9 +29,7 @@ function formatDriverName(user, { shopOwnerUserId = null, assigneeId = null } = 
 }
 
 function resolveOrderMoney(source) {
-  return resolveDisplayCurrency(source?.paymentSummary ?? source, {
-    applyDefault: true,
-  });
+  return resolveDisplayCurrency(source?.paymentSummary ?? source);
 }
 
 export function formatOrderMoney(amount, source) {

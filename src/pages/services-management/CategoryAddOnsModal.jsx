@@ -1,5 +1,5 @@
 import { Badge, Modal } from "../../design-system";
-import { formatAmount } from "../../utilities/formatters";
+import { useMasterCatalogMoney } from "../../hooks/useCurrency";
 import {
   getAddOnsForCategoryItems,
   groupAddOnsByCategory,
@@ -12,6 +12,7 @@ export default function CategoryAddOnsModal({
   subCategories = [],
   addOnsList = [],
 }) {
+  const catalogMoney = useMasterCatalogMoney();
   const addOns = getAddOnsForCategoryItems(subCategories, addOnsList);
   const grouped = groupAddOnsByCategory(addOns);
 
@@ -112,7 +113,7 @@ export default function CategoryAddOnsModal({
                     }}
                   >
                     <span style={{ fontWeight: 500 }}>{svc.name}</span>
-                    <Badge tone="brand">{formatAmount(svc.price, null, { applyDefault: true })}</Badge>
+                    <Badge tone="brand">{catalogMoney(svc.price)}</Badge>
                   </div>
                 ))}
               </div>

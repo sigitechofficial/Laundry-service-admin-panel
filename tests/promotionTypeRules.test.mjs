@@ -115,13 +115,19 @@ describe("Bulk price", () => {
 
   it("says the deal in plain words", () => {
     assert.equal(
-      bulkPriceSummary({ size: 10, price: "25", cap: "", targets: "1 selected item" }),
+      bulkPriceSummary({ size: 10, price: "25", cap: "", targets: "1 selected item", currencySymbol: "£" }),
       "Any 10 pieces from 1 selected item for £25.00 (extra pieces pay the normal price)"
     );
     assert.equal(
-      bulkPriceSummary({ size: 10, price: 25, cap: "5", targets: "2 selected items" }),
+      bulkPriceSummary({ size: 10, price: 25, cap: "5", targets: "2 selected items", currencySymbol: "£" }),
       "Any 10 pieces from 2 selected items for £25.00 (extra pieces pay the normal price), at most £5.00 off in total"
     );
     assert.match(bulkPriceSummary({ size: null, price: 25, targets: "all items" }), /^Any N pieces from all items/);
+    assert.equal(
+      bulkPriceSummary({ size: 10, price: 25, targets: "1 selected item" }),
+      "Any 10 pieces from 1 selected item for 25.00 (extra pieces pay the normal price)",
+      "unknown currency: the amount without a symbol, never a guessed one"
+    );
+    assert.match(bulkPriceSummary({ size: 10, price: 25, targets: "x", currencySymbol: "CHF" }), /for CHF 25\.00/);
   });
 });

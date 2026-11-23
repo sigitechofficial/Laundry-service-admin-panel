@@ -23,7 +23,7 @@ import { getUserProfile } from "../../utilities/authStorage";
 import { formatDate, formatAmount } from "../../utilities/formatters";
 
 function money(amount, source) {
-  return formatAmount(amount, source, { applyDefault: true });
+  return formatAmount(amount, source);
 }
 
 function formatPct(n) {

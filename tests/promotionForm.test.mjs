@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
-  INITIAL_FORM, buildPayload, formFromPromotion, validateStep,
+  INITIAL_FORM, buildPayload, formFromPromotion, promotionZonesCurrency, validateStep,
 } from "../src/pages/promotion/promotionForm.js";
 import { INITIAL, quickOfferToPreset, toPayload, validate } from "../src/pages/promotion/quickOfferRules.js";
 
@@ -11,10 +11,12 @@ const priceOf = (id) => PRICES[Number(id)] ?? NaN;
 
 /** Create promotion answers → "More options" → the full form, as the page does it. */
 const moreOptions = (answers) => ({ ...INITIAL_FORM(), ...quickOfferToPreset({ ...INITIAL(), ...answers }) });
+// The test zones all use GBP, so a promotion's zones share it.
+const CURRENCY = { zonesCurrency: "GBP", currencySymbol: "£" };
 /** First error over every step before Review, as Save does it. */
-const firstError = (form) => {
+const firstError = (form, currency = CURRENCY) => {
   for (let s = 0; s < 5; s += 1) {
-    const err = validateStep(s, form, priceOf);
+    const err = validateStep(s, form, priceOf, currency);
     if (err) return err;
   }
   return null;
@@ -273,5 +275,60 @@ describe("Codes in More options", () => {
   it("codes are at most 30 characters", async () => {
     const { cleanCode } = await import("../src/pages/promotion/promotionCodes.js");
     assert.equal(cleanCode("A".repeat(40)).length, 30);
+  });
+});
+
+describe("Currency comes from the zones or the admin, never a default", () => {
+  const gbp = { name: "GBP", symbol: "£" };
+  const eur = { name: "EUR", symbol: "€" };
+  const ZONES = [
+    { id: 1, currencyUnitZ: gbp },
+    { id: 2, currencyUnitZ: gbp },
+    { id: 3, currencyUnitZ: eur },
+  ];
+  const scope = (zoneScopeMode, zoneIds = []) => ({ zoneScopeMode, zoneIds });
+
+  it("the zones' shared currency, by scope", () => {
+    assert.equal(promotionZonesCurrency(scope("selected", ["1", "2"]), ZONES), "GBP");
+    assert.equal(promotionZonesCurrency(scope("excluded", ["3"]), ZONES), "GBP");
+    assert.equal(promotionZonesCurrency(scope("selected", ["3"]), ZONES), "EUR");
+  });
+  it("none when the zones differ, or one is not known", () => {
+    assert.equal(promotionZonesCurrency(scope("all"), ZONES), "");
+    assert.equal(promotionZonesCurrency(scope("selected", ["1", "3"]), ZONES), "");
+    assert.equal(promotionZonesCurrency(scope("selected", ["1", "99"]), ZONES), "", "a zone missing from the list");
+    assert.equal(promotionZonesCurrency(scope("all"), [...ZONES.slice(0, 2), { id: 4 }]), "", "a zone without a currency");
+    assert.equal(promotionZonesCurrency(scope("all"), []), "");
+  });
+  it("saves the zones' currency when the admin chose none", () => {
+    assert.equal(buildPayload(form({ discountValue: "10" }), { zonesCurrency: "GBP" }).currency, "GBP");
+  });
+  it("the admin's choice wins", () => {
+    assert.equal(buildPayload(form({ discountValue: "10", currency: "EUR" }), { zonesCurrency: "GBP" }).currency, "EUR");
+  });
+  it("no currency at all is null, and the form asks for one", () => {
+    assert.equal(buildPayload(form({ discountValue: "10" })).currency, null);
+    assert.match(firstError(form({ discountValue: "10" }), { zonesCurrency: "" }), /currency/);
+    assert.equal(firstError(form({ discountValue: "10", currency: "EUR" }), { zonesCurrency: "" }), null);
+  });
+  it("Edit keeps the saved currency", () => {
+    assert.equal(formFromPromotion({ name: "X", benefitType: "basket_discount", currency: "EUR" }).currency, "EUR");
+  });
+  it("Create promotion asks for a currency only when the zones share none", () => {
+    const answers = { ...INITIAL(), name: "X", what: "percent", value: "10" };
+    assert.equal(validate(answers, priceOf, { zonesCurrency: "GBP" }), null);
+    assert.match(validate(answers, priceOf, { zonesCurrency: "" }), /currency/);
+    assert.equal(validate({ ...answers, currency: "EUR" }, priceOf, { zonesCurrency: "" }), null);
+    assert.equal(toPayload(answers, { zonesCurrency: "GBP" }).currency, "GBP");
+    assert.equal(toPayload({ ...answers, currency: "EUR" }, { zonesCurrency: "GBP" }).currency, "EUR");
+  });
+  it("More options keeps Create promotion's currency choice", () => {
+    const answers = { ...INITIAL(), name: "X", what: "percent", value: "10", currency: "EUR" };
+    assert.equal(buildPayload({ ...INITIAL_FORM(), ...quickOfferToPreset(answers) }).currency, "EUR");
+  });
+  it("messages name the amount in the promotion's currency, or none", () => {
+    const deal = { benefitType: "bundle", deals: [{ serviceIds: ["3"], itemIds: ["118"], qty: "10", price: "45" }] };
+    assert.match(firstError(form(deal), { zonesCurrency: "EUR", currencySymbol: "€" }), /less than the normal €45/);
+    assert.match(firstError(form(deal), { zonesCurrency: "XYZ", currencySymbol: "" }), /less than the normal 45/);
   });
 });

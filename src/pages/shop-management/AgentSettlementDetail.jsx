@@ -85,7 +85,7 @@ const STATUS_TONE = {
 };
 
 function money(amount, source) {
-  return formatAmount(amount, source, { applyDefault: true });
+  return formatAmount(amount, source);
 }
 
 const PENDING_REMITTANCES_PATH = "/shop-management/agent-settlement?tab=remittances";

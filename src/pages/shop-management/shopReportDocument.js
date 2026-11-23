@@ -1,4 +1,4 @@
-import { formatDate } from "../../utilities/formatters";
+import { currencyPrefix, formatDate } from "../../utilities/formatters";
 
 /**
  * Shop report — a single, print-ready A4 document that summarises everything
@@ -13,8 +13,7 @@ function num(value) {
 }
 
 function money(symbol, value) {
-  const sym = symbol || "£";
-  return `${sym}${num(value).toFixed(2)}`;
+  return `${currencyPrefix(symbol)}${num(value).toFixed(2)}`;
 }
 
 function safe(value) {
@@ -69,7 +68,7 @@ export function buildShopReportModel({
       zone: shop?.zone || revenue?.shop?.zoneName || "—",
       established: shop?.established || "—",
     },
-    currencySymbol: currencySymbol || revenue?.currency?.symbol || "£",
+    currencySymbol: currencySymbol || revenue?.currency?.symbol || "",
     generatedAt: formatDate(new Date(), "DD MMM YYYY, HH:mm"),
     orders: {
       total: num(ordersTotal),

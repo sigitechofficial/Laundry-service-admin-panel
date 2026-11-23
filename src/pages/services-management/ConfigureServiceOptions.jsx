@@ -1,5 +1,5 @@
 import { useGetServiceWitPreferencesQuery } from "../../store/services/api";
-import { formatAmount } from "../../utilities/formatters";
+import { useMasterCatalogMoney } from "../../hooks/useCurrency";
 import { QueryState } from "./QueryState";
 import {
   DirectoryDotPill,
@@ -24,6 +24,7 @@ const EMPTY = {
 };
 
 export default function ConfigureServiceOptions({ serviceId }) {
+  const catalogMoney = useMasterCatalogMoney();
   const { data, isLoading, isError, error, refetch } = useGetServiceWitPreferencesQuery(
     serviceId,
     {
@@ -90,7 +91,7 @@ export default function ConfigureServiceOptions({ serviceId }) {
                         readOnly
                       />
                       <span>
-                        {sub.name} – {formatAmount(sub.price, null, { applyDefault: true })}
+                        {sub.name} – {catalogMoney(sub.price)}
                       </span>
                       <DirectoryDotPill tone={sub.status ? "success" : "neutral"}>
                         {sub.status ? "Active" : "Inactive"}

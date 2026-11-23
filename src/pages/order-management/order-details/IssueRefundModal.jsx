@@ -8,7 +8,8 @@ import {
 import { formatMoney } from "../../../utilities/formatters";
 import useToaster from "../../../components/ui/Toaster";
 
-function money(n, symbol = "£") {
+/** Amount in the booking's currency; a plain number when it is unknown. */
+function money(n, symbol = "") {
   return formatMoney(n, symbol);
 }
 
@@ -86,7 +87,7 @@ export default function IssueRefundModal({
   open,
   onClose,
   bookingId,
-  currencySymbol = "£",
+  currencySymbol = "",
   onSuccess,
 }) {
   const { success, error: toastError } = useToaster();
