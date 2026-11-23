@@ -36,6 +36,7 @@ import {
   isOperationsComplete,
   profileLabel,
 } from "./addShopForm";
+import { machinesFromBusinessInfo } from "./shopBusinessInfo";
 import styles from "./AddShop.module.css";
 import { numericPhoneKeyDown, positiveIntegerKeyDown } from "../../utilities/customerPhone";
 
@@ -137,7 +138,9 @@ export default function ShopProfile() {
     isError: machinesError,
     refetch: refetchMachines,
   } = useGetBusinessInformationQuery(registeredUserId, {
-    skip: !registeredUserId,
+    // Machinery is chosen on the operations step, after the location is saved: a
+    // zone admin may only open shops in their zone, which the shop has from then on.
+    skip: !registeredUserId || !addressSaved,
   });
 
   const [registerAgent, { isLoading: isRegistering }] = useRegisterAgentMutation();
@@ -155,12 +158,7 @@ export default function ShopProfile() {
     return Array.isArray(zonesRaw) ? zonesRaw : [];
   }, [zonesResponse]);
   const cities = citiesData?.data ?? [];
-  const machines =
-    businessInfoData?.machines ??
-    businessInfoData?.data?.machines ??
-    businessInfoData?.machinery ??
-    (Array.isArray(businessInfoData?.data) ? businessInfoData.data : []) ??
-    [];
+  const machines = machinesFromBusinessInfo(businessInfoData);
 
   const serviceOptions =
     (services ?? servicesData?.data ?? []).map((s) => ({
