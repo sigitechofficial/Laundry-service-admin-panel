@@ -50,13 +50,10 @@ export default function ShopDashboard() {
     );
     const symbols = new Set(
       shops.map((shop) =>
-        resolveCurrencySymbol(shop?.addressDb?.zone ?? shop, { applyDefault: true })
+        resolveCurrencySymbol(shop?.addressDb?.zone ?? shop)
       )
     );
-    next.currencySymbol =
-      symbols.size === 1
-        ? [...symbols][0]
-        : resolveCurrencySymbol(null, { applyDefault: true });
+    next.currencySymbol = symbols.size === 1 ? [...symbols][0] : "";
     return next;
   }, [shops]);
 
@@ -77,7 +74,7 @@ export default function ShopDashboard() {
         header: "Revenue",
         render: (row) => (
           <DirectoryMoney>
-            {formatMoney(row.totalRevenue, resolveCurrencySymbol(row, { applyDefault: true }))}
+            {formatMoney(row.totalRevenue, resolveCurrencySymbol(row))}
           </DirectoryMoney>
         ),
       },
@@ -159,7 +156,7 @@ export default function ShopDashboard() {
           { label: "Shop", value: viewRow?.shopName },
           { label: "Shop ID", value: viewRow?.id ?? viewRow?.laundryShopId },
           { label: "Orders", value: viewRow?.orderCount },
-          { label: "Revenue", value: formatMoney(viewRow?.totalRevenue, resolveCurrencySymbol(viewRow, { applyDefault: true })) },
+          { label: "Revenue", value: formatMoney(viewRow?.totalRevenue, resolveCurrencySymbol(viewRow)) },
         ]}
       />
     </div>

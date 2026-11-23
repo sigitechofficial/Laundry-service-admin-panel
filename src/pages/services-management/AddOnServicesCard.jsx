@@ -16,7 +16,7 @@ import {
 } from "../../store/services/api";
 import { Button, Field, Input, Select, Modal } from "../../design-system";
 import useToaster from "../../components/ui/Toaster";
-import { formatAmount } from "../../utilities/formatters";
+import { useMasterCatalogMoney } from "../../hooks/useCurrency";
 import ConfirmDeleteModal from "./ConfirmDeleteModal";
 import { EmptyHint, QueryState } from "./QueryState";
 import {
@@ -69,6 +69,7 @@ function sortBySortOrder(list) {
 }
 
 export default function AddOnServicesCard({ triggerAdd }) {
+  const catalogMoney = useMasterCatalogMoney();
   const { success, error } = useToaster();
   const { data, isLoading, isError, error: addOnsQueryError, refetch } = useGetAllAddOnServicesQuery();
   const {
@@ -581,7 +582,7 @@ export default function AddOnServicesCard({ triggerAdd }) {
           </span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <DirectoryMoney>{formatAmount(item.price, null, { applyDefault: true })}</DirectoryMoney>
+          <DirectoryMoney>{catalogMoney(item.price)}</DirectoryMoney>
           <Button
             size="sm"
             variant={item?.status === false ? "secondary" : "warning"}

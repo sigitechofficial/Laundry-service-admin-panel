@@ -41,7 +41,7 @@ import {
   useGetPromotionsQuery,
   useUpdateBannerMutation,
 } from "../../store/services/api";
-import { formatDate, formatMoney, joinMediaUrl, resolveCurrencySymbol } from "../../utilities/formatters";
+import { formatDate, formatMoney, joinMediaUrl, resolveCurrencySymbol, sharedZoneCurrency } from "../../utilities/formatters";
 import ZoneMultiSelect from "./ZoneMultiSelect";
 import {
   DirectoryActionDelete,
@@ -180,14 +180,13 @@ function targetLabel(banner) {
 }
 
 function symbolForBanner(banner, zones = []) {
-  const direct = resolveCurrencySymbol(banner, { applyDefault: false });
+  const direct = resolveCurrencySymbol(banner);
   if (direct) return direct;
   const zoneIds = parseZoneIds(banner.zoneIds);
   const pool = zoneIds.length
     ? zones.filter((z) => zoneIds.some((id) => String(z.id) === String(id)))
     : zones;
-  const symbols = [...new Set(pool.map((z) => resolveCurrencySymbol(z, { applyDefault: true })).filter(Boolean))];
-  return symbols.length === 1 ? symbols[0] : resolveCurrencySymbol(null, { applyDefault: true });
+  return sharedZoneCurrency(pool).symbol;
 }
 
 function offerDisplay(banner, zones = []) {

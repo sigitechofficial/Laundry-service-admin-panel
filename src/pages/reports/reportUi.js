@@ -17,7 +17,7 @@ export function unwrapReport(response) {
 }
 
 export function reportMoney(amount, currencyOrRow) {
-  return formatAmount(amount, currencyOrRow, { applyDefault: true });
+  return formatAmount(amount, currencyOrRow);
 }
 
 /** Honest share from already-loaded counts. Returns "—" when either value is unusable. */

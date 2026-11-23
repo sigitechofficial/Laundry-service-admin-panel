@@ -13,7 +13,8 @@ import { useDispatch, useSelector } from "react-redux";
 import { setServices } from "../../store/services/apiReducer";
 import { Button, Field, Input, Textarea, Modal } from "../../design-system";
 import useToaster from "../../components/ui/Toaster";
-import { formatAmount, joinMediaUrl } from "../../utilities/formatters";
+import { joinMediaUrl } from "../../utilities/formatters";
+import { useMasterCatalogMoney } from "../../hooks/useCurrency";
 import {
   IMAGE_UPLOAD_ACCEPT,
   acceptImageFile,
@@ -98,6 +99,7 @@ function ImageField({ label, value, onChange }) {
 }
 
 export default function ServicesCard({ triggerAdd }) {
+  const catalogMoney = useMasterCatalogMoney();
   const { success, error } = useToaster();
   const dispatch = useDispatch();
   const services = useSelector((state) => state?.apiData?.services);
@@ -544,7 +546,7 @@ export default function ServicesCard({ triggerAdd }) {
                 {service.status ? "Active" : "Disabled"}
               </DirectoryDotPill>
               {pricedByWeight && service.basePrice != null ? (
-                <DirectoryMoney>{formatAmount(service.basePrice, null, { applyDefault: true })}</DirectoryMoney>
+                <DirectoryMoney>{catalogMoney(service.basePrice)}</DirectoryMoney>
               ) : null}
             </div>
 
@@ -681,7 +683,7 @@ export default function ServicesCard({ triggerAdd }) {
                 <div style={{ color: "var(--ink-2)", fontSize: 14 }}>
                   Preview:{" "}
                   <strong>
-                    {formatAmount(add.basePrice, null, { applyDefault: true })} / {add.baseWeightKg} kg
+                    {catalogMoney(add.basePrice)} / {add.baseWeightKg} kg
                   </strong>
                 </div>
               ) : null}

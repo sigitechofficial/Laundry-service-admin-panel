@@ -7,12 +7,9 @@ import {
 
 export { formatMoney as formatPolicyMoney, formatDate as formatPolicyDate };
 
+/** Symbol of the policy's zone currency, else of its ISO code; '' when neither is known. */
 export function resolvePolicyCurrencySymbol({ zone, code, currencyUnits = [] } = {}) {
-  return (
-    resolveCurrencySymbol(zone, currencyUnits) ||
-    resolveCurrencySymbol(code, currencyUnits) ||
-    resolveCurrencySymbol(null, { applyDefault: true, forceDefault: true })
-  );
+  return resolveCurrencySymbol(zone, currencyUnits) || resolveCurrencySymbol(code, currencyUnits);
 }
 
 export function formatPolicyDateTime(value) {

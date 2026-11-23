@@ -31,7 +31,8 @@ import {
   Modal,
 } from "../../design-system";
 import useToaster from "../../components/ui/Toaster";
-import { formatAmount, joinMediaUrl } from "../../utilities/formatters";
+import { joinMediaUrl } from "../../utilities/formatters";
+import { useMasterCatalogMoney } from "../../hooks/useCurrency";
 import {
   IMAGE_UPLOAD_ACCEPT,
   acceptImageFile,
@@ -169,6 +170,7 @@ function ServiceCategoriesExpandableTable({
   onReorderSubCategories,
   reorderDisabled = false,
 }) {
+  const catalogMoney = useMasterCatalogMoney();
   const { error: toastReorderError } = useToaster();
   const [expanded, setExpanded] = useState({});
   const [categoryOrder, setCategoryOrder] = useState(null);
@@ -455,7 +457,7 @@ function ServiceCategoriesExpandableTable({
                                     <td style={{ fontWeight: 500 }}>
                                       {sub.name ?? "—"}
                                     </td>
-                                    <td>{formatAmount(sub.price, null, { applyDefault: true })}</td>
+                                    <td>{catalogMoney(sub.price)}</td>
                                     <td>
                                       <DirectoryDotPill tone={sub.status ? "success" : "neutral"}>
                                         {sub.status ? "Active" : "Inactive"}

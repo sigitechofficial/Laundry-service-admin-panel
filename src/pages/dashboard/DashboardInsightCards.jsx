@@ -11,9 +11,9 @@ function money(amount, source, fallbackSymbol, fallbackCode) {
       source?.currency_code ??
       source?.feeCurrency ??
       fallbackCode;
-    return formatAmount(amount, { currencySymbol: symbol, currency: code }, { applyDefault: true });
+    return formatAmount(amount, { currencySymbol: symbol, currency: code });
   }
-  return formatAmount(amount, source, { applyDefault: true });
+  return formatAmount(amount, source);
 }
 
 function CardShell({ children }) {

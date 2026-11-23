@@ -293,9 +293,7 @@ export default function ShopDetails() {
   );
   const shopCurrencySymbol = useMemo(
     () =>
-      resolveCurrencySymbol(addr?.zone ?? shop?.zone ?? shop, {
-        applyDefault: true,
-      }),
+      resolveCurrencySymbol(addr?.zone ?? shop?.zone ?? shop),
     [addr?.zone, shop]
   );
   const allEmployees = useMemo(

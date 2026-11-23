@@ -919,8 +919,7 @@ export default function OrderDetailsPage() {
     paymentSummary?.billingPaymentStatus ?? orderData?.billingDetail?.paymentStatus
   );
   const paymentCurrencySymbol = resolveDisplayCurrency(
-    paymentSummary ?? orderData,
-    { applyDefault: true }
+    paymentSummary ?? orderData
   ).symbol;
   const invoiceTotalHint =
     invoicePhase === INVOICE_PHASE.DRAFT
@@ -1168,7 +1167,7 @@ export default function OrderDetailsPage() {
   const attemptRows = Array.isArray(orderData?.attempts) ? orderData.attempts : [];
 
   const formatAttemptFeeLabel = (attempt) => {
-    const feeSymbol = resolveDisplayCurrency(attempt, { applyDefault: true }).symbol;
+    const feeSymbol = resolveDisplayCurrency(attempt).symbol;
     if (attempt?.feeCharged) {
       return `Charged ${formatMoney(attempt?.feeAmount, feeSymbol, attempt?.feeCurrency)}`;
     }

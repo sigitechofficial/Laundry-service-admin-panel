@@ -1057,8 +1057,7 @@ export default function EditOrder() {
     0
   );
   const moneySymbol = resolveDisplayCurrency(
-    orderData?.paymentSummary ?? orderData,
-    { applyDefault: true }
+    orderData?.paymentSummary ?? orderData
   ).symbol;
 
   const addOnServices =

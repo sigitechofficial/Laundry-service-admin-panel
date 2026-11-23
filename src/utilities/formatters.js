@@ -4,10 +4,10 @@ export {
   formatAmount,
   resolveCurrencySymbol,
   resolveDisplayCurrency,
-  DEFAULT_CURRENCY,
-  COUNTRY_ISO_TO_CURRENCY,
-  currencyMetaForCountry,
-  findCurrencyUnitForCountry,
+  currencySymbolForCode,
+  zoneDisplayCurrency,
+  sharedZoneCurrency,
+  labelWithCurrency,
 } from "./formatMoney";
 export { formatDate, DATE_FORMAT, DATE_TIME_FORMAT, formatCalendarDate, formatClock, formatBookingWindow, isDateOnlyValue } from "./formatDate";
 export { joinMediaUrl } from "./mediaUrl";

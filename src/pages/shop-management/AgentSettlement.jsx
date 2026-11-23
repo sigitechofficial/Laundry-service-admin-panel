@@ -69,7 +69,7 @@ import {
 const isSuccess = (res) => res?.status === "1" || res?.status === 1;
 
 function formatAgentMoney(amount, source) {
-  return formatAmount(amount, source, { applyDefault: true });
+  return formatAmount(amount, source);
 }
 
 const emptyActionModal = {
@@ -350,7 +350,7 @@ export default function AgentSettlement() {
 
   const summary = useMemo(() => {
     const symbols = new Set(
-      cashDueAgents.map((agent) => resolveCurrencySymbol(agent, { applyDefault: true }))
+      cashDueAgents.map((agent) => resolveCurrencySymbol(agent))
     );
     const currencySymbol = symbols.size === 1 ? [...symbols][0] : "";
     // Prefer server totals (whole filtered set); fall back to page sums for older APIs.

@@ -17,18 +17,13 @@ function formatDay(value) {
   return text === "—" ? "" : text;
 }
 
+/** Amount in the invoice's currency; a plain number when the currency is unknown. */
 export function formatInvoiceMoney(value, symbol, code) {
-  const fallback = resolveDisplayCurrency(null, { applyDefault: true });
-  return formatMoney(value ?? 0, symbol || fallback.symbol, code || fallback.code);
+  return formatMoney(value ?? 0, symbol, code);
 }
 
 function invoiceMoney(view, amount) {
-  const fallback = resolveDisplayCurrency(null, { applyDefault: true });
-  return formatMoney(
-    amount,
-    view?.currencySymbol || fallback.symbol,
-    view?.currencyCode || fallback.code
-  );
+  return formatMoney(amount, view?.currencySymbol, view?.currencyCode);
 }
 
 export function invoiceStatusTone(label) {
@@ -49,8 +44,7 @@ export function buildInvoiceView(invoiceDetails, fallbackShopName = "") {
     "Customer";
   const invoiceNo = invoiceDetails?.orderTrackId || `INV-${invoiceDetails?.id || ""}`;
   const resolvedCurrency = resolveDisplayCurrency(
-    invoiceDetails?.paymentSummary ?? invoiceDetails,
-    { applyDefault: true }
+    invoiceDetails?.paymentSummary ?? invoiceDetails
   );
   const currencySymbol = resolvedCurrency.symbol;
   const currencyCode =
@@ -379,7 +373,7 @@ function tagBarcodeValue(tag, orderTrackId) {
 }
 
 /** One physical slip per tag (page-break) for browser / system printer. */
-export function tagsInvoiceHtml(labelData, currencySymbol = "£") {
+export function tagsInvoiceHtml(labelData, currencySymbol = "") {
   const tags = labelData?.tags || [];
   const orderTrackId = labelData?.orderTrackId || "";
   const total = labelData?.totalTags || tags.length;
@@ -417,7 +411,7 @@ export function tagsInvoiceHtml(labelData, currencySymbol = "£") {
 
 export function invoicePrintHtml(view, format, labelData) {
   if (format === "tags") {
-    return tagsInvoiceHtml(labelData, view?.currencySymbol || "£");
+    return tagsInvoiceHtml(labelData, view?.currencySymbol || "");
   }
   if (!view) return "";
   return format === "thermal" ? thermalInvoiceHtml(view) : a4InvoiceHtml(view);

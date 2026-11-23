@@ -255,7 +255,7 @@ export default function CustomerManagement() {
         email: cus?.email,
         phoneNumber: formatUserPhone(cus),
         amountSpent: cus?.totalAmountSpent,
-        currencySymbol: resolveCurrencySymbol(cus, { applyDefault: true }),
+        currencySymbol: resolveCurrencySymbol(cus),
         lastOrderDate: cus?.lastBookingDate,
         totalOrders: cus?.bookingCount,
         zones: Array.isArray(cus?.zones) ? cus.zones : [],
@@ -367,7 +367,7 @@ export default function CustomerManagement() {
       sortable: true,
       render: (row) => (
         <DirectoryMoney>
-          {formatAmount(row.amountSpent, row, { applyDefault: true })}
+          {formatAmount(row.amountSpent, row)}
         </DirectoryMoney>
       ),
     },

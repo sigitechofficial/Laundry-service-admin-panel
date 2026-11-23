@@ -43,7 +43,7 @@ export function mapShopToRow(item) {
     email,
     phoneNumber: phone,
     amountSpent: Number(addr?.TotalRevenue ?? item?.totalRevenue ?? 0) || 0,
-    currencySymbol: resolveCurrencySymbol(addr?.zone ?? item, { applyDefault: true }),
+    currencySymbol: resolveCurrencySymbol(addr?.zone ?? item),
     totalOrders: Number(addr?.TotalBookingCount ?? item?.totalOrders ?? 0) || 0,
     pendingOrders: Number(addr?.PendingBookingCount ?? 0) || 0,
     employees:
