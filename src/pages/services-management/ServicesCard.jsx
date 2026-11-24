@@ -98,6 +98,9 @@ function ImageField({ label, value, onChange }) {
   );
 }
 
+/** Same limit as services.badgeText on the backend. */
+const SERVICE_BADGE_MAX = 30;
+
 export default function ServicesCard({ triggerAdd }) {
   const catalogMoney = useMasterCatalogMoney();
   const { success, error } = useToaster();
@@ -136,6 +139,7 @@ export default function ServicesCard({ triggerAdd }) {
     numberOfItems: false,
     washBleedDisclaimerEnabled: false,
     status: true,
+    badgeText: "",
   };
 
   const [add, setAdd] = useState(emptyForm);
@@ -171,6 +175,7 @@ export default function ServicesCard({ triggerAdd }) {
       String(Boolean(add.washBleedDisclaimerEnabled))
     );
     formData.append("status", String(Boolean(add.status)));
+    formData.append("badgeText", String(add.badgeText ?? "").trim());
   };
 
   useEffect(() => {
@@ -203,6 +208,7 @@ export default function ServicesCard({ triggerAdd }) {
             serviceToEdit.washBleedDisclaimerEnabled
           ),
           status: parseServiceFlag(serviceToEdit.status ?? true),
+          badgeText: serviceToEdit.badgeText || "",
         }));
       }
     }
@@ -323,6 +329,7 @@ export default function ServicesCard({ triggerAdd }) {
         service.washBleedDisclaimerEnabled
       ),
       status: parseServiceFlag(service.status ?? true),
+      badgeText: service.badgeText || "",
     });
   };
 
@@ -336,6 +343,10 @@ export default function ServicesCard({ triggerAdd }) {
   const handleAddService = async () => {
     if (!add.name.trim()) {
       error("Service name is required.");
+      return;
+    }
+    if (String(add.badgeText ?? "").trim().length > SERVICE_BADGE_MAX) {
+      error(`Badge must be ${SERVICE_BADGE_MAX} characters or fewer.`);
       return;
     }
     if (add.pricedByWeight) {
@@ -378,6 +389,10 @@ export default function ServicesCard({ triggerAdd }) {
     try {
       if (!add.name.trim()) {
         error("Service name is required.");
+        return;
+      }
+      if (String(add.badgeText ?? "").trim().length > SERVICE_BADGE_MAX) {
+        error(`Badge must be ${SERVICE_BADGE_MAX} characters or fewer.`);
         return;
       }
       if (add.pricedByWeight) {
@@ -746,6 +761,22 @@ export default function ServicesCard({ triggerAdd }) {
               value={add.description}
               onChange={handleChange}
             />
+          </Field>
+
+          <Field label="Badge (optional)" htmlFor="service-badge">
+            <Input
+              id="service-badge"
+              name="badgeText"
+              placeholder="Premium · Eco"
+              maxLength={SERVICE_BADGE_MAX}
+              value={add.badgeText}
+              onChange={handleChange}
+            />
+            <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>
+              Shown as a green label on this service in the customer and shop
+              apps. Leave empty for no badge. {String(add.badgeText ?? "").length}/
+              {SERVICE_BADGE_MAX}
+            </div>
           </Field>
         </div>
       </Modal>

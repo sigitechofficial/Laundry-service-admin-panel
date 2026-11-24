@@ -117,6 +117,10 @@ const apiDataSlice = createSlice({
               numberOfBags: parseFormBool("numberOfBags"),
               numberOfItems: parseFormBool("numberOfItems"),
               washBleedDisclaimerEnabled: parseFormBool("washBleedDisclaimerEnabled"),
+              badgeText:
+                body instanceof FormData && body.has("badgeText")
+                  ? String(body.get("badgeText") ?? "").trim() || null
+                  : service.badgeText,
               basePrice:
                 body instanceof FormData && body.has("basePrice")
                   ? body.get("basePrice")
