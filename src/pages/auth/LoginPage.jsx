@@ -8,7 +8,10 @@ import {
 } from "../../store/services/api";
 import { FALLBACK_DV_TOKEN, loginSchema } from "./constant";
 import useToaster from "../../components/ui/Toaster";
-import { requestDeviceToken } from "../../utilities/requestFCMToken";
+import {
+  requestDeviceToken,
+  pushTokenFields,
+} from "../../utilities/requestFCMToken";
 import {
   hasValidSession,
   persistAdminLoginSession,
@@ -107,12 +110,12 @@ export default function LoginPage() {
           ? await zoneAdminLogin({
               email: data.email,
               password: data.password,
-              dvToken,
+              ...pushTokenFields(dvToken),
             }).unwrap()
           : await adminLogin({
               email: data.email,
               password: data.password,
-              dvToken,
+              ...pushTokenFields(dvToken),
             }).unwrap();
 
       if (res.status === "1") {

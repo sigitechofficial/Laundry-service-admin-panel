@@ -1,6 +1,6 @@
 import { getToken } from "firebase/messaging";
 import { getFirebaseWebConfig, getFirebaseVapidKey } from "./firebaseConfig";
-import { getMessagingInstance } from "./firebase";
+import { getMessagingInstance, getFirebaseProjectId } from "./firebase";
 
 const DEV_TOKEN_KEY = "devToken";
 
@@ -22,6 +22,16 @@ export function getCachedDeviceToken() {
   } catch {
     return "";
   }
+}
+
+/**
+ * Body fields for any admin API call that registers a push token: `dvToken` plus the
+ * `firebaseProjectId` it belongs to (omitted when Firebase is not configured), so the
+ * backend sends through that project.
+ */
+export function pushTokenFields(dvToken) {
+  const firebaseProjectId = getFirebaseProjectId();
+  return firebaseProjectId ? { dvToken, firebaseProjectId } : { dvToken };
 }
 
 /**

@@ -16,6 +16,14 @@ function getFirebaseApp() {
 }
 
 /**
+ * Firebase project this browser's FCM token belongs to, read from the initialized app
+ * (so from VITE_FIREBASE_* config); "" when Firebase is not configured.
+ */
+export function getFirebaseProjectId() {
+  return getFirebaseApp()?.options?.projectId || "";
+}
+
+/**
  * Same pattern as customer app: async messaging instance or null.
  */
 export async function getMessagingInstance() {

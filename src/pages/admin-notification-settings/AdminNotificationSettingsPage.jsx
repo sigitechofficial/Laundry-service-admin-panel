@@ -12,7 +12,10 @@ import {
   useDemoAdminNotificationAlertMutation,
   useRegisterAdminFcmTokenMutation,
 } from "../../store/services/api";
-import { requestDeviceToken } from "../../utilities/requestFCMToken";
+import {
+  requestDeviceToken,
+  pushTokenFields,
+} from "../../utilities/requestFCMToken";
 import { ensureAdminFcmRegistered } from "../../utilities/adminWebNotifications";
 
 const CATEGORY_LABELS = {
@@ -182,7 +185,7 @@ export default function AdminNotificationSettingsPage() {
       const result = await ensureAdminFcmRegistered();
       if (!result?.ok) {
         // Fallback to explicit API if ensure used cached race
-        await registerFcm({ dvToken: token }).unwrap();
+        await registerFcm(pushTokenFields(token)).unwrap();
       }
       setFcmStatus("ok");
       success("FCM token registered. Website notifications are ready — try Demo.");
