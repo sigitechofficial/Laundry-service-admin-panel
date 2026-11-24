@@ -10,6 +10,7 @@ import {
 } from "../../utilities/contactLinks";
 import { formatCalendarDate, formatClock, formatDate, isDateOnlyValue } from "../../utilities/formatters";
 import styles from "./orderList.module.css";
+import ServiceBadgePill from "../../components/shared/ServiceBadgePill";
 
 /** Shared blue link used by order id, shop name, and customer name. */
 export const ORDER_LIST_LINK_CLASS =
@@ -320,7 +321,8 @@ export function ReasonPills({ keys = [], labels = [] }) {
   );
 }
 
-export function ServicePills({ names = [], shopName }) {
+export function ServicePills({ names = [], badgeNames = [], shopName }) {
+  const premium = new Set((badgeNames || []).map((n) => String(n || "").trim()));
   const list = (Array.isArray(names) ? names : String(names || "").split(/[,|]/))
     .map((item) => String(item || "").trim())
     .filter(Boolean);
@@ -334,14 +336,18 @@ export function ServicePills({ names = [], shopName }) {
 
   return (
     <div className="mt-1.5 flex max-w-[280px] flex-wrap items-center gap-1" title={full}>
-      {visible.map((item) => (
-        <span
-          key={item}
-          className="max-w-full truncate whitespace-nowrap rounded-md border border-[#e6e9f0] bg-[#f4f5f8] px-2 py-px text-[11px] font-medium text-[#38424f]"
-        >
-          {item}
-        </span>
-      ))}
+      {visible.map((item) =>
+        premium.has(item) ? (
+          <ServiceBadgePill key={item} label={item} />
+        ) : (
+          <span
+            key={item}
+            className="max-w-full truncate whitespace-nowrap rounded-md border border-[#e6e9f0] bg-[#f4f5f8] px-2 py-px text-[11px] font-medium text-[#38424f]"
+          >
+            {item}
+          </span>
+        )
+      )}
       {extra > 0 ? (
         <span className="shrink-0 whitespace-nowrap rounded-md border border-[#e6e9f0] bg-[#eef1f6] px-2 py-px text-[11px] font-semibold text-[#5c6673]">
           +{extra}

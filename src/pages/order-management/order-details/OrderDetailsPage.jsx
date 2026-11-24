@@ -32,6 +32,7 @@ import {
   resolveDisplayCurrency,
 } from "../../../utilities/formatters";
 import { canEditOrderFromBooking } from "../../../shared/orderEditStatusGate";
+import ServiceBadgePill from "../../../components/shared/ServiceBadgePill";
 import {
   INVOICE_PHASE,
   invoicePhaseLabel,
@@ -516,6 +517,7 @@ export default function OrderDetailsPage() {
         map[sid] = {
           serviceId: sid,
           serviceName: it?.service?.name || "Service",
+          badgeText: String(it?.service?.badgeText ?? "").trim() || null,
           items: [],
         };
       }
@@ -1840,6 +1842,11 @@ export default function OrderDetailsPage() {
                             <p style={{ margin: 0, fontSize: 12, fontWeight: 600, lineHeight: 1.25, color: active ? "#2563EB" : "#64748B" }}>
                               {serviceGroup.serviceName}
                             </p>
+                            {serviceGroup.badgeText ? (
+                              <div style={{ marginTop: 4, display: "flex", justifyContent: "center" }}>
+                                <ServiceBadgePill label={serviceGroup.badgeText} size={10} />
+                              </div>
+                            ) : null}
                             <p style={{ margin: 0, marginTop: 2.8, fontSize: 11, color: "#475569" }}>
                               {serviceGroup.items.reduce((sum, item) => sum + (item.qty || 0), 0)} item(s)
                             </p>

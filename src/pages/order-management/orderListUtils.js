@@ -303,9 +303,18 @@ export function resolveOrderItemCount(booking) {
 
 export function mapBookingToOrderListRow(booking) {
   const createdRaw = booking?.createdAt || booking?.created_at;
-  const services = uniqueOrderedStrings(
-    (booking?.customerSelectedServices ?? []).map((service) => service?.service?.name)
+  const selected = booking?.customerSelectedServices ?? [];
+  // Premium services (badge set in admin, e.g. Eco Dry Clean) come first so
+  // the list never hides them behind "+1".
+  const badgeServiceNames = uniqueOrderedStrings(
+    selected
+      .filter((service) => String(service?.service?.badgeText ?? "").trim())
+      .map((service) => service?.service?.name)
   );
+  const services = uniqueOrderedStrings([
+    ...badgeServiceNames,
+    ...selected.map((service) => service?.service?.name),
+  ]);
   const serviceType = services.join(", ");
   const totalItems = resolveOrderItemCount(booking);
   const shopOwnerUserId =
@@ -363,6 +372,7 @@ export function mapBookingToOrderListRow(booking) {
     orderDateTime: createdRaw ? formatDate(createdRaw, DATE_TIME_FORMAT) : "—",
     serviceType: serviceType || null,
     serviceNames: services,
+    badgeServiceNames,
     shopName: shopLabel,
     laundryShopId: resolveLaundryShopId(booking),
     shopBusinessInfoId: resolveShopBusinessInfoId(booking),

@@ -83,7 +83,11 @@ export function useOrderListColumns({
                   row.shopName
                 )
               : h("div", { className: "text-[13px] text-[#8a94a2]" }, "No shop assigned"),
-            h(ServicePills, { names: row.serviceNames || row.serviceType, shopName: row.shopName })
+            h(ServicePills, {
+              names: row.serviceNames || row.serviceType,
+              badgeNames: row.badgeServiceNames,
+              shopName: row.shopName,
+            })
           ),
       },
       {
