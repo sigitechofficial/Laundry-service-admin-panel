@@ -1,6 +1,10 @@
 import { onMessage } from "firebase/messaging";
 import { getMessagingInstance } from "./firebase";
-import { requestDeviceToken, getCachedDeviceToken } from "./requestFCMToken";
+import {
+  requestDeviceToken,
+  getCachedDeviceToken,
+  pushTokenFields,
+} from "./requestFCMToken";
 import { BASE_URL } from "./URL";
 import { LS_ACCESS_TOKEN } from "./authStorage";
 import {
@@ -115,7 +119,7 @@ export async function ensureAdminFcmRegistered() {
           Authorization: `Bearer ${accessToken}`,
           "ngrok-skip-browser-warning": "true",
         },
-        body: JSON.stringify({ dvToken: token }),
+        body: JSON.stringify(pushTokenFields(token)),
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok || json?.status === "0") {
