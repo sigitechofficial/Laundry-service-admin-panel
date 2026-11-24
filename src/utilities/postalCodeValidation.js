@@ -207,3 +207,13 @@ export function postalCodeExamplesForCountry(countryLike) {
 }
 
 export { RULES };
+
+/**
+ * A full UK postcode, any case or spacing ("EC1A 1BB", "ec1a1bb"). A shop's or
+ * customer's address needs one; an outward code ("NW1") names a zone, not an
+ * address. Same rule as the backend's utils/shopAddressInput.js.
+ */
+export function isFullUkPostcode(value) {
+  const compact = String(value ?? "").toUpperCase().replace(/\s+/g, "");
+  return /^(GIR0AA|[A-Z]{1,2}\d[A-Z\d]?\d[A-Z]{2})$/.test(compact);
+}

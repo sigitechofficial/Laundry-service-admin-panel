@@ -794,10 +794,10 @@ export default function ShopProfile() {
                   )}
                 </Field>
               </div>
-              <Field label="District" htmlFor="add-shop-district">
+              <Field label="Town / City" htmlFor="add-shop-district">
                 <Input
                   id="add-shop-district"
-                  placeholder="District"
+                  placeholder="Town / City"
                   value={formData.district}
                   onChange={(e) => {
                     setAddressSaved(false);
@@ -805,10 +805,10 @@ export default function ShopProfile() {
                   }}
                 />
               </Field>
-              <Field label="Province" htmlFor="add-shop-province">
+              <Field label="County (optional)" htmlFor="add-shop-province">
                 <Input
                   id="add-shop-province"
-                  placeholder="Province"
+                  placeholder="County"
                   value={formData.province}
                   onChange={(e) => {
                     setAddressSaved(false);
@@ -817,13 +817,13 @@ export default function ShopProfile() {
                 />
               </Field>
               <Field
-                label={labelWithReq("Postal code", true)}
+                label={labelWithReq("Postcode", true)}
                 htmlFor="add-shop-postal"
                 error={locationErrors.postalcode}
               >
                 <Input
                   id="add-shop-postal"
-                  placeholder="Postal code"
+                  placeholder="e.g. EC1A 1BB"
                   value={formData.postalcode}
                   onChange={(e) => {
                     setAddressSaved(false);
@@ -1175,11 +1175,11 @@ export default function ShopProfile() {
               <dl className={styles.kv}>
                 <dt>Address</dt>
                 <dd>{formData.streetAddress || "—"}</dd>
-                <dt>District</dt>
+                <dt>Town / City</dt>
                 <dd>{formData.district || "—"}</dd>
-                <dt>Province</dt>
+                <dt>County</dt>
                 <dd>{formData.province || "—"}</dd>
-                <dt>Postal code</dt>
+                <dt>Postcode</dt>
                 <dd>{formData.postalcode || "—"}</dd>
                 <dt>Coordinates</dt>
                 <dd>{formData.coordinates || (formData.lat && formData.lng ? `${formData.lat},${formData.lng}` : "—")}</dd>

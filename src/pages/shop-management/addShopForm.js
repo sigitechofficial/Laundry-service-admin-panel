@@ -5,7 +5,7 @@
  */
 
 import { isValidCustomerPhone, PHONE_HINT } from "../../utilities/customerPhone";
-import { validatePostalCodeForCountry } from "../../utilities/postalCodeValidation";
+import { isFullUkPostcode, isUkCountry, validatePostalCodeForCountry } from "../../utilities/postalCodeValidation";
 
 export const MACHINERY_COUNT_OPTIONS = ["0", "1-2", "3-5", "5+"];
 
@@ -158,10 +158,12 @@ export function getLocationErrors(formData, country) {
 
   const postcode = trimmed(formData.postalcode);
   if (!postcode) {
-    errors.postalcode = "Postal code is required";
+    errors.postalcode = "Postcode is required";
+  } else if (country && isUkCountry(country)) {
+    if (!isFullUkPostcode(postcode)) errors.postalcode = "Enter a full UK postcode, like EC1A 1BB";
   } else if (country) {
     const res = validatePostalCodeForCountry(postcode, country);
-    if (!res.ok) errors.postalcode = res.message || "Enter a valid postal code";
+    if (!res.ok) errors.postalcode = res.message || "Enter a valid postcode";
   }
   return errors;
 }

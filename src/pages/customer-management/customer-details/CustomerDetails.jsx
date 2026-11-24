@@ -990,7 +990,7 @@ export default function CustomerDetails() {
                 onChange={(e) => setSettingsForm((p) => ({ ...p, streetAddress: e.target.value }))}
               />
             </Field>
-            <Field label="Province" htmlFor="settings-province">
+            <Field label="County" htmlFor="settings-province">
               <Input
                 id="settings-province"
                 value={settingsForm.province}
