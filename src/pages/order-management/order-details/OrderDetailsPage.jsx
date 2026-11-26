@@ -31,12 +31,12 @@ import {
   joinMediaUrl,
   resolveDisplayCurrency,
 } from "../../../utilities/formatters";
-import { canEditOrderFromBooking } from "../../../shared/orderEditStatusGate";
 import ServiceBadgePill from "../../../components/shared/ServiceBadgePill";
 import OnHoldItemsList from "./OnHoldItemsList";
 import {
   INVOICE_PHASE,
   invoicePhaseLabel,
+  invoiceNotReadyReason,
   isInvoiceIssued,
   resolveInvoicePhase,
 } from "../../../shared/invoiceLifecycle";
@@ -484,11 +484,6 @@ export default function OrderDetailsPage() {
     }
   };
 
-  const canShowGenerateInvoice = useMemo(() => {
-    if (!orderData) return false;
-    return canEditOrderFromBooking(orderData, orderStatusOptions);
-  }, [orderData, orderStatusOptions]);
-
   const canShowAdminAssign = useMemo(() => {
     return canAdminAssignOrReassignFromBooking(orderData);
   }, [orderData]);
@@ -629,6 +624,7 @@ export default function OrderDetailsPage() {
   // Delivery count when the agent didn't record a separate delivery-proof count.
   const invoiceGenerated = isInvoiceIssued(orderData);
   const invoicePhase = resolveInvoicePhase(orderData);
+  const [invoiceNotReady, setInvoiceNotReady] = useState(null);
   const invoiceItemsTotal = selectedServiceGroups.reduce(
     (sum, group) =>
       sum +
@@ -1061,6 +1057,12 @@ export default function OrderDetailsPage() {
   );
 
   const handleOpenInvoiceModal = async () => {
+    // Only the shop creates the invoice; until it saves a draft or a final
+    // one, say why there is nothing to show instead of an empty invoice.
+    if (!isInvoiceIssued(orderData)) {
+      setInvoiceNotReady(invoiceNotReadyReason(orderData));
+      return;
+    }
     try {
       const response = await fetchInvoice(Number(bookingId)).unwrap();
       const details = mergeInvoiceDetailsFromResponse(response?.data);
@@ -1334,15 +1336,13 @@ export default function OrderDetailsPage() {
             >
               <TbChevronRight size={18} />
             </Button>
-            {canShowGenerateInvoice ? (
-              <Button
-                variant="secondary"
-                onClick={handleOpenInvoiceModal}
-                disabled={isFetchingInvoice}
-              >
-                {isFetchingInvoice ? "Loading..." : "View / Print Invoice"}
-              </Button>
-            ) : null}
+            <Button
+              variant="secondary"
+              onClick={handleOpenInvoiceModal}
+              disabled={isFetchingInvoice || !orderData}
+            >
+              {isFetchingInvoice ? "Loading..." : "View / Print Invoice"}
+            </Button>
             {shopOwnerUserId ? <PrintTagsToShopButton bookingId={bookingId} /> : null}
             {canShowAdminAssign ? (
               <OrderAssignActionButton
@@ -3369,6 +3369,28 @@ export default function OrderDetailsPage() {
       onClose={() => setPaymentMethodModalOpen(false)}
       onSuccess={() => refetchOrder()}
     />
+    <Modal
+      open={Boolean(invoiceNotReady)}
+      title={invoiceNotReady?.title || "Invoice not created yet"}
+      onClose={() => setInvoiceNotReady(null)}
+      hideFooter
+    >
+      <div style={{ display: "grid", gap: 12 }}>
+        <p style={{ margin: 0, fontSize: 14, lineHeight: 1.6, color: "#1D2740" }}>
+          {invoiceNotReady?.body}
+        </p>
+        {invoiceNotReady?.status ? (
+          <p style={{ margin: 0, fontSize: 13, color: "#64748B" }}>
+            Order status now: <strong style={{ color: "#0F172A" }}>{invoiceNotReady.status}</strong>
+          </p>
+        ) : null}
+        <div style={{ display: "flex", justifyContent: "flex-end" }}>
+          <Button variant="secondary" onClick={() => setInvoiceNotReady(null)}>
+            OK
+          </Button>
+        </div>
+      </div>
+    </Modal>
     <Modal
       open={Boolean(collectionPhotoPreview)}
       title="Pickup location photo"
