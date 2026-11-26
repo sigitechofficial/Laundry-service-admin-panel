@@ -179,6 +179,7 @@ export default function RegistrationDetails({ r }) {
             </p>
             <div className="reg-hero__badges">
               <StatusBadge status={a.approvalStatus} />
+              {a.approvalStatus === "pending" && a.rejectionReason ? <Badge tone="danger">Previously rejected</Badge> : null}
               <Badge tone={ready === checks.length ? "success" : "neutral"}>
                 {ready} of {checks.length} checks ready
               </Badge>
@@ -218,6 +219,18 @@ export default function RegistrationDetails({ r }) {
           </div>
         </div>
       </section>
+
+      {a.approvalStatus === "pending" && a.rejectionReason ? (
+        <div className="reg-alert reg-alert--warn" role="note">
+          <CheckIcon kind="warn" />
+          <div>
+            <p className="reg-alert__title">Previously rejected · moved back to review</p>
+            <p className="reg-alert__text">
+              Rejected before because: {String(a.rejectionReason).replace(/\.$/, "")}. Check this has been fixed before approving.
+            </p>
+          </div>
+        </div>
+      ) : null}
 
       {a.approvalStatus === "rejected" && a.rejectionReason ? (
         <div className="reg-alert" role="note">

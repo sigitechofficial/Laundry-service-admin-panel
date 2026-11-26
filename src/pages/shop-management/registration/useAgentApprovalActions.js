@@ -4,7 +4,7 @@ import { useUpdateAgentApprovalMutation } from "../../../store/services/api";
 
 const ok = (res) => res?.status === "1" || res?.status === 1;
 
-/** Approve / restore / reject a shop's registration, with toasts. Each returns true on success. */
+/** Approve / reject / move back to review a shop's registration, with toasts. Each returns true on success. */
 export default function useAgentApprovalActions() {
   const { success, error: showError } = useToaster();
   const [updateApproval, { isLoading }] = useUpdateAgentApprovalMutation();
@@ -54,5 +54,16 @@ export default function useAgentApprovalActions() {
     [run]
   );
 
-  return { approve, reject, busy: isLoading };
+  const reopen = useCallback(
+    (agentId) =>
+      run(
+        agentId,
+        { action: "reopen" },
+        () => "Moved back to review. Check the registration again before approving.",
+        "Could not move back to review"
+      ),
+    [run]
+  );
+
+  return { approve, reject, reopen, busy: isLoading };
 }

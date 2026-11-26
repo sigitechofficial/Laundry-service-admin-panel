@@ -532,3 +532,9 @@
 .reg-aside .reg-dl__row {
   grid-template-columns: 84px minmax(0, 1fr);
 }
+
+.reg-alert--warn {
+  border-color: #f0d9a8;
+  background: var(--warning-bg, #fbefd6);
+  color: var(--warning-700, #8a5700);
+}

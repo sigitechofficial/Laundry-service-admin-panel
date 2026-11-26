@@ -6,7 +6,7 @@ export default function PendingAgentsPage() {
     <div>
       <PageHeader
         title="Agent Approvals"
-        description="Review pending shop-agent registrations and restore rejected agents"
+        description="Review pending shop-agent registrations, or move rejected ones back to review"
       />
       <PendingAgents />
     </div>

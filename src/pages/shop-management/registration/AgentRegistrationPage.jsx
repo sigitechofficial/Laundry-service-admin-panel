@@ -6,6 +6,7 @@ import { useGetAgentRegistrationQuery } from "../../../store/services/api";
 import RegistrationDetails from "./RegistrationDetails";
 import ShopVisitHistory from "./ShopVisitHistory";
 import RejectAgentDialog from "./RejectAgentDialog";
+import ReopenAgentDialog from "./ReopenAgentDialog";
 import useAgentApprovalActions from "./useAgentApprovalActions";
 import useScrollTop from "./useScrollTop";
 
@@ -14,8 +15,9 @@ export default function AgentRegistrationPage() {
   const { agentId } = useParams();
   useScrollTop(agentId);
   const { data, isLoading, isError, refetch } = useGetAgentRegistrationQuery(agentId, { skip: !agentId });
-  const { approve, reject, busy } = useAgentApprovalActions();
+  const { approve, reject, reopen, busy } = useAgentApprovalActions();
   const [rejecting, setRejecting] = useState(false);
+  const [reopening, setReopening] = useState(false);
   const r = data?.data;
   const status = r?.account?.approvalStatus;
   const title = r?.shop?.name || r?.account?.name || "Shop registration";
@@ -30,9 +32,14 @@ export default function AgentRegistrationPage() {
           Reject
         </Button>
       ) : null}
+      {status === "rejected" ? (
+        <Button variant="secondary" disabled={busy} onClick={() => setReopening(true)}>
+          Move back to review
+        </Button>
+      ) : null}
       {status !== "approved" ? (
         <Button disabled={busy} onClick={() => approve(agentId, status === "rejected")}>
-          {status === "rejected" ? "Restore & approve" : "Approve"}
+          Approve
         </Button>
       ) : null}
     </div>
@@ -60,6 +67,16 @@ export default function AgentRegistrationPage() {
           <ShopVisitHistory agentId={agentId} from="onboarding" />
         </div>
       )}
+      <ReopenAgentDialog
+        open={reopening}
+        agentName={title}
+        previousReason={r?.account?.rejectionReason}
+        busy={busy}
+        onClose={() => setReopening(false)}
+        onConfirm={async () => {
+          if (await reopen(agentId)) setReopening(false);
+        }}
+      />
       <RejectAgentDialog
         open={rejecting}
         agentName={title}

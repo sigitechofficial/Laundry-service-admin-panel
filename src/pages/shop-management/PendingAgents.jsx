@@ -20,6 +20,7 @@ import {
   DirectoryToolbarEnd,
 } from "../directory-table/directoryTable";
 import RejectAgentDialog from "./registration/RejectAgentDialog";
+import ReopenAgentDialog from "./registration/ReopenAgentDialog";
 import useAgentApprovalActions from "./registration/useAgentApprovalActions";
 import { visitPaths } from "./registration/registrationFormat";
 import { joinMeta } from "../directory-table/directoryTableUtils";
@@ -98,7 +99,8 @@ export default function PendingAgents() {
     refetch: refetchRejected,
   } = useGetRejectedAgentsQuery(undefined, { skip: tab !== "rejected" });
 
-  const { approve, reject, busy: isUpdating } = useAgentApprovalActions();
+  const { approve, reject, reopen, busy: isUpdating } = useAgentApprovalActions();
+  const [reopenRow, setReopenRow] = useState(null);
 
   const [rejectModal, setRejectModal] = useState(EMPTY_REJECT);
 
@@ -135,7 +137,8 @@ export default function PendingAgents() {
           shopName: agent.shopName || "-",
           address: addressParts.join(", ") || "-",
           rejectionReason: agent.rejectionReason || "-",
-          statusLabel: isRejectedTab ? "Rejected" : "Pending",
+          previouslyRejected: !isRejectedTab && Boolean(agent.rejectionReason),
+          statusLabel: isRejectedTab ? "Rejected" : agent.rejectionReason ? "Pending (previously rejected)" : "Pending",
           createdAt: agent.createdAt,
           registeredAt: formatDate(agent.createdAt, DATE_TIME_FORMAT),
         };
@@ -178,10 +181,7 @@ export default function PendingAgents() {
     setDateRange((prev) => ({ ...prev, [part]: value }));
   }, []);
 
-  const handleApprove = useCallback(
-    (agentId, isRestore = false) => approve(agentId, isRestore),
-    [approve]
-  );
+  const handleApprove = useCallback((agentId) => approve(agentId), [approve]);
 
   const openRejectModal = useCallback((row) => {
     setRejectModal({ open: true, agentId: row.id, agentName: row.name });
@@ -203,10 +203,13 @@ export default function PendingAgents() {
       {
         key: "status",
         header: "Status",
-        render: () => (
-          <DirectoryDotPill tone={isRejectedTab ? "danger" : "warning"}>
-            {isRejectedTab ? "Rejected" : "Pending"}
-          </DirectoryDotPill>
+        render: (row) => (
+          <div style={{ display: "grid", gap: 4, justifyItems: "start" }}>
+            <DirectoryDotPill tone={isRejectedTab ? "danger" : "warning"}>
+              {isRejectedTab ? "Rejected" : "Pending"}
+            </DirectoryDotPill>
+            {row.previouslyRejected ? <DirectoryDotPill tone="danger">Previously rejected</DirectoryDotPill> : null}
+          </div>
         ),
       },
       {
@@ -215,7 +218,13 @@ export default function PendingAgents() {
         render: (row) => (
           <DirectoryIdentity
             name={row.registeredAt}
-            meta={isRejectedTab && row.rejectionReason !== "-" ? row.rejectionReason : row.phone}
+            meta={
+              isRejectedTab && row.rejectionReason !== "-"
+                ? row.rejectionReason
+                : row.previouslyRejected
+                  ? `Rejected before: ${row.rejectionReason}`
+                  : row.phone
+            }
           />
         ),
       },
@@ -228,10 +237,11 @@ export default function PendingAgents() {
             {isRejectedTab ? (
               <Button
                 size="sm"
+                variant="secondary"
                 disabled={isUpdating}
-                onClick={() => handleApprove(row.id, true)}
+                onClick={() => setReopenRow(row)}
               >
-                Restore
+                Move back to review
               </Button>
             ) : (
               <>
@@ -287,7 +297,7 @@ export default function PendingAgents() {
       </div>
       <p className="jd-lead" style={{ margin: "0 0 16px" }}>
         {isRejectedTab
-          ? "Rejected agents cannot log in. Use Restore & Approve to let them access the app again."
+          ? "Rejected agents cannot log in. Use Move back to review to put one in the Pending list again, then check it and approve or reject."
           : "Agents who completed registration appear here until you approve or reject them."}
       </p>
 
@@ -363,6 +373,16 @@ export default function PendingAgents() {
         </>
       )}
 
+      <ReopenAgentDialog
+        open={Boolean(reopenRow)}
+        agentName={reopenRow ? (reopenRow.shopName !== "-" ? reopenRow.shopName : reopenRow.name) : ""}
+        previousReason={reopenRow && reopenRow.rejectionReason !== "-" ? reopenRow.rejectionReason : null}
+        busy={isUpdating}
+        onClose={() => setReopenRow(null)}
+        onConfirm={async () => {
+          if (reopenRow && (await reopen(reopenRow.id))) setReopenRow(null);
+        }}
+      />
       <RejectAgentDialog
         open={rejectModal.open}
         agentName={rejectModal.agentName}
