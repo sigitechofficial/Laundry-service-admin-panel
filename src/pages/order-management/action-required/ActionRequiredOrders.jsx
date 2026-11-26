@@ -67,7 +67,8 @@ const FILTERS = [
 
 const SEARCH_DEBOUNCE_MS = 400;
 const DEFAULT_PAGE_SIZE = 25;
-const DEFAULT_SORT_BY = "priority";
+/** Newest order first, like every other order list ("Priority" is still an option). */
+const DEFAULT_SORT_BY = "createdAt";
 
 /** Server `sortBy` allowlist for admin/action-required-orders. */
 const ACTION_REQUIRED_SORT_BY = Object.freeze({
