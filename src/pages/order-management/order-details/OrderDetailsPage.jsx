@@ -122,9 +122,10 @@ function StarRating({ value = 0 }) {
 // collapsed state from before this behavior existed.
 const COLLAPSIBLE_STORAGE_VERSION = "v3";
 
-function CollapsibleCard({ title, dotColor, storageKey, defaultOpen = false, children }) {
+function CollapsibleCard({ title, dotColor, storageKey, defaultOpen = false, startOpen = false, children }) {
   const storageId = `od-sec-${COLLAPSIBLE_STORAGE_VERSION}-${storageKey}`;
   const [open, setOpen] = useState(() => {
+    if (startOpen) return true;
     try {
       const v = localStorage.getItem(storageId);
       return v === null ? defaultOpen : v === "1";
@@ -405,6 +406,26 @@ export default function OrderDetailsPage() {
 
   const orderItemsData = orderItemsResponse?.data;
   const statusBadge = getStatusBadge(orderData?.bookingStatus?.title);
+  // On-hold items. While the order is on hold (or an item still waits for the
+  // customer / shop), the card moves up under Shop and starts open.
+  const onHoldItems = Array.isArray(orderData?.onHoldItems) ? orderData.onHoldItems : [];
+  const onHoldActive =
+    onHoldItems.length > 0 &&
+    (/hold/i.test(String(orderData?.bookingStatus?.title || "")) ||
+      onHoldItems.some((i) => !i.resolvedAt && !i.handledByShop));
+  const onHoldCard = (
+    <CollapsibleCard
+      title={`On-hold items (${onHoldItems.length})`}
+      storageKey="onhold"
+      dotColor="#F59E0B"
+      defaultOpen
+      startOpen={onHoldActive}
+    >
+      <div style={{ padding: 20 }}>
+        <OnHoldItemsList items={onHoldItems} />
+      </div>
+    </CollapsibleCard>
+  );
   const orderStatusOptions = useMemo(() => {
     const list = Array.isArray(statusesResponse?.data)
       ? statusesResponse.data
@@ -2602,6 +2623,8 @@ export default function OrderDetailsPage() {
             </div>
           </CollapsibleCard>
 
+          {onHoldActive ? onHoldCard : null}
+
           <CollapsibleCard title="Recurring" storageKey="recurring">
             <div className="space-y-3" style={{ padding: 20 }}>
               <OdMetaRow
@@ -3198,18 +3221,7 @@ export default function OrderDetailsPage() {
             </div>
           </CollapsibleCard>
 
-          {Array.isArray(orderData?.onHoldItems) && orderData.onHoldItems.length > 0 ? (
-            <CollapsibleCard
-              title={`On-hold items (${orderData.onHoldItems.length})`}
-              storageKey="onhold"
-              dotColor="#F59E0B"
-              defaultOpen
-            >
-              <div style={{ padding: 20 }}>
-                <OnHoldItemsList items={orderData.onHoldItems} />
-              </div>
-            </CollapsibleCard>
-          ) : null}
+          {onHoldItems.length > 0 && !onHoldActive ? onHoldCard : null}
 
           <CollapsibleCard title="Attempt outcomes" storageKey="attempts" dotColor="#F87171">
             <div className="space-y-3" style={{ padding: 20 }}>

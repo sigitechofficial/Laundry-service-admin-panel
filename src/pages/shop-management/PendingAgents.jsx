@@ -237,7 +237,6 @@ export default function PendingAgents() {
             {isRejectedTab ? (
               <Button
                 size="sm"
-                variant="secondary"
                 disabled={isUpdating}
                 onClick={() => setReopenRow(row)}
               >

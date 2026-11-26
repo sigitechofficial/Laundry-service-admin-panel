@@ -1,7 +1,7 @@
 import { Badge } from "../../../design-system";
 import DsIcon from "../../../design-system/icons";
 import { DATE_TIME_FORMAT, formatDate } from "../../../utilities/formatters";
-import { RECOMMENDATION, dayHours, hhmm, initials, tatTone, weekSummary, whenText } from "./registrationFormat";
+import { RECOMMENDATION, dayHours, hh24, initials, tatTone, weekSummary, whenText } from "./registrationFormat";
 import "./registration.css";
 
 const NONE = "Not given";
@@ -307,9 +307,9 @@ export default function RegistrationDetails({ r }) {
                           "Times not set"
                         ) : (
                           <>
-                            {hhmm(h.openTime)}
+                            {hh24(h.openTime)}
                             <br />
-                            {hhmm(h.closeTime)}
+                            {hh24(h.closeTime)}
                           </>
                         )}
                       </p>

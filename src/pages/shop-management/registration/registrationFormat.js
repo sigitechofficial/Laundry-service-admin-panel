@@ -22,13 +22,13 @@ export const grid2 = {
   gap: 14,
 };
 
-/** "09:00:00" -> "9:00 AM" */
-export function hhmm(t) {
+/** "07:00:00" -> "07:00" (24-hour clock). */
+export function hh24(t) {
   if (!t) return "";
   const [h, m] = String(t).split(":");
   const hour = parseInt(h, 10);
   if (Number.isNaN(hour)) return String(t);
-  return `${hour % 12 === 0 ? 12 : hour % 12}:${(m || "00").padStart(2, "0")} ${hour >= 12 ? "PM" : "AM"}`;
+  return `${String(hour).padStart(2, "0")}:${(m || "00").padStart(2, "0")}`;
 }
 
 /** "Thu 26 Nov 2026, 14:05" in the viewer's clock. */

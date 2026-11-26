@@ -1,4 +1,5 @@
-import { Badge } from "../../../design-system";
+import { useState } from "react";
+import { Badge, Modal } from "../../../design-system";
 import { formatDate, joinMediaUrl } from "../../../utilities/formatters";
 
 const WHEN = "DD MMM YYYY · HH:mm";
@@ -39,6 +40,7 @@ function Step({ label, at, done }) {
  * answer and when each step happened.
  */
 export default function OnHoldItemsList({ items }) {
+  const [preview, setPreview] = useState(null);
   const list = Array.isArray(items) ? items : [];
   if (!list.length) {
     return (
@@ -49,6 +51,27 @@ export default function OnHoldItemsList({ items }) {
   }
   return (
     <div className="space-y-3">
+      <Modal
+        open={Boolean(preview)}
+        title={preview?.name || "On-hold item"}
+        description={preview?.risk ? `Risk: ${preview.risk}` : undefined}
+        onClose={() => setPreview(null)}
+        hideFooter
+        size="lg"
+      >
+        {preview ? (
+          <div style={{ display: "grid", gap: 10 }}>
+            <img
+              src={preview.src}
+              alt={`Photo of ${preview.name}`}
+              style={{ display: "block", width: "100%", maxHeight: "70vh", objectFit: "contain", borderRadius: 8, background: "#0F172A" }}
+            />
+            <a href={preview.src} target="_blank" rel="noreferrer" style={{ fontSize: 13, fontWeight: 600, justifySelf: "end" }}>
+              Open full size in a new tab
+            </a>
+          </div>
+        ) : null}
+      </Modal>
       {list.map((item) => {
         const name = [item.serviceName, item.itemName].filter(Boolean).join(" · ") || "Item";
         const photo = item.photo ? joinMediaUrl(item.photo) : null;
@@ -65,13 +88,19 @@ export default function OnHoldItemsList({ items }) {
           >
             <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
               {photo ? (
-                <a href={photo} target="_blank" rel="noreferrer" title="Open photo" style={{ flex: "none" }}>
+                <button
+                  type="button"
+                  onClick={() => setPreview({ src: photo, name, risk: item.risk })}
+                  title="View photo"
+                  aria-label={`View photo of ${name}`}
+                  style={{ flex: "none", padding: 0, border: 0, background: "none", cursor: "zoom-in" }}
+                >
                   <img
                     src={photo}
                     alt={`Photo of ${name}`}
                     style={{ width: 72, height: 72, objectFit: "cover", borderRadius: 8, border: "1px solid #E5E7EB", display: "block" }}
                   />
-                </a>
+                </button>
               ) : null}
               <div style={{ minWidth: 0, flex: 1 }}>
                 <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
