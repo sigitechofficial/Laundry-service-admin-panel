@@ -33,6 +33,7 @@ import {
 } from "../../../utilities/formatters";
 import { canEditOrderFromBooking } from "../../../shared/orderEditStatusGate";
 import ServiceBadgePill from "../../../components/shared/ServiceBadgePill";
+import OnHoldItemsList from "./OnHoldItemsList";
 import {
   INVOICE_PHASE,
   invoicePhaseLabel,
@@ -3196,6 +3197,19 @@ export default function OrderDetailsPage() {
               </div>
             </div>
           </CollapsibleCard>
+
+          {Array.isArray(orderData?.onHoldItems) && orderData.onHoldItems.length > 0 ? (
+            <CollapsibleCard
+              title={`On-hold items (${orderData.onHoldItems.length})`}
+              storageKey="onhold"
+              dotColor="#F59E0B"
+              defaultOpen
+            >
+              <div style={{ padding: 20 }}>
+                <OnHoldItemsList items={orderData.onHoldItems} />
+              </div>
+            </CollapsibleCard>
+          ) : null}
 
           <CollapsibleCard title="Attempt outcomes" storageKey="attempts" dotColor="#F87171">
             <div className="space-y-3" style={{ padding: 20 }}>
