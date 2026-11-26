@@ -2,7 +2,6 @@ import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { Button, PageHeader } from "../../../design-system";
 import { Delay } from "../../../components/shared/Loaders";
-import { DATE_TIME_FORMAT, formatDate } from "../../../utilities/formatters";
 import { useGetAgentRegistrationQuery } from "../../../store/services/api";
 import RegistrationDetails from "./RegistrationDetails";
 import ShopVisitHistory from "./ShopVisitHistory";
@@ -42,14 +41,8 @@ export default function AgentRegistrationPage() {
   return (
     <div>
       <PageHeader
-        title={title}
-        description={
-          r?.account
-            ? `Registered by ${r.account.name || "—"}${
-                r.account.registeredAt ? ` on ${formatDate(r.account.registeredAt, DATE_TIME_FORMAT)}` : ""
-              }`
-            : "Shop registration"
-        }
+        title="Registration review"
+        description="Check what the shop registered with, then approve or reject it."
         actions={actions}
       />
       {isLoading ? (

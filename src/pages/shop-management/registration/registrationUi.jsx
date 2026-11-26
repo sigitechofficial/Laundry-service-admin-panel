@@ -1,5 +1,6 @@
 import { Badge } from "../../../design-system";
-import { NONE, card, heading } from "./registrationFormat";
+import { NONE } from "./registrationFormat";
+import "./registration.css";
 
 const rowStyle = {
   display: "grid",
@@ -9,11 +10,14 @@ const rowStyle = {
   borderTop: "1px solid var(--line-soft, #F1F5F9)",
   fontSize: 14,
 };
-export function Section({ title, right, children, style }) {
+export function Section({ title, sub, right, children, style }) {
   return (
-    <section style={{ ...card, ...style }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 8 }}>
-        <h3 style={heading}>{title}</h3>
+    <section className="reg-card" style={style}>
+      <div className="reg-card__head">
+        <div style={{ minWidth: 0 }}>
+          <h3 className="reg-card__title">{title}</h3>
+          {sub ? <p className="reg-card__sub">{sub}</p> : null}
+        </div>
         {right}
       </div>
       {children}

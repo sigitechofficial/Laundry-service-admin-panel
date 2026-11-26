@@ -17,15 +17,13 @@ export default function ShopVisitHistory({ agentId, from }) {
   return (
     <Section
       title={`Shop visit history${visits.length ? ` (${visits.length})` : ""}`}
+      sub="Optional. A Just Dry Cleans team member checks the shop in person and records what they found."
       right={
         <Link to={visitPaths.create(agentId, from)}>
           <Button size="sm">Record visit</Button>
         </Link>
       }
     >
-      <p style={{ margin: "0 0 12px", fontSize: 13, color: "var(--muted, #64748B)" }}>
-        Optional. A Just Dry Cleans team member checks the shop in person and records what they found.
-      </p>
       {isLoading ? (
         <Delay />
       ) : isError ? (

@@ -93,3 +93,54 @@ export function backPath(from, agentId) {
   if (m) return `/shop-management/details/${m[1]}?tab=registration`;
   return visitPaths.registration(agentId);
 }
+
+/** "07:00:00" -> minutes from midnight, or null. */
+function minutesOf(t) {
+  if (!t) return null;
+  const [h, m] = String(t).split(":").map((x) => parseInt(x, 10));
+  return Number.isNaN(h) ? null : h * 60 + (Number.isNaN(m) ? 0 : m);
+}
+
+/** Hours a day is open (handles closing after midnight), or null when times are missing. */
+export function dayHours(h) {
+  if (!h?.open) return 0;
+  const a = minutesOf(h.openTime);
+  const b = minutesOf(h.closeTime);
+  if (a == null || b == null) return null;
+  const mins = b > a ? b - a : b + 24 * 60 - a;
+  return Math.round((mins / 60) * 10) / 10;
+}
+
+/** { openDays, hours, unset } for the week. */
+export function weekSummary(rows = []) {
+  let openDays = 0;
+  let hours = 0;
+  let unset = 0;
+  for (const h of rows) {
+    if (!h.open) continue;
+    openDays += 1;
+    const n = dayHours(h);
+    if (n == null) unset += 1;
+    else hours += n;
+  }
+  return { openDays, hours: Math.round(hours * 10) / 10, unset };
+}
+
+/** Badge tone for a turnaround such as "24 Hours" or "More Than 48 Hours". */
+export function tatTone(tat) {
+  if (!tat) return "neutral";
+  const s = String(tat).toLowerCase();
+  const n = parseInt(s.replace(/[^0-9]/g, ""), 10);
+  if (s.includes("more than") || (!Number.isNaN(n) && n > 48)) return "warning";
+  if (!Number.isNaN(n) && n <= 24) return "success";
+  return "brand";
+}
+
+/** "Muzna Shop" -> "MS" */
+export function initials(name) {
+  const words = String(name || "").trim().split(/\s+/).filter(Boolean);
+  const lettered = words.filter((w) => /^[a-z]/i.test(w));
+  const parts = lettered.length ? lettered : words;
+  if (!parts.length) return "—";
+  return (parts[0][0] + (parts.length > 1 ? parts[parts.length - 1][0] : parts[0][1] || "")).toUpperCase();
+}
