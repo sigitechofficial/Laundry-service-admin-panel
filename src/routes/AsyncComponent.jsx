@@ -126,6 +126,15 @@ export const SendNotificationsPage = lazy(() =>
 export const AdminNotificationSettingsPage = lazy(() =>
   import("../pages/admin-notification-settings/AdminNotificationSettingsPage")
 );
+export const AgentRegistrationPage = lazy(() =>
+  import("../pages/shop-management/registration/AgentRegistrationPage")
+);
+export const ShopVisitFormPage = lazy(() =>
+  import("../pages/shop-management/registration/ShopVisitFormPage")
+);
+export const ShopVisitReportPage = lazy(() =>
+  import("../pages/shop-management/registration/ShopVisitReportPage")
+);
 export const ShopDetails = lazy(() =>
   import("../pages/shop-management/ShopDetail")
 );

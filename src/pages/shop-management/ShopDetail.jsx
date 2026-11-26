@@ -16,7 +16,8 @@ import {
   MdOutlinePhone,
   MdMailOutline,
 } from "../../shared/icons/index";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import RegistrationTab from "./registration/RegistrationTab";
 import {
   useGetShopDetailsQuery,
   useGetAllEmployeesWithShopInfoQuery,
@@ -123,6 +124,7 @@ const TABS = [
   { value: "reviews", label: "Reviews" },
   { value: "staff", label: "Staff" },
   { value: "documents", label: "Documents" },
+  { value: "registration", label: "Registration" },
   { value: "settings", label: "Settings" },
   { value: "services", label: "Services" },
 ];
@@ -180,7 +182,11 @@ function Label({ children }) {
 export default function ShopDetails() {
   const navigate = useNavigate();
   const { id } = useParams();
-  const [activeTab, setActiveTab] = useState("overview");
+  const [searchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState(() => {
+    const t = searchParams.get("tab");
+    return TABS.some((x) => x.value === t) ? t : "overview";
+  });
   const [orderFilter, setOrderFilter] = useState("all");
 
   const [controls, setControls] = useState({
@@ -1421,6 +1427,8 @@ export default function ShopDetails() {
       {activeTab === "report" && (
         <ShopReportTab model={reportModel} onDownload={handleGenerateReport} />
       )}
+
+      {activeTab === "registration" && <RegistrationTab agentId={biz?.id} shopId={id} />}
 
       {activeTab === "reviews" && (
         <div style={CARD}>

@@ -16,6 +16,9 @@ import {
   AddShopPage,
   ShopEmployeesPage,
   ShopDetails,
+  AgentRegistrationPage,
+  ShopVisitFormPage,
+  ShopVisitReportPage,
   PendingAgentsPage,
   AgentSettlementPage,
   AgentSettlementDetailPage,
@@ -65,6 +68,9 @@ export default function PrivateRoutes() {
                   <Route path="add-shop" element={<AddShopPage />} />
                   <Route path="employees" element={<ShopEmployeesPage />} />
                   <Route path="pending-agents" element={<PendingAgentsPage />} />
+                  <Route path="pending-agents/:agentId" element={<AgentRegistrationPage />} />
+                  <Route path="agents/:agentId/visits/new" element={<ShopVisitFormPage />} />
+                  <Route path="agents/:agentId/visits/:visitId" element={<ShopVisitReportPage />} />
                   <Route path="agent-settlement" element={<AgentSettlementPage />} />
                   <Route path="agent-settlement/:agentId" element={<LegacyAgentSettlementRedirectPage />} />
                   <Route path="details/:id/settlement" element={<AgentSettlementDetailPage />} />

@@ -1,5 +1,6 @@
-import { useCallback, useMemo, useRef, useState } from "react";
-import { Button, Field, Modal, Table, Textarea } from "../../design-system";
+import { useCallback, useMemo, useState } from "react";
+import { Button, Table } from "../../design-system";
+import { useNavigate } from "react-router-dom";
 import { DATE_TIME_FORMAT, formatDate } from "../../utilities/formatters";
 import { formatUserPhone } from "../../utilities/contactLinks";
 import { csvFormat } from "../../utilities/csvExport";
@@ -18,14 +19,14 @@ import {
   DirectoryToolbar,
   DirectoryToolbarEnd,
 } from "../directory-table/directoryTable";
-import AgentRegistrationModal from "./AgentRegistrationModal";
+import RejectAgentDialog from "./registration/RejectAgentDialog";
+import useAgentApprovalActions from "./registration/useAgentApprovalActions";
+import { visitPaths } from "./registration/registrationFormat";
 import { joinMeta } from "../directory-table/directoryTableUtils";
 import { Delay } from "../../components/shared/Loaders";
-import useToaster from "../../components/ui/Toaster";
 import {
   useGetPendingAgentsQuery,
   useGetRejectedAgentsQuery,
-  useUpdateAgentApprovalMutation,
 } from "../../store/services/api";
 
 const TAB_ROW = {
@@ -37,20 +38,7 @@ const TAB_ROW = {
 
 const EMPTY_DATE_RANGE = { startDate: "", endDate: "" };
 
-/** Same list as the backend (AGENT_REJECTION_REASONS); "Other" needs a note. */
-const REJECTION_REASONS = [
-  "Business details are incomplete or incorrect",
-  "Shop address could not be verified",
-  "Shop is outside our service areas",
-  "Services offered do not match what we need",
-  "Not enough machinery or capacity",
-  "Working hours do not fit our collection and delivery times",
-  "Turnaround times are too long",
-  "Contact details could not be verified",
-  "Duplicate or existing account",
-  "Other",
-];
-const EMPTY_REJECT = { open: false, agentId: null, agentName: "", reasons: [], note: "", error: "" };
+const EMPTY_REJECT = { open: false, agentId: null, agentName: "" };
 
 const AGENT_CSV_COLUMNS = [
   { header: "Agent ID", key: "id" },
@@ -91,7 +79,7 @@ function matchesDateRange(row, dateRange) {
 }
 
 export default function PendingAgents() {
-  const { success, error: showError } = useToaster();
+  const navigate = useNavigate();
   const [tab, setTab] = useState("pending");
   const [searchTerm, setSearchTerm] = useState("");
   const [dateRange, setDateRange] = useState(EMPTY_DATE_RANGE);
@@ -110,12 +98,9 @@ export default function PendingAgents() {
     refetch: refetchRejected,
   } = useGetRejectedAgentsQuery(undefined, { skip: tab !== "rejected" });
 
-  const [updateApproval, { isLoading: isUpdating }] =
-    useUpdateAgentApprovalMutation();
-  const approvingRef = useRef(false);
+  const { approve, reject, busy: isUpdating } = useAgentApprovalActions();
 
   const [rejectModal, setRejectModal] = useState(EMPTY_REJECT);
-  const [viewRow, setViewRow] = useState(null);
 
   const isRejectedTab = tab === "rejected";
   const agents = useMemo(
@@ -193,99 +178,18 @@ export default function PendingAgents() {
     setDateRange((prev) => ({ ...prev, [part]: value }));
   }, []);
 
-  const isApprovalSuccess = (res) => res?.status === "1" || res?.status === 1;
-
   const handleApprove = useCallback(
-    async (agentId, isRestore = false) => {
-      if (approvingRef.current || isUpdating) return;
-      approvingRef.current = true;
-      try {
-        const res = await updateApproval({
-          agentId,
-          body: { action: "approve" },
-        }).unwrap();
-        if (isApprovalSuccess(res)) {
-          success(
-            res?.message ||
-              (isRestore ? "Agent restored and approved" : "Agent approved")
-          );
-        } else {
-          showError(res?.message || "Failed to approve agent");
-        }
-      } catch (err) {
-        showError(err?.data?.message || "Failed to approve agent");
-      } finally {
-        approvingRef.current = false;
-      }
-    },
-    [isUpdating, showError, success, updateApproval]
+    (agentId, isRestore = false) => approve(agentId, isRestore),
+    [approve]
   );
 
   const openRejectModal = useCallback((row) => {
-    setRejectModal({ ...EMPTY_REJECT, open: true, agentId: row.id, agentName: row.name });
+    setRejectModal({ open: true, agentId: row.id, agentName: row.name });
   }, []);
 
   const closeRejectModal = useCallback(() => {
     setRejectModal(EMPTY_REJECT);
   }, []);
-
-  const toggleReason = useCallback((reason) => {
-    setRejectModal((prev) => ({
-      ...prev,
-      error: "",
-      reasons: prev.reasons.includes(reason)
-        ? prev.reasons.filter((r) => r !== reason)
-        : [...prev.reasons, reason],
-    }));
-  }, []);
-
-  const handleReject = useCallback(async () => {
-    if (!rejectModal.agentId || approvingRef.current || isUpdating) return;
-    const note = rejectModal.note.trim();
-    if (!rejectModal.reasons.length) {
-      setRejectModal((prev) => ({ ...prev, error: "Choose at least one reason." }));
-      return;
-    }
-    if (rejectModal.reasons.includes("Other") && !note) {
-      setRejectModal((prev) => ({ ...prev, error: 'Add a note explaining "Other".' }));
-      return;
-    }
-    approvingRef.current = true;
-    try {
-      const res = await updateApproval({
-        agentId: rejectModal.agentId,
-        body: {
-          action: "reject",
-          reasons: rejectModal.reasons,
-          note: note || undefined,
-        },
-      }).unwrap();
-      if (isApprovalSuccess(res)) {
-        success(
-          res?.data?.emailQueued
-            ? "Agent rejected. They've been emailed the reasons."
-            : res?.message || "Agent rejected"
-        );
-        closeRejectModal();
-        setViewRow(null);
-      } else {
-        showError(res?.message || "Failed to reject agent");
-      }
-    } catch (err) {
-      showError(err?.data?.message || "Failed to reject agent");
-    } finally {
-      approvingRef.current = false;
-    }
-  }, [
-    closeRejectModal,
-    isUpdating,
-    rejectModal.agentId,
-    rejectModal.note,
-    rejectModal.reasons,
-    showError,
-    success,
-    updateApproval,
-  ]);
 
   const columns = useMemo(() => {
     return [
@@ -320,7 +224,7 @@ export default function PendingAgents() {
         header: "Actions",
         render: (row) => (
           <DirectoryActions>
-            <DirectoryActionView onClick={() => setViewRow(row)} />
+            <DirectoryActionView onClick={() => navigate(visitPaths.registration(row.id))} />
             {isRejectedTab ? (
               <Button
                 size="sm"
@@ -352,7 +256,7 @@ export default function PendingAgents() {
         ),
       },
     ];
-  }, [handleApprove, isRejectedTab, isUpdating, openRejectModal]);
+  }, [handleApprove, isRejectedTab, isUpdating, navigate, openRejectModal]);
 
   const listError = isRejectedTab ? rejectedError : pendingError;
   const refetchList = isRejectedTab ? refetchRejected : refetchPending;
@@ -456,74 +360,18 @@ export default function PendingAgents() {
         />
       </DirectoryTableWrap>
 
-      <AgentRegistrationModal
-        open={Boolean(viewRow)}
-        agentId={viewRow?.id}
-        onClose={() => setViewRow(null)}
-        busy={isUpdating}
-        onApprove={async () => {
-          await handleApprove(viewRow.id, isRejectedTab);
-          setViewRow(null);
-        }}
-        onReject={isRejectedTab ? undefined : () => openRejectModal(viewRow)}
-      />
         </>
       )}
 
-      <Modal
+      <RejectAgentDialog
         open={rejectModal.open}
-        title="Reject Agent"
-        description={`Reject ${rejectModal.agentName}? They're emailed the reasons below and see a rejection message when they try to log in.`}
+        agentName={rejectModal.agentName}
+        busy={isUpdating}
         onClose={closeRejectModal}
-        onPrimary={handleReject}
-        primaryLabel={isUpdating ? "Rejecting…" : "Reject and email agent"}
-        secondaryLabel="Cancel"
-        danger
-        closeOnBackdrop={false}
-      >
-        <fieldset style={{ border: 0, margin: 0, padding: 0, display: "grid", gap: 6 }}>
-          <legend style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>
-            Reasons (choose one or more)
-          </legend>
-          {REJECTION_REASONS.map((reason) => (
-            <label
-              key={reason}
-              style={{ display: "flex", alignItems: "flex-start", gap: 10, fontSize: 14, cursor: "pointer", lineHeight: 1.4 }}
-            >
-              <input
-                type="checkbox"
-                checked={rejectModal.reasons.includes(reason)}
-                onChange={() => toggleReason(reason)}
-                style={{ marginTop: 3 }}
-              />
-              <span>{reason}</span>
-            </label>
-          ))}
-        </fieldset>
-        <div style={{ marginTop: 14 }}>
-          <Field
-            label={rejectModal.reasons.includes("Other") ? "Note (required for Other)" : "Note (optional)"}
-            hint="Included in the email to the agent"
-            htmlFor="reject-note"
-          >
-            <Textarea
-              id="reject-note"
-              rows={3}
-              maxLength={400}
-              placeholder="Please send a photo of the shop front and your business registration."
-              value={rejectModal.note}
-              onChange={(e) =>
-                setRejectModal((prev) => ({ ...prev, note: e.target.value, error: "" }))
-              }
-            />
-          </Field>
-        </div>
-        {rejectModal.error ? (
-          <p role="alert" style={{ margin: "8px 0 0", fontSize: 13, color: "var(--danger, #B91C1C)" }}>
-            {rejectModal.error}
-          </p>
-        ) : null}
-      </Modal>
+        onConfirm={async (payload) => {
+          if (await reject(rejectModal.agentId, payload)) closeRejectModal();
+        }}
+      />
     </div>
   );
 }

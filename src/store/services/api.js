@@ -7,7 +7,7 @@ export const api = createApi({
   baseQuery: baseQueryWithReauth,
   // setupListeners(store.dispatch) + window "online" → refetch subscribed queries.
   refetchOnReconnect: true,
-  tagTypes: ["ServiceConfig", "SupportContact", "PlatformOperationalHours", "RuntimeSettings", "RevenueRampPolicy", "Orders", "Coupons", "Banners", "AccountDeletionReasons", "ReviewReasonCodes", "ShopReviews", "ShopRatingsReport", "PendingAgents", "RejectedAgents", "AgentRegistration", "AgentSettlement", "NotifyLogs", "PaymentFailures", "AdminNotificationPreferences", "ActionRequiredOrders", "RepairGarments", "RepairOptions", "Zones", "ZoneCatalog", "FailAttemptInstructions", "FailAttemptReasons", "Shops", "ShopAssignmentPolicy", "ShopPrinter", "ComplianceReport", "ComplianceEvents", "Customers", "ServiceDiscounts", "Campaigns", "Promotions", "CustomerCredit"],
+  tagTypes: ["ServiceConfig", "SupportContact", "PlatformOperationalHours", "RuntimeSettings", "RevenueRampPolicy", "Orders", "Coupons", "Banners", "AccountDeletionReasons", "ReviewReasonCodes", "ShopReviews", "ShopRatingsReport", "PendingAgents", "RejectedAgents", "AgentRegistration", "ShopVisits", "AgentSettlement", "NotifyLogs", "PaymentFailures", "AdminNotificationPreferences", "ActionRequiredOrders", "RepairGarments", "RepairOptions", "Zones", "ZoneCatalog", "FailAttemptInstructions", "FailAttemptReasons", "Shops", "ShopAssignmentPolicy", "ShopPrinter", "ComplianceReport", "ComplianceEvents", "Customers", "ServiceDiscounts", "Campaigns", "Promotions", "CustomerCredit"],
 
   endpoints: (builder) => {
     const reportQueryString = (params = {}) => {
@@ -1041,6 +1041,25 @@ export const api = createApi({
         method: "GET",
       }),
       providesTags: (result, error, agentId) => [{ type: "AgentRegistration", id: agentId }],
+    }),
+
+    /** Physical shop visits: { checklist, registered: { services, machinery }, visits } */
+    getShopVisits: builder.query({
+      query: (agentId) => ({ url: `admin/agents/${agentId}/visits`, method: "GET" }),
+      providesTags: (result, error, agentId) => [{ type: "ShopVisits", id: agentId }],
+    }),
+
+    getShopVisit: builder.query({
+      query: ({ agentId, visitId }) => ({ url: `admin/agents/${agentId}/visits/${visitId}`, method: "GET" }),
+      providesTags: (result, error, { visitId }) => [{ type: "ShopVisits", id: `visit-${visitId}` }],
+    }),
+
+    createShopVisit: builder.mutation({
+      query: ({ agentId, body }) => ({ url: `admin/agents/${agentId}/visits`, method: "POST", body }),
+      invalidatesTags: (result, error, { agentId }) => [
+        { type: "ShopVisits", id: agentId },
+        { type: "AgentRegistration", id: agentId },
+      ],
     }),
 
     updateAgentApproval: builder.mutation({
@@ -2818,6 +2837,9 @@ export const {
   useGetShopRoutingEventsQuery,
   useGetPendingAgentsQuery,
   useGetAgentRegistrationQuery,
+  useGetShopVisitsQuery,
+  useGetShopVisitQuery,
+  useCreateShopVisitMutation,
   useGetRejectedAgentsQuery,
   useUpdateAgentApprovalMutation,
   useGetAgentsCashDueQuery,
