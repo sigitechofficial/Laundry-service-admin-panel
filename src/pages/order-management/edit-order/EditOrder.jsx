@@ -383,7 +383,7 @@ export default function EditOrder() {
   const [confirmedServiceIds, setConfirmedServiceIds] = useState(new Set());
   const [invoiceModal, setInvoiceModal] = useState({
     open: false,
-    format: "a4",
+    format: "receipt",
     previewOpen: false,
   });
   const [invoiceDetails, setInvoiceDetails] = useState(null);
@@ -951,7 +951,7 @@ export default function EditOrder() {
         return;
       }
       setInvoiceDetails(details);
-      setInvoiceModal({ open: true, format: "a4", previewOpen: false });
+      setInvoiceModal({ open: true, format: "receipt", previewOpen: false });
     } catch (err) {
       showError(err?.data?.message || "Failed to fetch invoice details.");
     }

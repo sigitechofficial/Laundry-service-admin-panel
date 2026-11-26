@@ -4,6 +4,7 @@ import {
   resolveDisplayCurrency,
 } from "../../../utilities/formatters";
 import { formatUserPhone } from "../../../utilities/contactLinks";
+import { buildShopReceipt, shopReceiptHtml } from "./shopReceipt";
 import {
   invoiceTotals,
   resolveInvoiceSettlement,
@@ -88,6 +89,7 @@ export function buildInvoiceView(invoiceDetails, fallbackShopName = "") {
       masterRate: Number.isFinite(masterRate) ? masterRate : null,
       zonePriced,
       serviceName: it?.service?.name || "",
+      unitCount: Number(it?.subCategory?.unitCount) || 1,
       addOns: (it?.addOns || []).map((ad) => ({
         name: ad?.name || ad?.addOnService?.name || ad?.service?.name || ad?.title || "Add-on",
         price: Number(ad?.price || 0),
@@ -140,7 +142,7 @@ export function buildInvoiceView(invoiceDetails, fallbackShopName = "") {
   const totals = invoiceTotals(settlement);
   // Headline total is what the customer owes for the order after any discount.
   const grandTotal = totals.after;
-  return {
+  const view = {
     settlement,
     amountDue: settlement.amountDueNow,
     invoiceNo,
@@ -184,6 +186,9 @@ export function buildInvoiceView(invoiceDetails, fallbackShopName = "") {
     tax: Number.isFinite(tax) ? tax : null,
     tip,
   };
+  // The receipt exactly as the shop app prints it.
+  view.receipt = buildShopReceipt(view, invoiceDetails);
+  return view;
 }
 
 export function printHtmlDocument(html) {
@@ -200,7 +205,13 @@ export function printHtmlDocument(html) {
   doc.open();
   doc.write(html);
   doc.close();
-  iframe.onload = () => {
+  iframe.onload = async () => {
+    // Wait for web fonts (the receipt's invoice band) before printing.
+    try {
+      await iframe.contentDocument?.fonts?.ready;
+    } catch {
+      /* print anyway */
+    }
     iframe.contentWindow?.focus();
     iframe.contentWindow?.print();
     setTimeout(() => {
@@ -414,5 +425,6 @@ export function invoicePrintHtml(view, format, labelData) {
     return tagsInvoiceHtml(labelData, view?.currencySymbol || "");
   }
   if (!view) return "";
+  if (format === "receipt") return shopReceiptHtml(view.receipt);
   return format === "thermal" ? thermalInvoiceHtml(view) : a4InvoiceHtml(view);
 }

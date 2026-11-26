@@ -735,7 +735,7 @@ export default function OrderDetailsPage() {
   const [selectedItemsCategoryKey, setSelectedItemsCategoryKey] = useState("all");
   const [invoiceModal, setInvoiceModal] = useState({
     open: false,
-    format: "a4",
+    format: "receipt",
     previewOpen: false,
   });
   const [invoiceDetails, setInvoiceDetails] = useState(null);
@@ -1073,7 +1073,7 @@ export default function OrderDetailsPage() {
         couponRedemption:
           details.couponRedemption || orderData?.couponRedemption || null,
       });
-      setInvoiceModal({ open: true, format: "a4", previewOpen: false });
+      setInvoiceModal({ open: true, format: "receipt", previewOpen: false });
     } catch (err) {
       showError(err?.data?.message || "Failed to fetch invoice details.");
     }
