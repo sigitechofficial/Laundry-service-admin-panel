@@ -17,8 +17,8 @@ import {
   DirectoryTableWrap,
   DirectoryToolbar,
   DirectoryToolbarEnd,
-  DirectoryViewModal,
 } from "../directory-table/directoryTable";
+import AgentRegistrationModal from "./AgentRegistrationModal";
 import { joinMeta } from "../directory-table/directoryTableUtils";
 import { Delay } from "../../components/shared/Loaders";
 import useToaster from "../../components/ui/Toaster";
@@ -36,6 +36,21 @@ const TAB_ROW = {
 };
 
 const EMPTY_DATE_RANGE = { startDate: "", endDate: "" };
+
+/** Same list as the backend (AGENT_REJECTION_REASONS); "Other" needs a note. */
+const REJECTION_REASONS = [
+  "Business details are incomplete or incorrect",
+  "Shop address could not be verified",
+  "Shop is outside our service areas",
+  "Services offered do not match what we need",
+  "Not enough machinery or capacity",
+  "Working hours do not fit our collection and delivery times",
+  "Turnaround times are too long",
+  "Contact details could not be verified",
+  "Duplicate or existing account",
+  "Other",
+];
+const EMPTY_REJECT = { open: false, agentId: null, agentName: "", reasons: [], note: "", error: "" };
 
 const AGENT_CSV_COLUMNS = [
   { header: "Agent ID", key: "id" },
@@ -99,12 +114,7 @@ export default function PendingAgents() {
     useUpdateAgentApprovalMutation();
   const approvingRef = useRef(false);
 
-  const [rejectModal, setRejectModal] = useState({
-    open: false,
-    agentId: null,
-    agentName: "",
-    reason: "",
-  });
+  const [rejectModal, setRejectModal] = useState(EMPTY_REJECT);
   const [viewRow, setViewRow] = useState(null);
 
   const isRejectedTab = tab === "rejected";
@@ -212,32 +222,52 @@ export default function PendingAgents() {
   );
 
   const openRejectModal = useCallback((row) => {
-    setRejectModal({
-      open: true,
-      agentId: row.id,
-      agentName: row.name,
-      reason: "",
-    });
+    setRejectModal({ ...EMPTY_REJECT, open: true, agentId: row.id, agentName: row.name });
   }, []);
 
   const closeRejectModal = useCallback(() => {
-    setRejectModal({ open: false, agentId: null, agentName: "", reason: "" });
+    setRejectModal(EMPTY_REJECT);
+  }, []);
+
+  const toggleReason = useCallback((reason) => {
+    setRejectModal((prev) => ({
+      ...prev,
+      error: "",
+      reasons: prev.reasons.includes(reason)
+        ? prev.reasons.filter((r) => r !== reason)
+        : [...prev.reasons, reason],
+    }));
   }, []);
 
   const handleReject = useCallback(async () => {
     if (!rejectModal.agentId || approvingRef.current || isUpdating) return;
+    const note = rejectModal.note.trim();
+    if (!rejectModal.reasons.length) {
+      setRejectModal((prev) => ({ ...prev, error: "Choose at least one reason." }));
+      return;
+    }
+    if (rejectModal.reasons.includes("Other") && !note) {
+      setRejectModal((prev) => ({ ...prev, error: 'Add a note explaining "Other".' }));
+      return;
+    }
     approvingRef.current = true;
     try {
       const res = await updateApproval({
         agentId: rejectModal.agentId,
         body: {
           action: "reject",
-          reason: rejectModal.reason?.trim() || undefined,
+          reasons: rejectModal.reasons,
+          note: note || undefined,
         },
       }).unwrap();
       if (isApprovalSuccess(res)) {
-        success(res?.message || "Agent rejected");
+        success(
+          res?.data?.emailQueued
+            ? "Agent rejected. They've been emailed the reasons."
+            : res?.message || "Agent rejected"
+        );
         closeRejectModal();
+        setViewRow(null);
       } else {
         showError(res?.message || "Failed to reject agent");
       }
@@ -250,7 +280,8 @@ export default function PendingAgents() {
     closeRejectModal,
     isUpdating,
     rejectModal.agentId,
-    rejectModal.reason,
+    rejectModal.note,
+    rejectModal.reasons,
     showError,
     success,
     updateApproval,
@@ -425,19 +456,16 @@ export default function PendingAgents() {
         />
       </DirectoryTableWrap>
 
-      <DirectoryViewModal
+      <AgentRegistrationModal
         open={Boolean(viewRow)}
-        title={viewRow?.name || "Agent"}
+        agentId={viewRow?.id}
         onClose={() => setViewRow(null)}
-        fields={[
-          { label: "Agent ID", value: viewRow?.id },
-          { label: "Email", value: viewRow?.email },
-          { label: "Phone", value: viewRow?.phone },
-          { label: "Shop", value: viewRow?.shopName },
-          { label: "Address", value: viewRow?.address },
-          { label: "Registered", value: viewRow?.registeredAt },
-          { label: "Rejection reason", value: viewRow?.rejectionReason },
-        ]}
+        busy={isUpdating}
+        onApprove={async () => {
+          await handleApprove(viewRow.id, isRejectedTab);
+          setViewRow(null);
+        }}
+        onReject={isRejectedTab ? undefined : () => openRejectModal(viewRow)}
       />
         </>
       )}
@@ -445,28 +473,56 @@ export default function PendingAgents() {
       <Modal
         open={rejectModal.open}
         title="Reject Agent"
-        description={`Reject ${rejectModal.agentName}? They will see a rejection message when trying to log in.`}
+        description={`Reject ${rejectModal.agentName}? They're emailed the reasons below and see a rejection message when they try to log in.`}
         onClose={closeRejectModal}
         onPrimary={handleReject}
-        primaryLabel={isUpdating ? "Rejecting…" : "Reject Agent"}
+        primaryLabel={isUpdating ? "Rejecting…" : "Reject and email agent"}
         secondaryLabel="Cancel"
         danger
+        closeOnBackdrop={false}
       >
-        <Field
-          label="Reason (optional)"
-          hint="Optional reason shown to the agent"
-          htmlFor="reject-reason"
-        >
-          <Textarea
-            id="reject-reason"
-            rows={3}
-            placeholder="Optional reason shown to the agent"
-            value={rejectModal.reason}
-            onChange={(e) =>
-              setRejectModal((prev) => ({ ...prev, reason: e.target.value }))
-            }
-          />
-        </Field>
+        <fieldset style={{ border: 0, margin: 0, padding: 0, display: "grid", gap: 6 }}>
+          <legend style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>
+            Reasons (choose one or more)
+          </legend>
+          {REJECTION_REASONS.map((reason) => (
+            <label
+              key={reason}
+              style={{ display: "flex", alignItems: "flex-start", gap: 10, fontSize: 14, cursor: "pointer", lineHeight: 1.4 }}
+            >
+              <input
+                type="checkbox"
+                checked={rejectModal.reasons.includes(reason)}
+                onChange={() => toggleReason(reason)}
+                style={{ marginTop: 3 }}
+              />
+              <span>{reason}</span>
+            </label>
+          ))}
+        </fieldset>
+        <div style={{ marginTop: 14 }}>
+          <Field
+            label={rejectModal.reasons.includes("Other") ? "Note (required for Other)" : "Note (optional)"}
+            hint="Included in the email to the agent"
+            htmlFor="reject-note"
+          >
+            <Textarea
+              id="reject-note"
+              rows={3}
+              maxLength={400}
+              placeholder="Please send a photo of the shop front and your business registration."
+              value={rejectModal.note}
+              onChange={(e) =>
+                setRejectModal((prev) => ({ ...prev, note: e.target.value, error: "" }))
+              }
+            />
+          </Field>
+        </div>
+        {rejectModal.error ? (
+          <p role="alert" style={{ margin: "8px 0 0", fontSize: 13, color: "var(--danger, #B91C1C)" }}>
+            {rejectModal.error}
+          </p>
+        ) : null}
       </Modal>
     </div>
   );
