@@ -2382,6 +2382,15 @@ export const api = createApi({
       providesTags: ["RuntimeSettings", "ShopAssignmentPolicy"],
     }),
 
+    /** WhatsApp messages: what is set up (sender, templates) and the latest sends. */
+    getWhatsAppStatus: builder.query({
+      query: () => ({
+        url: "admin/runtimeSettings/whatsapp",
+        method: "GET",
+      }),
+      providesTags: ["RuntimeSettings"],
+    }),
+
     getFailAttemptInstructionSets: builder.query({
       query: (scope) => ({
         url: scope
@@ -2998,6 +3007,7 @@ export const {
   useUpdatePlatformOperationalHoursMutation,
   useGetRuntimeSettingsQuery,
   useGetShopCapacityOverridesQuery,
+  useGetWhatsAppStatusQuery,
   useUpdateRuntimeSettingsMutation,
   useGetRevenueRampPolicyQuery,
   useUpdateRevenueRampPolicyMutation,

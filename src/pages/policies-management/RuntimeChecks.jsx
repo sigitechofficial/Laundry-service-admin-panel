@@ -4,6 +4,7 @@ import { Button, Field, Input, PageHeader } from "../../design-system";
 import { Notice, Toggle } from "../misc-kit";
 import { DirectoryError, DirectoryFormCard, PageLoading } from "../directory-table/directoryTable";
 import useToaster from "../../components/ui/Toaster";
+import WhatsAppMessagesCard from "./WhatsAppMessagesCard";
 import {
   useGetAllZonesQuery,
   useGetRevenueRampPolicyQuery,
@@ -765,6 +766,10 @@ export default function RuntimeChecks() {
           <Button onClick={handleSave} disabled={saving}>
             {saving ? "Saving…" : "Save runtime checks"}
           </Button>
+
+          <div style={{ marginTop: 24 }}>
+            <WhatsAppMessagesCard settings={settings} />
+          </div>
         </>
       )}
     </div>
