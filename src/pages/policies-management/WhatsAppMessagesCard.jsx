@@ -33,9 +33,11 @@ export default function WhatsAppMessagesCard({ settings }) {
   const info = useMemo(() => data?.data || {}, [data]);
   const events = useMemo(() => info.events || [], [info]);
   const recent = info.recent || [];
+  const autoReply = info.autoReply || null;
 
   const [master, setMaster] = useState(false);
   const [perEvent, setPerEvent] = useState({});
+  const [autoReplyOn, setAutoReplyOn] = useState(true);
   const [showTexts, setShowTexts] = useState(false);
 
   useEffect(() => {
@@ -43,14 +45,16 @@ export default function WhatsAppMessagesCard({ settings }) {
     const next = {};
     for (const e of events) next[e.settingKey] = settings?.[e.settingKey]?.value !== false;
     setPerEvent(next);
-  }, [settings, events]);
+    if (autoReply?.settingKey) setAutoReplyOn(settings?.[autoReply.settingKey]?.value !== false);
+  }, [settings, events, autoReply?.settingKey]);
 
   const ready = Boolean(info.twilioConfigured && info.senderConfigured);
   const templatesReady = events.filter((e) => e.templateConfigured).length;
 
   const save = async () => {
     try {
-      await updateSettings({ whatsappEnabled: master, ...perEvent }).unwrap();
+      const extra = autoReply?.settingKey ? { [autoReply.settingKey]: autoReplyOn } : {};
+      await updateSettings({ whatsappEnabled: master, ...perEvent, ...extra }).unwrap();
       success("WhatsApp settings saved.");
       refetch();
     } catch (err) {
@@ -114,6 +118,36 @@ export default function WhatsAppMessagesCard({ settings }) {
               </div>
             ))}
           </div>
+
+          {autoReply ? (
+            <div style={{ padding: "10px 0", ...line }}>
+              <Toggle
+                checked={autoReplyOn}
+                disabled={!master}
+                onChange={(ev) => setAutoReplyOn(ev.target.checked)}
+                label={autoReply.label}
+              />
+              <p style={{ ...muted, marginTop: 6 }}>
+                When a customer writes to the WhatsApp number they get this reply, at most once every 12 hours:
+              </p>
+              <p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--ink-2, #38424f)", background: "var(--surface-2, #f5f7fb)", borderRadius: 8, padding: "8px 10px" }}>
+                {autoReply.preview}
+              </p>
+              {!autoReply.supportPhone ? (
+                <p style={{ ...muted, marginTop: 6, color: "var(--warning-ink, #92400e)" }}>
+                  No support phone is set, so the reply has no number. Add it on the Customer Support page (Support Phone).
+                </p>
+              ) : (
+                <p style={{ ...muted, marginTop: 6 }}>The number and hours come from the Customer Support page (Support Phone, Support Hours).</p>
+              )}
+              {autoReply.webhookUrl ? (
+                <p style={{ ...muted, marginTop: 6 }}>
+                  In Twilio, set the WhatsApp sender's incoming message webhook (POST) to{" "}
+                  <code style={{ fontSize: 12, wordBreak: "break-all" }}>{autoReply.webhookUrl}</code>
+                </p>
+              ) : null}
+            </div>
+          ) : null}
 
           <div style={{ marginTop: 8 }}>
             <button
