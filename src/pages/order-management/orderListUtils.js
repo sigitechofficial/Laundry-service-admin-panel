@@ -4,6 +4,7 @@ import { downloadCsv } from "../../utilities/csvExport";
 import { canAdminAssignOrReassignFromBooking } from "../../shared/adminAssignGate";
 import { resolveOrderStatusTitle } from "../../shared/orderEditStatusGate";
 import { isInvoiceIssued } from "../../shared/invoiceLifecycle";
+import { paidAtBooking } from "../../shared/paidAtBooking";
 import {
   DATE_TIME_FORMAT,
   formatBookingWindow,
@@ -74,6 +75,7 @@ function toAmount(value) {
   const n = Number(value);
   return Number.isFinite(n) ? n : null;
 }
+
 
 function normalizeStatusKey(value) {
   return String(value ?? "")
@@ -335,11 +337,15 @@ export function mapBookingToOrderListRow(booking) {
     booking?.orderAmount != null ? Number(booking.orderAmount) : null;
   const billing = resolveBillingDetail(booking);
   const paymentMethod = resolvePaymentMethodLabel(booking);
-  const upfrontAmount = toAmount(billing?.upfrontAmount);
+  const atBooking = paidAtBooking(booking, billing);
+  const upfrontAmount = atBooking ? atBooking.amount : null;
   // Final = persisted invoice total once finalized, else the running order amount.
   const finalAmount = toAmount(billing?.total) ?? costAmount;
-  const upfrontLabel =
-    upfrontAmount != null ? formatOrderMoney(upfrontAmount, booking) : "—";
+  const upfrontLabel = atBooking?.cash
+    ? "None (cash)"
+    : upfrontAmount != null
+      ? formatOrderMoney(upfrontAmount, booking)
+      : "—";
   const invoiceIssued = isInvoiceIssued(booking);
   const finalLabel = invoiceIssued
     ? finalAmount != null
